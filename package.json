@@ -1,0 +1,26 @@
+{
+  "name": "ai-ecom-tool",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "typecheck": "turbo run typecheck",
+    "seed": "pnpm --filter @ai-ecom/db run seed",
+    "db:generate": "pnpm --filter @ai-ecom/db run prisma:generate",
+    "db:migrate": "pnpm --filter @ai-ecom/db run prisma:migrate"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.3",
+    "typescript": "^5.5.4",
+    "@types/node": "^20.14.12"
+  }
+}
