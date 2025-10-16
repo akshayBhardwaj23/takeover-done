@@ -59,7 +59,12 @@ function IntegrationsInner() {
                 key={c.id}
                 className="flex items-center justify-between rounded border px-3 py-2"
               >
-                <span>{c.shopDomain ?? '(unknown)'}</span>
+                <a
+                  href={`/inbox?shop=${encodeURIComponent(c.shopDomain ?? '')}`}
+                  className="text-indigo-600 hover:underline"
+                >
+                  {c.shopDomain ?? '(unknown)'}
+                </a>
                 <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                   {c.type}
                 </span>
