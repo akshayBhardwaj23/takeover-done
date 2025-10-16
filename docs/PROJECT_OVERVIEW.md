@@ -80,7 +80,8 @@ ai-ecom-tool/
 Basics of implementations by area:
 
 - `apps/web/app/api/shopify/*`: Implements OAuth start/callback, HMAC/state verification, access token exchange, `Connection` persistence, and conditional webhook registration + mock seeding.
-- `apps/web/app/inbox/page.tsx`: Fetches recent orders via tRPC, shows details, drafts AI reply with `aiSuggestReply` stub, creates `Action` and logs send (stub).
+- `apps/web/app/api/webhooks/shopify/route.ts`: Verifies HMAC, logs event, and persists/updates `Order` rows on `orders/create`, `orders/fulfilled`, `refunds/create`.
+- `apps/web/app/inbox/page.tsx`: Fetches recent orders via Admin API and DB (`ordersListDb`), shows details, drafts AI reply with `aiSuggestReply` stub, creates `Action` and logs send (stub).
 - `packages/api/src/index.ts`: tRPC router with read queries (health, orders, connections) and write mutations (AI draft stub, action create/approve-send stub).
 - `packages/db`: Prisma schema and `logEvent` utility to persist `Event` rows for auditing.
 

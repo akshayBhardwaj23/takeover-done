@@ -10,7 +10,7 @@
 
 **Protected topics** (require Partner approval)
 
-- `orders/create`, `refunds/create`, `fulfillments/create`
+- `orders/create`, `refunds/create`, `orders/fulfilled`
 - Controlled by `PROTECTED_WEBHOOKS` flag
 
 **Non-protected topics**

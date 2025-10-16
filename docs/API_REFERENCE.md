@@ -18,6 +18,9 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
 - `orderGet({ shop, orderId })` → `{ order: OrderDetail | null }`
   - Calls Shopify Admin API `/orders/{id}.json`
 
+- `ordersListDb({ take? })` → `{ orders: DbOrder[] }`
+  - Lists orders persisted from Shopify webhooks in our Postgres via Prisma
+
 Notes:
 
 - Both `ordersRecent` and `orderGet` resolve the `Connection` by `shop` (domain) and require an existing connection; otherwise they return an empty list/null safely.
@@ -58,6 +61,8 @@ type OrderDetail = OrderSummary & {
   - Redirects to `/integrations?connected=1&shop=...`
 - `POST /api/webhooks/shopify`
   - Verifies Shopify webhook HMAC; handles topics (protected registration behind flag)
+- `GET /api/shopify/webhooks/register?shop=...` (dev utility)
+  - Re-registers webhooks for an existing connection and returns the current list
 - `POST /api/webhooks/gmail` (placeholder)
   - Reserved for inbound email parsing
 - `GET /api/trpc/[trpc]`

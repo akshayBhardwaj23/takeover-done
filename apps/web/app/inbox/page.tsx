@@ -14,6 +14,7 @@ export default function InboxPage() {
     { shop: shop || '', limit: 10 },
     { enabled: !!shop },
   );
+  const dbOrders = trpc.ordersListDb.useQuery({ take: 20 });
 
   const orders = useMemo(() => data?.orders ?? [], [data]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -41,6 +42,23 @@ export default function InboxPage() {
           {orders.length === 0 && shop && (
             <li className="text-sm text-gray-500">No orders found.</li>
           )}
+          {dbOrders.data?.orders?.length
+            ? dbOrders.data.orders.map((o) => (
+                <li
+                  key={o.id}
+                  className={`rounded border p-3 cursor-pointer ${selected === o.shopifyId ? 'ring-2 ring-indigo-500' : ''}`}
+                  onClick={() => setSelected(o.shopifyId)}
+                >
+                  <div className="text-sm font-medium">
+                    Shopify #{o.shopifyId}
+                  </div>
+                  <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
+                  <div className="mt-1 text-xs text-gray-600">
+                    {(o.totalAmount / 100).toFixed(2)} • {o.status}
+                  </div>
+                </li>
+              ))
+            : null}
           {orders.map((o) => (
             <li
               key={o.id}

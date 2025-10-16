@@ -1,7 +1,7 @@
 type WebhookTopic =
   | 'orders/create'
   | 'refunds/create'
-  | 'fulfillments/create'
+  | 'orders/fulfilled'
   | 'app/uninstalled'
   | 'shop/update'
   | 'products/create';
@@ -12,7 +12,7 @@ export async function registerWebhooks(shop: string, accessToken: string) {
   const protectedTopics: WebhookTopic[] = [
     'orders/create',
     'refunds/create',
-    'fulfillments/create',
+    'orders/fulfilled',
   ];
   const safeTopics: WebhookTopic[] = [
     'app/uninstalled',
@@ -36,6 +36,10 @@ export async function registerWebhooks(shop: string, accessToken: string) {
       );
       if (!resp.ok) {
         const text = await resp.text().catch(() => '');
+        // Treat duplicate address (already registered) as success
+        if (resp.status === 422 && /address\".*already been taken/.test(text)) {
+          continue;
+        }
         console.warn('shopify webhook register failed', {
           topic,
           status: resp.status,

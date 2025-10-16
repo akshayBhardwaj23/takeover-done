@@ -44,6 +44,22 @@ export const appRouter = t.router({
       return { connections: [] };
     }
   }),
+  ordersListDb: t.procedure
+    .input(
+      z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
+    )
+    .query(async ({ input }) => {
+      try {
+        const take = input?.take ?? 20;
+        const orders = await prisma.order.findMany({
+          orderBy: { createdAt: 'desc' },
+          take,
+        });
+        return { orders };
+      } catch {
+        return { orders: [] };
+      }
+    }),
   orderGet: t.procedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
     .query(async ({ input }) => {
