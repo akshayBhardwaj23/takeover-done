@@ -1,12 +1,15 @@
 'use client';
 import { trpc } from '../lib/trpc';
 import Link from 'next/link';
+import { useState } from 'react';
 
 export default function HomePage() {
   const health = trpc.health.useQuery();
   const ordersCount = trpc.ordersCount.useQuery({
     shop: 'dev-ai-ecom.myshopify.com',
   });
+  const connections = trpc.connections.useQuery();
+  const [annual, setAnnual] = useState(false);
 
   return (
     <main className="relative min-h-[100dvh] bg-white">
@@ -138,42 +141,114 @@ export default function HomePage() {
       {/* Integrations */}
       <section className="mx-auto max-w-6xl px-6 py-10">
         <div className="rounded-2xl bg-gray-50 p-6 ring-1 ring-gray-200">
-          <div className="grid grid-cols-1 items-center gap-8 sm:grid-cols-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-2xl font-bold text-gray-900">
+              Best‑in‑class integrations
+            </h3>
+            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-gray-700 ring-1 ring-black/10">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              {connections.data?.connections?.length ?? 0} connected store(s)
+            </span>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 items-start gap-8 sm:grid-cols-2">
             <div>
-              <h3 className="text-2xl font-bold text-gray-900">
-                Best‑in‑class integrations
-              </h3>
-              <p className="mt-2 max-w-md text-gray-600">
+              <p className="max-w-md text-gray-600">
                 Native connections for Shopify and Gmail. No passwords, secure
                 OAuth, and resilient webhooks so your inbox always stays in
                 sync.
               </p>
-              <ul className="mt-4 grid grid-cols-1 gap-3 text-sm text-gray-800 sm:grid-cols-2">
+              <ul className="mt-4 space-y-3 text-gray-800">
                 {[
                   'Sync orders, customers, and payments',
                   'Inline order actions from the inbox',
                   'One‑click OAuth setup',
                   'Reliable webhook delivery',
                 ].map((i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="mt-1 h-4 w-4 rounded-full bg-black text-white">
-                      <span className="flex h-full w-full items-center justify-center text-[10px]">
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="mt-1 inline-block h-5 w-5 rounded-full bg-black text-white">
+                      <span className="flex h-full w-full items-center justify-center text-xs">
                         ✓
                       </span>
                     </span>
-                    <span>{i}</span>
+                    <span className="text-sm sm:text-base">{i}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border bg-white p-6 text-center shadow-sm">
-                <div className="mx-auto h-10 w-10 rounded-full bg-green-500" />
-                <div className="mt-3 text-sm font-semibold">Shopify</div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link
+                  href="/integrations"
+                  className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Connect your store
+                </Link>
+                <Link
+                  href="/inbox"
+                  className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold"
+                >
+                  See it in action
+                </Link>
               </div>
-              <div className="rounded-xl border bg-white p-6 text-center shadow-sm">
-                <div className="mx-auto h-10 w-10 rounded-full bg-red-500" />
-                <div className="mt-3 text-sm font-semibold">Gmail</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Shopify card */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm ring-1 ring-black/5">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-green-500" />
+                  <div className="text-sm font-semibold">Shopify</div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <div className="h-2 w-32 rounded bg-gray-200" />
+                  <div className="h-2 w-24 rounded bg-gray-200" />
+                </div>
+                <Link
+                  href="/integrations"
+                  className="mt-4 inline-block w-full rounded-md bg-emerald-600 px-3 py-2 text-center text-xs font-semibold text-white"
+                >
+                  Connect
+                </Link>
+              </div>
+              {/* Gmail card */}
+              <div className="rounded-xl border bg-white p-5 shadow-sm ring-1 ring-black/5">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-red-500" />
+                  <div className="text-sm font-semibold">Gmail</div>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <div className="h-2 w-32 rounded bg-gray-200" />
+                  <div className="h-2 w-24 rounded bg-gray-200" />
+                </div>
+                <Link
+                  href="/integrations"
+                  className="mt-4 inline-block w-full rounded-md bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white"
+                >
+                  Authorize
+                </Link>
+              </div>
+
+              {/* Steps mock card */}
+              <div className="col-span-2 rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+                <div className="mb-3 text-sm font-semibold">
+                  Connect in 3 steps
+                </div>
+                <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    { n: '1', t: 'Install Shopify app' },
+                    { n: '2', t: 'Approve Gmail access' },
+                    { n: '3', t: 'Start replying with AI' },
+                  ].map((s) => (
+                    <li
+                      key={s.n}
+                      className="flex items-center gap-3 rounded-lg border p-3"
+                    >
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">
+                        {s.n}
+                      </span>
+                      <span className="text-sm">{s.t}</span>
+                    </li>
+                  ))}
+                </ol>
               </div>
             </div>
           </div>
@@ -224,38 +299,77 @@ export default function HomePage() {
           Find the insights you need to improve operations: response times,
           automation rates, saved minutes, and customer satisfaction.
         </p>
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {[
-            { label: 'Avg time saved per email', value: '≥ 60%' },
-            { label: 'AI action accuracy', value: '≥ 85%' },
-            { label: 'Manual approval rate', value: '≤ 30%' },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5"
-            >
-              <div className="text-2xl font-extrabold text-gray-900">
-                {stat.value}
-              </div>
-              <div className="mt-1 text-sm text-gray-600">{stat.label}</div>
+
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
+          {/* Left: report UI mock with video overlay */}
+          <div className="relative rounded-2xl border bg-white p-4 shadow-sm ring-1 ring-black/5">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="h-3 w-24 rounded bg-gray-200" />
+              <div className="h-3 w-12 rounded bg-gray-200" />
             </div>
-          ))}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg border p-3">
+                <div className="h-2 w-20 rounded bg-gray-200" />
+                <div className="mt-2 h-16 rounded bg-indigo-100" />
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="h-2 w-16 rounded bg-gray-200" />
+                <div className="mt-2 h-16 rounded bg-pink-100" />
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="h-2 w-14 rounded bg-gray-200" />
+                <div className="mt-2 h-16 rounded bg-emerald-100" />
+              </div>
+            </div>
+            <div className="absolute right-6 -bottom-8 w-64 rounded-xl border bg-white p-3 shadow-lg">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold">Show transcription</span>
+                <span className="h-2 w-16 rounded bg-gray-200" />
+              </div>
+              <div className="mt-2 h-24 rounded-md bg-gray-100" />
+            </div>
+          </div>
+
+          {/* Right: metrics */}
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {[
+              { label: 'Avg time saved per email', value: '≥ 60%' },
+              { label: 'AI action accuracy', value: '≥ 85%' },
+              { label: 'Manual approval rate', value: '≤ 30%' },
+              { label: 'Median reply time', value: '31.6 s' },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5"
+              >
+                <div className="text-2xl font-extrabold text-gray-900">
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-sm text-gray-600">{stat.label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Testimonials */}
       <section className="mx-auto max-w-6xl px-6 py-10">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           {[
             {
               quote:
-                'We switched to this tool for an on‑brand, reliable workflow and it paid off immediately.',
-              author: 'Sr UX Researcher at DTC Brand',
+                'We spent a while searching for a tool that was easy to use and reliable. This was the best choice.',
+              author: 'Sr UX Researcher, Global Music Platform',
             },
             {
               quote:
                 'Simple, flexible, and perfect for everyday support tasks. Approvals give us confidence.',
-              author: 'Support Lead at Marketplace',
+              author: 'Support Lead, Marketplace',
+            },
+            {
+              quote:
+                'Best-in-class Gmail + Shopify integration. Our response times dropped immediately.',
+              author: 'Head of CX, DTC Brand',
             },
           ].map((t) => (
             <div
@@ -271,9 +385,24 @@ export default function HomePage() {
 
       {/* Pricing */}
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-16">
-        <h3 className="text-4xl font-extrabold tracking-tight text-gray-900">
-          Pricing
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h3 className="text-4xl font-extrabold tracking-tight text-gray-900">
+            Pricing
+          </h3>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-700">Annual discount</span>
+            <button
+              type="button"
+              aria-pressed={annual}
+              onClick={() => setAnnual((v) => !v)}
+              className={`${annual ? 'bg-black' : 'bg-gray-200'} relative h-6 w-11 rounded-full transition-colors`}
+            >
+              <span
+                className={`${annual ? 'translate-x-5' : 'translate-x-1'} inline-block h-4 w-4 translate-y-1 rounded-full bg-white transition-transform`}
+              />
+            </button>
+          </div>
+        </div>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
           {/* Free */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -294,7 +423,12 @@ export default function HomePage() {
           {/* Team */}
           <div className="rounded-2xl border bg-white p-6 shadow-sm ring-2 ring-black">
             <div className="text-lg font-semibold">Team</div>
-            <div className="mt-2 text-3xl font-extrabold">$175 / mo</div>
+            <div className="mt-2 text-3xl font-extrabold">
+              {annual ? '$150 / mo' : '$175 / mo'}
+            </div>
+            {annual && (
+              <div className="mt-1 text-xs text-gray-600">Billed annually</div>
+            )}
             <ul className="mt-4 space-y-2 text-sm text-gray-700">
               <li>Unlimited workflows</li>
               <li>Unlimited responses (with your audience)</li>
