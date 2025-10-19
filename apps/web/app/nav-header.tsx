@@ -11,7 +11,7 @@ export default function Header() {
     <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
         <a href="/" className="font-semibold">
-          AI‑Ecom
+          ZYYP
         </a>
         <nav className="flex items-center gap-4 text-sm">
           <a href="/integrations" className="hover:underline">
