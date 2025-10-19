@@ -93,6 +93,11 @@ export async function GET(req: NextRequest) {
 
   const base = process.env.SHOPIFY_APP_URL || new URL(req.url).origin;
   const url = new URL('/integrations', base);
+  // if store already existed, surface a toast via query param
+  try {
+    const existing = await prisma.connection.findFirst({ where: { shopDomain: shop } });
+    if (existing) url.searchParams.set('already', '1');
+  } catch {}
   url.searchParams.set('connected', '1');
   url.searchParams.set('shop', shop);
   const res = NextResponse.redirect(url);
