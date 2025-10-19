@@ -1,0 +1,6 @@
+tunnel: cb6ebdbc-8a2f-49e9-9c20-6b8b73c0fc30
+credentials-file: /Users/akshaybhardwaj/.cloudflared/cb6ebdbc-8a2f-49e9-9c20-6b8b73c0fc30.json
+ingress:
+  - hostname: dev.zyyp.ai
+    service: http://localhost:3000
+  - service: http_status:404
