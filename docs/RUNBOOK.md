@@ -132,6 +132,16 @@ Commands:
 - Protected by NextAuth middleware: `/integrations`, `/inbox`
 - Anonymous users visiting protected routes are redirected to sign in
 
+### Header & auth UX
+
+- The global header shows Sign in when anonymous, and avatar + name with a Sign out button when authenticated (NextAuth SessionProvider).
+- Sign out redirects back to `/`.
+
+### Integrations UX notes
+
+- Duplicate store prevention: entering a Shopify domain that is already connected will show a toast and will not start OAuth.
+- If an already-connected store starts OAuth anyway, the callback redirects back to `/integrations?connected=1&already=1&shop=...` and a success toast is shown instead of adding a duplicate.
+
 ### Local onboarding (TL;DR for new devs)
 
 1. `pnpm i`
