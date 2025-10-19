@@ -2,6 +2,15 @@
 import { trpc } from '../../lib/trpc';
 import { useEffect, useMemo, useState } from 'react';
 
+type OrderSummary = {
+  id: string;
+  name: string;
+  email?: string;
+  totalPrice: string;
+  createdAt: string;
+};
+type LineItem = { id: string; title: string; quantity: number; price: string };
+
 export default function InboxPage() {
   const [shop, setShop] = useState('');
   useEffect(() => {
@@ -16,7 +25,10 @@ export default function InboxPage() {
   );
   const dbOrders = trpc.ordersListDb.useQuery({ take: 20 });
 
-  const orders = useMemo(() => data?.orders ?? [], [data]);
+  const orders = useMemo<OrderSummary[]>(
+    () => (data?.orders ?? []) as OrderSummary[],
+    [data],
+  );
   const [selected, setSelected] = useState<string | null>(null);
   const orderDetail = trpc.orderGet.useQuery(
     { shop: shop || '', orderId: selected || '' },
@@ -92,7 +104,7 @@ export default function InboxPage() {
                 {orderDetail.data.order.email ?? '—'}
               </div>
               <ul className="mt-2 text-xs text-gray-700 list-disc pl-4">
-                {orderDetail.data.order.lineItems.map((li) => (
+                {orderDetail.data.order.lineItems.map((li: LineItem) => (
                   <li key={li.id}>
                     {li.quantity} × {li.title} — {li.price}
                   </li>
@@ -103,13 +115,15 @@ export default function InboxPage() {
               <div className="text-sm font-medium">AI Suggestion</div>
               <button
                 className="rounded bg-black px-3 py-1.5 text-sm text-white"
-                onClick={() =>
+                onClick={() => {
+                  const o = orderDetail.data?.order;
+                  if (!o) return;
                   suggest.mutate({
                     customerMessage: 'Customer asked about order status',
-                    orderSummary: `${orderDetail.data.order.name} ${orderDetail.data.order.totalPrice}`,
+                    orderSummary: `${o.name} ${o.totalPrice}`,
                     tone: 'friendly',
-                  })
-                }
+                  });
+                }}
               >
                 Suggest reply
               </button>
@@ -124,20 +138,20 @@ export default function InboxPage() {
                 <button
                   className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white"
                   onClick={async () => {
-                    if (!orderDetail.data?.order) return;
+                    const o = orderDetail.data?.order;
+                    if (!o) return;
                     const res = await createAction.mutateAsync({
                       shop: shop,
-                      shopifyOrderId: orderDetail.data.order.id,
-                      email: orderDetail.data.order.email ?? undefined,
+                      shopifyOrderId: o.id,
+                      email: o.email ?? undefined,
                       type: 'INFO_REQUEST',
                       note: 'Manual approval',
                       draft,
                     });
                     await approveSend.mutateAsync({
                       actionId: res.actionId,
-                      to:
-                        orderDetail.data.order.email ?? 'customer@example.com',
-                      subject: `Re: ${orderDetail.data.order.name}`,
+                      to: o.email ?? 'customer@example.com',
+                      subject: `Re: ${o.name}`,
                       body: draft,
                     });
                     alert('Approved & (stub) sent');
