@@ -30,11 +30,13 @@ export async function POST(req: NextRequest) {
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
+          shopDomain: shop || null,
           status: 'CREATED',
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
         },
         update: {
+          shopDomain: shop || null,
           status: 'CREATED',
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,

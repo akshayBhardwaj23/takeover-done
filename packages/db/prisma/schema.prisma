@@ -37,6 +37,7 @@ enum ConnectionType {
 model Order {
   id          String   @id @default(cuid())
   shopifyId   String   @unique
+  shopDomain  String?
   status      String
   email       String?
   totalAmount Int

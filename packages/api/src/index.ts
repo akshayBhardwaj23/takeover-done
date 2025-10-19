@@ -9,14 +9,17 @@ export const appRouter = t.router({
   echo: t.procedure
     .input(z.object({ text: z.string() }))
     .query(({ input }) => ({ text: input.text })),
-  ordersCount: t.procedure.query(async () => {
-    try {
-      const count = await prisma.order.count();
-      return { count };
-    } catch {
-      return { count: 0 };
-    }
-  }),
+  ordersCount: t.procedure
+    .input(z.object({ shop: z.string().optional() }).optional())
+    .query(async ({ input }) => {
+      try {
+        const where = input?.shop ? { shopDomain: input.shop } : undefined;
+        const count = await prisma.order.count({ where });
+        return { count };
+      } catch {
+        return { count: 0 };
+      }
+    }),
   threadsList: t.procedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
@@ -140,6 +143,7 @@ export const appRouter = t.router({
         where: { shopifyId: input.shopifyOrderId },
         create: {
           shopifyId: input.shopifyOrderId,
+          shopDomain: input.shop,
           status: 'PENDING',
           email: input.email ?? null,
           totalAmount: 0,
