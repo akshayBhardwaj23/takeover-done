@@ -12,7 +12,10 @@ function IntegrationsInner() {
   const { data } = trpc.connections.useQuery();
   const [shopInput, setShopInput] = useState('');
   const connections = useMemo(() => data?.connections ?? [], [data]);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [toast, setToast] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   useEffect(() => {
     const already = sp.get('already');
