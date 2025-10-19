@@ -38,7 +38,7 @@ export default function Header() {
                 </span>
               </div>
               <button
-                className="rounded border px-3 py-1.5"
+                className="rounded border px-3 py-1.5 cursor-pointer"
                 onClick={() => signOut({ callbackUrl: '/' })}
               >
                 Sign out
@@ -46,7 +46,7 @@ export default function Header() {
             </div>
           ) : (
             <button
-              className="rounded bg-black px-3 py-1.5 text-white"
+              className="rounded bg-black px-3 py-1.5 text-white cursor-pointer"
               onClick={() => signIn('google')}
             >
               Sign in
