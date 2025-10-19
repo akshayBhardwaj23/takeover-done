@@ -101,6 +101,8 @@ Basics of implementations by area:
 - `MOCK_WEBHOOKS` — seed mock events for local/dev
 - `SHOPIFY_APP_URL` — HTTPS external URL for OAuth/webhooks
 - `DATABASE_URL` — Prisma reads from `packages/db/.env`
+ - `NEXTAUTH_URL` — Origin used by NextAuth (localhost or tunnel)
+ - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `NEXTAUTH_SECRET`
 
 ### Current UX Flow
 

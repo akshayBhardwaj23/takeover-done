@@ -40,6 +40,25 @@ Suggested `apps/web/.env.local` keys:
    ```
 4. Start HTTPS tunnel and copy URL to `SHOPIFY_APP_URL` and `NEXTAUTH_URL`.
 
+### Google OAuth (NextAuth)
+
+1. In Google Cloud Console → APIs & Services:
+   - Configure OAuth consent screen: type External, scopes `email`, `profile`, add your Google as Test user.
+   - Create Credentials → OAuth client ID → Web application.
+   - Authorized redirect URIs (choose based on your origin):
+     - `http://localhost:3000/api/auth/callback/google`
+     - `https://dev.zyyp.ai/api/auth/callback/google` (or your tunnel domain)
+   - Authorized JavaScript origins:
+     - `http://localhost:3000`
+     - `https://dev.zyyp.ai`
+   - Copy Client ID/Secret.
+2. Set `apps/web/.env.local`:
+   - `NEXTAUTH_URL=http://localhost:3000` (or `https://dev.zyyp.ai`)
+   - `NEXTAUTH_SECRET=<random-32+ chars>`
+   - `GOOGLE_CLIENT_ID=...`
+   - `GOOGLE_CLIENT_SECRET=...`
+3. Restart dev. Visit `/api/auth/signin`.
+
 ### Development
 
 ```bash
@@ -71,6 +90,24 @@ Restart dev (`pnpm dev`).
 - Ensure the app is public (draft) and “Test on development stores” enabled.
 - Use the same Client ID/Secret in env.
 
+### Cloudflare Tunnel (custom domain)
+
+- Named tunnel example (already configured in `infra/cloudflared/config.yml`):
+
+```yaml
+tunnel: <YOUR_TUNNEL_ID>
+credentials-file: ~/.cloudflared/<YOUR_TUNNEL_ID>.json
+ingress:
+  - hostname: dev.zyyp.ai
+    service: http://localhost:3000
+  - service: http_status:404
+```
+
+Commands:
+- `cloudflared tunnel run <name>` (or use the config above)
+- Ensure DNS CNAME for `dev.zyyp.ai` points to the tunnel per Cloudflare setup
+- Set `SHOPIFY_APP_URL` and `NEXTAUTH_URL` to `https://dev.zyyp.ai`
+
 ### Sign in (NextAuth)
 
 - Visit `/api/auth/signin` and sign in with Google (or add a sign-in button).
@@ -88,6 +125,22 @@ Restart dev (`pnpm dev`).
 - Select an order to view details
 - Click “Suggest reply” to generate a draft (stub)
 - Click “Approve & Send (stub)” to create an Action and log an Event
+
+### Public vs Protected routes
+
+- Public: `/` (homepage)
+- Protected by NextAuth middleware: `/integrations`, `/inbox`
+- Anonymous users visiting protected routes are redirected to sign in
+
+### Local onboarding (TL;DR for new devs)
+
+1. `pnpm i`
+2. Set `packages/db/.env` → `DATABASE_URL=...` (pooler; sslmode=require)
+3. `pnpm db:migrate`
+4. Start tunnel (`cloudflared ...`) → set `SHOPIFY_APP_URL` & `NEXTAUTH_URL`
+5. Create Google OAuth client → set `GOOGLE_CLIENT_ID/SECRET` & `NEXTAUTH_SECRET`
+6. `lsof -ti tcp:3000 | xargs -r kill -9 && pnpm dev`
+7. `/api/auth/signin` → sign in; `/integrations` → connect store; `/inbox?shop=...`
 
 ### Feature flags
 
