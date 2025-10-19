@@ -15,7 +15,8 @@
     "typecheck": "turbo run typecheck",
     "seed": "pnpm --filter @ai-ecom/db run seed",
     "db:generate": "pnpm --filter @ai-ecom/db run prisma:generate",
-    "db:migrate": "pnpm --filter @ai-ecom/db run prisma:migrate"
+    "db:migrate": "pnpm --filter @ai-ecom/db run prisma:migrate",
+    "tunnel:dev": "cloudflared tunnel --config infra/cloudflared/config.yml run"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
