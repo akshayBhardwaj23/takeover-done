@@ -22,6 +22,8 @@ Suggested `apps/web/.env.local` keys:
 - Feature flags:
   - `PROTECTED_WEBHOOKS=true|false`
   - `MOCK_WEBHOOKS=true|false`
+  - `NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mail.example.com` (your inbound email domain)
+  - `MAILGUN_SIGNING_KEY=` (optional; enables provider signature verification)
 
 ### First-time setup
 
@@ -68,6 +70,14 @@ lsof -ti tcp:3000 | xargs -r kill -9 && pnpm dev
 
 The web app will be available at `http://localhost:3000` and via your HTTPS tunnel.
 
+### Inbound Email (Custom)
+
+1. Configure your provider (e.g., Mailgun) to route all messages to `mail.<your-domain>` and forward to webhook `POST /api/webhooks/email/custom`.
+2. Set `NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN` in `apps/web/.env.local`.
+3. (Optional) Set `MAILGUN_SIGNING_KEY` to enable signature verification.
+4. In the app, go to `/integrations` → Custom Email → Create alias.
+5. Forward your support mailbox to the generated alias and send a test email.
+
 ### Allowed Dev Origins (tunnel)
 
 If you proxy the app through a tunnel domain, Next.js may warn about cross-origin `/_next/*` assets. Add your tunnel to `apps/web/next.config.mjs`:
@@ -104,6 +114,7 @@ ingress:
 ```
 
 Commands:
+
 - `cloudflared tunnel run <name>` (or use the config above)
 - Ensure DNS CNAME for `dev.zyyp.ai` points to the tunnel per Cloudflare setup
 - Set `SHOPIFY_APP_URL` and `NEXTAUTH_URL` to `https://dev.zyyp.ai`

@@ -59,12 +59,25 @@ export default function InboxPage() {
     { enabled: !!selected },
   );
 
+  // Email threads (not tied to a selected order)
+  const emailThreads = trpc.threadsList.useQuery({ take: 30 });
+  const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const threadMessages = trpc.threadMessages.useQuery(
+    { threadId: selectedThread || '' },
+    { enabled: !!selectedThread },
+  );
+
   return (
     <main className="grid h-[calc(100dvh-0px)] grid-cols-12 bg-gradient-to-b from-white via-indigo-50/30 to-fuchsia-50/30">
       <section className="col-span-3 border-r bg-white/90 p-4 backdrop-blur">
-        <h2 className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-          Orders
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
+            Orders
+          </h2>
+          <Button variant="secondary" onClick={() => setSelectedThread(null)}>
+            Email
+          </Button>
+        </div>
         {!shop && (
           <Card className="mt-3 border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             Add ?shop=your-shop.myshopify.com to the URL to load orders.
@@ -135,14 +148,14 @@ export default function InboxPage() {
       </section>
       <section className="col-span-5 border-r bg-white/90 p-4 backdrop-blur">
         <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-          Order details
+          {selectedThread ? 'Thread' : 'Order details'}
         </h2>
-        {!selected && (
+        {!selected && !selectedThread && (
           <div className="text-sm text-white/60">
             Select an order to view details, AI suggestions, and actions.
           </div>
         )}
-        {selected && orderDetail.data?.order && (
+        {selected && !selectedThread && orderDetail.data?.order && (
           <div className="space-y-3">
             <Card className="p-3">
               <div className="text-sm font-medium">
@@ -213,14 +226,14 @@ export default function InboxPage() {
       </section>
       <section className="col-span-4 bg-white/90 p-4 backdrop-blur">
         <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-          Email matches
+          {selectedThread ? 'Messages' : 'Email matches'}
         </h2>
-        {!selected && (
+        {!selected && !selectedThread && (
           <div className="text-sm text-gray-600">
             Select an order to view messages.
           </div>
         )}
-        {selected && (
+        {selected && !selectedThread && (
           <ScrollArea className="h-[calc(100dvh-120px)]">
             <div className="space-y-2 text-sm">
               {(messages.data?.messages ?? []).length === 0 && (
@@ -243,6 +256,73 @@ export default function InboxPage() {
                   <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
                     {m.body}
                   </div>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+
+        {/* Threads view */}
+        {!selected && (
+          <ScrollArea className="h-[calc(100dvh-120px)]">
+            <div className="space-y-2 text-sm">
+              {(emailThreads.data?.threads ?? []).length === 0 && (
+                <Card className="p-3 text-gray-500">No threads yet.</Card>
+              )}
+              {(emailThreads.data?.threads ?? []).map((t: any) => (
+                <Card
+                  key={t.id}
+                  className={`cursor-pointer p-3 ${selectedThread === t.id ? 'ring-2 ring-indigo-500' : ''}`}
+                  onClick={() => setSelectedThread(t.id)}
+                >
+                  <div className="text-sm font-medium">
+                    {t.subject ?? '(no subject)'}
+                  </div>
+                  <div className="text-xs text-gray-600">{t.customerEmail}</div>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        )}
+
+        {/* Thread messages */}
+        {selectedThread && (
+          <ScrollArea className="h-[calc(100dvh-120px)]">
+            <div className="space-y-2 text-sm">
+              {(threadMessages.data?.messages ?? []).length === 0 && (
+                <Card className="p-3 text-gray-500">
+                  No messages in this thread.
+                </Card>
+              )}
+              {(threadMessages.data?.messages ?? []).map((m: any) => (
+                <Card key={m.id} className="p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase text-gray-500">
+                      {m.direction}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(m.createdAt as any).toLocaleString()}
+                    </span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="text-xs text-gray-600">
+                    {m.from} → {m.to}
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                    {m.body}
+                  </div>
+                  {m.aiSuggestion && (
+                    <div className="mt-3 rounded border bg-gray-50 p-2 text-xs">
+                      <div className="font-semibold">AI Suggestion</div>
+                      <div className="mt-1 whitespace-pre-wrap">
+                        {m.aiSuggestion.reply}
+                      </div>
+                      <div className="mt-1 text-gray-600">
+                        Action: {m.aiSuggestion.proposedAction} • Confidence:{' '}
+                        {m.aiSuggestion.confidence}
+                      </div>
+                    </div>
+                  )}
                 </Card>
               ))}
             </div>

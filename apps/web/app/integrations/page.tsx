@@ -2,6 +2,7 @@
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
 import { Suspense, useEffect, useState, type ChangeEvent } from 'react';
+import { useSession } from 'next-auth/react';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import {
   Dialog,
@@ -26,6 +27,7 @@ type ConnectionSummary = {
 };
 
 function IntegrationsInner() {
+  const { data: session } = useSession();
   const sp = useSearchParams();
   const connected = sp.get('connected');
   const shop = sp.get('shop');
@@ -186,14 +188,19 @@ function IntegrationsInner() {
               </p>
             </div>
             <Button
-              onClick={() =>
+              onClick={() => {
+                const email = session?.user?.email;
+                if (!email) {
+                  alert('Please sign in first.');
+                  return;
+                }
                 createAlias.mutate({
-                  userEmail: 'founder@example.com',
+                  userEmail: email,
                   domain:
                     (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as string) ||
                     'mail.example.com',
-                })
-              }
+                });
+              }}
             >
               {createAlias.isPending ? 'Creating…' : 'Create alias'}
             </Button>
@@ -201,6 +208,10 @@ function IntegrationsInner() {
 
           <div className="mt-5">
             <h3 className="text-sm font-medium text-gray-900">Aliases</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Forward your support mailbox (e.g., support@yourbrand.com) to the
+              alias below.
+            </p>
             {(connections.filter((c) => c.type === 'CUSTOM_EMAIL').length ===
               0 && (
               <p className="mt-2 text-sm text-gray-500">
@@ -215,16 +226,49 @@ function IntegrationsInner() {
                       key={c.id}
                       className="group p-5 shadow-sm transition hover:shadow-md"
                     >
-                      <div className="text-sm font-semibold text-gray-900">
+                      <div className="text-sm font-semibold text-gray-900 break-all">
                         {c?.metadata?.alias ?? '(pending alias)'}
                       </div>
                       <Badge variant="secondary" className="mt-1">
                         Custom Email
                       </Badge>
+                      {c?.metadata?.alias && (
+                        <div className="mt-3">
+                          <Button
+                            variant="secondary"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(
+                                  (c as any).metadata.alias,
+                                );
+                                alert('Alias copied to clipboard');
+                              } catch {
+                                alert('Copy failed');
+                              }
+                            }}
+                          >
+                            Copy alias
+                          </Button>
+                        </div>
+                      )}
                     </Card>
                   ))}
               </div>
             )}
+            <div className="mt-4 rounded border bg-gray-50 p-3 text-xs text-gray-700">
+              <div className="font-semibold">Setup steps</div>
+              <ol className="mt-2 list-decimal pl-5">
+                <li>Click "Create alias" to generate your unique address.</li>
+                <li>
+                  In your email provider, add a forward from your support
+                  mailbox to this alias.
+                </li>
+                <li>
+                  Send a test email to your support mailbox; it should appear in
+                  Inbox shortly.
+                </li>
+              </ol>
+            </div>
           </div>
         </section>
       </div>

@@ -14,6 +14,15 @@
 - Smart templates, tone control, multi-language support
 - SLA timers, reminders, collision prevention
 
+Optional enhancements (Email & AI)
+
+- Provider signature verification alternatives (Postmark) alongside Mailgun
+- Attachment ingestion: store in object storage (S3/R2), preview in UI
+- Async AI pipeline via worker: summarize, classify, suggest action
+- Better order correlation heuristics (regex, fuzzy, recent-window ranking)
+- Outbound sending domain/identity management and DKIM alignment
+- Per-tenant rate limits and abuse detection for inbound
+
 ### Phase 3 — Shopify deep ops
 
 - Refunds, fulfillments, cancellations from the app (with safeguards)

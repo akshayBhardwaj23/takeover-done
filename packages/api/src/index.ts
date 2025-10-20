@@ -33,6 +33,34 @@ export const appRouter = t.router({
         return { threads: [] };
       }
     }),
+  threadMessages: t.procedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const messages = await prisma.message.findMany({
+          where: { threadId: input.threadId },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            from: true,
+            to: true,
+            body: true,
+            direction: true,
+            createdAt: true,
+            aiSuggestion: {
+              select: {
+                reply: true,
+                proposedAction: true,
+                confidence: true,
+              },
+            },
+          },
+        });
+        return { messages };
+      } catch {
+        return { messages: [] };
+      }
+    }),
   connections: t.procedure.query(async () => {
     try {
       const cons = await prisma.connection.findMany({

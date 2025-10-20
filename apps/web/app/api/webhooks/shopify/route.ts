@@ -20,6 +20,24 @@ export async function POST(req: NextRequest) {
 
   await logEvent('shopify.webhook', { topic, shop });
 
+  // Handle app uninstall: remove DB entries so the dashboard reflects disconnects
+  if (topic === 'app/uninstalled') {
+    try {
+      await prisma.connection.deleteMany({
+        where: { type: 'SHOPIFY' as any, shopDomain: shop },
+      });
+      // Best-effort: remove orders tied to this shop domain (if tracked)
+      await prisma.order.deleteMany({ where: { shopDomain: shop as any } });
+      await logEvent('shopify.app.uninstalled', { shop }, 'connection', shop);
+    } catch (err) {
+      await logEvent('shopify.app.uninstalled.error', {
+        shop,
+        err: String(err),
+      });
+    }
+    return NextResponse.json({ ok: true, removed: true });
+  }
+
   // Persist minimal Order info for dashboard visibility
   try {
     const json = JSON.parse(payload);

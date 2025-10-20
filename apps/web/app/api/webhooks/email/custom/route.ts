@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
+import crypto from 'node:crypto';
 
 // Simple shared-secret verification for MVP. In production, verify provider signature (Mailgun/Postmark)
 function verifySecret(req: NextRequest, secret: string | null) {
   const hdr = req.headers.get('x-email-webhook-secret');
   return secret && hdr && secret === hdr;
+}
+
+// Optional Mailgun-style signature verification
+function verifyMailgunSignature(raw: any): boolean {
+  const apiKey = process.env.MAILGUN_SIGNING_KEY;
+  if (!apiKey) return true; // skip if not configured
+  const sig = raw?.signature;
+  const token = sig?.token as string | undefined;
+  const timestamp = sig?.timestamp as string | undefined;
+  const signature = sig?.signature as string | undefined;
+  if (!token || !timestamp || !signature) return false;
+  const data = timestamp + token;
+  const digest = crypto.createHmac('sha256', apiKey).update(data).digest('hex');
+  return digest === signature;
 }
 
 function extractOrderCandidate(text: string): string | null {
@@ -32,11 +47,18 @@ export async function POST(req: NextRequest) {
     if (!to || !from)
       return NextResponse.json({ error: 'missing to/from' }, { status: 400 });
 
-    // Identify tenant by alias match in Connection.metadata.alias (MVP: first one)
-    const conn = await prisma.connection.findFirst({
+    // Identify tenant by alias match in Connection.metadata.alias
+    const all = await prisma.connection.findMany({
       where: { type: 'CUSTOM_EMAIL' as any },
-      orderBy: { createdAt: 'desc' },
+      select: { id: true, accessToken: true, metadata: true },
     });
+    const target = all.find((c: any) => {
+      const alias: string | undefined = (c.metadata as any)?.alias;
+      return alias && to.toLowerCase().includes(alias.toLowerCase());
+    });
+    const conn = target
+      ? await prisma.connection.findUnique({ where: { id: target.id } })
+      : null;
 
     if (!conn)
       return NextResponse.json(
@@ -45,7 +67,7 @@ export async function POST(req: NextRequest) {
       );
 
     const secret = conn.accessToken || null;
-    if (!verifySecret(req, secret)) {
+    if (!verifySecret(req, secret) || !verifyMailgunSignature(raw)) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 

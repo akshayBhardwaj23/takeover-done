@@ -57,11 +57,16 @@ sequenceDiagram
 
 **Inbound**
 
-- Inbound parse webhooks (Mailgun/Postmark): POST to `/api/webhooks/email`
-- IMAP polling for custom domains
-- Normalize into `Thread`/`Message` and correlate with `Order`
+- Route forwarded support mail to app-managed domain (e.g., `mail.<app-domain>`) via provider (Mailgun/Postmark)
+- Webhook: `POST /api/webhooks/email/custom`
+  - Verify shared secret (header `x-email-webhook-secret`) and provider signature (Mailgun-style) when configured
+  - Parse envelope, headers, subject, text/html, attachments
+  - Identify tenant via alias in `Connection.metadata.alias` (e.g., `in+<tenant>-<id>@mail.<app-domain>`) and persist `Thread`/`Message`
+  - Correlate to `Order` by customer email and heuristics (order number parsing)
+  - Create `AISuggestion` stub (worker pipeline recommended)
 
 **Security**
 
-- Webhook signing (provider-specific)
+- Webhook signing (provider-specific): Mailgun-style signature supported via `MAILGUN_SIGNING_KEY`
+- `x-email-webhook-secret` header must match the per-tenant secret stored in `Connection.accessToken`
 - Provider credentials in env; encrypt at rest (future)
