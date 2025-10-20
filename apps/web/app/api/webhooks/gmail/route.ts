@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+// Placeholder legacy route; will coexist with custom email webhook
 
 export async function POST(req: NextRequest) {
   // TODO(cursor): handle Gmail push notification / historyId updates

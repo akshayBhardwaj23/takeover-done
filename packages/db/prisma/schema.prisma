@@ -32,6 +32,7 @@ model Connection {
 enum ConnectionType {
   SHOPIFY
   GMAIL
+  CUSTOM_EMAIL
 }
 
 model Order {

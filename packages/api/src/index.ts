@@ -37,13 +37,66 @@ export const appRouter = t.router({
     try {
       const cons = await prisma.connection.findMany({
         orderBy: { createdAt: 'desc' },
-        select: { id: true, type: true, shopDomain: true, createdAt: true },
+        select: {
+          id: true,
+          type: true,
+          shopDomain: true,
+          createdAt: true,
+          metadata: true,
+        },
       });
       return { connections: cons };
     } catch {
       return { connections: [] };
     }
   }),
+  createEmailAlias: t.procedure
+    .input(
+      z.object({
+        userEmail: z.string().email(),
+        domain: z.string().min(3), // app inbound domain e.g., mail.example.com
+      }),
+    )
+    .mutation(async ({ input }) => {
+      // Create or ensure user exists
+      const owner = await prisma.user.upsert({
+        where: { email: input.userEmail },
+        create: { email: input.userEmail },
+        update: {},
+      });
+
+      // Generate a stable alias per user if one exists, else create a new one
+      const existing = await prisma.connection.findFirst({
+        where: { userId: owner.id, type: 'CUSTOM_EMAIL' as any },
+      });
+      if (existing) {
+        return { id: existing.id, alias: (existing.metadata as any)?.alias };
+      }
+
+      const short = Math.random().toString(36).slice(2, 8);
+      const alias = `in+${owner.id.slice(0, 6)}-${short}@${input.domain}`;
+      const webhookSecret =
+        Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
+
+      const conn = await prisma.connection.create({
+        data: {
+          type: 'CUSTOM_EMAIL' as any,
+          accessToken: webhookSecret, // store secret in accessToken for simplicity
+          userId: owner.id,
+          metadata: {
+            alias,
+            provider: 'CUSTOM',
+            domain: input.domain,
+            verifiedAt: null,
+          } as any,
+        },
+        select: { id: true },
+      });
+
+      await logEvent('email.alias.created', { alias }, 'connection', conn.id);
+      return { id: conn.id, alias };
+    }),
   ordersListDb: t.procedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),

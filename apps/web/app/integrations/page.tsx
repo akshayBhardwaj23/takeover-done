@@ -1,13 +1,7 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
-import {
-  Suspense,
-  useEffect,
-  useMemo,
-  useState,
-  type ChangeEvent,
-} from 'react';
+import { Suspense, useEffect, useState, type ChangeEvent } from 'react';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import {
   Dialog,
@@ -28,6 +22,7 @@ type ConnectionSummary = {
   type: string;
   shopDomain: string | null;
   createdAt?: string;
+  metadata?: any;
 };
 
 function IntegrationsInner() {
@@ -35,11 +30,13 @@ function IntegrationsInner() {
   const connected = sp.get('connected');
   const shop = sp.get('shop');
   const { data } = trpc.connections.useQuery();
+  const utils = trpc.useUtils() as any;
+  const createAlias = trpc.createEmailAlias.useMutation({
+    onSuccess: () => utils.connections.invalidate(),
+  });
   const [shopInput, setShopInput] = useState('');
-  const connections = useMemo<ConnectionSummary[]>(
-    () => (data?.connections ?? []) as ConnectionSummary[],
-    [data],
-  );
+  const connections: ConnectionSummary[] = ((data as any)?.connections ??
+    []) as ConnectionSummary[];
   const [toast, setToast] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -175,6 +172,63 @@ function IntegrationsInner() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <section className="mt-4 rounded-xl border border-indigo-200/60 bg-white/80 p-4 shadow-sm backdrop-blur md:p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-xs text-white">
+                  E
+                </span>
+                Custom Email
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Forward your support inbox to a unique alias so we can ingest
+                and analyze messages.
+              </p>
+            </div>
+            <Button
+              onClick={() =>
+                createAlias.mutate({
+                  userEmail: 'founder@example.com',
+                  domain:
+                    (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as string) ||
+                    'mail.example.com',
+                })
+              }
+            >
+              {createAlias.isPending ? 'Creating…' : 'Create alias'}
+            </Button>
+          </div>
+
+          <div className="mt-5">
+            <h3 className="text-sm font-medium text-gray-900">Aliases</h3>
+            {(connections.filter((c) => c.type === 'CUSTOM_EMAIL').length ===
+              0 && (
+              <p className="mt-2 text-sm text-gray-500">
+                No custom email alias created yet.
+              </p>
+            )) || (
+              <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {connections
+                  .filter((c) => c.type === 'CUSTOM_EMAIL')
+                  .map((c) => (
+                    <Card
+                      key={c.id}
+                      className="group p-5 shadow-sm transition hover:shadow-md"
+                    >
+                      <div className="text-sm font-semibold text-gray-900">
+                        {c?.metadata?.alias ?? '(pending alias)'}
+                      </div>
+                      <Badge variant="secondary" className="mt-1">
+                        Custom Email
+                      </Badge>
+                    </Card>
+                  ))}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </main>
   );
