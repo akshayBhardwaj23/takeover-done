@@ -2,64 +2,81 @@
 import { trpc } from '../lib/trpc';
 import Link from 'next/link';
 import { useState } from 'react';
+import Aurora from './components/Aurora';
+import GlowOrb from './components/GlowOrb';
+import GradientText from './components/GradientText';
+import Reveal from './components/Reveal';
+import Magnetic from './components/Magnetic';
+import TiltCard from './components/TiltCard';
+import Parallax from './components/Parallax';
 
 export default function HomePage() {
   const connections = trpc.connections.useQuery();
   const [annual, setAnnual] = useState(false);
 
   return (
-    <main className="relative min-h-[100dvh] bg-white">
+    <main className="relative min-h-[100dvh]">
       {/* Hero */}
-      <section className="relative border-b">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-6 py-16 sm:grid-cols-2 sm:py-20">
+      <section className="relative border-b border-white/10">
+        <Aurora />
+        <GlowOrb className="-left-6 top-10" />
+        <GlowOrb className="right-10 top-40" />
+        <div className="container-max grid grid-cols-1 items-center gap-10 py-16 sm:grid-cols-2 sm:py-20">
           <div>
-            <span className="inline-flex items-center rounded-full bg-black/5 px-3 py-1 text-xs font-medium text-black/70 ring-1 ring-black/10">
-              New • AI‑powered support for Shopify
-            </span>
-            <h1 className="mt-5 text-5xl font-extrabold leading-[1.05] tracking-tight text-gray-900 sm:text-6xl">
-              Take the guesswork out of e‑commerce support
+            <span className="chip">New • AI‑powered support for Shopify</span>
+            <h1 className="mt-5 text-5xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+              Take the guesswork out of e‑commerce{' '}
+              <GradientText>support</GradientText>
             </h1>
-            <p className="mt-4 max-w-xl text-lg text-gray-600">
+            <p className="mt-4 max-w-xl text-lg text-white/70">
               Our unified inbox brings Shopify orders and Gmail into one place.
               Let AI draft the perfect response and safely execute refunds,
               cancels, and replacements with approvals.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/integrations"
-                className="inline-flex items-center justify-center rounded-md bg-black px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
-              >
-                Get started for free
-              </Link>
-              <Link
-                href="/inbox"
-                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-black"
-              >
-                Watch demo
-              </Link>
+              <Magnetic>
+                <Link
+                  href="/integrations"
+                  className="btn-primary group relative overflow-hidden"
+                >
+                  <span className="relative z-10">Get started for free</span>
+                  <span className="pointer-events-none absolute inset-0 bg-gradient-shine opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                </Link>
+              </Magnetic>
+              <Magnetic>
+                <Link href="/inbox" className="btn-ghost">
+                  Watch demo
+                </Link>
+              </Magnetic>
             </div>
           </div>
           <div className="relative">
             {/* Mock UI composition inspired by reference visuals */}
-            <div className="relative mx-auto w-full max-w-md rounded-3xl border bg-white p-4 shadow-sm ring-1 ring-black/5">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="h-2 w-16 rounded-full bg-gray-200" />
-                <div className="h-2 w-24 rounded-full bg-gray-200" />
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="h-20 rounded-xl bg-gradient-to-r from-indigo-200 to-indigo-300" />
-                <div className="h-20 rounded-xl bg-gradient-to-r from-pink-200 to-pink-300" />
-                <div className="h-20 rounded-xl bg-gradient-to-r from-emerald-200 to-emerald-300" />
-              </div>
-              <div className="mt-4 space-y-2">
-                <div className="h-3 w-3/4 rounded bg-gray-200" />
-                <div className="h-3 w-1/2 rounded bg-gray-200" />
-                <div className="h-3 w-2/3 rounded bg-gray-200" />
-              </div>
-            </div>
-            <div className="absolute -right-6 -bottom-6 w-48 rounded-2xl border bg-white p-3 shadow-sm ring-1 ring-black/5">
-              <div className="text-xs font-semibold">Summary</div>
-              <p className="mt-1 text-xs text-gray-600">
+            <Reveal>
+              <TiltCard>
+                <div className="relative mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-4 shadow-sm ring-1 ring-white/10">
+                  <div className="mb-3 flex items-center justify-between text-white/40">
+                    <div className="h-2 w-16 rounded-full bg-white/10" />
+                    <div className="h-2 w-24 rounded-full bg-white/10" />
+                  </div>
+                  <Parallax>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="h-20 rounded-xl bg-gradient-to-r from-indigo-500 to-fuchsia-500" />
+                      <div className="h-20 rounded-xl bg-gradient-to-r from-fuchsia-500 to-pink-500" />
+                      <div className="h-20 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500" />
+                    </div>
+                  </Parallax>
+                  <div className="mt-4 space-y-2">
+                    <div className="h-3 w-3/4 rounded bg-white/10" />
+                    <div className="h-3 w-1/2 rounded bg-white/10" />
+                    <div className="h-3 w-2/3 rounded bg-white/10" />
+                  </div>
+                </div>
+              </TiltCard>
+            </Reveal>
+            <div className="absolute -right-6 -bottom-6 w-48 rounded-2xl border border-white/10 bg-white/5 p-3 shadow-sm ring-1 ring-white/10">
+              <div className="text-xs font-semibold text-white/90">Summary</div>
+              <p className="mt-1 text-xs text-white/70">
                 AI spotted coupon confusion and suggested an approved partial
                 refund.
               </p>
@@ -69,17 +86,17 @@ export default function HomePage() {
       </section>
 
       {/* Builder / checklist section */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="container-max py-16">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
           <div>
-            <h2 className="text-4xl font-extrabold tracking-tight text-gray-900">
+            <h2 className="text-4xl font-extrabold tracking-tight">
               Build the perfect support workflow in minutes
             </h2>
-            <p className="mt-3 max-w-lg text-gray-600">
+            <p className="mt-3 max-w-lg text-white/70">
               Mix and match blocks to automate repetitive work while keeping
               humans in control. Add approvals, branching, and safeguards.
             </p>
-            <ul className="mt-6 space-y-3 text-gray-800">
+            <ul className="mt-6 space-y-3 text-white/90">
               {[
                 'Draft on‑brand replies with order context',
                 'Approve refunds, cancels, and replacements',
@@ -97,11 +114,11 @@ export default function HomePage() {
               ))}
             </ul>
           </div>
-          <div className="rounded-2xl bg-indigo-50 p-6 ring-1 ring-indigo-100">
-            <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
-              <div className="mb-4 flex items-center justify-between">
-                <div className="h-3 w-24 rounded bg-gray-200" />
-                <div className="h-3 w-12 rounded bg-gray-200" />
+          <div className="rounded-2xl bg-white/5 p-6 ring-1 ring-white/10">
+            <div className="rounded-xl bg-white/5 p-4 shadow-sm ring-1 ring-white/10">
+              <div className="mb-4 flex items-center justify-between text-white/40">
+                <div className="h-3 w-24 rounded bg-white/10" />
+                <div className="h-3 w-12 rounded bg-white/10" />
               </div>
               <div className="space-y-3">
                 {[
@@ -112,10 +129,10 @@ export default function HomePage() {
                 ].map((row) => (
                   <div
                     key={row}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between rounded-lg border border-white/10 p-3"
                   >
-                    <div className="h-3 w-32 rounded bg-gray-200" />
-                    <div className="h-6 w-16 rounded-md bg-black/90" />
+                    <div className="h-3 w-32 rounded bg-white/10" />
+                    <div className="h-6 w-16 rounded-md bg-white/80" />
                   </div>
                 ))}
               </div>
@@ -125,13 +142,11 @@ export default function HomePage() {
       </section>
 
       {/* Integrations */}
-      <section className="mx-auto max-w-6xl px-6 py-10">
-        <div className="rounded-2xl bg-gray-50 p-6 ring-1 ring-gray-200">
+      <section className="container-max py-10">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 ring-1 ring-white/10">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-2xl font-bold text-gray-900">
-              Best‑in‑class integrations
-            </h3>
-            <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm text-gray-700 ring-1 ring-black/10">
+            <h3 className="text-2xl font-bold">Best‑in‑class integrations</h3>
+            <span className="chip">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               {connections.data?.connections?.length ?? 0} connected store(s)
             </span>
@@ -139,12 +154,12 @@ export default function HomePage() {
 
           <div className="mt-6 grid grid-cols-1 items-start gap-8 sm:grid-cols-2">
             <div>
-              <p className="max-w-md text-gray-600">
+              <p className="max-w-md text-white/70">
                 Native connections for Shopify and Gmail. No passwords, secure
                 OAuth, and resilient webhooks so your inbox always stays in
                 sync.
               </p>
-              <ul className="mt-4 space-y-3 text-gray-800">
+              <ul className="mt-4 space-y-3 text-white/90">
                 {[
                   'Sync orders, customers, and payments',
                   'Inline order actions from the inbox',
@@ -152,7 +167,7 @@ export default function HomePage() {
                   'Reliable webhook delivery',
                 ].map((i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="mt-1 inline-block h-5 w-5 rounded-full bg-black text-white">
+                    <span className="mt-1 inline-block h-5 w-5 rounded-full bg-white text-black">
                       <span className="flex h-full w-full items-center justify-center text-xs">
                         ✓
                       </span>
@@ -162,16 +177,10 @@ export default function HomePage() {
                 ))}
               </ul>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/integrations"
-                  className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
-                >
+                <Link href="/integrations" className="btn-primary">
                   Connect your store
                 </Link>
-                <Link
-                  href="/inbox"
-                  className="inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-semibold"
-                >
+                <Link href="/inbox" className="btn-ghost">
                   See it in action
                 </Link>
               </div>
@@ -179,14 +188,14 @@ export default function HomePage() {
 
             <div className="grid grid-cols-2 gap-4">
               {/* Shopify card */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm ring-1 ring-black/5">
+              <div className="card p-5">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-green-500" />
                   <div className="text-sm font-semibold">Shopify</div>
                 </div>
                 <div className="mt-3 space-y-2">
-                  <div className="h-2 w-32 rounded bg-gray-200" />
-                  <div className="h-2 w-24 rounded bg-gray-200" />
+                  <div className="h-2 w-32 rounded bg-white/10" />
+                  <div className="h-2 w-24 rounded bg-white/10" />
                 </div>
                 <Link
                   href="/integrations"
@@ -196,14 +205,14 @@ export default function HomePage() {
                 </Link>
               </div>
               {/* Gmail card */}
-              <div className="rounded-xl border bg-white p-5 shadow-sm ring-1 ring-black/5">
+              <div className="card p-5">
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-red-500" />
                   <div className="text-sm font-semibold">Gmail</div>
                 </div>
                 <div className="mt-3 space-y-2">
-                  <div className="h-2 w-32 rounded bg-gray-200" />
-                  <div className="h-2 w-24 rounded bg-gray-200" />
+                  <div className="h-2 w-32 rounded bg-white/10" />
+                  <div className="h-2 w-24 rounded bg-white/10" />
                 </div>
                 <Link
                   href="/integrations"
@@ -214,7 +223,7 @@ export default function HomePage() {
               </div>
 
               {/* Steps mock card */}
-              <div className="col-span-2 rounded-xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+              <div className="col-span-2 card p-5">
                 <div className="mb-3 text-sm font-semibold">
                   Connect in 3 steps
                 </div>
@@ -226,9 +235,9 @@ export default function HomePage() {
                   ].map((s) => (
                     <li
                       key={s.n}
-                      className="flex items-center gap-3 rounded-lg border p-3"
+                      className="flex items-center gap-3 rounded-lg border border-white/10 p-3"
                     >
-                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-semibold text-black">
                         {s.n}
                       </span>
                       <span className="text-sm">{s.t}</span>
@@ -242,8 +251,8 @@ export default function HomePage() {
       </section>
 
       {/* Automation accuracy panel inspired by audience section */}
-      <section className="border-y bg-emerald-900">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-6 py-14 sm:grid-cols-2">
+      <section className="border-y border-white/10 bg-gradient-to-b from-emerald-900 to-black">
+        <div className="container-max grid grid-cols-1 items-center gap-8 py-14 sm:grid-cols-2">
           <div className="text-emerald-50">
             <h3 className="text-4xl font-extrabold leading-tight">
               Automate the right actions, every time.
@@ -277,42 +286,44 @@ export default function HomePage() {
       </section>
 
       {/* Reports section */}
-      <section className="mx-auto max-w-6xl px-6 py-16">
+      <section className="container-max py-16">
         <h3 className="text-4xl font-extrabold tracking-tight text-gray-900">
-          Get detailed reports
+          <span className="text-white">Get detailed reports</span>
         </h3>
-        <p className="mt-2 max-w-2xl text-gray-600">
+        <p className="mt-2 max-w-2xl text-white/70">
           Find the insights you need to improve operations: response times,
           automation rates, saved minutes, and customer satisfaction.
         </p>
 
         <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
           {/* Left: report UI mock with video overlay */}
-          <div className="relative rounded-2xl border bg-white p-4 shadow-sm ring-1 ring-black/5">
+          <div className="relative rounded-2xl border border-white/10 bg-white/5 p-4 shadow-sm ring-1 ring-white/10">
             <div className="mb-3 flex items-center gap-3">
-              <div className="h-3 w-24 rounded bg-gray-200" />
-              <div className="h-3 w-12 rounded bg-gray-200" />
+              <div className="h-3 w-24 rounded bg-white/10" />
+              <div className="h-3 w-12 rounded bg-white/10" />
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border p-3">
-                <div className="h-2 w-20 rounded bg-gray-200" />
-                <div className="mt-2 h-16 rounded bg-indigo-100" />
+              <div className="rounded-lg border border-white/10 p-3">
+                <div className="h-2 w-20 rounded bg-white/10" />
+                <div className="mt-2 h-16 rounded bg-indigo-500/30" />
               </div>
-              <div className="rounded-lg border p-3">
-                <div className="h-2 w-16 rounded bg-gray-200" />
-                <div className="mt-2 h-16 rounded bg-pink-100" />
+              <div className="rounded-lg border border-white/10 p-3">
+                <div className="h-2 w-16 rounded bg-white/10" />
+                <div className="mt-2 h-16 rounded bg-pink-500/30" />
               </div>
-              <div className="rounded-lg border p-3">
-                <div className="h-2 w-14 rounded bg-gray-200" />
-                <div className="mt-2 h-16 rounded bg-emerald-100" />
+              <div className="rounded-lg border border-white/10 p-3">
+                <div className="h-2 w-14 rounded bg-white/10" />
+                <div className="mt-2 h-16 rounded bg-emerald-500/30" />
               </div>
             </div>
-            <div className="absolute right-6 -bottom-8 w-64 rounded-xl border bg-white p-3 shadow-lg">
+            <div className="absolute right-6 -bottom-8 w-64 rounded-xl border border-white/10 bg-white/5 p-3 shadow-lg">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold">Show transcription</span>
-                <span className="h-2 w-16 rounded bg-gray-200" />
+                <span className="font-semibold text-white/90">
+                  Show transcription
+                </span>
+                <span className="h-2 w-16 rounded bg-white/10" />
               </div>
-              <div className="mt-2 h-24 rounded-md bg-gray-100" />
+              <div className="mt-2 h-24 rounded-md bg-white/10" />
             </div>
           </div>
 
@@ -326,12 +337,10 @@ export default function HomePage() {
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-black/5"
+                className="rounded-xl bg-white/5 p-6 shadow-sm ring-1 ring-white/10"
               >
-                <div className="text-2xl font-extrabold text-gray-900">
-                  {stat.value}
-                </div>
-                <div className="mt-1 text-sm text-gray-600">{stat.label}</div>
+                <div className="text-2xl font-extrabold">{stat.value}</div>
+                <div className="mt-1 text-sm text-white/70">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -370,18 +379,16 @@ export default function HomePage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="mx-auto max-w-6xl px-6 py-16">
+      <section id="pricing" className="container-max py-16">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h3 className="text-4xl font-extrabold tracking-tight text-gray-900">
-            Pricing
-          </h3>
+          <h3 className="text-4xl font-extrabold tracking-tight">Pricing</h3>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-700">Annual discount</span>
+            <span className="text-sm text-white/70">Annual discount</span>
             <button
               type="button"
               aria-pressed={annual}
               onClick={() => setAnnual((v) => !v)}
-              className={`${annual ? 'bg-black' : 'bg-gray-200'} relative h-6 w-11 rounded-full transition-colors`}
+              className={`${annual ? 'bg-white/80' : 'bg-white/10'} relative h-6 w-11 rounded-full transition-colors`}
             >
               <span
                 className={`${annual ? 'translate-x-5' : 'translate-x-1'} inline-block h-4 w-4 translate-y-1 rounded-full bg-white transition-transform`}
@@ -391,31 +398,31 @@ export default function HomePage() {
         </div>
         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
           {/* Free */}
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm">
             <div className="text-lg font-semibold">Start</div>
             <div className="mt-2 text-3xl font-extrabold">Free</div>
-            <ul className="mt-4 space-y-2 text-sm text-gray-700">
+            <ul className="mt-4 space-y-2 text-sm text-white/70">
               <li>Up to 3 workflows</li>
               <li>250 emails / mo</li>
               <li>AI replies and approvals</li>
             </ul>
             <Link
               href="/integrations"
-              className="mt-6 inline-block rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
+              className="mt-6 inline-block rounded-md bg-white px-4 py-2 text-sm font-semibold text-black"
             >
               Get started
             </Link>
           </div>
           {/* Team */}
-          <div className="rounded-2xl border bg-white p-6 shadow-sm ring-2 ring-black">
+          <div className="rounded-2xl border border-white/10 bg-white/10 p-6 shadow-sm ring-2 ring-white/20">
             <div className="text-lg font-semibold">Team</div>
             <div className="mt-2 text-3xl font-extrabold">
               {annual ? '$150 / mo' : '$175 / mo'}
             </div>
             {annual && (
-              <div className="mt-1 text-xs text-gray-600">Billed annually</div>
+              <div className="mt-1 text-xs text-white/70">Billed annually</div>
             )}
-            <ul className="mt-4 space-y-2 text-sm text-gray-700">
+            <ul className="mt-4 space-y-2 text-sm text-white/70">
               <li>Unlimited workflows</li>
               <li>Unlimited responses (with your audience)</li>
               <li>Add up to 5 teammates</li>
@@ -423,16 +430,16 @@ export default function HomePage() {
             </ul>
             <Link
               href="/integrations"
-              className="mt-6 inline-block rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
+              className="mt-6 inline-block rounded-md bg-white px-4 py-2 text-sm font-semibold text-black"
             >
               Start free trial
             </Link>
           </div>
           {/* Enterprise */}
-          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm">
             <div className="text-lg font-semibold">Enterprise</div>
             <div className="mt-2 text-3xl font-extrabold">Talk to us</div>
-            <ul className="mt-4 space-y-2 text-sm text-gray-700">
+            <ul className="mt-4 space-y-2 text-sm text-white/70">
               <li>Custom branding</li>
               <li>Unlimited users</li>
               <li>Custom enhancements</li>
@@ -440,7 +447,7 @@ export default function HomePage() {
             </ul>
             <Link
               href="/integrations"
-              className="mt-6 inline-block rounded-md border px-4 py-2 text-sm font-semibold"
+              className="mt-6 inline-block rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
               Contact sales
             </Link>
@@ -449,16 +456,13 @@ export default function HomePage() {
       </section>
 
       {/* Final CTA */}
-      <section className="border-t bg-gray-50">
-        <div className="mx-auto max-w-6xl px-6 py-12">
+      <section className="border-t border-white/10">
+        <div className="container-max py-12">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h4 className="text-2xl font-extrabold tracking-tight text-gray-900">
+            <h4 className="text-2xl font-extrabold tracking-tight">
               Great decisions start with your users
             </h4>
-            <Link
-              href="/integrations"
-              className="rounded-md bg-black px-5 py-3 text-sm font-semibold text-white"
-            >
+            <Link href="/integrations" className="btn-primary">
               Get started for free
             </Link>
           </div>

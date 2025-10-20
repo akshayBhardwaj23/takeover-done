@@ -8,16 +8,16 @@ export default function Header() {
   const user = session?.user;
 
   return (
-    <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between p-4">
-        <a href="/" className="font-semibold">
+    <header className="sticky top-0 z-10 border-b border-white/10 bg-black/60 backdrop-blur">
+      <div className="container-max flex items-center justify-between py-4">
+        <a href="/" className="font-semibold tracking-tight">
           ZYYP
         </a>
-        <nav className="flex items-center gap-4 text-sm">
-          <a href="/integrations" className="hover:underline">
+        <nav className="flex items-center gap-4 text-sm text-white/80">
+          <a href="/integrations" className="hover:text-white">
             Integrations
           </a>
-          <a href="/inbox" className="hover:underline">
+          <a href="/inbox" className="hover:text-white">
             Inbox
           </a>
           {isAuthed ? (
@@ -31,14 +31,14 @@ export default function Header() {
                     className="h-6 w-6 rounded-full"
                   />
                 ) : (
-                  <div className="h-6 w-6 rounded-full bg-gray-200" />
+                  <div className="h-6 w-6 rounded-full bg-white/10" />
                 )}
-                <span className="text-gray-800">
+                <span className="text-white/80">
                   {user?.name ?? user?.email}
                 </span>
               </div>
               <button
-                className="rounded border px-3 py-1.5 cursor-pointer"
+                className="btn-ghost cursor-pointer"
                 onClick={() => signOut({ callbackUrl: '/' })}
               >
                 Sign out
@@ -46,7 +46,7 @@ export default function Header() {
             </div>
           ) : (
             <button
-              className="rounded bg-black px-3 py-1.5 text-white cursor-pointer"
+              className="btn-primary cursor-pointer"
               onClick={() => signIn('google')}
             >
               Sign in

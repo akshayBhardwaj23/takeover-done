@@ -138,7 +138,7 @@ export default function InboxPage() {
           Order details
         </h2>
         {!selected && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-white/60">
             Select an order to view details, AI suggestions, and actions.
           </div>
         )}
@@ -149,10 +149,10 @@ export default function InboxPage() {
                 {orderDetail.data.order.name} •{' '}
                 {orderDetail.data.order.totalPrice}
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-white/60">
                 {orderDetail.data.order.email ?? '—'}
               </div>
-              <ul className="mt-2 text-xs text-gray-700 list-disc pl-4">
+              <ul className="mt-2 list-disc pl-4 text-xs text-white/80">
                 {orderDetail.data.order.lineItems.map((li: LineItem) => (
                   <li key={li.id}>
                     {li.quantity} × {li.title} — {li.price}
@@ -178,7 +178,7 @@ export default function InboxPage() {
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                className="w-full rounded border p-2 text-sm"
+                className="w-full rounded border border-white/20 bg-black/40 p-2 text-sm text-white placeholder-white/40"
                 rows={6}
                 placeholder="AI draft will appear here..."
               />

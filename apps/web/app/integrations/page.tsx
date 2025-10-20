@@ -68,11 +68,9 @@ function IntegrationsInner() {
   }
 
   return (
-    <main className="space-y-6 bg-gradient-to-b from-white via-indigo-50/40 to-fuchsia-50/40 p-6">
-      <div className="mx-auto max-w-6xl">
-        <h1 className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-2xl font-bold text-transparent">
-          Integrations
-        </h1>
+    <main className="space-y-6 p-6">
+      <div className="container-max">
+        <h1 className="text-2xl font-bold">Integrations</h1>
 
         {connected && (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

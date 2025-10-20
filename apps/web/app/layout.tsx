@@ -1,6 +1,10 @@
 import './globals.css';
 import { Providers } from './providers';
 import Header from './nav-header';
+import { fontSans } from './fonts';
+import PageFade from './components/PageFade';
+import SmoothScroll from './components/SmoothScroll';
+import CursorFollower from './components/CursorFollower';
 
 export const metadata = {
   title: 'AI E-Commerce Support Assistant',
@@ -13,11 +17,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className={`bg-black ${fontSans.variable}`}>
+      <body className="bg-black text-white" style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}>
         <Providers>
           <Header />
-          {children}
+          <PageFade>{children}</PageFade>
+          <SmoothScroll />
+          <CursorFollower />
         </Providers>
       </body>
     </html>
