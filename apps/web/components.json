@@ -1,0 +1,22 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "app/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@ai-ecom/api/components",
+    "utils": "@ai-ecom/api/lib/utils",
+    "ui": "@ai-ecom/api/components/ui",
+    "lib": "@ai-ecom/api/lib",
+    "hooks": "@ai-ecom/api/hooks"
+  },
+  "registries": {}
+}

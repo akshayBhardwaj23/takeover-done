@@ -1,6 +1,11 @@
 'use client';
 import { trpc } from '../../lib/trpc';
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '../../../../@ai-ecom/api/components/ui/button';
+import { Card } from '../../../../@ai-ecom/api/components/ui/card';
+import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import { ScrollArea } from '../../../../@ai-ecom/api/components/ui/scroll-area';
+import { Separator } from '../../../../@ai-ecom/api/components/ui/separator';
 
 type OrderSummary = {
   id: string;
@@ -10,6 +15,14 @@ type OrderSummary = {
   createdAt: string;
 };
 type LineItem = { id: string; title: string; quantity: number; price: string };
+type DbOrder = {
+  id: string;
+  shopifyId: string;
+  email?: string | null;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+};
 
 export default function InboxPage() {
   const [shop, setShop] = useState('');
@@ -41,53 +54,89 @@ export default function InboxPage() {
   const createAction = trpc.actionCreate.useMutation();
   const approveSend = trpc.actionApproveAndSend.useMutation();
 
+  const messages = trpc.messagesByOrder.useQuery(
+    { shopifyOrderId: selected ?? '' },
+    { enabled: !!selected },
+  );
+
   return (
-    <main className="grid h-[calc(100dvh-0px)] grid-cols-12">
-      <section className="col-span-4 border-r p-4">
-        <h2 className="mb-2 font-semibold">Recent orders</h2>
+    <main className="grid h-[calc(100dvh-0px)] grid-cols-12 bg-gradient-to-b from-white via-indigo-50/30 to-fuchsia-50/30">
+      <section className="col-span-3 border-r bg-white/90 p-4 backdrop-blur">
+        <h2 className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
+          Orders
+        </h2>
         {!shop && (
-          <div className="text-sm text-gray-600">
+          <Card className="mt-3 border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             Add ?shop=your-shop.myshopify.com to the URL to load orders.
-          </div>
+          </Card>
         )}
-        <ul className="space-y-2">
-          {orders.length === 0 && shop && (
-            <li className="text-sm text-gray-500">No orders found.</li>
-          )}
-          {dbOrders.data?.orders?.length
-            ? dbOrders.data.orders.map((o) => (
-                <li
-                  key={o.id}
-                  className={`rounded border p-3 cursor-pointer ${selected === o.shopifyId ? 'ring-2 ring-indigo-500' : ''}`}
-                  onClick={() => setSelected(o.shopifyId)}
-                >
-                  <div className="text-sm font-medium">
-                    Shopify #{o.shopifyId}
-                  </div>
-                  <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
-                  <div className="mt-1 text-xs text-gray-600">
-                    {(o.totalAmount / 100).toFixed(2)} • {o.status}
-                  </div>
-                </li>
-              ))
-            : null}
-          {orders.map((o) => (
-            <li
-              key={o.id}
-              className={`rounded border p-3 cursor-pointer ${selected === o.id ? 'ring-2 ring-indigo-500' : ''}`}
-              onClick={() => setSelected(o.id)}
-            >
-              <div className="text-sm font-medium">{o.name}</div>
-              <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
-              <div className="mt-1 text-xs text-gray-600">
-                {o.totalPrice} • {new Date(o.createdAt).toLocaleString()}
-              </div>
-            </li>
-          ))}
-        </ul>
+        {dbOrders.data?.orders?.length ? (
+          <ScrollArea className="mt-3 h-[calc(100dvh-120px)] rounded border">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-600">
+                <tr>
+                  <th className="px-3 py-2">Order</th>
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Customer</th>
+                  <th className="px-3 py-2">Total</th>
+                  <th className="px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(dbOrders.data.orders as DbOrder[]).map((o) => (
+                  <tr
+                    key={o.id}
+                    className={`cursor-pointer hover:bg-gray-50 ${selected === o.shopifyId ? 'bg-indigo-50' : ''}`}
+                    onClick={() => setSelected(o.shopifyId)}
+                  >
+                    <td className="px-3 py-2 text-gray-900">#{o.shopifyId}</td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {new Date(o.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {o.email ?? '—'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-900">
+                      {(o.totalAmount / 100).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge
+                        variant="secondary"
+                        className={`${o.status === 'FULFILLED' ? 'bg-emerald-50 text-emerald-700' : o.status === 'REFUNDED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}
+                      >
+                        {o.status}
+                      </Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollArea>
+        ) : (
+          <ul className="space-y-2">
+            {orders.length === 0 && shop && (
+              <li className="text-sm text-gray-500">No orders found.</li>
+            )}
+            {orders.map((o) => (
+              <li
+                key={o.id}
+                className={`cursor-pointer rounded border p-3 ${selected === o.id ? 'ring-2 ring-indigo-500' : ''}`}
+                onClick={() => setSelected(o.id)}
+              >
+                <div className="text-sm font-medium">{o.name}</div>
+                <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
+                <div className="mt-1 text-xs text-gray-600">
+                  {o.totalPrice} • {new Date(o.createdAt).toLocaleString()}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
-      <section className="col-span-8 p-4">
-        <h2 className="mb-2 font-semibold">Details</h2>
+      <section className="col-span-5 border-r bg-white/90 p-4 backdrop-blur">
+        <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
+          Order details
+        </h2>
         {!selected && (
           <div className="text-sm text-gray-600">
             Select an order to view details, AI suggestions, and actions.
@@ -95,7 +144,7 @@ export default function InboxPage() {
         )}
         {selected && orderDetail.data?.order && (
           <div className="space-y-3">
-            <div className="rounded border p-3">
+            <Card className="p-3">
               <div className="text-sm font-medium">
                 {orderDetail.data.order.name} •{' '}
                 {orderDetail.data.order.totalPrice}
@@ -110,11 +159,10 @@ export default function InboxPage() {
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="rounded border p-3 space-y-2">
+            </Card>
+            <Card className="space-y-2 p-3">
               <div className="text-sm font-medium">AI Suggestion</div>
-              <button
-                className="rounded bg-black px-3 py-1.5 text-sm text-white"
+              <Button
                 onClick={() => {
                   const o = orderDetail.data?.order;
                   if (!o) return;
@@ -126,7 +174,7 @@ export default function InboxPage() {
                 }}
               >
                 Suggest reply
-              </button>
+              </Button>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -135,8 +183,7 @@ export default function InboxPage() {
                 placeholder="AI draft will appear here..."
               />
               <div className="flex gap-2">
-                <button
-                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white"
+                <Button
                   onClick={async () => {
                     const o = orderDetail.data?.order;
                     if (!o) return;
@@ -158,10 +205,48 @@ export default function InboxPage() {
                   }}
                 >
                   Approve & Send (stub)
-                </button>
+                </Button>
               </div>
-            </div>
+            </Card>
           </div>
+        )}
+      </section>
+      <section className="col-span-4 bg-white/90 p-4 backdrop-blur">
+        <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
+          Email matches
+        </h2>
+        {!selected && (
+          <div className="text-sm text-gray-600">
+            Select an order to view messages.
+          </div>
+        )}
+        {selected && (
+          <ScrollArea className="h-[calc(100dvh-120px)]">
+            <div className="space-y-2 text-sm">
+              {(messages.data?.messages ?? []).length === 0 && (
+                <Card className="p-3 text-gray-500">No related messages.</Card>
+              )}
+              {(messages.data?.messages ?? []).map((m) => (
+                <Card key={m.id} className="p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs uppercase text-gray-500">
+                      {m.direction}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(m.createdAt as any).toLocaleString()}
+                    </span>
+                  </div>
+                  <Separator className="my-2" />
+                  <div className="text-xs text-gray-600">
+                    {m.from} → {m.to}
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
+                    {m.body}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
         )}
       </section>
     </main>

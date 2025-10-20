@@ -1,6 +1,6 @@
 import { initTRPC } from '@trpc/server';
 import { z } from 'zod';
-import { prisma } from '@ai-ecom/db';
+import { prisma, logEvent } from '@ai-ecom/db';
 
 const t = initTRPC.create();
 
@@ -9,17 +9,14 @@ export const appRouter = t.router({
   echo: t.procedure
     .input(z.object({ text: z.string() }))
     .query(({ input }) => ({ text: input.text })),
-  ordersCount: t.procedure
-    .input(z.object({ shop: z.string().optional() }).optional())
-    .query(async ({ input }) => {
-      try {
-        const where = input?.shop ? { shopDomain: input.shop } : undefined;
-        const count = await prisma.order.count({ where });
-        return { count };
-      } catch {
-        return { count: 0 };
-      }
-    }),
+  ordersCount: t.procedure.query(async () => {
+    try {
+      const count = await prisma.order.count();
+      return { count };
+    } catch {
+      return { count: 0 };
+    }
+  }),
   threadsList: t.procedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
@@ -143,7 +140,6 @@ export const appRouter = t.router({
         where: { shopifyId: input.shopifyOrderId },
         create: {
           shopifyId: input.shopifyOrderId,
-          shopDomain: input.shop,
           status: 'PENDING',
           email: input.email ?? null,
           totalAmount: 0,
@@ -164,18 +160,16 @@ export const appRouter = t.router({
         },
       });
 
-      await prisma.event.create({
-        data: {
-          type: 'action.created',
-          entity: 'action',
-          entityId: action.id,
-          payload: {
-            actionId: action.id,
-            orderId: order.id,
-            type: input.type,
-          } as any,
+      await logEvent(
+        'action.created',
+        {
+          actionId: action.id,
+          orderId: order.id,
+          type: input.type,
         },
-      });
+        'action',
+        action.id,
+      );
 
       return { actionId: action.id };
     }),
@@ -195,16 +189,40 @@ export const appRouter = t.router({
         data: { status: 'APPROVED' },
       });
 
-      await prisma.event.create({
-        data: {
-          type: 'email.sent.stub',
-          entity: 'action',
-          entityId: input.actionId,
-          payload: { to: input.to, subject: input.subject } as any,
-        },
-      });
+      await logEvent(
+        'email.sent.stub',
+        { to: input.to, subject: input.subject },
+        'action',
+        input.actionId,
+      );
 
       return { ok: true, status: updated.status };
+    }),
+  messagesByOrder: t.procedure
+    .input(z.object({ shopifyOrderId: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const order = await prisma.order.findUnique({
+          where: { shopifyId: input.shopifyOrderId },
+        });
+        if (!order) return { messages: [] };
+        const msgs = await prisma.message.findMany({
+          where: { orderId: order.id },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+          select: {
+            id: true,
+            from: true,
+            to: true,
+            body: true,
+            direction: true,
+            createdAt: true,
+          },
+        });
+        return { messages: msgs };
+      } catch {
+        return { messages: [] };
+      }
     }),
   ordersRecent: t.procedure
     .input(

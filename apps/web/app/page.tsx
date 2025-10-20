@@ -4,10 +4,6 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 export default function HomePage() {
-  const health = trpc.health.useQuery();
-  const ordersCount = trpc.ordersCount.useQuery({
-    shop: 'dev-ai-ecom.myshopify.com',
-  });
   const connections = trpc.connections.useQuery();
   const [annual, setAnnual] = useState(false);
 
@@ -41,16 +37,6 @@ export default function HomePage() {
               >
                 Watch demo
               </Link>
-            </div>
-            <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-gray-600">
-              <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1 ring-1 ring-black/10">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> API
-                health: {health.data?.status ?? 'loading...'}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-gray-50 px-3 py-1 ring-1 ring-black/10">
-                <span className="h-2 w-2 rounded-full bg-indigo-500" /> Orders
-                synced: {ordersCount.data?.count ?? 'loading...'}
-              </span>
             </div>
           </div>
           <div className="relative">
