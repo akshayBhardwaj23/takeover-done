@@ -43,29 +43,27 @@ export default function InboxPage() {
 
   return (
     <main className="grid h-[calc(100dvh-0px)] grid-cols-12">
-      <section className="col-span-4 border-r p-4">
+      <section className="col-span-4 border-r border-white/10 p-4">
         <h2 className="mb-2 font-semibold">Recent orders</h2>
         {!shop && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-white/60">
             Add ?shop=your-shop.myshopify.com to the URL to load orders.
           </div>
         )}
         <ul className="space-y-2">
           {orders.length === 0 && shop && (
-            <li className="text-sm text-gray-500">No orders found.</li>
+            <li className="text-sm text-white/50">No orders found.</li>
           )}
           {dbOrders.data?.orders?.length
             ? dbOrders.data.orders.map((o) => (
                 <li
                   key={o.id}
-                  className={`rounded border p-3 cursor-pointer ${selected === o.shopifyId ? 'ring-2 ring-indigo-500' : ''}`}
+                  className={`cursor-pointer rounded border border-white/10 p-3 ${selected === o.shopifyId ? 'ring-2 ring-white/40' : ''}`}
                   onClick={() => setSelected(o.shopifyId)}
                 >
-                  <div className="text-sm font-medium">
-                    Shopify #{o.shopifyId}
-                  </div>
-                  <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
-                  <div className="mt-1 text-xs text-gray-600">
+                  <div className="text-sm font-medium">Shopify #{o.shopifyId}</div>
+                  <div className="text-xs text-white/60">{o.email ?? '—'}</div>
+                  <div className="mt-1 text-xs text-white/60">
                     {(o.totalAmount / 100).toFixed(2)} • {o.status}
                   </div>
                 </li>
@@ -74,12 +72,12 @@ export default function InboxPage() {
           {orders.map((o) => (
             <li
               key={o.id}
-              className={`rounded border p-3 cursor-pointer ${selected === o.id ? 'ring-2 ring-indigo-500' : ''}`}
+              className={`cursor-pointer rounded border border-white/10 p-3 ${selected === o.id ? 'ring-2 ring-white/40' : ''}`}
               onClick={() => setSelected(o.id)}
             >
               <div className="text-sm font-medium">{o.name}</div>
-              <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
-              <div className="mt-1 text-xs text-gray-600">
+              <div className="text-xs text-white/60">{o.email ?? '—'}</div>
+              <div className="mt-1 text-xs text-white/60">
                 {o.totalPrice} • {new Date(o.createdAt).toLocaleString()}
               </div>
             </li>
@@ -89,21 +87,20 @@ export default function InboxPage() {
       <section className="col-span-8 p-4">
         <h2 className="mb-2 font-semibold">Details</h2>
         {!selected && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-white/60">
             Select an order to view details, AI suggestions, and actions.
           </div>
         )}
         {selected && orderDetail.data?.order && (
           <div className="space-y-3">
-            <div className="rounded border p-3">
+            <div className="rounded border border-white/10 p-3">
               <div className="text-sm font-medium">
-                {orderDetail.data.order.name} •{' '}
-                {orderDetail.data.order.totalPrice}
+                {orderDetail.data.order.name} • {orderDetail.data.order.totalPrice}
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-white/60">
                 {orderDetail.data.order.email ?? '—'}
               </div>
-              <ul className="mt-2 text-xs text-gray-700 list-disc pl-4">
+              <ul className="mt-2 list-disc pl-4 text-xs text-white/80">
                 {orderDetail.data.order.lineItems.map((li: LineItem) => (
                   <li key={li.id}>
                     {li.quantity} × {li.title} — {li.price}
@@ -111,10 +108,10 @@ export default function InboxPage() {
                 ))}
               </ul>
             </div>
-            <div className="rounded border p-3 space-y-2">
+            <div className="space-y-2 rounded border border-white/10 p-3">
               <div className="text-sm font-medium">AI Suggestion</div>
               <button
-                className="rounded bg-black px-3 py-1.5 text-sm text-white"
+                className="btn-primary"
                 onClick={() => {
                   const o = orderDetail.data?.order;
                   if (!o) return;
@@ -130,13 +127,13 @@ export default function InboxPage() {
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                className="w-full rounded border p-2 text-sm"
+                className="w-full rounded border border-white/20 bg-black/40 p-2 text-sm text-white placeholder-white/40"
                 rows={6}
                 placeholder="AI draft will appear here..."
               />
               <div className="flex gap-2">
                 <button
-                  className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white"
+                  className="rounded bg-white px-3 py-1.5 text-sm font-semibold text-black"
                   onClick={async () => {
                     const o = orderDetail.data?.order;
                     if (!o) return;
