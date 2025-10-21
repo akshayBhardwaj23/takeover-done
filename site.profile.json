@@ -1,0 +1,53 @@
+{
+    "meta": {
+      "name": "AI-Commerce New Home",
+      "version": "1.0.0",
+      "goal": "Modern, modular homepage mixing smooth gradient hero + dark modular grid sections with subtle motion."
+    },
+    "theme": {
+      "palette": {
+        "brand": ["#ff2a00", "#ff5d2b", "#ff8a3d", "#b31600"],
+        "surface_light": "#fffdfa",
+        "surface_dark": "#0e0f12",
+        "text_dark": "#0f1222",
+        "text_light": "#ffffff",
+        "accent_good": "#10b981",
+        "accent_info": "#3b82f6",
+        "accent_warn": "#f59e0b"
+      },
+      "radius": { "lg": 24, "xl": 28, "pill": 999 },
+      "shadows": {
+        "card": "0 10px 30px rgba(0,0,0,.12)",
+        "deep": "0 30px 80px rgba(0,0,0,.25)"
+      }
+    },
+    "motion": {
+      "reduced_motion": { "respect": true, "fallback": "static-gradients" },
+      "parallax": { "enable": true, "intensity": 0.06 },
+      "easing": "ease-in-out",
+      "duration_ms": { "in": 500, "hover": 200 }
+    },
+    "motifs": {
+      "dot_grid": { "enable": true, "opacity": 0.06, "spacing_px": 16 },
+      "floating_modules": { "enable": true, "amplitude_px": 10, "speed": 2.5 }
+    },
+    "sections_order": [
+      "hero",
+      "integrations_strip",
+      "features_modular",
+      "ai_demo_rail",
+      "use_cases",
+      "testimonials",
+      "pricing",
+      "faq",
+      "cta_footer"
+    ],
+    "contracts": {
+      "AnimatedBackground": {
+        "mount": "right-column-only",
+        "selectors": [".hero-image-column"],
+        "z": { "bg": -10, "fg": 10 }
+      }
+    }
+  }
+  

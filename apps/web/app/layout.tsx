@@ -17,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`bg-black ${fontSans.variable}`}>
-      <body className="bg-black text-white" style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}>
+    <html lang="en" className={`bg-white ${fontSans.variable}`}>
+      <body className="bg-white text-gray-900" style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}>
         <Providers>
           <Header />
           <PageFade>{children}</PageFade>

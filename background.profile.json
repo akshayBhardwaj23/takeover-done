@@ -1,0 +1,149 @@
+{
+    "meta": {
+      "profile_name": "HeroFluidGradientBackground",
+      "version": "1.0.0",
+      "purpose": "Fullscreen animated background for the top/hero section of a marketing site",
+      "aesthetic_keywords": ["bold", "cinematic", "minimal", "gradient", "fluid", "futuristic"]
+    },
+  
+    "target_integration": {
+      "mount_strategy": "absolute-behind-column",
+      "target_selectors": [".hero-image-column", ".right-column", ".hero-visual"],
+      "z_index": -1,
+      "safe_content_z_index": 1,
+      "clip_to_container": true,
+      "scroll_behavior": "sticky-in-hero",
+      "height_policy": {
+        "desktop": "min(100vh, 860px)",
+        "tablet": "min(90vh, 760px)",
+        "mobile": "min(80vh, 640px)"
+      },
+      "padding_guard": { "top": 0, "right": 0, "bottom": 0, "left": 0 }
+    },
+  
+    "palette": {
+      "base": "#ff2a00",
+      "stops": ["#ff2a00", "#ff5d2b", "#ff8a3d", "#b31600"],
+      "accent": "#ffffff",
+      "contrast_text": "#0e0f12",
+      "blend_mode": "normal",
+      "brightness": 1.0,
+      "saturation_boost": 1.05
+    },
+  
+    "motion": {
+      "engine": ["webgl-glsl", "fallback-canvas-2d"],
+      "style": "liquid-gradient-waves",
+      "loop": true,
+      "fps_cap": 60,
+      "noise_fields": [
+        { "type": "simplex3D", "amplitude": 0.42, "scale": 0.85, "speed": 0.06 },
+        { "type": "curlNoise2D", "amplitude": 0.18, "scale": 1.2, "speed": 0.03 }
+      ],
+      "parallax": { "enable": true, "intensity": 0.015, "input": "pointer+scroll" },
+      "easing": "sine-in-out",
+      "seamless_loop_hint": true
+    },
+  
+    "postfx": {
+      "bloom": { "enable": true, "threshold": 0.72, "strength": 0.42, "radius": 0.6 },
+      "vignette": { "enable": true, "amount": 0.08 },
+      "film_grain": { "enable": true, "opacity": 0.06 },
+      "blur": { "enable": true, "sigma": 0.0 }
+    },
+  
+    "composition": {
+      "gradient_mesh": {
+        "points": 5,
+        "jitter": 0.18,
+        "color_distribution": "center-hot-edges-cool"
+      },
+      "light_dots": {
+        "enable": true,
+        "count": 3,
+        "size_range": [4, 18],
+        "opacity": 0.25,
+        "motion": "float"
+      },
+      "optional_grid_overlay": {
+        "enable": false,
+        "type": "subtle-12-col",
+        "opacity": 0.05
+      }
+    },
+  
+    "accessibility": {
+      "contrast_min_ratio_for_text_overlays": 4.5,
+      "dynamic_text_contrast": "auto-adjust",
+      "reduced_motion_support": {
+        "respect_prefers_reduced_motion": true,
+        "strategy": "pause-animation-and-show-static-gradient"
+      },
+      "aria_label": "Decorative animated gradient background"
+    },
+  
+    "performance": {
+      "target_gpu_time_ms": 6.0,
+      "offscreen_canvas": true,
+      "throttle_on_inactive_tab": true,
+      "device_tiers": [
+        { "match": "mobile-low-end", "resolution_scale": 0.6, "effects": { "bloom": false, "grain": false } },
+        { "match": "desktop-mid", "resolution_scale": 0.9, "effects": { "bloom": true, "grain": true } },
+        { "match": "desktop-high", "resolution_scale": 1.0, "effects": { "bloom": true, "grain": true } }
+      ]
+    },
+  
+    "responsiveness": {
+      "breakpoints": {
+        "sm": 480,
+        "md": 768,
+        "lg": 1024,
+        "xl": 1440
+      },
+      "color_shift_on_breakpoint": {
+        "sm": ["#ff6a3a", "#ff9a66", "#cc2a00", "#ff3b14"],
+        "md": ["#ff4d23", "#ff7a3b", "#b31600", "#ff2a00"],
+        "lg": ["#ff2a00", "#ff5d2b", "#ff8a3d", "#b31600"]
+      }
+    },
+  
+    "component_contract": {
+      "name": "AnimatedBackground",
+      "framework": "React/Next.js",
+      "props": {
+        "theme": { "type": "enum", "values": ["red", "purple", "blue"], "default": "red" },
+        "intensity": { "type": "number", "range": [0.0, 1.0], "default": 0.75 },
+        "speed": { "type": "number", "range": [0.0, 1.0], "default": 0.6 },
+        "grain": { "type": "boolean", "default": true },
+        "bloom": { "type": "boolean", "default": true },
+        "parallax": { "type": "boolean", "default": true }
+      },
+      "mount_css": {
+        "container": "relative isolate",
+        "background": "pointer-events-none absolute inset-0 -z-10"
+      }
+    },
+  
+    "fallbacks": {
+      "static_gradient": {
+        "css": "linear-gradient(135deg, #ff2a00 0%, #ff5d2b 40%, #ff8a3d 70%, #b31600 100%)"
+      },
+      "poster_image": { "src": "/img/hero-bg-red.jpg", "blurhash": "LEA+R~o#%MWB00xZkCoz" }
+    },
+  
+    "tokens": {
+      "radii": { "surface": 24, "chip": 999 },
+      "shadows": { "elev-1": "0 10px 30px rgba(0,0,0,0.12)", "elev-2": "0 20px 60px rgba(0,0,0,0.18)" }
+    },
+  
+    "security_and_qol": {
+      "no_external_video": true,
+      "no_tracking": true
+    },
+  
+    "dev_notes_for_generator": {
+      "glsl_hint": "Two-layer noise warping: base simplex field mixes 4 gradient stops; secondary curl field distorts UVs. Use time uniform to animate. Color-correct in linear space.",
+      "canvas_hint": "If WebGL unavailable, 2D canvas draws radial gradients and morphs centers using trigs; composite with soft-light."
+    }
+  }
+  

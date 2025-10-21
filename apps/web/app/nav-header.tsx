@@ -8,16 +8,16 @@ export default function Header() {
   const user = session?.user;
 
   return (
-    <header className="sticky top-0 z-10 border-b border-white/10 bg-black/60 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b border-gray-200 bg-white/80 backdrop-blur">
       <div className="container-max flex items-center justify-between py-4">
-        <a href="/" className="font-semibold tracking-tight">
-          ZYYP
+        <a href="/" className="font-semibold tracking-tight text-gray-900">
+          AI E-Commerce
         </a>
-        <nav className="flex items-center gap-4 text-sm text-white/80">
-          <a href="/integrations" className="hover:text-white">
+        <nav className="flex items-center gap-4 text-sm text-gray-600">
+          <a href="/integrations" className="hover:text-gray-900 transition-colors">
             Integrations
           </a>
-          <a href="/inbox" className="hover:text-white">
+          <a href="/inbox" className="hover:text-gray-900 transition-colors">
             Inbox
           </a>
           {isAuthed ? (
@@ -31,14 +31,14 @@ export default function Header() {
                     className="h-6 w-6 rounded-full"
                   />
                 ) : (
-                  <div className="h-6 w-6 rounded-full bg-white/10" />
+                  <div className="h-6 w-6 rounded-full bg-gray-200" />
                 )}
-                <span className="text-white/80">
+                <span className="text-gray-600">
                   {user?.name ?? user?.email}
                 </span>
               </div>
               <button
-                className="btn-ghost cursor-pointer"
+                className="btn-secondary cursor-pointer"
                 onClick={() => signOut({ callbackUrl: '/' })}
               >
                 Sign out
@@ -46,7 +46,7 @@ export default function Header() {
             </div>
           ) : (
             <button
-              className="btn-primary cursor-pointer"
+              className="btn-brand cursor-pointer"
               onClick={() => signIn('google')}
             >
               Sign in
