@@ -12,10 +12,17 @@ function verifySecret(req: NextRequest, secret: string | null) {
 function verifyMailgunSignature(raw: any): boolean {
   const apiKey = process.env.MAILGUN_SIGNING_KEY;
   if (!apiKey) return true; // skip if not configured
+  // Support both webhook JSON ({ signature: { timestamp, token, signature }})
+  // and Routes form fields (timestamp, token, signature)
   const sig = raw?.signature;
-  const token = sig?.token as string | undefined;
-  const timestamp = sig?.timestamp as string | undefined;
-  const signature = sig?.signature as string | undefined;
+  const token =
+    (sig?.token as string | undefined) ?? (raw?.token as string | undefined);
+  const timestamp =
+    (sig?.timestamp as string | undefined) ??
+    (raw?.timestamp as string | undefined);
+  const signature =
+    (sig?.signature as string | undefined) ??
+    (raw?.signature as string | undefined);
   if (!token || !timestamp || !signature) return false;
   const data = timestamp + token;
   const digest = crypto.createHmac('sha256', apiKey).update(data).digest('hex');
@@ -33,16 +40,38 @@ function extractOrderCandidate(text: string): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    const raw = await req.json().catch(() => null);
+    // Accept JSON and Mailgun Routes form payloads
+    const contentType = req.headers.get('content-type') || '';
+    let raw: any = null;
+    if (contentType.includes('application/json')) {
+      raw = await req.json().catch(() => null);
+    } else if (
+      contentType.includes('multipart/form-data') ||
+      contentType.includes('application/x-www-form-urlencoded')
+    ) {
+      const fd = await req.formData();
+      raw = Object.fromEntries(
+        Array.from(fd.entries()).map(([k, v]) => [
+          k,
+          typeof v === 'string' ? v : ((v as any).name ?? ''),
+        ]),
+      ) as any;
+    }
     if (!raw)
-      return NextResponse.json({ error: 'invalid json' }, { status: 400 });
+      return NextResponse.json({ error: 'invalid body' }, { status: 400 });
 
-    const to: string | undefined = raw.to;
-    const from: string | undefined = raw.from;
-    const subject: string | undefined = raw.subject;
-    const text: string | undefined = raw.text;
-    const html: string | undefined = raw.html;
-    const headers: Record<string, string> | undefined = raw.headers;
+    // Normalize common fields across JSON and Mailgun Routes
+    const to: string | undefined =
+      (raw.to as string) || (raw.recipient as string);
+    const from: string | undefined =
+      (raw.from as string) || (raw.sender as string);
+    const subject: string | undefined = raw.subject as string | undefined;
+    const text: string | undefined =
+      (raw.text as string) ||
+      (raw['body-plain'] as string) ||
+      (raw['stripped-text'] as string);
+    const html: string | undefined =
+      (raw.html as string) || (raw['stripped-html'] as string);
 
     if (!to || !from)
       return NextResponse.json({ error: 'missing to/from' }, { status: 400 });
@@ -67,7 +96,9 @@ export async function POST(req: NextRequest) {
       );
 
     const secret = conn.accessToken || null;
-    if (!verifySecret(req, secret) || !verifyMailgunSignature(raw)) {
+    const secretOk = verifySecret(req, secret);
+    const mailgunOk = verifyMailgunSignature(raw);
+    if (!secretOk && !mailgunOk) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
