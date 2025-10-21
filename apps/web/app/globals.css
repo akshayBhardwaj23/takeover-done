@@ -148,7 +148,7 @@
   }
 }
 
-/* Pinterest WGMI animations */
+/* Web3/NFT Design System Animations */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -178,6 +178,30 @@
   }
 }
 
+@keyframes cardFloat {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-5px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(-3px) rotate(-1deg);
+  }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .animate-fadeInUp {
   animation: fadeInUp 0.6s ease-out forwards;
 }
@@ -188,6 +212,65 @@
 
 .animate-glowPulse {
   animation: glowPulse 2s ease-in-out infinite;
+}
+
+.animate-cardFloat {
+  animation: cardFloat 6s ease-in-out infinite;
+}
+
+.animate-gradientShift {
+  animation: gradientShift 8s ease infinite;
+  background-size: 200% 200%;
+}
+
+/* Web3/NFT Card Hover Effects */
+.card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: scale(1.03) translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Web3/NFT Button Styles */
+.btn-web3 {
+  @apply px-8 py-4 rounded-full font-bold text-lg transition-all duration-300;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-web3:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+}
+
+/* Web3/NFT Gradient Backgrounds */
+.gradient-coral {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+}
+
+.gradient-purple {
+  background: linear-gradient(135deg, #B536FF 0%, #E536FF 100%);
+}
+
+.gradient-neon {
+  background: linear-gradient(135deg, #CCFF00 0%, #B8FF00 100%);
+}
+
+.gradient-cyan {
+  background: linear-gradient(135deg, #00D4FF 0%, #0099FF 100%);
+}
+
+/* Web3/NFT Dot Grid Patterns */
+.dot-grid-light {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.dot-grid-dark {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 
 @media (prefers-reduced-motion: reduce) {
