@@ -2,378 +2,321 @@
 import { trpc } from '../lib/trpc';
 import Link from 'next/link';
 import { useState } from 'react';
-import AnimatedDiagram from './components/AnimatedDiagram';
-import InteractiveStats from './components/InteractiveStats';
-import FeatureTabs from './components/FeatureTabs';
-import HeroSection from './HeroSection';
-import Reveal from './components/Reveal';
-import Magnetic from './components/Magnetic';
-import TiltCard from './components/TiltCard';
-import Parallax from './components/Parallax';
+import Floating3DCards from './components/Floating3DCards';
+import ModularGrid from './components/ModularGrid';
 
 export default function HomePage() {
   const connections = trpc.connections.useQuery();
   const [annual, setAnnual] = useState(false);
 
   return (
-    <main className="relative min-h-screen bg-white">
-      {/* Hero Section - Following design.json */}
-      <HeroSection />
+    <div className="min-h-screen bg-white">
+      {/* Single Navigation Header */}
+      <nav className="relative z-20 flex items-center justify-between p-6 bg-transparent backdrop-blur-sm">
+        <div className="flex items-center space-x-8">
+          <div className="text-2xl font-black text-gray-900">ZYYP</div>
+          <div className="hidden md:flex space-x-6">
+            <Link href="/" className="text-gray-900 font-medium">Home</Link>
+            <Link href="/about" className="text-gray-600 hover:text-gray-900 transition-colors">About</Link>
+            <Link href="/gallery" className="text-gray-600 hover:text-gray-900 transition-colors">Gallery</Link>
+            <Link href="/team" className="text-gray-600 hover:text-gray-900 transition-colors">Team</Link>
+            <Link href="/member" className="text-gray-600 hover:text-gray-900 transition-colors">Member</Link>
+          </div>
+        </div>
+        <div className="flex items-center space-x-4">
+          <Link href="/integrations" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Integrations</Link>
+          <Link href="/inbox" className="text-gray-600 hover:text-gray-900 transition-colors font-medium">Inbox</Link>
+          <button className="bg-orange-500 text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-orange-600 transition-all duration-300">
+            Sign in
+          </button>
+          <button className="bg-black text-white px-6 py-2 rounded-full text-sm font-semibold hover:bg-gray-800 transition-all duration-300">
+            Connect Wallet
+          </button>
+        </div>
+      </nav>
 
-      {/* Value Proposition Section */}
-      <section className="section-padding bg-white">
-        <div className="container-max">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-8">
-              <Reveal>
-                <h2 className="section-headline text-gray-900">
-                  Automate your Shopify customer support workflow
-                </h2>
-              </Reveal>
-              
-              <Reveal>
-                <p className="body-text text-gray-600 max-w-lg">
-                  Create intelligent workflows that handle common customer requests automatically. 
-                  Set up approval chains for refunds, cancellations, and replacements while maintaining full control.
-                </p>
-              </Reveal>
-              
-              <Reveal>
-                <ul className="space-y-4">
-                  {[
-                    'AI drafts responses using your Shopify order data',
-                    'Auto-approve refunds under $50 with manager oversight',
-                    'Detect customer sentiment and urgency levels',
-                    'Track all AI decisions for compliance and analytics',
-                  ].map((item, index) => (
-                    <li key={item} className="flex items-start gap-3" style={{ animationDelay: `${index * 0.1}s` }}>
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white text-sm font-bold">
-                        ✓
-                      </div>
-                      <span className="text-gray-700">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-            </div>
-            
-            <Reveal>
-              <div className="bg-gray-50 rounded-2xl p-8">
-                <div className="space-y-4">
-                  {[
-                    'Detect intent',
-                    'Draft reply',
-                    'Propose refund',
-                    'Await approval',
-                  ].map((step, index) => (
-                    <div key={step} className="flex items-center justify-between bg-white rounded-lg p-4 border border-gray-200">
-                      <div className="h-4 w-32 bg-gray-200 rounded"></div>
-                      <div className="h-8 w-16 bg-gradient-to-r from-orange-400 to-orange-600 rounded-lg"></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Reveal>
+      {/* Hero Section - Web3/NFT Style */}
+      <section className="relative min-h-screen bg-gray-50 overflow-hidden" style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+
+        {/* Floating 3D Cards Background */}
+        <div className="absolute inset-0 pointer-events-none">
+          <Floating3DCards cardCount={6} />
+        </div>
+
+        {/* Main Hero Content */}
+        <div className="relative z-10 flex items-center justify-center min-h-[80vh] px-6">
+          <div className="max-w-5xl text-center">
+            <h1 className="text-6xl md:text-8xl font-black text-gray-900 mb-6 leading-tight tracking-tight">
+              Shopify Automation
+              <br />
+              <span className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent">
+                Intelligence
+              </span>
+            </h1>
+            <p className="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto font-medium">
+              A collection of 10,000+ AI-powered workflows for your Shopify store. 
+              Automate customer support, process refunds, and manage orders with intelligent automation.
+            </p>
+            <button className="bg-black text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-gray-800 transition-all duration-300 hover:scale-105">
+              Get Started
+            </button>
           </div>
         </div>
       </section>
 
-      {/* Feature Tabs Section */}
-      <section className="section-padding bg-gray-50">
-        <div className="container-max">
-            <Reveal>
-              <div className="text-center mb-16">
-                <h2 className="section-headline text-gray-900 mb-4">
-                  Everything you need for Shopify support automation
-                </h2>
-                <p className="subheadline text-gray-600 max-w-3xl mx-auto">
-                  Powerful AI features designed to handle your Shopify customer support while you focus on growing your business
-                </p>
-              </div>
-            </Reveal>
-          
-          <FeatureTabs />
-        </div>
-      </section>
-
-      {/* Interactive Stats Section */}
-      <section className="section-padding bg-white">
-        <div className="container-max">
-          <Reveal>
-            <div className="text-center mb-16">
-              <h2 className="section-headline text-gray-900 mb-4">
-                Trusted by thousands of businesses
-              </h2>
-              <p className="subheadline text-gray-600">
-                See why companies choose our platform for their e-commerce automation
-              </p>
+      {/* Dark Section with Card Grid */}
+      <section className="bg-black py-20 relative" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        <div className="container mx-auto px-6">
+          <div className="flex items-center justify-between mb-16">
+            <h2 className="text-4xl md:text-5xl font-black text-white">Shopify Top Features</h2>
+            <div className="flex items-center space-x-2">
+              <span className="text-gray-400 text-sm font-medium">Filter:</span>
+              <select className="bg-gray-800 text-white px-4 py-2 rounded-full border border-gray-700 text-sm font-medium">
+                <option>All Features</option>
+                <option>AI Support</option>
+                <option>Automation</option>
+                <option>Analytics</option>
+              </select>
             </div>
-          </Reveal>
-          
-          <InteractiveStats />
+          </div>
+
+          {/* 3-Column Card Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+            {/* AI Support Card */}
+            <div className="bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl p-8 relative overflow-hidden group hover:scale-105 transition-all duration-300 hover:shadow-2xl">
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl mb-6 flex items-center justify-center">
+                  <span className="text-3xl">🤖</span>
+                </div>
+                <h3 className="text-2xl font-black text-white mb-4">AI Customer Support</h3>
+                <p className="text-white/90 mb-6 text-sm font-medium">Intelligent responses to customer inquiries with 95% accuracy</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">AI Support</span>
+                  <span className="text-sm text-white/70 font-medium">+95% Accuracy</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Automation Card */}
+            <div className="bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl p-8 relative overflow-hidden group hover:scale-105 transition-all duration-300 hover:shadow-2xl">
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl mb-6 flex items-center justify-center">
+                  <span className="text-3xl">⚡</span>
+                </div>
+                <h3 className="text-2xl font-black text-white mb-4">Smart Automation</h3>
+                <p className="text-white/90 mb-6 text-sm font-medium">Automated workflows for refunds, cancellations, and order management</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Automation</span>
+                  <span className="text-sm text-white/70 font-medium">+80% Efficiency</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Analytics Card */}
+            <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl p-8 relative overflow-hidden group hover:scale-105 transition-all duration-300 hover:shadow-2xl">
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-white/20 rounded-2xl mb-6 flex items-center justify-center">
+                  <span className="text-3xl">📊</span>
+                </div>
+                <h3 className="text-2xl font-black text-white mb-4">Advanced Analytics</h3>
+                <p className="text-white/90 mb-6 text-sm font-medium">Real-time insights into customer behavior and support patterns</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Analytics</span>
+                  <span className="text-sm text-white/70 font-medium">+60% Insights</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modular Grid Section */}
+          <div className="relative">
+            <h3 className="text-3xl font-black text-white mb-8 text-center">Modular Integration System</h3>
+            <div className="relative h-96 rounded-2xl overflow-hidden">
+              <ModularGrid moduleCount={12} />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Animated Diagram Section */}
-      <section className="section-padding bg-gray-50">
-        <div className="container-max">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+      {/* Light Section - Integration Steps */}
+      <section className="py-20 bg-gray-50" style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">
+              Seamlessly integrate with your existing tools
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto font-medium">
+              Native connections for Shopify and Gmail. Secure OAuth and resilient webhooks keep your inbox in sync.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
-              <Reveal>
-                <h2 className="section-headline text-gray-900">
-                  How it works
-                </h2>
-              </Reveal>
-              
-              <Reveal>
-                <p className="body-text text-gray-600">
-                  Our intelligent system processes your data through multiple stages, 
-                  ensuring accuracy and reliability at every step.
-                </p>
-              </Reveal>
-              
-              <Reveal>
+              <div className="space-y-6">
+                <h3 className="text-3xl font-black text-gray-900">Connect in 3 steps</h3>
                 <div className="space-y-6">
                   {[
-                    { title: 'Data Input', desc: 'Connect your Shopify store and Gmail account' },
-                    { title: 'AI Processing', desc: 'Our AI analyzes patterns and customer behavior' },
-                    { title: 'Smart Actions', desc: 'Automated responses with human oversight' },
-                    { title: 'Results', desc: 'Improved efficiency and customer satisfaction' },
-                  ].map((step, index) => (
-                    <div key={step.title} className="flex items-start gap-4">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-bold text-sm">
-                        {index + 1}
+                    { step: '1', title: 'Install Shopify app', desc: 'Add our app to your Shopify store' },
+                    { step: '2', title: 'Approve Gmail access', desc: 'Connect your Gmail account securely' },
+                    { step: '3', title: 'Start automating', desc: 'Let AI handle your customer support' },
+                  ].map((item, index) => (
+                    <div key={item.step} className="flex items-start gap-6">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-r from-orange-400 to-orange-600 flex items-center justify-center text-white font-black text-lg">
+                        {item.step}
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{step.title}</h3>
-                        <p className="text-gray-600 text-sm">{step.desc}</p>
+                        <h4 className="text-xl font-black text-gray-900 mb-2">{item.title}</h4>
+                        <p className="text-gray-600 font-medium">{item.desc}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </Reveal>
-            </div>
-            
-            <Reveal>
-              <AnimatedDiagram className="max-w-lg mx-auto" />
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* Integrations Section */}
-      <section className="section-padding bg-white">
-        <div className="container-max">
-          <div className="bg-white rounded-3xl p-8 shadow-lg border border-gray-100">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-              <h3 className="section-headline text-gray-900">Best-in-class integrations</h3>
-              <div className="inline-flex items-center rounded-full bg-green-100 px-4 py-2 text-sm font-medium text-green-800">
-                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                {connections.data?.connections?.length ?? 0} connected store(s)
+              </div>
+              
+              <div className="flex flex-wrap gap-4">
+                <Link href="/integrations" className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-8 py-4 rounded-full font-bold hover:from-orange-600 hover:to-red-600 transition-all duration-300 hover:scale-105">
+                  Connect your store
+                </Link>
+                <Link href="/inbox" className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-full font-bold hover:bg-gray-100 transition-all duration-300 hover:scale-105">
+                  See it in action
+                </Link>
               </div>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-12">
-              <div className="space-y-6">
-                <p className="body-text text-gray-600 max-w-md">
-                  Native connections for Shopify and Gmail. No passwords, secure OAuth, 
-                  and resilient webhooks so your inbox always stays in sync.
-                </p>
-                
-                <ul className="space-y-4">
-                  {[
-                    'Sync orders, customers, and payments',
-                    'Inline order actions from the inbox',
-                    'One-click OAuth setup',
-                    'Reliable webhook delivery',
-                  ].map((feature, index) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-white border-2 border-gray-900 flex items-center justify-center text-xs font-bold">
-                        ✓
-                      </div>
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                
-                <div className="flex flex-wrap gap-4">
-                  <Link href="/integrations" className="btn-brand">
-                    Connect your store
-                  </Link>
-                  <Link href="/inbox" className="btn-secondary">
-                    See it in action
-                  </Link>
+            <div className="grid grid-cols-2 gap-6">
+              {/* Shopify card */}
+              <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 group hover:scale-105 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center text-white text-2xl">🛍️</div>
+                  <div className="text-lg font-black text-gray-900">Shopify</div>
                 </div>
+                <div className="space-y-3 mb-6">
+                  <div className="h-3 w-32 bg-gray-200 rounded-full"></div>
+                  <div className="h-3 w-24 bg-gray-200 rounded-full"></div>
+                </div>
+                <Link href="/integrations" className="w-full bg-green-600 text-white text-center py-3 px-4 rounded-full text-sm font-bold hover:bg-green-700 transition-all duration-300">
+                  Connect
+                </Link>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {/* Shopify card */}
-                <div className="card-feature p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-green-500"></div>
-                    <div className="text-sm font-semibold text-gray-900">Shopify</div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <div className="h-2 w-32 bg-gray-200 rounded"></div>
-                    <div className="h-2 w-24 bg-gray-200 rounded"></div>
-                  </div>
-                  <Link href="/integrations" className="w-full bg-green-600 text-white text-center py-3 px-4 rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors">
-                    Connect
-                  </Link>
+              
+              {/* Gmail card */}
+              <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-200 group hover:scale-105 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center text-white text-2xl">✉️</div>
+                  <div className="text-lg font-black text-gray-900">Gmail</div>
                 </div>
-                
-                {/* Gmail card */}
-                <div className="card-feature p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-8 h-8 rounded-lg bg-red-500"></div>
-                    <div className="text-sm font-semibold text-gray-900">Gmail</div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <div className="h-2 w-32 bg-gray-200 rounded"></div>
-                    <div className="h-2 w-24 bg-gray-200 rounded"></div>
-                  </div>
-                  <Link href="/integrations" className="w-full bg-red-600 text-white text-center py-3 px-4 rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors">
-                    Authorize
-                  </Link>
+                <div className="space-y-3 mb-6">
+                  <div className="h-3 w-32 bg-gray-200 rounded-full"></div>
+                  <div className="h-3 w-24 bg-gray-200 rounded-full"></div>
                 </div>
-
-                {/* Steps card */}
-                <div className="col-span-2 card-feature p-6">
-                  <div className="text-sm font-semibold text-gray-900 mb-4">Connect in 3 steps</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                      { n: '1', t: 'Install Shopify app' },
-                      { n: '2', t: 'Approve Gmail access' },
-                      { n: '3', t: 'Start replying with AI' },
-                    ].map((step) => (
-                      <div key={step.n} className="flex items-center gap-3 bg-gray-50 rounded-lg p-3">
-                        <span className="w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-bold flex items-center justify-center">
-                          {step.n}
-                        </span>
-                        <span className="text-sm text-gray-700">{step.t}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <Link href="/integrations" className="w-full bg-red-600 text-white text-center py-3 px-4 rounded-full text-sm font-bold hover:bg-red-700 transition-all duration-300">
+                  Authorize
+                </Link>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Testimonials Section */}
-      <section className="section-padding bg-gray-50">
-        <div className="container-max">
-          <Reveal>
-            <div className="text-center mb-16">
-              <h2 className="section-headline text-gray-900 mb-4">
-                What our customers say
-              </h2>
-              <p className="subheadline text-gray-600">
-                Join thousands of businesses already using our platform
-              </p>
-            </div>
-          </Reveal>
+      {/* Dark Section - Stats */}
+      <section className="py-20 bg-black" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black text-white mb-6">
+              Trusted by leading Shopify stores
+            </h2>
+            <p className="text-xl text-gray-300 font-medium">
+              Join thousands of e-commerce businesses automating their customer service
+            </p>
+          </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-4 gap-8">
             {[
-              {
-                quote: 'This AI handles 80% of our customer support automatically. Our response time went from hours to minutes.',
-                author: 'Sarah Chen, Founder of EcoWear Store',
-              },
-              {
-                quote: 'The Shopify integration is seamless. AI knows exactly which order the customer is asking about.',
-                author: 'Mike Rodriguez, Owner of TechGadgets Plus',
-              },
-              {
-                quote: 'Finally, a support tool that actually understands e-commerce. Our team can focus on growth now.',
-                author: 'Lisa Park, CEO of Fashion Forward',
-              },
-            ].map((testimonial, index) => (
-              <Reveal key={index}>
-                <div className="card-feature p-8">
-                  <p className="text-gray-900 mb-4">"{testimonial.quote}"</p>
-                  <div className="text-sm text-gray-600">{testimonial.author}</div>
-                </div>
-              </Reveal>
+              { number: '2.5K+', label: 'Shopify Stores' },
+              { number: '95%', label: 'AI Accuracy' },
+              { number: '30s', label: 'Avg Response' },
+              { number: '24/7', label: 'AI Support' },
+            ].map((stat, index) => (
+              <div key={index} className="text-center group hover:scale-105 transition-all duration-300">
+                <div className="text-5xl font-black text-white mb-3">{stat.number}</div>
+                <div className="text-gray-400 font-bold text-sm uppercase tracking-wide">{stat.label}</div>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section className="section-padding bg-white">
-        <div className="container-max">
-          <Reveal>
-            <div className="text-center mb-16">
-              <h2 className="section-headline text-gray-900 mb-4">Simple, transparent pricing</h2>
-              <p className="subheadline text-gray-600">Choose the plan that fits your business needs</p>
-            </div>
-          </Reveal>
+      {/* Light Section - Pricing */}
+      <section className="py-20 bg-gray-50" style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black text-gray-900 mb-6">Simple, transparent pricing</h2>
+            <p className="text-xl text-gray-600 font-medium">Choose the plan that fits your business needs</p>
+          </div>
           
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-12">
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">Annual discount</span>
+              <span className="text-sm text-gray-600 font-medium">Annual discount</span>
               <button
                 type="button"
                 aria-pressed={annual}
                 onClick={() => setAnnual((v) => !v)}
-                className={`${annual ? 'bg-orange-500' : 'bg-gray-200'} relative h-6 w-11 rounded-full transition-colors`}
+                className={`${annual ? 'bg-orange-500' : 'bg-gray-200'} relative h-8 w-16 rounded-full transition-colors duration-300`}
               >
                 <span
-                  className={`${annual ? 'translate-x-5' : 'translate-x-1'} inline-block h-4 w-4 translate-y-1 rounded-full bg-white transition-transform`}
+                  className={`${annual ? 'translate-x-9' : 'translate-x-1'} inline-block h-6 w-6 translate-y-1 rounded-full bg-white transition-transform duration-300`}
                 />
               </button>
             </div>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Free */}
-            <div className="card-feature p-8">
-              <div className="text-lg font-semibold text-gray-900">Start</div>
-              <div className="mt-2 text-4xl font-bold text-gray-900">Free</div>
-              <ul className="mt-6 space-y-3 text-sm text-gray-600">
+            <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-200 group hover:scale-105 transition-all duration-300">
+              <div className="text-2xl font-black text-gray-900 mb-2">Start</div>
+              <div className="text-5xl font-black text-gray-900 mb-6">Free</div>
+              <ul className="space-y-4 text-sm text-gray-600 font-medium mb-8">
                 <li>Up to 3 workflows</li>
                 <li>250 emails / mo</li>
                 <li>AI replies and approvals</li>
               </ul>
-              <Link href="/integrations" className="mt-6 w-full btn-secondary text-center">
+              <Link href="/integrations" className="w-full border-2 border-gray-300 text-gray-700 text-center py-4 rounded-full font-bold hover:bg-gray-100 transition-all duration-300">
                 Get started
               </Link>
             </div>
             
             {/* Team */}
-            <div className="card-feature p-8 border-2 border-orange-500 relative">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-orange-500 text-white px-4 py-1 rounded-full text-sm font-medium">Most Popular</span>
+            <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl p-8 shadow-2xl relative group hover:scale-105 transition-all duration-300">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <span className="bg-white text-orange-500 px-6 py-2 rounded-full text-sm font-black">Most Popular</span>
               </div>
-              <div className="text-lg font-semibold text-gray-900">Team</div>
-              <div className="mt-2 text-4xl font-bold text-gray-900">
-                {annual ? '$150' : '$175'}<span className="text-lg font-normal text-gray-600">/mo</span>
+              <div className="text-2xl font-black text-white mb-2">Team</div>
+              <div className="text-5xl font-black text-white mb-2">
+                {annual ? '$150' : '$175'}<span className="text-2xl font-bold text-white/80">/mo</span>
               </div>
-              {annual && <div className="text-sm text-gray-600">Billed annually</div>}
-              <ul className="mt-6 space-y-3 text-sm text-gray-600">
+              {annual && <div className="text-sm text-white/80 font-medium mb-6">Billed annually</div>}
+              <ul className="space-y-4 text-sm text-white/90 font-medium mb-8">
                 <li>Unlimited workflows</li>
                 <li>Unlimited responses</li>
                 <li>Add up to 5 teammates</li>
                 <li>Project folders and permissions</li>
               </ul>
-              <Link href="/integrations" className="mt-6 w-full btn-brand text-center">
+              <Link href="/integrations" className="w-full bg-white text-orange-500 text-center py-4 rounded-full font-black hover:bg-gray-100 transition-all duration-300">
                 Start free trial
               </Link>
             </div>
             
             {/* Enterprise */}
-            <div className="card-feature p-8">
-              <div className="text-lg font-semibold text-gray-900">Enterprise</div>
-              <div className="mt-2 text-4xl font-bold text-gray-900">Custom</div>
-              <ul className="mt-6 space-y-3 text-sm text-gray-600">
+            <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-200 group hover:scale-105 transition-all duration-300">
+              <div className="text-2xl font-black text-gray-900 mb-2">Enterprise</div>
+              <div className="text-5xl font-black text-gray-900 mb-6">Custom</div>
+              <ul className="space-y-4 text-sm text-gray-600 font-medium mb-8">
                 <li>Custom branding</li>
                 <li>Unlimited users</li>
                 <li>Custom enhancements</li>
                 <li>SSO and dedicated support</li>
               </ul>
-              <Link href="/integrations" className="mt-6 w-full btn-secondary text-center">
+              <Link href="/integrations" className="w-full border-2 border-gray-300 text-gray-700 text-center py-4 rounded-full font-bold hover:bg-gray-100 transition-all duration-300">
                 Contact sales
               </Link>
             </div>
@@ -381,24 +324,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="section-padding bg-gradient-to-br from-orange-50 to-orange-100">
-        <div className="container-max text-center">
-          <Reveal>
-            <h2 className="section-headline text-gray-900 mb-4">
-              Ready to transform your e-commerce?
-            </h2>
-            <p className="subheadline text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of businesses already using our platform to automate their operations
-            </p>
-            <Magnetic>
-              <Link href="/integrations" className="btn-brand text-lg px-12 py-4">
-                Get started for free
-              </Link>
-            </Magnetic>
-          </Reveal>
+      {/* Final CTA - Dark Section */}
+      <section className="py-20 bg-black" style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        <div className="container mx-auto px-6 text-center">
+          <h2 className="text-4xl md:text-5xl font-black text-white mb-6">
+            Ready to transform your e-commerce support?
+          </h2>
+          <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto font-medium">
+            Start automating your Shopify customer support today with our AI-powered platform.
+          </p>
+          <Link href="/integrations" className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-12 py-6 rounded-full text-xl font-black hover:from-orange-600 hover:to-red-600 transition-all duration-300 hover:scale-105">
+            Get started for free
+          </Link>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
