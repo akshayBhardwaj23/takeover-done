@@ -32,8 +32,15 @@ function IntegrationsInner() {
   const connected = sp.get('connected');
   const shop = sp.get('shop');
   const { data } = trpc.connections.useQuery();
-  const utils = trpc.useUtils() as any;
+  const emailHealth = trpc.emailHealth.useQuery();
+  const utils = (trpc as any).useUtils();
   const createAlias = trpc.createEmailAlias.useMutation({
+    onSuccess: () => utils.connections.invalidate(),
+  });
+  const rotateAlias = trpc.rotateAlias.useMutation({
+    onSuccess: () => utils.connections.invalidate(),
+  });
+  const setAliasStatus = trpc.setAliasStatus.useMutation({
     onSuccess: () => utils.connections.invalidate(),
   });
   const [shopInput, setShopInput] = useState('');
@@ -46,7 +53,7 @@ function IntegrationsInner() {
   // Dialog is uncontrolled via DialogTrigger
 
   useEffect(() => {
-    const already = sp.get('already');
+    const already = (sp as any).get('already');
     if (already === '1' && shop) {
       setToast({ type: 'success', text: `Store already connected: ${shop}` });
       const t = setTimeout(() => setToast(null), 3000);
@@ -66,7 +73,8 @@ function IntegrationsInner() {
       setTimeout(() => setToast(null), 3000);
       return;
     }
-    window.location.href = `/api/shopify/install?shop=${encodeURIComponent(domain)}`;
+    (window as any).location.href =
+      `/api/shopify/install?shop=${encodeURIComponent(domain)}`;
   }
 
   return (
@@ -81,11 +89,7 @@ function IntegrationsInner() {
         )}
         {toast && (
           <div
-            className={`rounded-md px-4 py-3 text-sm ${
-              toast.type === 'error'
-                ? 'border border-red-200 bg-red-50 text-red-900'
-                : 'border border-emerald-200 bg-emerald-50 text-emerald-900'
-            }`}
+            className={`rounded-md px-4 py-3 text-sm ${toast.type === 'error' ? 'border border-red-200 bg-red-50 text-red-900' : 'border border-emerald-200 bg-emerald-50 text-emerald-900'}`}
           >
             {toast.text}
           </div>
@@ -159,7 +163,7 @@ function IntegrationsInner() {
                 required
                 value={shopInput}
                 onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setShopInput(e.target.value)
+                  setShopInput((e as any).target.value)
                 }
               />
               <Button type="submit">Connect</Button>
@@ -189,7 +193,7 @@ function IntegrationsInner() {
             </div>
             <Button
               onClick={() => {
-                const email = session?.user?.email;
+                const email = (session as any)?.user?.email;
                 if (!email) {
                   alert('Please sign in first.');
                   return;
@@ -197,7 +201,7 @@ function IntegrationsInner() {
                 createAlias.mutate({
                   userEmail: email,
                   domain:
-                    (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as string) ||
+                    (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
                     'mail.example.com',
                 });
               }}
@@ -227,13 +231,13 @@ function IntegrationsInner() {
                       className="group p-5 shadow-sm transition hover:shadow-md"
                     >
                       <div className="text-sm font-semibold text-gray-900 break-all">
-                        {c?.metadata?.alias ?? '(pending alias)'}
+                        {(c as any)?.metadata?.alias ?? '(pending alias)'}
                       </div>
                       <Badge variant="secondary" className="mt-1">
                         Custom Email
                       </Badge>
-                      {c?.metadata?.alias && (
-                        <div className="mt-3">
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(c as any)?.metadata?.alias && (
                           <Button
                             variant="secondary"
                             onClick={async () => {
@@ -249,25 +253,56 @@ function IntegrationsInner() {
                           >
                             Copy alias
                           </Button>
-                        </div>
-                      )}
+                        )}
+                        <Button
+                          variant="secondary"
+                          onClick={() => rotateAlias.mutate({ id: c.id })}
+                        >
+                          {rotateAlias.isPending ? 'Rotating…' : 'Rotate'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          onClick={() =>
+                            setAliasStatus.mutate({
+                              id: c.id,
+                              disabled: !(c as any)?.metadata?.disabled,
+                            })
+                          }
+                        >
+                          {(c as any)?.metadata?.disabled
+                            ? 'Enable'
+                            : 'Disable'}
+                        </Button>
+                      </div>
                     </Card>
                   ))}
               </div>
             )}
-            <div className="mt-4 rounded border bg-gray-50 p-3 text-xs text-gray-700">
-              <div className="font-semibold">Setup steps</div>
-              <ol className="mt-2 list-decimal pl-5">
-                <li>Click "Create alias" to generate your unique address.</li>
-                <li>
-                  In your email provider, add a forward from your support
-                  mailbox to this alias.
-                </li>
-                <li>
-                  Send a test email to your support mailbox; it should appear in
-                  Inbox shortly.
-                </li>
-              </ol>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Card className="p-4">
+                <div className="text-sm font-semibold">Mailgun health</div>
+                <div className="mt-2 text-sm text-gray-600">
+                  Last inbound delivery
+                </div>
+                <div className="mt-1 text-sm">
+                  {emailHealth.data?.lastInboundAt
+                    ? new Date(
+                        emailHealth.data.lastInboundAt as any,
+                      ).toLocaleString()
+                    : '—'}
+                </div>
+              </Card>
+              <Card className="p-4">
+                <div className="text-sm font-semibold">Setup</div>
+                <ol className="mt-2 list-decimal pl-5 text-sm text-gray-700">
+                  <li>Create alias</li>
+                  <li>
+                    Set Mailgun Route to forward to /api/webhooks/email/custom
+                  </li>
+                  <li>Add forward from your mailbox to the alias</li>
+                </ol>
+              </Card>
             </div>
           </div>
         </section>

@@ -64,6 +64,13 @@ sequenceDiagram
   - Identify tenant via alias in `Connection.metadata.alias` (e.g., `in+<tenant>-<id>@mail.<app-domain>`) and persist `Thread`/`Message`
   - Correlate to `Order` by customer email and heuristics (order number parsing)
   - Create `AISuggestion` stub (worker pipeline recommended)
+  - Guardrails: payload size cap (25MB), alias disable/enable enforced, rotate alias supported
+
+**Alias management**
+
+- Create: `/integrations` → Custom Email → Create alias
+- Rotate: regenerates alias and secret; update forwarding target accordingly
+- Disable/Enable: blocks/permits inbound for that alias (webhook returns 403 when disabled)
 
 **Security**
 

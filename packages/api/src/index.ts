@@ -78,6 +78,76 @@ export const appRouter = t.router({
       return { connections: [] };
     }
   }),
+  rotateAlias: t.procedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const existing = await prisma.connection.findUnique({
+        where: { id: input.id },
+      });
+      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
+        return { ok: false } as any;
+      }
+      const domain = (existing.metadata as any)?.domain as string | undefined;
+      if (!domain) return { ok: false } as any;
+      const short = Math.random().toString(36).slice(2, 8);
+      const alias = `in+${existing.userId.slice(0, 6)}-${short}@${domain}`;
+      const webhookSecret =
+        Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
+      const updated = await prisma.connection.update({
+        where: { id: input.id },
+        data: {
+          accessToken: webhookSecret,
+          metadata: {
+            ...(existing.metadata as any),
+            alias,
+            rotatedAt: new Date().toISOString(),
+          } as any,
+        },
+        select: { id: true, metadata: true },
+      });
+      await logEvent('email.alias.rotated', { alias }, 'connection', input.id);
+      return { ok: true, connection: updated } as any;
+    }),
+  setAliasStatus: t.procedure
+    .input(z.object({ id: z.string(), disabled: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const existing = await prisma.connection.findUnique({
+        where: { id: input.id },
+      });
+      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
+        return { ok: false } as any;
+      }
+      const updated = await prisma.connection.update({
+        where: { id: input.id },
+        data: {
+          metadata: {
+            ...(existing.metadata as any),
+            disabled: input.disabled,
+          } as any,
+        },
+        select: { id: true, metadata: true },
+      });
+      await logEvent(
+        input.disabled ? 'email.alias.disabled' : 'email.alias.enabled',
+        {},
+        'connection',
+        input.id,
+      );
+      return { ok: true, connection: updated } as any;
+    }),
+  emailHealth: t.procedure.query(async () => {
+    try {
+      const last = await prisma.message.findFirst({
+        where: { direction: 'INBOUND' as any },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      return { lastInboundAt: last?.createdAt ?? null };
+    } catch {
+      return { lastInboundAt: null };
+    }
+  }),
   createEmailAlias: t.procedure
     .input(
       z.object({

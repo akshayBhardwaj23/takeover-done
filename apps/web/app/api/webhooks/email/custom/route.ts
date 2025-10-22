@@ -40,6 +40,12 @@ function extractOrderCandidate(text: string): string | null {
 
 export async function POST(req: NextRequest) {
   try {
+    // Basic guardrails
+    const contentLength = Number(req.headers.get('content-length') || '0');
+    if (contentLength > 25 * 1024 * 1024) {
+      return NextResponse.json({ error: 'payload too large' }, { status: 413 });
+    }
+
     // Accept JSON and Mailgun Routes form payloads
     const contentType = req.headers.get('content-type') || '';
     let raw: any = null;
@@ -104,6 +110,9 @@ export async function POST(req: NextRequest) {
 
     const metadata = (conn.metadata as any) ?? {};
     const alias: string | undefined = metadata.alias;
+    if (metadata.disabled === true) {
+      return NextResponse.json({ error: 'alias disabled' }, { status: 403 });
+    }
     if (!alias || !to.toLowerCase().includes(alias.toLowerCase())) {
       return NextResponse.json({ error: 'alias mismatch' }, { status: 400 });
     }
@@ -134,6 +143,18 @@ export async function POST(req: NextRequest) {
       data: { customerEmail, subject: subject ?? null },
     });
 
+    // Attempt to parse Message-ID header
+    const messageIdHeader =
+      (raw['Message-Id'] as string) ||
+      (raw['message-id'] as string) ||
+      undefined;
+    const headers: Record<string, any> = {
+      'message-id': messageIdHeader,
+      subject,
+      from,
+      to,
+    };
+
     const msg = await prisma.message.create({
       data: {
         threadId: thread.id,
@@ -142,7 +163,10 @@ export async function POST(req: NextRequest) {
         to: to.toLowerCase(),
         body: body || '(no content)',
         direction: 'INBOUND',
-      },
+        // The following fields exist after the next DB migration; cast to avoid TS mismatch before generate
+        messageId: messageIdHeader ?? null,
+        headers,
+      } as any,
     });
 
     await logEvent(
@@ -152,15 +176,18 @@ export async function POST(req: NextRequest) {
       thread.id,
     );
 
-    // Stub: create AISuggestion row linked to this message
-    await prisma.aISuggestion.create({
-      data: {
+    // Enqueue background job to generate AI suggestion
+    // Inline fallback: create a minimal AISuggestion now (replace with worker later)
+    await prisma.aISuggestion.upsert({
+      where: { messageId: msg.id },
+      update: {},
+      create: {
         messageId: msg.id,
         reply:
-          'Hi there, thanks for reaching out. I took a look at your order and can help next with an update or a refund if needed. Let me know how you would like to proceed.',
-        proposedAction: 'NONE',
+          'Thanks for reaching out. We have your email and will follow up with order details shortly.',
+        proposedAction: 'NONE' as any,
         orderId: orderId ?? null,
-        confidence: 0.5,
+        confidence: 0.4,
       },
     });
 

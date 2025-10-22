@@ -78,6 +78,25 @@ The web app will be available at `http://localhost:3000` and via your HTTPS tunn
 4. In the app, go to `/integrations` → Custom Email → Create alias.
 5. Forward your support mailbox to the generated alias and send a test email.
 
+#### Alias management
+
+- Rotate: use the Rotate button on `/integrations` → Custom Email card. This creates a new alias and secret.
+- Disable/Enable: toggle to block/allow inbound. Webhook returns 403 when disabled.
+
+#### Guardrails & Troubleshooting
+
+- Max payload: 25MB; Mailgun large attachments may be rejected.
+- 401 Unauthorized: ensure `MAILGUN_SIGNING_KEY` matches the domain’s Signing key and app restarted.
+- 403 alias disabled: re‑enable the alias from `/integrations`.
+- Health card shows last inbound timestamp; if stale, verify Mailgun Route target and logs (expect 200).
+
+### Worker (queues)
+
+- Set `REDIS_URL` to enable BullMQ workers (`apps/worker`).
+- Inbox queue processes `inbound-email-process` to generate AI suggestions (placeholder).
+- The webhook also creates a minimal inline suggestion if the worker is disabled.
+- Start the worker separately in production.
+
 ### Allowed Dev Origins (tunnel)
 
 If you proxy the app through a tunnel domain, Next.js may warn about cross-origin `/_next/*` assets. Add your tunnel to `apps/web/next.config.mjs`:

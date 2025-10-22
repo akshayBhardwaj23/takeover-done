@@ -2,26 +2,26 @@
 
 ### Phase 1 — MVP hardening
 
-- Replace AI stub with OpenAI (responses with order context)
-- Real email send (Resend/Nodemailer/SMTP)
-- Basic audit UI: actions/events timeline per order
-- Allowed dev origins config and production env hardening
+- [ ] Replace AI stub with OpenAI (responses with order context)
+- [ ] Real email send (Resend/Nodemailer/SMTP)
+- [ ] Basic audit UI: actions/events timeline per order
+- [x] Allowed dev origins config and production env hardening
 
 ### Phase 2 — Inbox maturity
 
-- Inbound email via parse webhooks and/or IMAP
-- Threading: `Thread`/`Message` storage, conversation context
-- Smart templates, tone control, multi-language support
-- SLA timers, reminders, collision prevention
+- [x] Inbound email via parse webhooks (Mailgun Routes)
+- [x] Threading: `Thread`/`Message` storage, conversation context
+- [ ] Smart templates, tone control, multi-language support
+- [ ] SLA timers, reminders, collision prevention
 
 Optional enhancements (Email & AI)
 
-- Provider signature verification alternatives (Postmark) alongside Mailgun
-- Attachment ingestion: store in object storage (S3/R2), preview in UI
-- Async AI pipeline via worker: summarize, classify, suggest action
-- Better order correlation heuristics (regex, fuzzy, recent-window ranking)
-- Outbound sending domain/identity management and DKIM alignment
-- Per-tenant rate limits and abuse detection for inbound
+- [ ] Provider signature verification alternatives (Postmark) alongside Mailgun
+- [ ] Attachment ingestion: store in object storage (S3/R2), preview in UI
+- [ ] Async AI pipeline via worker: summarize, classify, suggest action
+- [x] Better order correlation heuristics (regex, recent-window)
+- [ ] Outbound sending domain/identity management and DKIM alignment
+- [x] Per-tenant guardrails (size cap) and alias disable/rotate controls
 
 ### Phase 3 — Shopify deep ops
 

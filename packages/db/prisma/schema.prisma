@@ -66,6 +66,8 @@ model Message {
   from      String
   to        String
   body      String
+  messageId String?  @unique
+  headers   Json?
   direction MessageDirection
   createdAt DateTime @default(now())
   aiSuggestion AISuggestion?
