@@ -2,10 +2,21 @@
 
 ### Phase 1 — MVP hardening
 
-- [ ] Replace AI stub with OpenAI (responses with order context)
+- [x] Replace AI stub with OpenAI (responses with order context)
 - [ ] Real email send (Resend/Nodemailer/SMTP)
 - [ ] Basic audit UI: actions/events timeline per order
 - [x] Allowed dev origins config and production env hardening
+
+### Pre-Production Requirements
+
+- [ ] **Redis/BullMQ setup for async job processing** (CRITICAL)
+  - Move AI suggestion generation to background worker
+  - Implement retry logic for OpenAI API failures
+  - Prevent webhook timeouts during high email volume
+  - Enable horizontal scaling with multiple worker instances
+  - Setup: Upstash Redis (free tier) or self-hosted Redis
+  - Update `REDIS_URL` in environment variables
+  - Benefits: Faster webhook responses (<100ms), better reliability, production-ready architecture
 
 ### Phase 2 — Inbox maturity
 
@@ -20,8 +31,9 @@ Optional enhancements (Email & AI)
 
 - [ ] Provider signature verification alternatives (Postmark) alongside Mailgun
 - [ ] Attachment ingestion: store in object storage (S3/R2), preview in UI
-- [ ] Async AI pipeline via worker: summarize, classify, suggest action
-- [x] Better order correlation heuristics (regex, recent-window)
+- [x] Better order correlation heuristics (regex, recent-window, AI-based matching)
+- [x] Order name field for customer-facing order numbers (#1001 vs internal ID)
+- [x] Email-to-order mapping by order name, email, and internal ID
 - [ ] Outbound sending domain/identity management and DKIM alignment
 - [x] Per-tenant guardrails (size cap) and alias disable/rotate controls
 - [x] Per-store email aliases (unique forwarding address per Shopify store)
