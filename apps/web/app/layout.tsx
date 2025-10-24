@@ -4,6 +4,7 @@ import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
 import SmoothScroll from './components/SmoothScroll';
 import CursorFollower from './components/CursorFollower';
+import Header from './nav-header';
 
 export const metadata = {
   title: 'ZYYP Support Assistant',
@@ -17,8 +18,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`bg-white ${fontSans.variable}`}>
-      <body className="bg-white text-gray-900" style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}>
+      <body
+        className="bg-white text-gray-900"
+        style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}
+      >
         <Providers>
+          <Header />
           <PageFade>{children}</PageFade>
           <SmoothScroll />
           <CursorFollower />
