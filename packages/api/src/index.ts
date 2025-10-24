@@ -153,6 +153,7 @@ export const appRouter = t.router({
       z.object({
         userEmail: z.string().email(),
         domain: z.string().min(3), // app inbound domain e.g., mail.example.com
+        shop: z.string().min(3), // shop domain to scope alias, e.g., dev-yourshop.myshopify.com
       }),
     )
     .mutation(async ({ input }) => {
@@ -163,16 +164,26 @@ export const appRouter = t.router({
         update: {},
       });
 
-      // Generate a stable alias per user if one exists, else create a new one
+      // If an alias already exists for this shop, return it
       const existing = await prisma.connection.findFirst({
-        where: { userId: owner.id, type: 'CUSTOM_EMAIL' as any },
+        where: {
+          userId: owner.id,
+          type: 'CUSTOM_EMAIL' as any,
+          AND: [
+            { metadata: { path: ['shopDomain'], equals: input.shop } } as any,
+          ],
+        },
       });
       if (existing) {
         return { id: existing.id, alias: (existing.metadata as any)?.alias };
       }
 
-      const short = Math.random().toString(36).slice(2, 8);
-      const alias = `in+${owner.id.slice(0, 6)}-${short}@${input.domain}`;
+      const short = Math.random().toString(36).slice(2, 6);
+      const shopSlug = input.shop
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 8)
+        .toLowerCase();
+      const alias = `in+${shopSlug}-${short}@${input.domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -187,6 +198,7 @@ export const appRouter = t.router({
             provider: 'CUSTOM',
             domain: input.domain,
             verifiedAt: null,
+            shopDomain: input.shop,
           } as any,
         },
         select: { id: true },
@@ -363,16 +375,112 @@ export const appRouter = t.router({
           take: 50,
           select: {
             id: true,
+            threadId: true,
             from: true,
             to: true,
             body: true,
             direction: true,
             createdAt: true,
+            aiSuggestion: {
+              select: {
+                reply: true,
+                proposedAction: true,
+                confidence: true,
+              },
+            },
           },
         });
         return { messages: msgs };
       } catch {
         return { messages: [] };
+      }
+    }),
+  unassignedInbound: t.procedure
+    .input(
+      z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
+    )
+    .query(async ({ input }) => {
+      try {
+        const take = input?.take ?? 20;
+        const msgs = await prisma.message.findMany({
+          where: { orderId: null, direction: 'INBOUND' as any },
+          orderBy: { createdAt: 'desc' },
+          take,
+          select: {
+            id: true,
+            threadId: true,
+            from: true,
+            to: true,
+            body: true,
+            createdAt: true,
+            aiSuggestion: {
+              select: { reply: true, proposedAction: true, confidence: true },
+            },
+          },
+        });
+        return { messages: msgs };
+      } catch {
+        return { messages: [] };
+      }
+    }),
+  assignMessageToOrder: t.procedure
+    .input(z.object({ messageId: z.string(), shopifyOrderId: z.string() }))
+    .mutation(async ({ input }) => {
+      try {
+        const order = await prisma.order.findUnique({
+          where: { shopifyId: input.shopifyOrderId },
+          select: { id: true },
+        });
+        if (!order) return { ok: false } as any;
+        await prisma.message.update({
+          where: { id: input.messageId },
+          data: { orderId: order.id },
+        });
+        return { ok: true } as any;
+      } catch {
+        return { ok: false } as any;
+      }
+    }),
+  refreshOrderFromShopify: t.procedure
+    .input(z.object({ shop: z.string(), orderId: z.string() }))
+    .mutation(async ({ input }) => {
+      try {
+        const conn = await prisma.connection.findFirst({
+          where: { type: 'SHOPIFY', shopDomain: input.shop },
+        });
+        if (!conn) return { ok: false, error: 'No Shopify connection found' };
+
+        const url = `https://${input.shop}/admin/api/2024-07/orders/${input.orderId}.json`;
+        const resp = await fetch(url, {
+          headers: { 'X-Shopify-Access-Token': conn.accessToken },
+        });
+        if (!resp.ok)
+          return { ok: false, error: 'Failed to fetch from Shopify' };
+
+        const json: any = await resp.json();
+        const order = json.order;
+        if (!order) return { ok: false, error: 'Order not found' };
+
+        // Update the order in database
+        const orderData = {
+          email: order.email || order.customer?.email || null,
+          totalAmount: Math.round(parseFloat(order.total_price || '0') * 100),
+          status: (order.financial_status || 'PENDING').toUpperCase(),
+          shopDomain: input.shop,
+        };
+
+        await prisma.order.upsert({
+          where: { shopifyId: order.id.toString() },
+          create: {
+            shopifyId: order.id.toString(),
+            ...orderData,
+          },
+          update: orderData,
+        });
+
+        return { ok: true };
+      } catch (error: any) {
+        return { ok: false, error: error.message || 'Unknown error' };
       }
     }),
   ordersRecent: t.procedure
