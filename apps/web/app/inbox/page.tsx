@@ -21,6 +21,7 @@ import {
 type DbOrder = {
   id: string;
   shopifyId: string;
+  name?: string | null;
   email?: string | null;
   totalAmount: number;
   status: string;
@@ -148,7 +149,7 @@ export default function InboxPage() {
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <span className="font-mono text-sm font-semibold text-slate-900">
-                      #{o.shopifyId}
+                      {o.name || `#${o.shopifyId}`}
                     </span>
                     <Badge
                       variant="secondary"
