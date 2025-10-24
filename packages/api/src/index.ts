@@ -463,6 +463,7 @@ export const appRouter = t.router({
 
         // Update the order in database
         const orderData = {
+          name: order.name || null,
           email: order.email || order.customer?.email || null,
           totalAmount: Math.round(parseFloat(order.total_price || '0') * 100),
           status: (order.financial_status || 'PENDING').toUpperCase(),

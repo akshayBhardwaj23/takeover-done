@@ -48,12 +48,14 @@ export async function POST(req: NextRequest) {
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
+          name: order.name || null,
           shopDomain: shop || null,
           status: 'CREATED',
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
         },
         update: {
+          name: order.name || null,
           shopDomain: shop || null,
           status: 'CREATED',
           email: order.email ?? null,
