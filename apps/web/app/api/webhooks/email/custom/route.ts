@@ -133,8 +133,15 @@ export async function POST(req: NextRequest) {
     } else {
       const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
       if (candidate) {
+        // Try matching by order name first (e.g., "#1001" or "1001")
         const byName = await prisma.order.findFirst({
-          where: { shopifyId: candidate },
+          where: {
+            OR: [
+              { name: `#${candidate}` },
+              { name: candidate },
+              { shopifyId: candidate },
+            ],
+          },
         });
         if (byName) orderId = byName.id;
       }
