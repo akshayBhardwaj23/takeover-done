@@ -6,15 +6,18 @@ import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
 import { ScrollArea } from '../../../../@ai-ecom/api/components/ui/scroll-area';
 import { Separator } from '../../../../@ai-ecom/api/components/ui/separator';
+import {
+  Mail,
+  Package,
+  RefreshCw,
+  Send,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+  Sparkles,
+  MessageSquare,
+} from 'lucide-react';
 
-type OrderSummary = {
-  id: string;
-  name: string;
-  email?: string;
-  totalPrice: string;
-  createdAt: string;
-};
-type LineItem = { id: string; title: string; quantity: number; price: string };
 type DbOrder = {
   id: string;
   shopifyId: string;
@@ -37,11 +40,6 @@ export default function InboxPage() {
     { enabled: !!shop },
   );
   const dbOrders = trpc.ordersListDb.useQuery({ take: 20 });
-
-  const orders = useMemo<OrderSummary[]>(
-    () => (data?.orders ?? []) as OrderSummary[],
-    [data],
-  );
   const [selected, setSelected] = useState<string | null>(null);
   const orderDetail = trpc.orderGet.useQuery(
     { shop: shop || '', orderId: selected || '' },
@@ -59,7 +57,6 @@ export default function InboxPage() {
     { enabled: !!selected },
   );
 
-  // Email threads (not tied to a selected order)
   const emailThreads = trpc.threadsList.useQuery({ take: 30 });
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const threadMessages = trpc.threadMessages.useQuery(
@@ -67,135 +64,276 @@ export default function InboxPage() {
     { enabled: !!selectedThread },
   );
 
+  const unassigned = trpc.unassignedInbound.useQuery({ take: 20 });
+  const assignMessage = trpc.assignMessageToOrder.useMutation({
+    onSuccess: () => {
+      messages.refetch();
+      unassigned.refetch();
+    },
+  });
+  const refreshOrder = trpc.refreshOrderFromShopify.useMutation({
+    onSuccess: () => {
+      dbOrders.refetch();
+      orderDetail.refetch();
+    },
+  });
+
+  // Get AI suggestion from messages
+  const aiSuggestion = useMemo(() => {
+    const m = (messages.data?.messages as any[] | undefined)?.find(
+      (x) => x.aiSuggestion?.proposedAction,
+    );
+    return m?.aiSuggestion;
+  }, [messages.data]);
+
   return (
-    <main className="grid h-[calc(100dvh-0px)] grid-cols-12 bg-gradient-to-b from-white via-indigo-50/30 to-fuchsia-50/30">
-      <section className="col-span-3 border-r bg-white/90 p-4 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <h2 className="bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-            Orders
-          </h2>
-          <Button variant="secondary" onClick={() => setSelectedThread(null)}>
-            Email
-          </Button>
+    <main className="flex h-[calc(100dvh-0px)] bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      {/* Left Sidebar - Orders List */}
+      <section className="flex w-80 flex-col border-r border-slate-200 bg-white">
+        <div className="border-b border-slate-200 p-4">
+          <h1 className="text-lg font-semibold text-slate-900">Inbox</h1>
+          <p className="text-sm text-slate-600">
+            Manage orders and support emails
+          </p>
         </div>
+
+        <div className="flex border-b border-slate-200">
+          <button
+            onClick={() => {
+              setSelectedThread(null);
+              setSelected(null);
+            }}
+            className="flex-1 border-b-2 border-indigo-600 px-4 py-3 text-sm font-medium text-indigo-600"
+          >
+            <Package className="mr-2 inline-block h-4 w-4" />
+            Orders
+          </button>
+          <button
+            onClick={() => {
+              setSelected(null);
+            }}
+            className="flex-1 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Mail className="mr-2 inline-block h-4 w-4" />
+            Emails
+          </button>
+        </div>
+
         {!shop && (
-          <Card className="mt-3 border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Add ?shop=your-shop.myshopify.com to the URL to load orders.
-          </Card>
-        )}
-        {dbOrders.data?.orders?.length ? (
-          <ScrollArea className="mt-3 h-[calc(100dvh-120px)] rounded border">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-600">
-                <tr>
-                  <th className="px-3 py-2">Order</th>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Customer</th>
-                  <th className="px-3 py-2">Total</th>
-                  <th className="px-3 py-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dbOrders.data.orders as DbOrder[]).map((o) => (
-                  <tr
-                    key={o.id}
-                    className={`cursor-pointer hover:bg-gray-50 ${selected === o.shopifyId ? 'bg-indigo-50' : ''}`}
-                    onClick={() => setSelected(o.shopifyId)}
-                  >
-                    <td className="px-3 py-2 text-gray-900">#{o.shopifyId}</td>
-                    <td className="px-3 py-2 text-gray-600">
-                      {new Date(o.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-gray-600">
-                      {o.email ?? '—'}
-                    </td>
-                    <td className="px-3 py-2 text-gray-900">
-                      {(o.totalAmount / 100).toFixed(2)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge
-                        variant="secondary"
-                        className={`${o.status === 'FULFILLED' ? 'bg-emerald-50 text-emerald-700' : o.status === 'REFUNDED' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'}`}
-                      >
-                        {o.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollArea>
-        ) : (
-          <ul className="space-y-2">
-            {orders.length === 0 && shop && (
-              <li className="text-sm text-gray-500">No orders found.</li>
-            )}
-            {orders.map((o) => (
-              <li
-                key={o.id}
-                className={`cursor-pointer rounded border p-3 ${selected === o.id ? 'ring-2 ring-indigo-500' : ''}`}
-                onClick={() => setSelected(o.id)}
-              >
-                <div className="text-sm font-medium">{o.name}</div>
-                <div className="text-xs text-gray-600">{o.email ?? '—'}</div>
-                <div className="mt-1 text-xs text-gray-600">
-                  {o.totalPrice} • {new Date(o.createdAt).toLocaleString()}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section className="col-span-5 border-r bg-white/90 p-4 backdrop-blur">
-        <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-          {selectedThread ? 'Thread' : 'Order details'}
-        </h2>
-        {!selected && !selectedThread && (
-          <div className="text-sm text-white/60">
-            Select an order to view details, AI suggestions, and actions.
+          <div className="m-4">
+            <Card className="border-amber-200 bg-amber-50 p-4">
+              <AlertCircle className="mb-2 h-5 w-5 text-amber-600" />
+              <p className="text-xs text-amber-900">
+                Add ?shop=your-shop.myshopify.com to the URL to load orders.
+              </p>
+            </Card>
           </div>
         )}
-        {selected && !selectedThread && orderDetail.data?.order && (
-          <div className="space-y-3">
-            <Card className="p-3">
-              <div className="text-sm font-medium">
-                {orderDetail.data.order.name} •{' '}
-                {orderDetail.data.order.totalPrice}
+
+        <ScrollArea className="flex-1">
+          {dbOrders.data?.orders?.length ? (
+            <div className="p-2">
+              {(dbOrders.data.orders as DbOrder[]).map((o) => (
+                <Card
+                  key={o.id}
+                  className={`mb-2 cursor-pointer p-3 transition-all hover:shadow-md ${
+                    selected === o.shopifyId
+                      ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500'
+                      : 'border-slate-200 hover:border-indigo-300'
+                  }`}
+                  onClick={() => {
+                    setSelected(o.shopifyId);
+                    setSelectedThread(null);
+                  }}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-mono text-sm font-semibold text-slate-900">
+                      #{o.shopifyId}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className={`text-xs ${
+                        o.status === 'FULFILLED'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : o.status === 'REFUNDED'
+                            ? 'bg-rose-100 text-rose-700'
+                            : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {o.status}
+                    </Badge>
+                  </div>
+                  <p className="mb-1 truncate text-xs text-slate-600">
+                    {o.email ?? 'No email'}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-slate-900">
+                      ${(o.totalAmount / 100).toFixed(2)}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(o.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 text-center text-sm text-slate-500">
+              No orders found
+            </div>
+          )}
+        </ScrollArea>
+      </section>
+
+      {/* Middle Section - Order Details / Thread View */}
+      <section className="flex flex-1 flex-col border-r border-slate-200 bg-white">
+        {!selected && !selectedThread && (
+          <div className="flex flex-1 items-center justify-center">
+            <div className="text-center">
+              <Package className="mx-auto h-16 w-16 text-slate-300" />
+              <h3 className="mt-4 text-lg font-medium text-slate-900">
+                No order selected
+              </h3>
+              <p className="mt-2 text-sm text-slate-500">
+                Select an order from the sidebar to view details
+              </p>
+            </div>
+          </div>
+        )}
+
+        {selected && orderDetail.data?.order && (
+          <div className="flex flex-1 flex-col">
+            {/* Order Header */}
+            <div className="border-b border-slate-200 bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    {orderDetail.data.order.name}
+                  </h2>
+                  <p className="mt-1 text-indigo-100">
+                    {orderDetail.data.order.email ?? 'No email'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-bold">
+                    {orderDetail.data.order.totalPrice}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 border-white/30 bg-white/10 text-white hover:bg-white/20"
+                    onClick={() =>
+                      refreshOrder.mutate({
+                        shop: shop,
+                        orderId: selected || '',
+                      })
+                    }
+                    disabled={refreshOrder.isPending}
+                  >
+                    <RefreshCw
+                      className={`mr-2 h-3 w-3 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                    />
+                    {refreshOrder.isPending
+                      ? 'Syncing...'
+                      : 'Refresh from Shopify'}
+                  </Button>
+                </div>
               </div>
-              <div className="text-xs text-white/60">
-                {orderDetail.data.order.email ?? '—'}
-              </div>
-              <ul className="mt-2 list-disc pl-4 text-xs text-white/80">
-                {orderDetail.data.order.lineItems.map((li: LineItem) => (
-                  <li key={li.id}>
-                    {li.quantity} × {li.title} — {li.price}
-                  </li>
+            </div>
+
+            {/* Order Items */}
+            <div className="border-b border-slate-200 p-6">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">
+                Order Items
+              </h3>
+              <div className="space-y-2">
+                {orderDetail.data.order.lineItems.map((li: any) => (
+                  <div
+                    key={li.id}
+                    className="flex items-center justify-between rounded-lg bg-slate-50 p-3"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">{li.title}</p>
+                      <p className="text-sm text-slate-600">
+                        Qty: {li.quantity}
+                      </p>
+                    </div>
+                    <p className="font-semibold text-slate-900">{li.price}</p>
+                  </div>
                 ))}
-              </ul>
-            </Card>
-            <Card className="space-y-2 p-3">
-              <div className="text-sm font-medium">AI Suggestion</div>
-              <Button
-                onClick={() => {
-                  const o = orderDetail.data?.order;
-                  if (!o) return;
-                  suggest.mutate({
-                    customerMessage: 'Customer asked about order status',
-                    orderSummary: `${o.name} ${o.totalPrice}`,
-                    tone: 'friendly',
-                  });
-                }}
-              >
-                Suggest reply
-              </Button>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                className="w-full rounded border border-white/20 bg-black/40 p-2 text-sm text-white placeholder-white/40"
-                rows={6}
-                placeholder="AI draft will appear here..."
-              />
-              <div className="flex gap-2">
+              </div>
+            </div>
+
+            {/* AI Suggestions Section */}
+            {aiSuggestion && (
+              <div className="border-b border-slate-200 bg-gradient-to-br from-violet-50 to-purple-50 p-6">
+                <div className="mb-3 flex items-center">
+                  <Sparkles className="mr-2 h-5 w-5 text-violet-600" />
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-900">
+                    AI Suggestions
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {aiSuggestion.proposedAction && (
+                      <Button
+                        variant="default"
+                        className="bg-violet-600 hover:bg-violet-700"
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {aiSuggestion.proposedAction.replace('_', ' ')}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const first = (
+                          messages.data?.messages as any[] | undefined
+                        )?.[0];
+                        if (first?.threadId)
+                          setSelectedThread(first.threadId as string);
+                      }}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      View Email Thread
+                    </Button>
+                  </div>
+                  <p className="text-xs text-violet-600">
+                    Confidence: {aiSuggestion.confidence}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* AI Reply Generator */}
+            <div className="flex-1 overflow-auto p-6">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">
+                AI Reply Assistant
+              </h3>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => {
+                    const o = orderDetail.data?.order;
+                    if (!o) return;
+                    suggest.mutate({
+                      customerMessage: 'Customer inquiry',
+                      orderSummary: `${o.name} ${o.totalPrice}`,
+                      tone: 'friendly',
+                    });
+                  }}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate AI Reply
+                </Button>
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  rows={8}
+                  placeholder="AI-generated reply will appear here. You can edit before sending..."
+                />
                 <Button
                   onClick={async () => {
                     const o = orderDetail.data?.order;
@@ -214,120 +352,167 @@ export default function InboxPage() {
                       subject: `Re: ${o.name}`,
                       body: draft,
                     });
-                    alert('Approved & (stub) sent');
+                    alert('Reply sent successfully!');
                   }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  disabled={!draft}
                 >
-                  Approve & Send (stub)
+                  <Send className="mr-2 h-4 w-4" />
+                  Send Reply
                 </Button>
               </div>
-            </Card>
+            </div>
+          </div>
+        )}
+
+        {selectedThread && (
+          <div className="flex flex-1 flex-col">
+            <div className="border-b border-slate-200 p-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedThread(null)}
+                className="mb-4"
+              >
+                ← Back to Orders
+              </Button>
+              <h2 className="text-xl font-semibold text-slate-900">
+                Email Thread
+              </h2>
+            </div>
+            <ScrollArea className="flex-1 p-6">
+              <div className="space-y-4">
+                {(threadMessages.data?.messages ?? []).map((m: any) => (
+                  <Card key={m.id} className="border-slate-200 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <Badge
+                        variant={
+                          m.direction === 'INBOUND' ? 'default' : 'secondary'
+                        }
+                      >
+                        {m.direction}
+                      </Badge>
+                      <span className="text-xs text-slate-500">
+                        {new Date(m.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="mb-2 text-xs text-slate-600">
+                      <strong>From:</strong> {m.from} → <strong>To:</strong>{' '}
+                      {m.to}
+                    </div>
+                    <Separator className="my-3" />
+                    <div className="whitespace-pre-wrap text-sm text-slate-800">
+                      {m.body}
+                    </div>
+                    {m.aiSuggestion && (
+                      <div className="mt-4 rounded-lg bg-violet-50 p-3">
+                        <div className="mb-1 flex items-center text-xs font-semibold text-violet-900">
+                          <Sparkles className="mr-1 h-3 w-3" />
+                          AI Suggestion
+                        </div>
+                        <p className="text-sm text-slate-700">
+                          {m.aiSuggestion.reply}
+                        </p>
+                        <p className="mt-2 text-xs text-violet-600">
+                          Action: {m.aiSuggestion.proposedAction} • Confidence:{' '}
+                          {m.aiSuggestion.confidence}
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
           </div>
         )}
       </section>
-      <section className="col-span-4 bg-white/90 p-4 backdrop-blur">
-        <h2 className="mb-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-sm font-semibold text-transparent">
-          {selectedThread ? 'Messages' : 'Email matches'}
-        </h2>
-        {!selected && !selectedThread && (
-          <div className="text-sm text-gray-600">
-            Select an order to view messages.
-          </div>
-        )}
-        {selected && !selectedThread && (
-          <ScrollArea className="h-[calc(100dvh-120px)]">
-            <div className="space-y-2 text-sm">
+
+      {/* Right Sidebar - Messages & Unassigned */}
+      <section className="flex w-96 flex-col border-l border-slate-200 bg-slate-50">
+        <div className="border-b border-slate-200 bg-white p-4">
+          <h3 className="text-sm font-semibold text-slate-900">
+            {selected ? 'Email Matches' : 'Unassigned Emails'}
+          </h3>
+        </div>
+
+        <ScrollArea className="flex-1">
+          {selected && (
+            <div className="p-4">
               {(messages.data?.messages ?? []).length === 0 && (
-                <Card className="p-3 text-gray-500">No related messages.</Card>
-              )}
-              {(messages.data?.messages ?? []).map((m) => (
-                <Card key={m.id} className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase text-gray-500">
-                      {m.direction}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(m.createdAt as any).toLocaleString()}
-                    </span>
-                  </div>
-                  <Separator className="my-2" />
-                  <div className="text-xs text-gray-600">
-                    {m.from} → {m.to}
-                  </div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                    {m.body}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-
-        {/* Threads view */}
-        {!selected && (
-          <ScrollArea className="h-[calc(100dvh-120px)]">
-            <div className="space-y-2 text-sm">
-              {(emailThreads.data?.threads ?? []).length === 0 && (
-                <Card className="p-3 text-gray-500">No threads yet.</Card>
-              )}
-              {(emailThreads.data?.threads ?? []).map((t: any) => (
-                <Card
-                  key={t.id}
-                  className={`cursor-pointer p-3 ${selectedThread === t.id ? 'ring-2 ring-indigo-500' : ''}`}
-                  onClick={() => setSelectedThread(t.id)}
-                >
-                  <div className="text-sm font-medium">
-                    {t.subject ?? '(no subject)'}
-                  </div>
-                  <div className="text-xs text-gray-600">{t.customerEmail}</div>
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        )}
-
-        {/* Thread messages */}
-        {selectedThread && (
-          <ScrollArea className="h-[calc(100dvh-120px)]">
-            <div className="space-y-2 text-sm">
-              {(threadMessages.data?.messages ?? []).length === 0 && (
-                <Card className="p-3 text-gray-500">
-                  No messages in this thread.
+                <Card className="border-slate-200 p-4 text-center">
+                  <Mail className="mx-auto h-8 w-8 text-slate-300" />
+                  <p className="mt-2 text-sm text-slate-500">
+                    No emails mapped to this order
+                  </p>
                 </Card>
               )}
-              {(threadMessages.data?.messages ?? []).map((m: any) => (
-                <Card key={m.id} className="p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs uppercase text-gray-500">
-                      {m.direction}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {new Date(m.createdAt as any).toLocaleString()}
-                    </span>
-                  </div>
-                  <Separator className="my-2" />
-                  <div className="text-xs text-gray-600">
-                    {m.from} → {m.to}
-                  </div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                    {m.body}
-                  </div>
-                  {m.aiSuggestion && (
-                    <div className="mt-3 rounded border bg-gray-50 p-2 text-xs">
-                      <div className="font-semibold">AI Suggestion</div>
-                      <div className="mt-1 whitespace-pre-wrap">
-                        {m.aiSuggestion.reply}
-                      </div>
-                      <div className="mt-1 text-gray-600">
-                        Action: {m.aiSuggestion.proposedAction} • Confidence:{' '}
-                        {m.aiSuggestion.confidence}
-                      </div>
+              <div className="space-y-3">
+                {(messages.data?.messages ?? []).map((m: any) => (
+                  <Card key={m.id} className="border-slate-200 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <Badge
+                        variant={
+                          m.direction === 'INBOUND' ? 'default' : 'secondary'
+                        }
+                        className="text-xs"
+                      >
+                        {m.direction}
+                      </Badge>
+                      <span className="text-xs text-slate-500">
+                        {new Date(m.createdAt).toLocaleTimeString()}
+                      </span>
                     </div>
-                  )}
-                </Card>
-              ))}
+                    <p className="text-xs text-slate-600">
+                      {m.from.split('@')[0]}@...
+                    </p>
+                    <p className="mt-2 line-clamp-2 text-sm text-slate-800">
+                      {m.body}
+                    </p>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </ScrollArea>
-        )}
+          )}
+
+          {!selected && (
+            <div className="p-4">
+              {(unassigned.data?.messages ?? []).length === 0 && (
+                <Card className="border-slate-200 p-4 text-center">
+                  <CheckCircle className="mx-auto h-8 w-8 text-emerald-500" />
+                  <p className="mt-2 text-sm text-slate-600">
+                    All emails are mapped!
+                  </p>
+                </Card>
+              )}
+              <div className="space-y-3">
+                {(unassigned.data?.messages ?? []).map((m: any) => (
+                  <Card key={m.id} className="border-amber-200 bg-amber-50 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <AlertCircle className="h-4 w-4 text-amber-600" />
+                      <span className="text-xs text-slate-500">
+                        {new Date(m.createdAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="mb-1 text-xs font-medium text-slate-900">
+                      {m.from}
+                    </p>
+                    <p className="line-clamp-3 text-sm text-slate-700">
+                      {m.body}
+                    </p>
+                    {m.aiSuggestion && (
+                      <div className="mt-2 rounded bg-white/50 p-2">
+                        <p className="text-xs text-violet-700">
+                          <Sparkles className="mr-1 inline h-3 w-3" />
+                          {m.aiSuggestion.proposedAction}
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </ScrollArea>
       </section>
     </main>
   );
