@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
       select: { id: true, accessToken: true, metadata: true },
     });
     const target = all.find((c: any) => {
-      const alias: string | undefined = (c.metadata as any)?.alias;
+      const md = (c.metadata as any) ?? {};
+      const alias: string | undefined = md.alias;
       return alias && to.toLowerCase().includes(alias.toLowerCase());
     });
     const conn = target
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
     if (!alias || !to.toLowerCase().includes(alias.toLowerCase())) {
       return NextResponse.json({ error: 'alias mismatch' }, { status: 400 });
     }
+    const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
     const body = text || html || '';
     const customerEmail = from.toLowerCase();
@@ -177,17 +179,118 @@ export async function POST(req: NextRequest) {
     );
 
     // Enqueue background job to generate AI suggestion
-    // Inline fallback: create a minimal AISuggestion now (replace with worker later)
+    // Generate AI suggestion (OpenAI if configured; otherwise heuristic fallback)
+    async function generateSuggestion(): Promise<{
+      reply: string;
+      proposedAction:
+        | 'REFUND'
+        | 'CANCEL'
+        | 'REPLACE_ITEM'
+        | 'ADDRESS_CHANGE'
+        | 'INFO_REQUEST'
+        | 'NONE';
+      confidence: number;
+    }> {
+      const lower = `${subject ?? ''} ${body}`.toLowerCase();
+      const keywordToAction: Array<{ re: RegExp; action: any }> = [
+        { re: /(refund|money\s*back|chargeback)/, action: 'REFUND' },
+        { re: /(cancel|cancellation)/, action: 'CANCEL' },
+        { re: /(replace|replacement|damaged)/, action: 'REPLACE_ITEM' },
+        {
+          re: /(address|ship\s*to|wrong\s*address|change\s*address)/,
+          action: 'ADDRESS_CHANGE',
+        },
+        { re: /(where is|status|update|tracking)/, action: 'INFO_REQUEST' },
+      ];
+      let action: any = 'NONE';
+      for (const k of keywordToAction) {
+        if (k.re.test(lower)) {
+          action = k.action;
+          break;
+        }
+      }
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        const reply = `Hi${customerEmail && customerEmail.includes('@') ? '' : ''},\n\nThanks for reaching out. ${orderId ? 'I pulled up your order and can help right away.' : 'Could you share your order number so I can help?'}\n\n${action === 'REFUND' ? 'I can help arrange a refund if you prefer.' : action === 'CANCEL' ? "I can help cancel the order if it hasn't shipped yet." : action === 'REPLACE_ITEM' ? 'I can arrange a replacement for the affected item.' : action === 'ADDRESS_CHANGE' ? "I can update your shipping address if the order hasn't shipped." : "I'm happy to provide an update and next steps."}\n\nBest regards,\nSupport`;
+        return {
+          reply,
+          proposedAction: action,
+          confidence: action === 'NONE' ? 0.4 : 0.6,
+        } as any;
+      }
+
+      // Compose prompt with minimal PII
+      const order = orderId
+        ? await prisma.order.findUnique({ where: { id: orderId } })
+        : null;
+      const orderSummary = order
+        ? `Order ${order.shopifyId} total ${(order.totalAmount / 100).toFixed(2)}`
+        : 'Order unknown';
+      const prompt = `You are a Shopify support assistant. Write a short, on-brand reply to the customer email below. Keep it concise, friendly, and propose a concrete next step. If refund, cancellation, replacement, or address change is clearly requested or implied, suggest it in one line. Include the order reference if provided.\n\nOrder Context: ${orderSummary}\nCustomer Email:\nSubject: ${subject ?? '(no subject)'}\nBody:\n${body}`;
+
+      try {
+        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a helpful, concise Shopify support assistant.',
+              },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.4,
+            max_tokens: 250,
+          }),
+        });
+        if (!resp.ok) throw new Error(`openai ${resp.status}`);
+        const json: any = await resp.json();
+        const reply: string =
+          json.choices?.[0]?.message?.content ??
+          "Thanks for reaching out. I'll follow up shortly with details.";
+
+        // Lightweight action inference from LLM output
+        const rlower = reply.toLowerCase();
+        if (/refund/.test(rlower)) action = 'REFUND';
+        else if (/cancel/.test(rlower)) action = 'CANCEL';
+        else if (/replace/.test(rlower)) action = 'REPLACE_ITEM';
+        else if (/address/.test(rlower)) action = 'ADDRESS_CHANGE';
+        else if (/(update|status|tracking)/.test(rlower))
+          action = 'INFO_REQUEST';
+
+        return { reply, proposedAction: action, confidence: 0.75 } as any;
+      } catch {
+        const fallback =
+          "Thanks for reaching out. I'll review your request and follow up shortly with next steps.";
+        return {
+          reply: fallback,
+          proposedAction: action,
+          confidence: 0.5,
+        } as any;
+      }
+    }
+
+    const gen = await generateSuggestion();
     await prisma.aISuggestion.upsert({
       where: { messageId: msg.id },
-      update: {},
+      update: {
+        reply: gen.reply,
+        proposedAction: gen.proposedAction as any,
+        confidence: gen.confidence,
+      },
       create: {
         messageId: msg.id,
-        reply:
-          'Thanks for reaching out. We have your email and will follow up with order details shortly.',
-        proposedAction: 'NONE' as any,
+        reply: gen.reply,
+        proposedAction: gen.proposedAction as any,
         orderId: orderId ?? null,
-        confidence: 0.4,
+        confidence: gen.confidence,
       },
     });
 
