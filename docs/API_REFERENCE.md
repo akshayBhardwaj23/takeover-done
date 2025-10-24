@@ -12,14 +12,21 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
 - `echo({ text })` → `{ text }`
 - `ordersCount()` → `{ count: number }`
 - `threadsList({ take? })` → `{ threads: Thread[] }`
-- `connections()` → `{ connections: { id, type, shopDomain, createdAt }[] }`
+- `threadMessages({ threadId })` → `{ messages: Message[] }`
+  - Returns all messages in a thread with AI suggestions
+- `connections()` → `{ connections: { id, type, shopDomain, createdAt, metadata }[] }`
+- `emailHealth()` → `{ lastInboundAt?: string }`
+  - Returns timestamp of last inbound email delivery
 - `ordersRecent({ shop, limit? })` → `{ orders: OrderSummary[] }`
   - Calls Shopify Admin API `/orders.json?status=any&limit=...` with `X-Shopify-Access-Token`
 - `orderGet({ shop, orderId })` → `{ order: OrderDetail | null }`
   - Calls Shopify Admin API `/orders/{id}.json`
-
 - `ordersListDb({ take? })` → `{ orders: DbOrder[] }`
   - Lists orders persisted from Shopify webhooks in our Postgres via Prisma
+- `messagesByOrder({ shopifyOrderId })` → `{ messages: Message[] }`
+  - Returns messages mapped to a specific order with AI suggestions and thread info
+- `unassignedInbound({ take? })` → `{ messages: Message[] }`
+  - Returns inbound messages not yet mapped to any order
 
 Notes:
 
@@ -33,6 +40,16 @@ Notes:
   - Creates `Action` row and logs `action.created` event
 - `actionApproveAndSend({ actionId, to, subject, body })` → `{ ok, status }`
   - Marks action approved and logs `email.sent.stub` event (no real send yet)
+- `createEmailAlias({ userEmail, domain, shop })` → `{ ok, alias }`
+  - Generates a unique email alias for a Shopify store with webhook secret
+- `rotateAlias({ id })` → `{ ok }`
+  - Regenerates alias and webhook secret for an existing email connection
+- `setAliasStatus({ id, disabled })` → `{ ok }`
+  - Enable or disable an email alias
+- `assignMessageToOrder({ messageId, shopifyOrderId })` → `{ ok }`
+  - Manually maps an unassigned email message to a specific order
+- `refreshOrderFromShopify({ shop, orderId })` → `{ ok, error? }`
+  - Fetches latest order data from Shopify API and updates the database
 
 Types (conceptual):
 
@@ -63,8 +80,10 @@ type OrderDetail = OrderSummary & {
   - Verifies Shopify webhook HMAC; handles topics (protected registration behind flag)
 - `GET /api/shopify/webhooks/register?shop=...` (dev utility)
   - Re-registers webhooks for an existing connection and returns the current list
-- `POST /api/webhooks/gmail` (placeholder)
-  - Reserved for inbound email parsing
+- `POST /api/webhooks/email/custom`
+  - Mailgun inbound email webhook handler
+  - Verifies signature, parses email, correlates to orders, generates AI suggestions
+  - Rate limited (10/min per alias), size capped (25MB)
 - `GET /api/trpc/[trpc]`
   - tRPC handler endpoint for the client hooks
 

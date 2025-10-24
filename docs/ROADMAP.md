@@ -11,6 +11,8 @@
 
 - [x] Inbound email via parse webhooks (Mailgun Routes)
 - [x] Threading: `Thread`/`Message` storage, conversation context
+- [x] Modern inbox UI with order details, AI suggestions, and email threads
+- [x] Refresh order data from Shopify (sync latest status and amounts)
 - [ ] Smart templates, tone control, multi-language support
 - [ ] SLA timers, reminders, collision prevention
 
@@ -22,6 +24,8 @@ Optional enhancements (Email & AI)
 - [x] Better order correlation heuristics (regex, recent-window)
 - [ ] Outbound sending domain/identity management and DKIM alignment
 - [x] Per-tenant guardrails (size cap) and alias disable/rotate controls
+- [x] Per-store email aliases (unique forwarding address per Shopify store)
+- [x] Email alias management (rotate, enable/disable, health monitoring)
 
 ### Phase 3 — Shopify deep ops
 

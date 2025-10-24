@@ -151,10 +151,36 @@ Commands:
 
 ### Using the Inbox
 
-- Open `/inbox?shop=your-shop.myshopify.com`
-- Select an order to view details
-- Click “Suggest reply” to generate a draft (stub)
-- Click “Approve & Send (stub)” to create an Action and log an Event
+The inbox provides a modern 3-column interface for managing orders and support emails:
+
+**Left Column - Orders List:**
+
+- Displays all orders from the database with order number, customer, total, status, and date
+- Click any order to view full details
+- Orders are color-coded by status (green for fulfilled, red for refunded, amber for pending)
+
+**Center Panel - Order Details:**
+
+- Shows full order information with items, pricing, and customer details
+- **Refresh from Shopify button**: Click to sync latest order data (status, amount) from Shopify API
+- AI Reply Assistant: Generate AI-powered responses to customer inquiries
+- AI Suggestions section displays recommended actions based on email content
+- "View Email Thread" button to see all related email conversations
+
+**Right Panel - Email Matches:**
+
+- When an order is selected: Shows all emails mapped to that order
+- When no order is selected: Shows unassigned emails that need manual mapping
+- Displays AI suggestions and confidence scores for each email
+
+**Usage Flow:**
+
+1. Open `/inbox?shop=your-shop.myshopify.com`
+2. Select an order from the left sidebar
+3. Click "Refresh from Shopify" if you need the latest data
+4. Review email matches in the right panel
+5. Click "Generate AI Reply" to create a response
+6. Edit the draft and click "Send Reply" to respond to customer
 
 ### Public vs Protected routes
 
@@ -167,10 +193,39 @@ Commands:
 - The global header shows Sign in when anonymous, and avatar + name with a Sign out button when authenticated (NextAuth SessionProvider).
 - Sign out redirects back to `/`.
 
-### Integrations UX notes
+### Using the Integrations Page
+
+The integrations page features a modern dashboard with stats cards and integration management:
+
+**Stats Dashboard:**
+
+- Shows count of connected Shopify stores, email aliases, and active/inactive aliases
+- Color-coded cards with gradient backgrounds for visual clarity
+
+**Shopify Integration Card:**
+
+- Large prominent card with gradient overlay
+- "Connect Store" button to add new Shopify stores via OAuth
+- Connected stores displayed in a grid with status badges
+- Each store card has an "Open Dashboard" button linking to its inbox
+
+**Custom Email Integration Card:**
+
+- "Create Alias" button to generate unique forwarding addresses per store
+- Displays all email aliases with their associated Shopify stores
+- Each alias card shows:
+  - Email address (click "Copy" to copy to clipboard)
+  - Associated Shopify store
+  - Active/Disabled status badge
+  - Action buttons: Rotate (new address), Enable/Disable
+- Email Health card shows last inbound email timestamp
+- Quick Setup guide with numbered steps
+
+**UX notes:**
 
 - Duplicate store prevention: entering a Shopify domain that is already connected will show a toast and will not start OAuth.
 - If an already-connected store starts OAuth anyway, the callback redirects back to `/integrations?connected=1&already=1&shop=...` and a success toast is shown instead of adding a duplicate.
+- Email aliases are per-store, so you'll need at least one Shopify store connected before creating an alias
 
 ### Local onboarding (TL;DR for new devs)
 
