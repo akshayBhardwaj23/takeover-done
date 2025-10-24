@@ -38,6 +38,7 @@ enum ConnectionType {
 model Order {
   id          String   @id @default(cuid())
   shopifyId   String   @unique
+  name        String?  // Customer-facing order number like "#1001"
   shopDomain  String?
   status      String
   email       String?
