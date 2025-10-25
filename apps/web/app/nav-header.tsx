@@ -14,11 +14,11 @@ export default function Header() {
           AI E-Commerce
         </a>
         <nav className="flex items-center gap-4 text-sm text-gray-600">
-          <a href="/integrations" className="hover:text-gray-900 transition-colors">
+          <a
+            href="/integrations"
+            className="hover:text-gray-900 transition-colors"
+          >
             Integrations
-          </a>
-          <a href="/inbox" className="hover:text-gray-900 transition-colors">
-            Inbox
           </a>
           {isAuthed ? (
             <div className="flex items-center gap-3">

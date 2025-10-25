@@ -64,6 +64,7 @@ export default function InboxPage() {
     { threadId: selectedThread || '' },
     { enabled: !!selectedThread },
   );
+  const [activeTab, setActiveTab] = useState<'orders' | 'emails'>('orders');
 
   const unassigned = trpc.unassignedInbound.useQuery({ take: 20 });
   const assignMessage = trpc.assignMessageToOrder.useMutation({
@@ -78,6 +79,11 @@ export default function InboxPage() {
       orderDetail.refetch();
     },
   });
+  const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
+    onSuccess: () => {
+      unassigned.refetch();
+    },
+  });
 
   // Get AI suggestion from messages
   const aiSuggestion = useMemo(() => {
@@ -86,6 +92,13 @@ export default function InboxPage() {
     );
     return m?.aiSuggestion;
   }, [messages.data]);
+
+  // Auto-populate draft with AI suggestion when it's available
+  useEffect(() => {
+    if (aiSuggestion?.reply && !draft) {
+      setDraft(aiSuggestion.reply);
+    }
+  }, [aiSuggestion, draft]);
 
   return (
     <main className="flex h-[calc(100dvh-0px)] bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
@@ -101,19 +114,29 @@ export default function InboxPage() {
         <div className="flex border-b border-slate-200">
           <button
             onClick={() => {
+              setActiveTab('orders');
               setSelectedThread(null);
               setSelected(null);
             }}
-            className="flex-1 border-b-2 border-indigo-600 px-4 py-3 text-sm font-medium text-indigo-600"
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'orders'
+                ? 'border-b-2 border-indigo-600 text-indigo-600'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
           >
             <Package className="mr-2 inline-block h-4 w-4" />
             Orders
           </button>
           <button
             onClick={() => {
+              setActiveTab('emails');
               setSelected(null);
             }}
-            className="flex-1 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'emails'
+                ? 'border-b-2 border-indigo-600 text-indigo-600'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
           >
             <Mail className="mr-2 inline-block h-4 w-4" />
             Emails
@@ -347,13 +370,22 @@ export default function InboxPage() {
                       note: 'Manual approval',
                       draft,
                     });
-                    await approveSend.mutateAsync({
+                    const sendResult = await approveSend.mutateAsync({
                       actionId: res.actionId,
                       to: o.email ?? 'customer@example.com',
                       subject: `Re: ${o.name}`,
                       body: draft,
                     });
-                    alert('Reply sent successfully!');
+                    if (sendResult.ok) {
+                      alert(
+                        (sendResult as any).stub
+                          ? 'Reply logged (Mailgun not configured)'
+                          : 'Reply sent successfully!',
+                      );
+                      setDraft(''); // Clear draft after sending
+                    } else {
+                      alert(`Failed to send: ${(sendResult as any).error}`);
+                    }
                   }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700"
                   disabled={!draft}
@@ -485,27 +517,76 @@ export default function InboxPage() {
                   </p>
                 </Card>
               )}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {(unassigned.data?.messages ?? []).map((m: any) => (
-                  <Card key={m.id} className="border-amber-200 bg-amber-50 p-3">
-                    <div className="mb-2 flex items-center justify-between">
+                  <Card key={m.id} className="border-amber-200 bg-amber-50 p-4">
+                    <div className="mb-3 flex items-center justify-between">
                       <AlertCircle className="h-4 w-4 text-amber-600" />
                       <span className="text-xs text-slate-500">
                         {new Date(m.createdAt).toLocaleTimeString()}
                       </span>
                     </div>
-                    <p className="mb-1 text-xs font-medium text-slate-900">
-                      {m.from}
+                    <p className="mb-2 text-xs font-semibold text-slate-900">
+                      From: {m.from}
                     </p>
-                    <p className="line-clamp-3 text-sm text-slate-700">
-                      {m.body}
-                    </p>
+                    <div className="mb-3 rounded bg-white/80 p-3">
+                      <p className="text-xs font-medium text-slate-600 mb-1">
+                        Customer Message:
+                      </p>
+                      <p className="text-sm text-slate-700">{m.body}</p>
+                    </div>
                     {m.aiSuggestion && (
-                      <div className="mt-2 rounded bg-white/50 p-2">
-                        <p className="text-xs text-violet-700">
-                          <Sparkles className="mr-1 inline h-3 w-3" />
-                          {m.aiSuggestion.proposedAction}
-                        </p>
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-medium text-violet-700">
+                            <Sparkles className="mr-1 inline h-3 w-3" />
+                            AI Suggestion: {m.aiSuggestion.proposedAction}
+                          </p>
+                          <Badge variant="secondary" className="text-xs">
+                            {(m.aiSuggestion.confidence * 100).toFixed(0)}%
+                            confidence
+                          </Badge>
+                        </div>
+                        <div className="rounded bg-white p-3 border border-slate-200">
+                          <p className="text-xs font-medium text-slate-600 mb-2">
+                            AI Reply:
+                          </p>
+                          <p className="text-sm text-slate-800 whitespace-pre-wrap">
+                            {m.aiSuggestion.reply}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          className="w-full bg-violet-600 hover:bg-violet-700"
+                          disabled={sendUnassignedReply.isLoading}
+                          onClick={async () => {
+                            try {
+                              const result =
+                                await sendUnassignedReply.mutateAsync({
+                                  messageId: m.id,
+                                  replyBody: m.aiSuggestion.reply,
+                                });
+                              if (result.ok) {
+                                alert(
+                                  (result as any).stub
+                                    ? 'Reply logged (Mailgun not configured)'
+                                    : 'Reply sent successfully!',
+                                );
+                              } else {
+                                alert(
+                                  `Failed to send: ${(result as any).error}`,
+                                );
+                              }
+                            } catch (error: any) {
+                              alert(`Error: ${error.message}`);
+                            }
+                          }}
+                        >
+                          <Send className="mr-2 h-3 w-3" />
+                          {sendUnassignedReply.isLoading
+                            ? 'Sending...'
+                            : 'Send AI Reply'}
+                        </Button>
                       </div>
                     )}
                   </Card>

@@ -283,7 +283,7 @@ function IntegrationsInner() {
                           <a
                             href={`/inbox?shop=${encodeURIComponent(c.shopDomain ?? '')}`}
                           >
-                            Open Dashboard
+                            Open Inbox
                             <ExternalLink className="ml-2 h-4 w-4" />
                           </a>
                         </Button>

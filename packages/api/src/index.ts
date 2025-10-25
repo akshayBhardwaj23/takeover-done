@@ -346,20 +346,177 @@ export const appRouter = t.router({
       }),
     )
     .mutation(async ({ input }) => {
-      // For MVP, mark approved and log an email event (no real send)
-      const updated = await prisma.action.update({
-        where: { id: input.actionId },
-        data: { status: 'APPROVED' },
-      });
+      try {
+        // Send email via Mailgun
+        const apiKey = process.env.MAILGUN_API_KEY;
+        const domain = process.env.MAILGUN_DOMAIN;
+        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-      await logEvent(
-        'email.sent.stub',
-        { to: input.to, subject: input.subject },
-        'action',
-        input.actionId,
-      );
+        if (apiKey && domain) {
+          const formData = new FormData();
+          formData.append('from', fromEmail);
+          formData.append('to', input.to);
+          formData.append('subject', input.subject);
+          formData.append('text', input.body);
 
-      return { ok: true, status: updated.status };
+          const response = await fetch(
+            `https://api.mailgun.net/v3/${domain}/messages`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+              },
+              body: formData,
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(`Mailgun API error: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          // Mark action as executed
+          const updated = await prisma.action.update({
+            where: { id: input.actionId },
+            data: { status: 'EXECUTED', executedAt: new Date() },
+          });
+
+          await logEvent(
+            'email.sent',
+            { to: input.to, subject: input.subject, messageId: result.id },
+            'action',
+            input.actionId,
+          );
+
+          return { ok: true, status: updated.status, messageId: result.id };
+        } else {
+          // Fallback to stub if Mailgun not configured
+          const updated = await prisma.action.update({
+            where: { id: input.actionId },
+            data: { status: 'APPROVED' },
+          });
+
+          await logEvent(
+            'email.sent.stub',
+            {
+              to: input.to,
+              subject: input.subject,
+              reason: 'mailgun_not_configured',
+            },
+            'action',
+            input.actionId,
+          );
+
+          return { ok: true, status: updated.status, stub: true };
+        }
+      } catch (error: any) {
+        // Mark action as failed
+        await prisma.action.update({
+          where: { id: input.actionId },
+          data: { status: 'REJECTED' },
+        });
+
+        await logEvent(
+          'email.sent.error',
+          { to: input.to, subject: input.subject, error: error.message },
+          'action',
+          input.actionId,
+        );
+
+        return { ok: false, error: error.message };
+      }
+    }),
+  sendUnassignedReply: t.procedure
+    .input(
+      z.object({
+        messageId: z.string(),
+        replyBody: z.string(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        // Get the original message
+        const message = await prisma.message.findUnique({
+          where: { id: input.messageId },
+          include: { thread: true },
+        });
+
+        if (!message) {
+          return { ok: false, error: 'Message not found' };
+        }
+
+        // Send email via Mailgun
+        const apiKey = process.env.MAILGUN_API_KEY;
+        const domain = process.env.MAILGUN_DOMAIN;
+        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+
+        if (apiKey && domain) {
+          const formData = new FormData();
+          formData.append('from', fromEmail);
+          formData.append('to', message.from);
+          formData.append(
+            'subject',
+            `Re: ${message.thread.subject || 'Your inquiry'}`,
+          );
+          formData.append('text', input.replyBody);
+
+          const response = await fetch(
+            `https://api.mailgun.net/v3/${domain}/messages`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+              },
+              body: formData,
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(`Mailgun API error: ${response.status}`);
+          }
+
+          const result = await response.json();
+
+          // Create outbound message record
+          await prisma.message.create({
+            data: {
+              threadId: message.threadId,
+              from: fromEmail,
+              to: message.from,
+              body: input.replyBody,
+              direction: 'OUTBOUND',
+            },
+          });
+
+          await logEvent(
+            'email.sent.unassigned',
+            { to: message.from, messageId: result.id },
+            'message',
+            input.messageId,
+          );
+
+          return { ok: true, messageId: result.id };
+        } else {
+          await logEvent(
+            'email.sent.stub',
+            { to: message.from, reason: 'mailgun_not_configured' },
+            'message',
+            input.messageId,
+          );
+
+          return { ok: true, stub: true };
+        }
+      } catch (error: any) {
+        await logEvent(
+          'email.sent.error',
+          { error: error.message },
+          'message',
+          input.messageId,
+        );
+
+        return { ok: false, error: error.message };
+      }
     }),
   messagesByOrder: t.procedure
     .input(z.object({ shopifyOrderId: z.string() }))
