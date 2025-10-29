@@ -384,10 +384,10 @@ export default function InboxPage() {
                     suggest.mutate({
                       customerMessage:
                         latestMessage?.body || 'Customer inquiry',
-                      orderSummary: `${o.name || `#${o.shopifyId}`} - $${o.totalPrice}`,
+                      orderSummary: `${o.name || `#${o.id}`} - $${o.totalPrice}`,
                       tone: 'friendly',
                       customerEmail: o.email || latestMessage?.from,
-                      orderId: o.shopifyId,
+                      orderId: o.id,
                     });
                   }}
                   className="w-full"
