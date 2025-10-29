@@ -27,8 +27,10 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
   - Returns messages mapped to a specific order with AI suggestions and thread info
 - `unassignedInbound({ take? })` → `{ messages: Message[] }`
   - Returns inbound messages not yet mapped to any order
-- `getAnalytics()` → `{ totalEmails, emailsThisWeek, mappedEmails, unmappedEmails, totalOrders, actionsTaken, aiSuggestionAccuracy, averageResponseTime }`
-  - Returns analytics metrics for the dashboard
+- `getAnalytics()` → `{ totalEmails, emailsThisWeek, emailsThisMonth, mappedEmails, unmappedEmails, totalOrders, actionsTaken, actionsThisWeek, aiSuggestionAccuracy, aiSuggestionsTotal, averageResponseTime, customerSatisfactionScore, volumeTrend }`
+  - Returns AI support analytics metrics including response time, customer satisfaction, and 7-day email volume trend
+- `getShopifyAnalytics({ shop })` → `{ totalOrders, ordersThisWeek, ordersThisMonth, totalRevenue, revenueThisWeek, revenueThisMonth, averageOrderValue, currency, totalCustomers, newCustomersThisWeek, ordersFulfilled, ordersPending, topProducts, revenueTrend }`
+  - Returns Shopify business analytics for a specific store including revenue, orders, and customer metrics
 
 Notes:
 

@@ -789,6 +789,7 @@ Write responses that sound like they come from a real human support agent who ge
     try {
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
       // Total emails
       const totalEmails = await prisma.message.count({
@@ -800,6 +801,14 @@ Write responses that sound like they come from a real human support agent who ge
         where: {
           direction: 'INBOUND',
           createdAt: { gte: weekAgo },
+        },
+      });
+
+      // Emails this month
+      const emailsThisMonth = await prisma.message.count({
+        where: {
+          direction: 'INBOUND',
+          createdAt: { gte: monthAgo },
         },
       });
 
@@ -824,38 +833,304 @@ Write responses that sound like they come from a real human support agent who ge
       // Actions taken
       const actionsTaken = await prisma.action.count();
 
-      // AI suggestions with actions taken
+      // Actions this week
+      const actionsThisWeek = await prisma.action.count({
+        where: { createdAt: { gte: weekAgo } },
+      });
+
+      // AI suggestions
       const aiSuggestions = await prisma.aISuggestion.count();
       const aiSuggestionAccuracy =
         aiSuggestions > 0 ? actionsTaken / aiSuggestions : 0;
 
-      // Average response time (simplified - time from first inbound to first outbound)
-      const avgResponseTime = 0; // TODO: Calculate based on thread timestamps
+      // Average response time (time from inbound message to first action on that order)
+      const messagesWithActions = await prisma.message.findMany({
+        where: {
+          direction: 'INBOUND',
+          orderId: { not: null },
+        },
+        include: {
+          order: {
+            include: {
+              actions: {
+                orderBy: { createdAt: 'asc' },
+                take: 1,
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+
+      let totalResponseTimeMinutes = 0;
+      let responseTimeCount = 0;
+
+      for (const message of messagesWithActions) {
+        const firstAction = message.order?.actions[0];
+        if (message && firstAction) {
+          const diffMs =
+            firstAction.createdAt.getTime() - message.createdAt.getTime();
+          const diffMinutes = Math.floor(diffMs / (1000 * 60));
+          if (diffMinutes >= 0 && diffMinutes < 10000) {
+            // Sanity check
+            totalResponseTimeMinutes += diffMinutes;
+            responseTimeCount++;
+          }
+        }
+      }
+
+      const avgResponseTime =
+        responseTimeCount > 0
+          ? Math.round(totalResponseTimeMinutes / responseTimeCount)
+          : 0;
+
+      // Calculate customer satisfaction (based on action types)
+      const positiveActions = await prisma.action.count({
+        where: {
+          type: {
+            in: ['REFUND', 'REPLACE_ITEM', 'ADDRESS_CHANGE'],
+          },
+        },
+      });
+
+      const customerSatisfactionScore =
+        actionsTaken > 0 ? (positiveActions / actionsTaken) * 100 : 0;
+
+      // Email volume trend (last 7 days)
+      const volumeTrend = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date(now);
+        dayStart.setDate(dayStart.getDate() - i);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        const count = await prisma.message.count({
+          where: {
+            direction: 'INBOUND',
+            createdAt: { gte: dayStart, lte: dayEnd },
+          },
+        });
+
+        volumeTrend.push({
+          date: dayStart.toISOString().split('T')[0],
+          count,
+        });
+      }
 
       return {
         totalEmails,
         emailsThisWeek,
+        emailsThisMonth,
         mappedEmails,
         unmappedEmails,
         totalOrders,
         actionsTaken,
+        actionsThisWeek,
         aiSuggestionAccuracy,
+        aiSuggestionsTotal: aiSuggestions,
         averageResponseTime: avgResponseTime,
+        customerSatisfactionScore,
+        volumeTrend,
       };
     } catch (error) {
       console.error('Analytics error:', error);
       return {
         totalEmails: 0,
         emailsThisWeek: 0,
+        emailsThisMonth: 0,
         mappedEmails: 0,
         unmappedEmails: 0,
         totalOrders: 0,
         actionsTaken: 0,
+        actionsThisWeek: 0,
         aiSuggestionAccuracy: 0,
+        aiSuggestionsTotal: 0,
         averageResponseTime: 0,
+        customerSatisfactionScore: 0,
+        volumeTrend: [],
       };
     }
   }),
+  getShopifyAnalytics: t.procedure
+    .input(z.object({ shop: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+        // Total orders for this shop
+        const totalOrders = await prisma.order.count({
+          where: { shopDomain: input.shop },
+        });
+
+        // Orders this week
+        const ordersThisWeek = await prisma.order.count({
+          where: {
+            shopDomain: input.shop,
+            createdAt: { gte: weekAgo },
+          },
+        });
+
+        // Orders this month
+        const ordersThisMonth = await prisma.order.count({
+          where: {
+            shopDomain: input.shop,
+            createdAt: { gte: monthAgo },
+          },
+        });
+
+        // Total revenue (sum of all order totalAmount values - stored in cents)
+        const allOrders = await prisma.order.findMany({
+          where: { shopDomain: input.shop },
+          select: { totalAmount: true },
+        });
+
+        let totalRevenue = 0;
+        for (const order of allOrders) {
+          totalRevenue += order.totalAmount / 100; // Convert cents to dollars
+        }
+
+        // Revenue this week
+        const weekOrders = await prisma.order.findMany({
+          where: {
+            shopDomain: input.shop,
+            createdAt: { gte: weekAgo },
+          },
+          select: { totalAmount: true },
+        });
+
+        let revenueThisWeek = 0;
+        for (const order of weekOrders) {
+          revenueThisWeek += order.totalAmount / 100;
+        }
+
+        // Revenue this month
+        const monthOrders = await prisma.order.findMany({
+          where: {
+            shopDomain: input.shop,
+            createdAt: { gte: monthAgo },
+          },
+          select: { totalAmount: true },
+        });
+
+        let revenueThisMonth = 0;
+        for (const order of monthOrders) {
+          revenueThisMonth += order.totalAmount / 100;
+        }
+
+        // Average order value
+        const averageOrderValue =
+          totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+        // Unique customers
+        const uniqueCustomers = await prisma.order.groupBy({
+          by: ['email'],
+          where: {
+            shopDomain: input.shop,
+            email: { not: null },
+          },
+        });
+
+        const totalCustomers = uniqueCustomers.length;
+
+        // New customers this week
+        const newCustomersThisWeek = await prisma.order.groupBy({
+          by: ['email'],
+          where: {
+            shopDomain: input.shop,
+            email: { not: null },
+            createdAt: { gte: weekAgo },
+          },
+        });
+
+        // Order status breakdown
+        const ordersGrouped = await prisma.order.findMany({
+          where: { shopDomain: input.shop },
+          select: { status: true },
+        });
+
+        const fulfilled = ordersGrouped.filter(
+          (o) =>
+            o.status.toLowerCase().includes('fulfilled') ||
+            o.status === 'completed',
+        ).length;
+        const pending = ordersGrouped.filter(
+          (o) =>
+            o.status.toLowerCase().includes('pending') ||
+            o.status.toLowerCase().includes('processing') ||
+            o.status === 'open',
+        ).length;
+
+        // Top products placeholder (no lineItems field in schema yet)
+        const topProducts: { name: string; count: number }[] = [];
+
+        // Revenue trend (last 7 days)
+        const revenueTrend = [];
+        for (let i = 6; i >= 0; i--) {
+          const dayStart = new Date(now);
+          dayStart.setDate(dayStart.getDate() - i);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(dayStart);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          const dayOrders = await prisma.order.findMany({
+            where: {
+              shopDomain: input.shop,
+              createdAt: { gte: dayStart, lte: dayEnd },
+            },
+            select: { totalAmount: true },
+          });
+
+          let revenue = 0;
+          for (const order of dayOrders) {
+            revenue += order.totalAmount / 100;
+          }
+
+          revenueTrend.push({
+            date: dayStart.toISOString().split('T')[0],
+            revenue: Math.round(revenue * 100) / 100,
+          });
+        }
+
+        return {
+          totalOrders,
+          ordersThisWeek,
+          ordersThisMonth,
+          totalRevenue: Math.round(totalRevenue * 100) / 100,
+          revenueThisWeek: Math.round(revenueThisWeek * 100) / 100,
+          revenueThisMonth: Math.round(revenueThisMonth * 100) / 100,
+          averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+          currency: 'USD', // Hardcoded for now, can be extracted from Shopify metadata later
+          totalCustomers,
+          newCustomersThisWeek: newCustomersThisWeek.length,
+          ordersFulfilled: fulfilled,
+          ordersPending: pending,
+          topProducts,
+          revenueTrend,
+        };
+      } catch (error) {
+        console.error('Shopify analytics error:', error);
+        return {
+          totalOrders: 0,
+          ordersThisWeek: 0,
+          ordersThisMonth: 0,
+          totalRevenue: 0,
+          revenueThisWeek: 0,
+          revenueThisMonth: 0,
+          averageOrderValue: 0,
+          currency: 'USD',
+          totalCustomers: 0,
+          newCustomersThisWeek: 0,
+          ordersFulfilled: 0,
+          ordersPending: 0,
+          topProducts: [],
+          revenueTrend: [],
+        };
+      }
+    }),
 });
 
 export type AppRouter = typeof appRouter;

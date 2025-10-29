@@ -6,7 +6,9 @@
 - [x] Real email send (Mailgun API with fallback for unassigned emails)
 - [x] Toast notifications for user feedback (success, error, warning)
 - [x] Loading states and skeleton loaders across UI
-- [x] Basic analytics dashboard (email metrics, AI accuracy, response times)
+- [x] **Comprehensive analytics dashboards**:
+  - [x] AI Support Analytics (response time, customer satisfaction, ROI, volume trends)
+  - [x] Shopify Business Analytics (revenue, orders, customers, AOV, trends)
 - [ ] Basic audit UI: actions/events timeline per order
 - [x] Allowed dev origins config and production env hardening
 

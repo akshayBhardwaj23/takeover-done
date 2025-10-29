@@ -21,12 +21,20 @@ export default function Header() {
             Integrations
           </a>
           {isAuthed && (
-            <a
-              href="/analytics"
-              className="hover:text-gray-900 transition-colors"
-            >
-              Analytics
-            </a>
+            <>
+              <a
+                href="/analytics"
+                className="hover:text-gray-900 transition-colors"
+              >
+                Support Analytics
+              </a>
+              <a
+                href="/shopify-analytics"
+                className="hover:text-gray-900 transition-colors"
+              >
+                Business Analytics
+              </a>
+            </>
           )}
           {isAuthed ? (
             <div className="flex items-center gap-3">

@@ -56,7 +56,9 @@ ai-ecom-tool/
 - ✅ Real-time order sync from Shopify
 - ✅ Real email sending via Mailgun API
 - ✅ Toast notifications and loading states for better UX
-- ✅ Analytics dashboard with key metrics
+- ✅ **Dual Analytics Dashboards**:
+  - AI Support Analytics (response time, ROI, customer satisfaction, volume trends)
+  - Shopify Business Analytics (revenue, orders, customers, AOV, growth metrics)
 - ✅ Skeleton loaders for improved perceived performance
 - 🔄 Background job processing (Redis/BullMQ - planned for production)
 

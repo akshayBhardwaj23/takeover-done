@@ -200,34 +200,68 @@ The inbox provides a modern 3-column interface for managing orders and support e
 - Toast notifications: Success, error, and warning messages appear as dismissible toasts
 - AI-powered replies: Uses customer name, order details, and email context for personalized responses
 
-### Using the Analytics Page
+### Using the Analytics Dashboards
 
-The analytics dashboard (`/analytics`) provides key metrics and insights:
+The platform provides two comprehensive analytics dashboards:
 
-**Metrics Displayed:**
+#### 1. AI Support Analytics (`/analytics`)
 
-- **Email Metrics:**
-  - Total emails received
-  - Emails received this week
-  - Mapped vs unmapped email counts
-- **Order Metrics:**
-  - Total orders in database
-  - Actions taken by users
-- **AI Performance:**
-  - AI suggestion accuracy (percentage)
-  - Average response time (in hours)
+Tracks AI-powered support performance and ROI metrics:
 
-**Features:**
+**Key Metrics:**
 
-- Gradient-colored cards with icons for visual clarity
-- Real-time data from database queries
-- Skeleton loaders during data fetching
-- Accessible from the main navigation header
+- **Total Emails**: All inbound emails processed with weekly/monthly breakdowns
+- **Average Response Time**: Time from first email to first action (minutes/hours)
+- **AI Accuracy**: Percentage of AI suggestions that lead to actions
+- **Customer Satisfaction**: Score based on positive action types (refunds, replacements, etc.)
+
+**Visualizations:**
+
+- **Email Volume Trend**: 7-day bar chart showing daily inbound email activity
+- **Email Mapping**: Success rate of email-to-order correlation
+- **AI Automation**: Suggestions made vs actions taken
+- **ROI Impact**: Time saved, automation rate, emails processed
+
+**ROI Summary Card:**
+
+- Demonstrates value to merchants
+- Emails processed, actions automated, time saved, CSAT score
+- Industry comparisons (e.g., avg response time vs industry standard)
+
+**Access**: Main navigation → "Support Analytics" (requires authentication)
+
+#### 2. Shopify Business Analytics (`/shopify-analytics`)
+
+Displays business performance metrics for connected Shopify stores:
+
+**Key Metrics:**
+
+- **Total Revenue**: All-time revenue with weekly/monthly breakdowns
+- **Total Orders**: Order counts with weekly/monthly trends
+- **Average Order Value (AOV)**: Revenue per order
+- **Total Customers**: Unique customers with new customer tracking
+
+**Visualizations:**
+
+- **Revenue Trend**: 7-day bar chart showing daily sales performance
+- **Order Status**: Fulfilled vs pending order breakdown with fulfillment rate
+- **Top Products**: Best-selling products by order count (when available)
+
+**Business Overview:**
+
+- Monthly revenue and orders
+- Average order value
+- Customer acquisition metrics
+- Growth rate calculations
+
+**Store Selection**: Dropdown to switch between connected stores (if multiple)
+
+**Access**: Main navigation → "Business Analytics" (requires authentication and connected Shopify store)
 
 ### Public vs Protected routes
 
 - Public: `/` (homepage)
-- Protected by NextAuth middleware: `/integrations`, `/inbox`, `/analytics`
+- Protected by NextAuth middleware: `/integrations`, `/inbox`, `/analytics`, `/shopify-analytics`
 - Anonymous users visiting protected routes are redirected to sign in
 
 ### Header & auth UX
@@ -235,7 +269,8 @@ The analytics dashboard (`/analytics`) provides key metrics and insights:
 - The global header shows Sign in when anonymous, and avatar + name with a Sign out button when authenticated (NextAuth SessionProvider).
 - When authenticated, the header includes links to:
   - **Integrations** - Connect Shopify stores and manage email aliases
-  - **Analytics** - View metrics and AI performance
+  - **Support Analytics** - AI support performance, response times, and ROI metrics
+  - **Business Analytics** - Shopify store revenue, orders, and customer insights
   - **Note:** Inbox is accessible only via the "Open Inbox" button on connected Shopify stores in the integrations page
 - Sign out redirects back to `/`.
 
