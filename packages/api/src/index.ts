@@ -785,6 +785,77 @@ Write responses that sound like they come from a real human support agent who ge
         return { orders: [] };
       }
     }),
+  getAnalytics: t.procedure.query(async () => {
+    try {
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      // Total emails
+      const totalEmails = await prisma.message.count({
+        where: { direction: 'INBOUND' },
+      });
+
+      // Emails this week
+      const emailsThisWeek = await prisma.message.count({
+        where: {
+          direction: 'INBOUND',
+          createdAt: { gte: weekAgo },
+        },
+      });
+
+      // Mapped vs unmapped
+      const mappedEmails = await prisma.message.count({
+        where: {
+          direction: 'INBOUND',
+          orderId: { not: null },
+        },
+      });
+
+      const unmappedEmails = await prisma.message.count({
+        where: {
+          direction: 'INBOUND',
+          orderId: null,
+        },
+      });
+
+      // Total orders
+      const totalOrders = await prisma.order.count();
+
+      // Actions taken
+      const actionsTaken = await prisma.action.count();
+
+      // AI suggestions with actions taken
+      const aiSuggestions = await prisma.aISuggestion.count();
+      const aiSuggestionAccuracy =
+        aiSuggestions > 0 ? actionsTaken / aiSuggestions : 0;
+
+      // Average response time (simplified - time from first inbound to first outbound)
+      const avgResponseTime = 0; // TODO: Calculate based on thread timestamps
+
+      return {
+        totalEmails,
+        emailsThisWeek,
+        mappedEmails,
+        unmappedEmails,
+        totalOrders,
+        actionsTaken,
+        aiSuggestionAccuracy,
+        averageResponseTime: avgResponseTime,
+      };
+    } catch (error) {
+      console.error('Analytics error:', error);
+      return {
+        totalEmails: 0,
+        emailsThisWeek: 0,
+        mappedEmails: 0,
+        unmappedEmails: 0,
+        totalOrders: 0,
+        actionsTaken: 0,
+        aiSuggestionAccuracy: 0,
+        averageResponseTime: 0,
+      };
+    }
+  }),
 });
 
 export type AppRouter = typeof appRouter;

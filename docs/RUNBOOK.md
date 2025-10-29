@@ -22,6 +22,11 @@ Suggested `apps/web/.env.local` keys:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — for NextAuth Google
 - `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET` — from Shopify Partner app
 - `SHOPIFY_APP_URL` — same HTTPS tunnel base URL
+- `OPENAI_API_KEY` — for AI-powered reply generation
+- Mailgun settings (for outbound email):
+  - `MAILGUN_API_KEY` — from Mailgun dashboard
+  - `MAILGUN_DOMAIN` — your verified sending domain
+  - `MAILGUN_FROM_EMAIL` — sender email (e.g., support@your-domain.com)
 - Feature flags:
   - `PROTECTED_WEBHOOKS=true|false`
   - `MOCK_WEBHOOKS=true|false`
@@ -178,22 +183,60 @@ The inbox provides a modern 3-column interface for managing orders and support e
 
 **Usage Flow:**
 
-1. Open `/inbox?shop=your-shop.myshopify.com`
+1. Open `/inbox?shop=your-shop.myshopify.com` (accessed from "Open Inbox" button on integrations page)
 2. Select an order from the left sidebar
 3. Click "Refresh from Shopify" if you need the latest data
 4. Review email matches in the right panel
-5. Click "Generate AI Reply" to create a response
-6. Edit the draft and click "Send Reply" to respond to customer
+5. Click "Generate AI Reply" to create a personalized response (uses OpenAI with order context)
+6. Edit the draft and click "Send Reply" to respond to customer (sends via Mailgun)
+7. For unassigned emails (right panel when no order is selected):
+   - AI suggestions are automatically shown
+   - Click "Send AI Reply" to send the suggested response
+
+**UX Features:**
+
+- Loading states: All actions show spinners and disabled states during processing
+- Skeleton loaders: Order list, order details, and email sections show animated skeletons during data fetching
+- Toast notifications: Success, error, and warning messages appear as dismissible toasts
+- AI-powered replies: Uses customer name, order details, and email context for personalized responses
+
+### Using the Analytics Page
+
+The analytics dashboard (`/analytics`) provides key metrics and insights:
+
+**Metrics Displayed:**
+
+- **Email Metrics:**
+  - Total emails received
+  - Emails received this week
+  - Mapped vs unmapped email counts
+- **Order Metrics:**
+  - Total orders in database
+  - Actions taken by users
+- **AI Performance:**
+  - AI suggestion accuracy (percentage)
+  - Average response time (in hours)
+
+**Features:**
+
+- Gradient-colored cards with icons for visual clarity
+- Real-time data from database queries
+- Skeleton loaders during data fetching
+- Accessible from the main navigation header
 
 ### Public vs Protected routes
 
 - Public: `/` (homepage)
-- Protected by NextAuth middleware: `/integrations`, `/inbox`
+- Protected by NextAuth middleware: `/integrations`, `/inbox`, `/analytics`
 - Anonymous users visiting protected routes are redirected to sign in
 
 ### Header & auth UX
 
 - The global header shows Sign in when anonymous, and avatar + name with a Sign out button when authenticated (NextAuth SessionProvider).
+- When authenticated, the header includes links to:
+  - **Integrations** - Connect Shopify stores and manage email aliases
+  - **Analytics** - View metrics and AI performance
+  - **Note:** Inbox is accessible only via the "Open Inbox" button on connected Shopify stores in the integrations page
 - Sign out redirects back to `/`.
 
 ### Using the Integrations Page
@@ -229,6 +272,9 @@ The integrations page features a modern dashboard with stats cards and integrati
 - Duplicate store prevention: entering a Shopify domain that is already connected will show a toast and will not start OAuth.
 - If an already-connected store starts OAuth anyway, the callback redirects back to `/integrations?connected=1&already=1&shop=...` and a success toast is shown instead of adding a duplicate.
 - Email aliases are per-store, so you'll need at least one Shopify store connected before creating an alias
+- Loading states: All buttons show loading text ("Creating...", "Rotating...", "Updating...") while processing
+- Skeleton loaders: Stats cards and integration cards show animated skeletons during data fetching
+- Toast notifications: Success, error, and warning messages appear as dismissible toasts in the top-right corner
 
 ### Local onboarding (TL;DR for new devs)
 

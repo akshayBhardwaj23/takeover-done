@@ -27,6 +27,8 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
   - Returns messages mapped to a specific order with AI suggestions and thread info
 - `unassignedInbound({ take? })` → `{ messages: Message[] }`
   - Returns inbound messages not yet mapped to any order
+- `getAnalytics()` → `{ totalEmails, emailsThisWeek, mappedEmails, unmappedEmails, totalOrders, actionsTaken, aiSuggestionAccuracy, averageResponseTime }`
+  - Returns analytics metrics for the dashboard
 
 Notes:
 
@@ -34,12 +36,14 @@ Notes:
 
 #### Mutations
 
-- `aiSuggestReply({ customerMessage, orderSummary?, tone })` → `{ suggestion: string }`
-  - Stubbed server-side suggestion; replace with OpenAI later
+- `aiSuggestReply({ customerMessage, orderSummary?, tone, customerEmail?, orderId? })` → `{ suggestion: string }`
+  - Uses OpenAI API to generate personalized replies with order context
+  - Falls back to heuristic response if OpenAI is unavailable
 - `actionCreate({ shop, shopifyOrderId, email?, type, note?, draft? })` → `{ actionId }`
   - Creates `Action` row and logs `action.created` event
 - `actionApproveAndSend({ actionId, to, subject, body })` → `{ ok, status }`
-  - Marks action approved and logs `email.sent.stub` event (no real send yet)
+  - Marks action approved and sends real email via Mailgun API
+  - Falls back to stub if Mailgun is not configured
 - `createEmailAlias({ userEmail, domain, shop })` → `{ ok, alias }`
   - Generates a unique email alias for a Shopify store with webhook secret
 - `rotateAlias({ id })` → `{ ok }`
@@ -50,6 +54,9 @@ Notes:
   - Manually maps an unassigned email message to a specific order
 - `refreshOrderFromShopify({ shop, orderId })` → `{ ok, error? }`
   - Fetches latest order data from Shopify API and updates the database
+- `sendUnassignedReply({ messageId, body })` → `{ ok, status }`
+  - Sends a reply to an unassigned email using Mailgun API
+  - Extracts recipient from message thread and sends with proper headers
 
 Types (conceptual):
 

@@ -21,6 +21,7 @@ See [docs/RUNBOOK.md](./docs/RUNBOOK.md)
 - [**INTEGRATIONS.md**](./docs/INTEGRATIONS.md) - Shopify and email integration
 - [**API_REFERENCE.md**](./docs/API_REFERENCE.md) - tRPC API documentation
 - [**ROADMAP.md**](./docs/ROADMAP.md) - Feature roadmap and todos
+- [**MAILGUN_SETUP.md**](./MAILGUN_SETUP.md) - Mailgun email configuration guide
 
 ## 🏗️ Architecture
 
@@ -48,13 +49,16 @@ ai-ecom-tool/
 
 - ✅ Shopify OAuth integration
 - ✅ Custom email ingestion (Mailgun)
-- ✅ AI-powered email-to-order mapping
-- ✅ AI-suggested replies and actions
+- ✅ AI-powered email-to-order mapping (hybrid heuristic + AI)
+- ✅ AI-suggested replies and actions (OpenAI-powered)
 - ✅ Modern inbox UI with order management
-- ✅ Per-store email aliases
+- ✅ Per-store email aliases with rotation and disable features
 - ✅ Real-time order sync from Shopify
-- 🔄 Background job processing (in progress)
-- 🔄 Real email sending via Mailgun (in progress)
+- ✅ Real email sending via Mailgun API
+- ✅ Toast notifications and loading states for better UX
+- ✅ Analytics dashboard with key metrics
+- ✅ Skeleton loaders for improved perceived performance
+- 🔄 Background job processing (Redis/BullMQ - planned for production)
 
 ## 🔐 Environment Setup
 
