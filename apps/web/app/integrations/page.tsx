@@ -30,6 +30,10 @@ import {
   Shield,
   Activity,
 } from 'lucide-react';
+import {
+  StatsCardSkeleton,
+  IntegrationCardSkeleton,
+} from '../../components/SkeletonLoaders';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +50,7 @@ function IntegrationsInner() {
   const sp = useSearchParams();
   const connected = sp.get('connected');
   const shop = sp.get('shop');
-  const { data } = trpc.connections.useQuery();
+  const { data, isLoading: connectionsLoading } = trpc.connections.useQuery();
   const emailHealth = trpc.emailHealth.useQuery();
   const utils = (trpc as any).useUtils();
   const createAlias = trpc.createEmailAlias.useMutation({
@@ -148,40 +152,42 @@ function IntegrationsInner() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-indigo-600">
-                  Shopify Stores
-                </p>
-                <p className="mt-2 text-3xl font-bold text-indigo-900">
-                  {data?.isLoading ? (
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
-                  ) : (
-                    shopifyConnections.length
-                  )}
-                </p>
-              </div>
-              <ShoppingBag className="h-12 w-12 text-indigo-400" />
-            </div>
-          </Card>
-          <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-amber-600">
-                  Email Aliases
-                </p>
-                <p className="mt-2 text-3xl font-bold text-amber-900">
-                  {data?.isLoading ? (
-                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent"></div>
-                  ) : (
-                    emailConnections.length
-                  )}
-                </p>
-              </div>
-              <Mail className="h-12 w-12 text-amber-400" />
-            </div>
-          </Card>
+          {connectionsLoading ? (
+            <>
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+            </>
+          ) : (
+            <>
+              <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-indigo-600">
+                      Shopify Stores
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-indigo-900">
+                      {shopifyConnections.length}
+                    </p>
+                  </div>
+                  <ShoppingBag className="h-12 w-12 text-indigo-400" />
+                </div>
+              </Card>
+              <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-amber-600">
+                      Email Aliases
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-amber-900">
+                      {emailConnections.length}
+                    </p>
+                  </div>
+                  <Mail className="h-12 w-12 text-amber-400" />
+                </div>
+              </Card>
+            </>
+          )}
           <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -245,7 +251,12 @@ function IntegrationsInner() {
                 <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
                   Connected Stores
                 </h3>
-                {shopifyConnections.length === 0 ? (
+                {connectionsLoading ? (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <IntegrationCardSkeleton />
+                    <IntegrationCardSkeleton />
+                  </div>
+                ) : shopifyConnections.length === 0 ? (
                   <Card className="border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                     <Store className="mx-auto h-12 w-12 text-slate-400" />
                     <p className="mt-3 font-medium text-slate-900">
@@ -417,7 +428,12 @@ function IntegrationsInner() {
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
                 Active Aliases
               </h3>
-              {emailConnections.length === 0 ? (
+              {connectionsLoading ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <IntegrationCardSkeleton />
+                  <IntegrationCardSkeleton />
+                </div>
+              ) : emailConnections.length === 0 ? (
                 <Card className="border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                   <Mail className="mx-auto h-12 w-12 text-slate-400" />
                   <p className="mt-3 font-medium text-slate-900">

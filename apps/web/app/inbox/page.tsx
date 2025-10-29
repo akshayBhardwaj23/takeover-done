@@ -17,6 +17,12 @@ import {
   Sparkles,
   MessageSquare,
 } from 'lucide-react';
+import {
+  OrderCardSkeleton,
+  OrderDetailSkeleton,
+  EmailCardSkeleton,
+  UnassignedEmailSkeleton,
+} from '../../components/SkeletonLoaders';
 
 type DbOrder = {
   id: string;
@@ -156,11 +162,10 @@ export default function InboxPage() {
 
         <ScrollArea className="flex-1">
           {dbOrders.isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
-                <p className="text-sm text-slate-600">Loading orders...</p>
-              </div>
+            <div className="p-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <OrderCardSkeleton key={i} />
+              ))}
             </div>
           ) : dbOrders.data?.orders?.length ? (
             <div className="p-2">
@@ -232,14 +237,7 @@ export default function InboxPage() {
           </div>
         )}
 
-        {selected && orderDetail.isLoading && (
-          <div className="flex flex-1 items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
-              <p className="text-sm text-slate-600">Loading order details...</p>
-            </div>
-          </div>
-        )}
+        {selected && orderDetail.isLoading && <OrderDetailSkeleton />}
 
         {selected && orderDetail.data?.order && (
           <div className="flex flex-1 flex-col">
@@ -521,52 +519,56 @@ export default function InboxPage() {
         <ScrollArea className="flex-1">
           {selected && (
             <div className="p-4">
-              {(messages.data?.messages ?? []).length === 0 && (
+              {messages.isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <EmailCardSkeleton key={i} />
+                  ))}
+                </div>
+              ) : (messages.data?.messages ?? []).length === 0 ? (
                 <Card className="border-slate-200 p-4 text-center">
                   <Mail className="mx-auto h-8 w-8 text-slate-300" />
                   <p className="mt-2 text-sm text-slate-500">
                     No emails mapped to this order
                   </p>
                 </Card>
+              ) : (
+                <div className="space-y-3">
+                  {(messages.data?.messages ?? []).map((m: any) => (
+                    <Card key={m.id} className="border-slate-200 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <Badge
+                          variant={
+                            m.direction === 'INBOUND' ? 'default' : 'secondary'
+                          }
+                          className="text-xs"
+                        >
+                          {m.direction}
+                        </Badge>
+                        <span className="text-xs text-slate-500">
+                          {new Date(m.createdAt).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        {m.from.split('@')[0]}@...
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-800">
+                        {m.body}
+                      </p>
+                    </Card>
+                  ))}
+                </div>
               )}
-              <div className="space-y-3">
-                {(messages.data?.messages ?? []).map((m: any) => (
-                  <Card key={m.id} className="border-slate-200 p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <Badge
-                        variant={
-                          m.direction === 'INBOUND' ? 'default' : 'secondary'
-                        }
-                        className="text-xs"
-                      >
-                        {m.direction}
-                      </Badge>
-                      <span className="text-xs text-slate-500">
-                        {new Date(m.createdAt).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600">
-                      {m.from.split('@')[0]}@...
-                    </p>
-                    <p className="mt-2 line-clamp-2 text-sm text-slate-800">
-                      {m.body}
-                    </p>
-                  </Card>
-                ))}
-              </div>
             </div>
           )}
 
           {!selected && (
             <div className="p-4">
               {unassigned.isLoading ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
-                    <p className="text-sm text-slate-600">
-                      Loading unassigned emails...
-                    </p>
-                  </div>
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <UnassignedEmailSkeleton key={i} />
+                  ))}
                 </div>
               ) : (unassigned.data?.messages ?? []).length === 0 ? (
                 <Card className="border-slate-200 p-4 text-center">
