@@ -1,10 +1,13 @@
 ## Runbook
 
+> **Note for Team Members**: If you're setting up your development environment for the first time, see [DEVELOPMENT_SETUP.md](./DEVELOPMENT_SETUP.md) for detailed instructions on running the app independently with your own Cloudflare tunnel.
+
 ### Prerequisites
 
 - Node.js (LTS), pnpm
 - PostgreSQL database (e.g., Supabase/Neon). Use pooler with `sslmode=require` for local dev.
 - HTTPS tunnel (Cloudflare Tunnel or ngrok) for Shopify OAuth/webhooks
+  - **Important**: Each developer needs their own tunnel for independent development
 
 ### Environment
 

@@ -31,9 +31,29 @@ MAILGUN_SIGNING_KEY=your-mailgun-signing-key-here
 
 ### 3. From Email Address
 
-1. Choose an email address from your verified domain
-2. Common options: `support@yourdomain.com`, `noreply@yourdomain.com`
+**Important:** You don't need to create an actual email account/mailbox for this!
+
+1. Choose any email address from your verified domain
+2. Common options: `support@yourdomain.com`, `noreply@yourdomain.com`, `hello@yourdomain.com`
 3. Use this as `MAILGUN_FROM_EMAIL`
+4. Mailgun will send emails that appear to come from this address
+5. **No mailbox creation needed** - it's just a "From" identifier
+
+**Example:**
+
+```bash
+# If your verified domain is "zyyp.ai"
+MAILGUN_DOMAIN="zyyp.ai"
+MAILGUN_FROM_EMAIL="support@zyyp.ai"  # This doesn't need to exist as a real mailbox
+```
+
+**Pro Tip:** You can also use a display name:
+
+```bash
+MAILGUN_FROM_EMAIL="ZYYP Support <support@zyyp.ai>"
+```
+
+This will show "ZYYP Support" as the sender name in email clients.
 
 ## Testing
 

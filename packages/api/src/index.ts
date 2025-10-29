@@ -266,18 +266,128 @@ export const appRouter = t.router({
         customerMessage: z.string().min(1),
         orderSummary: z.string().optional(),
         tone: z.enum(['friendly', 'professional']).default('friendly'),
+        customerEmail: z.string().optional(),
+        orderId: z.string().optional(),
       }),
     )
     .mutation(async ({ input }) => {
-      // Stubbed suggestion for MVP. Replace with OpenAI later.
+      const apiKey = process.env.OPENAI_API_KEY;
+
+      // Enhanced fallback with personalization
+      const customerName = input.customerEmail
+        ? input.customerEmail
+            .split('@')[0]
+            .replace(/[._]/g, ' ')
+            .replace(/\b\w/g, (l) => l.toUpperCase())
+        : 'there';
+
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
-      const body = input.orderSummary
-        ? `${greeting},\n\nThanks for reaching out. I looked up your order (${input.orderSummary}). ` +
-          `Here’s what I can do next: \n- Provide an update or help with your request.\n\n` +
-          `Reply back if you’d like me to proceed.\n\nBest regards,\nSupport`
-        : `${greeting},\n\nThanks for contacting us. I’m here to help. ` +
-          `Let me know the order number or any extra details, and I’ll take care of it.\n\nBest,\nSupport`;
-      return { suggestion: body };
+
+      if (!apiKey) {
+        // Enhanced fallback response
+        let body = `${greeting} ${customerName},\n\n`;
+        body += `Thank you for reaching out to us! `;
+
+        if (input.orderSummary) {
+          body += `I can see your order details (${input.orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
+        } else {
+          body += `I'd be happy to assist you with your inquiry. `;
+          body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
+        }
+
+        body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
+        body += `I want to make sure I address all your concerns properly.\n\n`;
+        body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
+        body += `Best regards,\nCustomer Support Team`;
+
+        return { suggestion: body };
+      }
+
+      // Enhanced OpenAI prompt for better replies
+      const orderContext = input.orderSummary
+        ? `Order Details: ${input.orderSummary}`
+        : 'No specific order referenced - customer may need to provide order number';
+
+      const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's message.
+
+Guidelines:
+- Be ${input.tone} and professional
+- Acknowledge their specific concern
+- Use their name if available (${customerName})
+- Reference their order details if available
+- Provide clear next steps
+- Show understanding and empathy
+- Keep it conversational but professional
+- Address their specific request directly
+- Offer specific solutions
+
+${orderContext}
+
+Customer Message: ${input.customerMessage}
+
+Write a comprehensive reply that addresses their concern and provides clear next steps.`;
+
+      try {
+        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a professional customer support representative with excellent communication skills. You write personalized, empathetic, and helpful responses that make customers feel valued and understood. You always:
+
+1. Acknowledge the customer's specific concern
+2. Use a warm, professional tone
+3. Reference their order details when available
+4. Provide clear, actionable next steps
+5. Show genuine care for their experience
+6. Keep responses comprehensive but not overwhelming
+7. Use the customer's name when appropriate
+8. Address their specific request directly
+
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
+              },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.7,
+            max_tokens: 400,
+          }),
+        });
+
+        if (!resp.ok) throw new Error(`OpenAI API error: ${resp.status}`);
+
+        const json: any = await resp.json();
+        const suggestion =
+          json.choices?.[0]?.message?.content ??
+          `Hi ${customerName},\n\nThank you for reaching out! I'm here to help you with your inquiry. I'll review your message and get back to you with a detailed response shortly.\n\nBest regards,\nCustomer Support Team`;
+
+        return { suggestion };
+      } catch (error) {
+        console.error('OpenAI API error:', error);
+
+        // Fallback response
+        let body = `${greeting} ${customerName},\n\n`;
+        body += `Thank you for reaching out to us! `;
+
+        if (input.orderSummary) {
+          body += `I can see your order details (${input.orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
+        } else {
+          body += `I'd be happy to assist you with your inquiry. `;
+          body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
+        }
+
+        body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
+        body += `I want to make sure I address all your concerns properly.\n\n`;
+        body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
+        body += `Best regards,\nCustomer Support Team`;
+
+        return { suggestion: body };
+      }
     }),
   actionCreate: t.procedure
     .input(

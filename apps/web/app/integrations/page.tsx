@@ -155,7 +155,11 @@ function IntegrationsInner() {
                   Shopify Stores
                 </p>
                 <p className="mt-2 text-3xl font-bold text-indigo-900">
-                  {shopifyConnections.length}
+                  {data?.isLoading ? (
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+                  ) : (
+                    shopifyConnections.length
+                  )}
                 </p>
               </div>
               <ShoppingBag className="h-12 w-12 text-indigo-400" />
@@ -168,7 +172,11 @@ function IntegrationsInner() {
                   Email Aliases
                 </p>
                 <p className="mt-2 text-3xl font-bold text-amber-900">
-                  {emailConnections.length}
+                  {data?.isLoading ? (
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-amber-600 border-t-transparent"></div>
+                  ) : (
+                    emailConnections.length
+                  )}
                 </p>
               </div>
               <Mail className="h-12 w-12 text-amber-400" />
@@ -504,11 +512,14 @@ function IntegrationsInner() {
                               disabled: !(c as any)?.metadata?.disabled,
                             })
                           }
+                          disabled={setAliasStatus.isPending}
                         >
                           <Power className="mr-1 h-3 w-3" />
-                          {(c as any)?.metadata?.disabled
-                            ? 'Enable'
-                            : 'Disable'}
+                          {setAliasStatus.isPending
+                            ? 'Updating...'
+                            : (c as any)?.metadata?.disabled
+                              ? 'Enable'
+                              : 'Disable'}
                         </Button>
                       </div>
                     </Card>

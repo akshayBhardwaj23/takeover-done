@@ -219,7 +219,50 @@ export async function POST(req: NextRequest) {
 
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
-        const reply = `Hi${customerEmail && customerEmail.includes('@') ? '' : ''},\n\nThanks for reaching out. ${orderId ? 'I pulled up your order and can help right away.' : 'Could you share your order number so I can help?'}\n\n${action === 'REFUND' ? 'I can help arrange a refund if you prefer.' : action === 'CANCEL' ? "I can help cancel the order if it hasn't shipped yet." : action === 'REPLACE_ITEM' ? 'I can arrange a replacement for the affected item.' : action === 'ADDRESS_CHANGE' ? "I can update your shipping address if the order hasn't shipped." : "I'm happy to provide an update and next steps."}\n\nBest regards,\nSupport`;
+        // Enhanced fallback with personalization
+        const customerName = customerEmail
+          .split('@')[0]
+          .replace(/[._]/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+        const order = orderId
+          ? await prisma.order.findUnique({ where: { id: orderId } })
+          : null;
+
+        let reply = `Hi ${customerName},\n\n`;
+        reply += `Thank you for reaching out to us! `;
+
+        if (order) {
+          reply += `I can see your order ${order.name || `#${order.shopifyId}`} in our system and I'm here to help you with any questions or concerns you may have.\n\n`;
+        } else {
+          reply += `I'd be happy to assist you with your inquiry. `;
+          reply += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
+        }
+
+        // Action-specific responses
+        if (action === 'REFUND') {
+          reply += `I understand you're interested in a refund. I can definitely help you with that process. `;
+          reply += `Let me review your order details and get back to you with the next steps within the next few hours.\n\n`;
+        } else if (action === 'CANCEL') {
+          reply += `I see you'd like to cancel your order. `;
+          reply += `Let me check if your order is still eligible for cancellation and I'll get back to you with the details.\n\n`;
+        } else if (action === 'REPLACE_ITEM') {
+          reply += `I understand you need a replacement for an item. `;
+          reply += `I'll review your order and arrange for a replacement to be sent out to you.\n\n`;
+        } else if (action === 'ADDRESS_CHANGE') {
+          reply += `I can help you update your shipping address. `;
+          reply += `Let me check your order status and make the necessary changes for you.\n\n`;
+        } else if (action === 'INFO_REQUEST') {
+          reply += `I'll look into your order status and provide you with a detailed update. `;
+          reply += `You can expect to hear from me with tracking information and next steps.\n\n`;
+        } else {
+          reply += `I'm reviewing your message and will provide you with a detailed response shortly. `;
+          reply += `I want to make sure I address all your concerns properly.\n\n`;
+        }
+
+        reply += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
+        reply += `Best regards,\n`;
+        reply += `Customer Support Team`;
+
         return {
           reply,
           proposedAction: action,
@@ -227,14 +270,45 @@ export async function POST(req: NextRequest) {
         } as any;
       }
 
-      // Compose prompt with minimal PII
+      // Compose detailed prompt with order context
       const order = orderId
         ? await prisma.order.findUnique({ where: { id: orderId } })
         : null;
-      const orderSummary = order
-        ? `Order ${order.shopifyId} total ${(order.totalAmount / 100).toFixed(2)}`
-        : 'Order unknown';
-      const prompt = `You are a Shopify support assistant. Write a short, on-brand reply to the customer email below. Keep it concise, friendly, and propose a concrete next step. If refund, cancellation, replacement, or address change is clearly requested or implied, suggest it in one line. Include the order reference if provided.\n\nOrder Context: ${orderSummary}\nCustomer Email:\nSubject: ${subject ?? '(no subject)'}\nBody:\n${body}`;
+
+      // Extract customer name from email if possible
+      const customerName = customerEmail
+        .split('@')[0]
+        .replace(/[._]/g, ' ')
+        .replace(/\b\w/g, (l) => l.toUpperCase());
+
+      const orderContext = order
+        ? `Order Details:
+- Order Number: ${order.name || `#${order.shopifyId}`}
+- Total Amount: $${(order.totalAmount / 100).toFixed(2)}
+- Status: ${order.status}
+- Customer Email: ${order.email || 'Not provided'}`
+        : 'No order found - customer may need to provide order number';
+
+      const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's email.
+
+Guidelines:
+- Be warm, professional, and empathetic
+- Acknowledge their specific concern
+- Use their name if available (${customerName})
+- Reference their order details if available
+- Provide clear next steps
+- Keep it conversational but professional
+- Show understanding of their situation
+- Offer specific solutions based on their request
+
+${orderContext}
+
+Customer Email:
+Subject: ${subject ?? '(no subject)'}
+From: ${customerEmail}
+Message: ${body}
+
+Write a comprehensive reply that addresses their concern and provides clear next steps.`;
 
       try {
         const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -248,13 +322,23 @@ export async function POST(req: NextRequest) {
             messages: [
               {
                 role: 'system',
-                content:
-                  'You are a helpful, concise Shopify support assistant.',
+                content: `You are a professional customer support representative with excellent communication skills. You write personalized, empathetic, and helpful responses that make customers feel valued and understood. You always:
+
+1. Acknowledge the customer's specific concern
+2. Use a warm, professional tone
+3. Reference their order details when available
+4. Provide clear, actionable next steps
+5. Show genuine care for their experience
+6. Keep responses comprehensive but not overwhelming
+7. Use the customer's name when appropriate
+8. Address their specific request directly
+
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
               },
               { role: 'user', content: prompt },
             ],
-            temperature: 0.4,
-            max_tokens: 250,
+            temperature: 0.7,
+            max_tokens: 400,
           }),
         });
         if (!resp.ok) throw new Error(`openai ${resp.status}`);
@@ -274,8 +358,29 @@ export async function POST(req: NextRequest) {
 
         return { reply, proposedAction: action, confidence: 0.75 } as any;
       } catch {
-        const fallback =
-          "Thanks for reaching out. I'll review your request and follow up shortly with next steps.";
+        // Enhanced fallback for API errors
+        const customerName = customerEmail
+          .split('@')[0]
+          .replace(/[._]/g, ' ')
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+        const order = orderId
+          ? await prisma.order.findUnique({ where: { id: orderId } })
+          : null;
+
+        let fallback = `Hi ${customerName},\n\n`;
+        fallback += `Thank you for contacting us! `;
+
+        if (order) {
+          fallback += `I can see your order ${order.name || `#${order.shopifyId}`} and I'm here to help.\n\n`;
+        } else {
+          fallback += `I'd be happy to assist you with your inquiry.\n\n`;
+        }
+
+        fallback += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
+        fallback += `I want to make sure I address all your concerns properly.\n\n`;
+        fallback += `If you have any urgent questions, please don't hesitate to reach out.\n\n`;
+        fallback += `Best regards,\nCustomer Support Team`;
+
         return {
           reply: fallback,
           proposedAction: action,

@@ -155,7 +155,14 @@ export default function InboxPage() {
         )}
 
         <ScrollArea className="flex-1">
-          {dbOrders.data?.orders?.length ? (
+          {dbOrders.isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+                <p className="text-sm text-slate-600">Loading orders...</p>
+              </div>
+            </div>
+          ) : dbOrders.data?.orders?.length ? (
             <div className="p-2">
               {(dbOrders.data.orders as DbOrder[]).map((o) => (
                 <Card
@@ -221,6 +228,15 @@ export default function InboxPage() {
               <p className="mt-2 text-sm text-slate-500">
                 Select an order from the sidebar to view details
               </p>
+            </div>
+          </div>
+        )}
+
+        {selected && orderDetail.isLoading && (
+          <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+              <p className="text-sm text-slate-600">Loading order details...</p>
             </div>
           </div>
         )}
@@ -303,9 +319,29 @@ export default function InboxPage() {
                       <Button
                         variant="default"
                         className="bg-violet-600 hover:bg-violet-700"
+                        disabled={createAction.isPending}
+                        onClick={async () => {
+                          const o = orderDetail.data?.order;
+                          if (!o) return;
+                          try {
+                            await createAction.mutateAsync({
+                              shop: shop,
+                              shopifyOrderId: o.id,
+                              email: o.email ?? undefined,
+                              type: aiSuggestion.proposedAction as any,
+                              note: 'AI suggested action',
+                              draft: aiSuggestion.reply,
+                            });
+                            alert('Action created successfully!');
+                          } catch (error) {
+                            alert('Failed to create action');
+                          }
+                        }}
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
-                        {aiSuggestion.proposedAction.replace('_', ' ')}
+                        {createAction.isPending
+                          ? 'Creating...'
+                          : aiSuggestion.proposedAction.replace('_', ' ')}
                       </Button>
                     )}
                     <Button
@@ -339,17 +375,27 @@ export default function InboxPage() {
                   onClick={() => {
                     const o = orderDetail.data?.order;
                     if (!o) return;
+
+                    // Get the latest customer message for context
+                    const latestMessage = (
+                      messages.data?.messages as any[] | undefined
+                    )?.find((m) => m.direction === 'INBOUND');
+
                     suggest.mutate({
-                      customerMessage: 'Customer inquiry',
-                      orderSummary: `${o.name} ${o.totalPrice}`,
+                      customerMessage:
+                        latestMessage?.body || 'Customer inquiry',
+                      orderSummary: `${o.name || `#${o.shopifyId}`} - $${o.totalPrice}`,
                       tone: 'friendly',
+                      customerEmail: o.email || latestMessage?.from,
+                      orderId: o.shopifyId,
                     });
                   }}
                   className="w-full"
                   variant="outline"
+                  disabled={suggest.isPending}
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
-                  Generate AI Reply
+                  {suggest.isPending ? 'Generating...' : 'Generate AI Reply'}
                 </Button>
                 <textarea
                   value={draft}
@@ -388,10 +434,14 @@ export default function InboxPage() {
                     }
                   }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700"
-                  disabled={!draft}
+                  disabled={
+                    !draft || createAction.isPending || approveSend.isPending
+                  }
                 >
                   <Send className="mr-2 h-4 w-4" />
-                  Send Reply
+                  {createAction.isPending || approveSend.isPending
+                    ? 'Sending...'
+                    : 'Send Reply'}
                 </Button>
               </div>
             </div>
@@ -509,89 +559,102 @@ export default function InboxPage() {
 
           {!selected && (
             <div className="p-4">
-              {(unassigned.data?.messages ?? []).length === 0 && (
+              {unassigned.isLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent"></div>
+                    <p className="text-sm text-slate-600">
+                      Loading unassigned emails...
+                    </p>
+                  </div>
+                </div>
+              ) : (unassigned.data?.messages ?? []).length === 0 ? (
                 <Card className="border-slate-200 p-4 text-center">
                   <CheckCircle className="mx-auto h-8 w-8 text-emerald-500" />
                   <p className="mt-2 text-sm text-slate-600">
                     All emails are mapped!
                   </p>
                 </Card>
-              )}
-              <div className="space-y-4">
-                {(unassigned.data?.messages ?? []).map((m: any) => (
-                  <Card key={m.id} className="border-amber-200 bg-amber-50 p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <AlertCircle className="h-4 w-4 text-amber-600" />
-                      <span className="text-xs text-slate-500">
-                        {new Date(m.createdAt).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <p className="mb-2 text-xs font-semibold text-slate-900">
-                      From: {m.from}
-                    </p>
-                    <div className="mb-3 rounded bg-white/80 p-3">
-                      <p className="text-xs font-medium text-slate-600 mb-1">
-                        Customer Message:
-                      </p>
-                      <p className="text-sm text-slate-700">{m.body}</p>
-                    </div>
-                    {m.aiSuggestion && (
-                      <div className="mt-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-violet-700">
-                            <Sparkles className="mr-1 inline h-3 w-3" />
-                            AI Suggestion: {m.aiSuggestion.proposedAction}
-                          </p>
-                          <Badge variant="secondary" className="text-xs">
-                            {(m.aiSuggestion.confidence * 100).toFixed(0)}%
-                            confidence
-                          </Badge>
-                        </div>
-                        <div className="rounded bg-white p-3 border border-slate-200">
-                          <p className="text-xs font-medium text-slate-600 mb-2">
-                            AI Reply:
-                          </p>
-                          <p className="text-sm text-slate-800 whitespace-pre-wrap">
-                            {m.aiSuggestion.reply}
-                          </p>
-                        </div>
-                        <Button
-                          size="sm"
-                          className="w-full bg-violet-600 hover:bg-violet-700"
-                          disabled={sendUnassignedReply.isLoading}
-                          onClick={async () => {
-                            try {
-                              const result =
-                                await sendUnassignedReply.mutateAsync({
-                                  messageId: m.id,
-                                  replyBody: m.aiSuggestion.reply,
-                                });
-                              if (result.ok) {
-                                alert(
-                                  (result as any).stub
-                                    ? 'Reply logged (Mailgun not configured)'
-                                    : 'Reply sent successfully!',
-                                );
-                              } else {
-                                alert(
-                                  `Failed to send: ${(result as any).error}`,
-                                );
-                              }
-                            } catch (error: any) {
-                              alert(`Error: ${error.message}`);
-                            }
-                          }}
-                        >
-                          <Send className="mr-2 h-3 w-3" />
-                          {sendUnassignedReply.isLoading
-                            ? 'Sending...'
-                            : 'Send AI Reply'}
-                        </Button>
+              ) : (
+                <div className="space-y-4">
+                  {(unassigned.data?.messages ?? []).map((m: any) => (
+                    <Card
+                      key={m.id}
+                      className="border-amber-200 bg-amber-50 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between">
+                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                        <span className="text-xs text-slate-500">
+                          {new Date(m.createdAt).toLocaleTimeString()}
+                        </span>
                       </div>
-                    )}
-                  </Card>
-                ))}
-              </div>
+                      <p className="mb-2 text-xs font-semibold text-slate-900">
+                        From: {m.from}
+                      </p>
+                      <div className="mb-3 rounded bg-white/80 p-3">
+                        <p className="text-xs font-medium text-slate-600 mb-1">
+                          Customer Message:
+                        </p>
+                        <p className="text-sm text-slate-700">{m.body}</p>
+                      </div>
+                      {m.aiSuggestion && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-violet-700">
+                              <Sparkles className="mr-1 inline h-3 w-3" />
+                              AI Suggestion: {m.aiSuggestion.proposedAction}
+                            </p>
+                            <Badge variant="secondary" className="text-xs">
+                              {(m.aiSuggestion.confidence * 100).toFixed(0)}%
+                              confidence
+                            </Badge>
+                          </div>
+                          <div className="rounded bg-white p-3 border border-slate-200">
+                            <p className="text-xs font-medium text-slate-600 mb-2">
+                              AI Reply:
+                            </p>
+                            <p className="text-sm text-slate-800 whitespace-pre-wrap">
+                              {m.aiSuggestion.reply}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            className="w-full bg-violet-600 hover:bg-violet-700"
+                            disabled={sendUnassignedReply.isLoading}
+                            onClick={async () => {
+                              try {
+                                const result =
+                                  await sendUnassignedReply.mutateAsync({
+                                    messageId: m.id,
+                                    replyBody: m.aiSuggestion.reply,
+                                  });
+                                if (result.ok) {
+                                  alert(
+                                    (result as any).stub
+                                      ? 'Reply logged (Mailgun not configured)'
+                                      : 'Reply sent successfully!',
+                                  );
+                                } else {
+                                  alert(
+                                    `Failed to send: ${(result as any).error}`,
+                                  );
+                                }
+                              } catch (error: any) {
+                                alert(`Error: ${error.message}`);
+                              }
+                            }}
+                          >
+                            <Send className="mr-2 h-3 w-3" />
+                            {sendUnassignedReply.isLoading
+                              ? 'Sending...'
+                              : 'Send AI Reply'}
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </ScrollArea>
