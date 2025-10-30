@@ -191,4 +191,3 @@ If you need help with the migration, check:
 - Supabase dashboard for database status
 - `packages/db/.env` for connection string
 - Run `psql $DATABASE_URL` to test connection
-
