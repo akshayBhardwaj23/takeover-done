@@ -16,6 +16,11 @@ import {
   XCircle,
   Sparkles,
   MessageSquare,
+  Inbox,
+  Zap,
+  ArrowRight,
+  Clock,
+  DollarSign,
 } from 'lucide-react';
 import {
   OrderCardSkeleton,
@@ -111,27 +116,34 @@ export default function InboxPage() {
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <main className="flex h-[calc(100dvh-0px)] bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50">
+      <main className="flex h-[calc(100dvh-0px)] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         {/* Left Sidebar - Orders List */}
-        <section className="flex w-80 flex-col border-r border-slate-200 bg-white">
-          <div className="border-b border-slate-200 p-4">
-            <h1 className="text-lg font-semibold text-slate-900">Inbox</h1>
-            <p className="text-sm text-slate-600">
-              Manage orders and support emails
-            </p>
+        <section className="flex w-80 flex-col border-r border-slate-800/50 bg-slate-900/50 backdrop-blur-sm">
+          {/* Header */}
+          <div className="border-b border-slate-800/50 bg-gradient-to-br from-slate-900/80 to-slate-800/50 p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 shadow-lg shadow-indigo-500/20">
+                <Inbox className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-white">Inbox</h1>
+                <p className="text-xs text-slate-400">AI-powered support</p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex border-b border-slate-200">
+          {/* Tabs */}
+          <div className="flex border-b border-slate-800/50 bg-slate-900/30 p-1">
             <button
               onClick={() => {
                 setActiveTab('orders');
                 setSelectedThread(null);
                 setSelected(null);
               }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`group flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
                 activeTab === 'orders'
-                  ? 'border-b-2 border-indigo-600 text-indigo-600'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <Package className="mr-2 inline-block h-4 w-4" />
@@ -142,10 +154,10 @@ export default function InboxPage() {
                 setActiveTab('emails');
                 setSelected(null);
               }}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`group flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-all ${
                 activeTab === 'emails'
-                  ? 'border-b-2 border-indigo-600 text-indigo-600'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
               <Mail className="mr-2 inline-block h-4 w-4" />
@@ -154,10 +166,10 @@ export default function InboxPage() {
           </div>
 
           {!shop && (
-            <div className="m-4">
-              <Card className="border-amber-200 bg-amber-50 p-4">
-                <AlertCircle className="mb-2 h-5 w-5 text-amber-600" />
-                <p className="text-xs text-amber-900">
+            <div className="m-3">
+              <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-orange-500/10 p-4">
+                <AlertCircle className="mb-2 h-5 w-5 text-amber-400" />
+                <p className="text-xs text-amber-200">
                   Add ?shop=your-shop.myshopify.com to the URL to load orders.
                 </p>
               </Card>
@@ -166,76 +178,88 @@ export default function InboxPage() {
 
           <ScrollArea className="flex-1">
             {dbOrders.isLoading ? (
-              <div className="p-2">
+              <div className="p-3">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <OrderCardSkeleton key={i} />
                 ))}
               </div>
             ) : dbOrders.data?.orders?.length ? (
-              <div className="p-2">
+              <div className="space-y-2 p-3">
                 {(dbOrders.data.orders as DbOrder[]).map((o) => (
                   <Card
                     key={o.id}
-                    className={`mb-2 cursor-pointer p-3 transition-all hover:shadow-md ${
+                    className={`group relative cursor-pointer overflow-hidden border p-4 transition-all ${
                       selected === o.shopifyId
-                        ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500'
-                        : 'border-slate-200 hover:border-indigo-300'
+                        ? 'border-indigo-500/50 bg-gradient-to-br from-indigo-600/20 to-purple-600/20 shadow-lg shadow-indigo-500/10'
+                        : 'border-slate-800/50 bg-slate-800/30 hover:border-indigo-500/30 hover:bg-slate-800/50'
                     }`}
                     onClick={() => {
                       setSelected(o.shopifyId);
                       setSelectedThread(null);
                     }}
                   >
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="font-mono text-sm font-semibold text-slate-900">
-                        {o.name || `#${o.shopifyId}`}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${
-                          o.status === 'FULFILLED'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : o.status === 'REFUNDED'
-                              ? 'bg-rose-100 text-rose-700'
-                              : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {o.status}
-                      </Badge>
-                    </div>
-                    <p className="mb-1 truncate text-xs text-slate-600">
-                      {o.email ?? 'No email'}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-900">
-                        ${(o.totalAmount / 100).toFixed(2)}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {new Date(o.createdAt).toLocaleDateString()}
-                      </span>
+                    <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-indigo-500/10 blur-2xl transition-all group-hover:bg-indigo-500/20" />
+                    <div className="relative">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="font-mono text-sm font-bold text-white">
+                          {o.name || `#${o.shopifyId}`}
+                        </span>
+                        <Badge
+                          className={`text-xs font-semibold ${
+                            o.status === 'FULFILLED'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : o.status === 'REFUNDED'
+                                ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                          }`}
+                        >
+                          {o.status}
+                        </Badge>
+                      </div>
+                      <p className="mb-2 truncate text-xs text-slate-400">
+                        {o.email ?? 'No email'}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="text-sm font-bold text-white">
+                            {(o.totalAmount / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                          <Clock className="h-3 w-3" />
+                          {new Date(o.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
                     </div>
                   </Card>
                 ))}
               </div>
             ) : (
-              <div className="p-4 text-center text-sm text-slate-500">
-                No orders found
+              <div className="p-8 text-center">
+                <Package className="mx-auto h-12 w-12 text-slate-700" />
+                <p className="mt-3 text-sm font-medium text-slate-400">
+                  No orders found
+                </p>
               </div>
             )}
           </ScrollArea>
         </section>
 
         {/* Middle Section - Order Details / Thread View */}
-        <section className="flex flex-1 flex-col border-r border-slate-200 bg-white">
+        <section className="flex flex-1 flex-col border-r border-slate-800/50 bg-slate-900/30 backdrop-blur-sm">
           {!selected && !selectedThread && (
             <div className="flex flex-1 items-center justify-center">
               <div className="text-center">
-                <Package className="mx-auto h-16 w-16 text-slate-300" />
-                <h3 className="mt-4 text-lg font-medium text-slate-900">
+                <div className="mx-auto w-fit rounded-full bg-slate-800/50 p-8">
+                  <Package className="h-16 w-16 text-slate-600" />
+                </div>
+                <h3 className="mt-6 text-xl font-bold text-white">
                   No order selected
                 </h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Select an order from the sidebar to view details
+                <p className="mt-2 text-sm text-slate-400">
+                  Select an order from the sidebar to view details and AI
+                  suggestions
                 </p>
               </div>
             </div>
@@ -246,24 +270,34 @@ export default function InboxPage() {
           {selected && orderDetail.data?.order && (
             <div className="flex flex-1 flex-col">
               {/* Order Header */}
-              <div className="border-b border-slate-200 bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white">
-                <div className="flex items-start justify-between">
+              <div className="relative overflow-hidden border-b border-slate-800/50 bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-600 p-8">
+                <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+                <div className="absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
+                <div className="relative flex items-start justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Badge className="bg-white/20 text-white backdrop-blur-sm">
+                        Order Details
+                      </Badge>
+                    </div>
+                    <h2 className="text-3xl font-black text-white">
                       {orderDetail.data.order.name}
                     </h2>
-                    <p className="mt-1 text-indigo-100">
+                    <p className="mt-2 flex items-center gap-2 text-sm text-indigo-100">
+                      <Mail className="h-4 w-4" />
                       {orderDetail.data.order.email ?? 'No email'}
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-bold">
-                      {orderDetail.data.order.totalPrice}
+                    <div className="rounded-xl bg-white/10 px-4 py-2 backdrop-blur-sm">
+                      <p className="text-xs text-indigo-100">Total Value</p>
+                      <div className="text-3xl font-black text-white">
+                        {orderDetail.data.order.totalPrice}
+                      </div>
                     </div>
                     <Button
-                      variant="outline"
                       size="sm"
-                      className="mt-3 border-white/30 bg-white/10 text-white hover:bg-white/20"
+                      className="mt-4 border-white/20 bg-white/10 font-semibold text-white backdrop-blur-sm hover:bg-white/20"
                       onClick={() =>
                         refreshOrder.mutate({
                           shop: shop,
@@ -273,7 +307,7 @@ export default function InboxPage() {
                       disabled={refreshOrder.isPending}
                     >
                       <RefreshCw
-                        className={`mr-2 h-3 w-3 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                        className={`mr-2 h-3.5 w-3.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
                       />
                       {refreshOrder.isPending
                         ? 'Syncing...'
@@ -284,23 +318,26 @@ export default function InboxPage() {
               </div>
 
               {/* Order Items */}
-              <div className="border-b border-slate-200 p-6">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">
+              <div className="border-b border-slate-800/50 bg-slate-900/20 p-6">
+                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <Package className="h-4 w-4" />
                   Order Items
                 </h3>
                 <div className="space-y-2">
                   {orderDetail.data.order.lineItems.map((li: any) => (
                     <div
                       key={li.id}
-                      className="flex items-center justify-between rounded-lg bg-slate-50 p-3"
+                      className="flex items-center justify-between rounded-xl border border-slate-800/50 bg-slate-800/30 p-4"
                     >
                       <div className="flex-1">
-                        <p className="font-medium text-slate-900">{li.title}</p>
-                        <p className="text-sm text-slate-600">
-                          Qty: {li.quantity}
+                        <p className="font-semibold text-white">{li.title}</p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Quantity: {li.quantity}
                         </p>
                       </div>
-                      <p className="font-semibold text-slate-900">{li.price}</p>
+                      <p className="text-lg font-bold text-emerald-400">
+                        {li.price}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -308,70 +345,82 @@ export default function InboxPage() {
 
               {/* AI Suggestions Section */}
               {aiSuggestion && (
-                <div className="border-b border-slate-200 bg-gradient-to-br from-violet-50 to-purple-50 p-6">
-                  <div className="mb-3 flex items-center">
-                    <Sparkles className="mr-2 h-5 w-5 text-violet-600" />
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-violet-900">
-                      AI Suggestions
-                    </h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {aiSuggestion.proposedAction && (
+                <div className="relative overflow-hidden border-b border-slate-800/50 bg-gradient-to-br from-violet-600/20 via-purple-600/20 to-pink-600/20 p-6">
+                  <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/20 blur-3xl" />
+                  <div className="relative">
+                    <div className="mb-4 flex items-center gap-2">
+                      <div className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 p-2 shadow-lg shadow-violet-500/20">
+                        <Sparkles className="h-5 w-5 text-white" />
+                      </div>
+                      <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                        AI Suggestions
+                      </h3>
+                      <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30">
+                        Powered by AI
+                      </Badge>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {aiSuggestion.proposedAction && (
+                          <Button
+                            className="bg-gradient-to-r from-violet-600 to-purple-600 font-semibold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-700"
+                            disabled={createAction.isPending}
+                            onClick={async () => {
+                              const o = orderDetail.data?.order;
+                              if (!o) return;
+                              try {
+                                await createAction.mutateAsync({
+                                  shop: shop,
+                                  shopifyOrderId: o.id,
+                                  email: o.email ?? undefined,
+                                  type: aiSuggestion.proposedAction as any,
+                                  note: 'AI suggested action',
+                                  draft: aiSuggestion.reply,
+                                });
+                                toast.success('Action created successfully!');
+                              } catch (error) {
+                                toast.error('Failed to create action');
+                              }
+                            }}
+                          >
+                            <Zap className="mr-2 h-4 w-4" />
+                            {createAction.isPending
+                              ? 'Creating...'
+                              : aiSuggestion.proposedAction.replace('_', ' ')}
+                          </Button>
+                        )}
                         <Button
-                          variant="default"
-                          className="bg-violet-600 hover:bg-violet-700"
-                          disabled={createAction.isPending}
-                          onClick={async () => {
-                            const o = orderDetail.data?.order;
-                            if (!o) return;
-                            try {
-                              await createAction.mutateAsync({
-                                shop: shop,
-                                shopifyOrderId: o.id,
-                                email: o.email ?? undefined,
-                                type: aiSuggestion.proposedAction as any,
-                                note: 'AI suggested action',
-                                draft: aiSuggestion.reply,
-                              });
-                              toast.success('Action created successfully!');
-                            } catch (error) {
-                              toast.error('Failed to create action');
-                            }
+                          variant="outline"
+                          className="border-slate-700 bg-slate-800/50 text-white hover:bg-slate-800"
+                          onClick={() => {
+                            const first = (
+                              messages.data?.messages as any[] | undefined
+                            )?.[0];
+                            if (first?.threadId)
+                              setSelectedThread(first.threadId as string);
                           }}
                         >
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          {createAction.isPending
-                            ? 'Creating...'
-                            : aiSuggestion.proposedAction.replace('_', ' ')}
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          View Email Thread
                         </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          const first = (
-                            messages.data?.messages as any[] | undefined
-                          )?.[0];
-                          if (first?.threadId)
-                            setSelectedThread(first.threadId as string);
-                        }}
-                      >
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                        View Email Thread
-                      </Button>
+                      </div>
+                      <p className="flex items-center gap-2 text-xs text-violet-300">
+                        <CheckCircle className="h-3 w-3" />
+                        Confidence: {aiSuggestion.confidence}
+                      </p>
                     </div>
-                    <p className="text-xs text-violet-600">
-                      Confidence: {aiSuggestion.confidence}
-                    </p>
                   </div>
                 </div>
               )}
 
               {/* AI Reply Generator */}
-              <div className="flex-1 overflow-auto p-6">
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  AI Reply Assistant
-                </h3>
+              <div className="flex-1 overflow-auto bg-slate-900/20 p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-indigo-400" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">
+                    AI Reply Assistant
+                  </h3>
+                </div>
                 <div className="space-y-3">
                   <Button
                     onClick={() => {
@@ -392,8 +441,7 @@ export default function InboxPage() {
                         orderId: o.id,
                       });
                     }}
-                    className="w-full"
-                    variant="outline"
+                    className="w-full border-indigo-500/30 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 font-semibold text-white hover:from-indigo-600/30 hover:to-purple-600/30"
                     disabled={suggest.isPending}
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
@@ -402,7 +450,7 @@ export default function InboxPage() {
                   <textarea
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    className="w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800/50 p-4 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                     rows={8}
                     placeholder="AI-generated reply will appear here. You can edit before sending..."
                   />
@@ -439,7 +487,7 @@ export default function InboxPage() {
                         );
                       }
                     }}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 font-bold shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-purple-700"
                     disabled={
                       !draft || createAction.isPending || approveSend.isPending
                     }
@@ -448,6 +496,7 @@ export default function InboxPage() {
                     {createAction.isPending || approveSend.isPending
                       ? 'Sending...'
                       : 'Send Reply'}
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -456,58 +505,80 @@ export default function InboxPage() {
 
           {selectedThread && (
             <div className="flex flex-1 flex-col">
-              <div className="border-b border-slate-200 p-6">
+              <div className="border-b border-slate-800/50 bg-gradient-to-r from-slate-900 to-slate-800 p-6">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setSelectedThread(null)}
-                  className="mb-4"
+                  className="mb-4 border-slate-700 bg-slate-800/50 text-white hover:bg-slate-800"
                 >
                   ← Back to Orders
                 </Button>
-                <h2 className="text-xl font-semibold text-slate-900">
-                  Email Thread
-                </h2>
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-6 w-6 text-indigo-400" />
+                  <h2 className="text-2xl font-black text-white">
+                    Email Thread
+                  </h2>
+                </div>
               </div>
-              <ScrollArea className="flex-1 p-6">
+              <ScrollArea className="flex-1 bg-slate-900/20 p-6">
                 <div className="space-y-4">
                   {(threadMessages.data?.messages ?? []).map((m: any) => (
-                    <Card key={m.id} className="border-slate-200 p-4">
-                      <div className="mb-2 flex items-center justify-between">
-                        <Badge
-                          variant={
-                            m.direction === 'INBOUND' ? 'default' : 'secondary'
-                          }
-                        >
-                          {m.direction}
-                        </Badge>
-                        <span className="text-xs text-slate-500">
-                          {new Date(m.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="mb-2 text-xs text-slate-600">
-                        <strong>From:</strong> {m.from} → <strong>To:</strong>{' '}
-                        {m.to}
-                      </div>
-                      <Separator className="my-3" />
-                      <div className="whitespace-pre-wrap text-sm text-slate-800">
-                        {m.body}
-                      </div>
-                      {m.aiSuggestion && (
-                        <div className="mt-4 rounded-lg bg-violet-50 p-3">
-                          <div className="mb-1 flex items-center text-xs font-semibold text-violet-900">
-                            <Sparkles className="mr-1 h-3 w-3" />
-                            AI Suggestion
-                          </div>
-                          <p className="text-sm text-slate-700">
-                            {m.aiSuggestion.reply}
-                          </p>
-                          <p className="mt-2 text-xs text-violet-600">
-                            Action: {m.aiSuggestion.proposedAction} •
-                            Confidence: {m.aiSuggestion.confidence}
-                          </p>
+                    <Card
+                      key={m.id}
+                      className="relative overflow-hidden border border-slate-800/50 bg-slate-800/30 p-5"
+                    >
+                      <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-indigo-500/10 blur-3xl" />
+                      <div className="relative">
+                        <div className="mb-3 flex items-center justify-between">
+                          <Badge
+                            className={`font-semibold ${
+                              m.direction === 'INBOUND'
+                                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                            }`}
+                          >
+                            {m.direction}
+                          </Badge>
+                          <span className="flex items-center gap-1 text-xs text-slate-500">
+                            <Clock className="h-3 w-3" />
+                            {new Date(m.createdAt).toLocaleString()}
+                          </span>
                         </div>
-                      )}
+                        <div className="mb-3 text-xs text-slate-400">
+                          <strong className="text-slate-300">From:</strong>{' '}
+                          {m.from} →{' '}
+                          <strong className="text-slate-300">To:</strong> {m.to}
+                        </div>
+                        <Separator className="my-4 bg-slate-700/50" />
+                        <div className="whitespace-pre-wrap text-sm text-slate-300">
+                          {m.body}
+                        </div>
+                        {m.aiSuggestion && (
+                          <div className="mt-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-600/20 to-purple-600/20 p-4">
+                            <div className="mb-2 flex items-center gap-2">
+                              <Sparkles className="h-4 w-4 text-violet-400" />
+                              <span className="text-xs font-bold uppercase text-violet-300">
+                                AI Suggestion
+                              </span>
+                            </div>
+                            <p className="mb-3 text-sm text-slate-300">
+                              {m.aiSuggestion.reply}
+                            </p>
+                            <div className="flex items-center gap-3 text-xs text-violet-300">
+                              <span className="flex items-center gap-1">
+                                <Zap className="h-3 w-3" />
+                                {m.aiSuggestion.proposedAction}
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                {m.aiSuggestion.confidence}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </Card>
                   ))}
                 </div>
@@ -517,11 +588,14 @@ export default function InboxPage() {
         </section>
 
         {/* Right Sidebar - Messages & Unassigned */}
-        <section className="flex w-96 flex-col border-l border-slate-200 bg-slate-50">
-          <div className="border-b border-slate-200 bg-white p-4">
-            <h3 className="text-sm font-semibold text-slate-900">
-              {selected ? 'Email Matches' : 'Unassigned Emails'}
-            </h3>
+        <section className="flex w-96 flex-col border-l border-slate-800/50 bg-slate-900/30 backdrop-blur-sm">
+          <div className="border-b border-slate-800/50 bg-gradient-to-br from-slate-900/80 to-slate-800/50 p-5">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-indigo-400" />
+              <h3 className="text-sm font-bold text-white">
+                {selected ? 'Email Matches' : 'Unassigned Emails'}
+              </h3>
+            </div>
           </div>
 
           <ScrollArea className="flex-1">
@@ -534,37 +608,45 @@ export default function InboxPage() {
                     ))}
                   </div>
                 ) : (messages.data?.messages ?? []).length === 0 ? (
-                  <Card className="border-slate-200 p-4 text-center">
-                    <Mail className="mx-auto h-8 w-8 text-slate-300" />
-                    <p className="mt-2 text-sm text-slate-500">
+                  <Card className="border-slate-800/50 bg-slate-800/30 p-6 text-center">
+                    <div className="mx-auto w-fit rounded-full bg-slate-700/50 p-4">
+                      <Mail className="h-8 w-8 text-slate-500" />
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-slate-400">
                       No emails mapped to this order
                     </p>
                   </Card>
                 ) : (
                   <div className="space-y-3">
                     {(messages.data?.messages ?? []).map((m: any) => (
-                      <Card key={m.id} className="border-slate-200 p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <Badge
-                            variant={
-                              m.direction === 'INBOUND'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                            className="text-xs"
-                          >
-                            {m.direction}
-                          </Badge>
-                          <span className="text-xs text-slate-500">
-                            {new Date(m.createdAt).toLocaleTimeString()}
-                          </span>
+                      <Card
+                        key={m.id}
+                        className="group relative overflow-hidden border border-slate-800/50 bg-slate-800/30 p-4 transition-all hover:border-indigo-500/30 hover:bg-slate-800/50"
+                      >
+                        <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-indigo-500/10 blur-2xl transition-all group-hover:bg-indigo-500/20" />
+                        <div className="relative">
+                          <div className="mb-3 flex items-center justify-between">
+                            <Badge
+                              className={`text-xs font-semibold ${
+                                m.direction === 'INBOUND'
+                                  ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30'
+                                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              }`}
+                            >
+                              {m.direction}
+                            </Badge>
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <Clock className="h-3 w-3" />
+                              {new Date(m.createdAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="mb-2 text-xs text-slate-400">
+                            {m.from.split('@')[0]}@...
+                          </p>
+                          <p className="line-clamp-2 text-sm text-slate-300">
+                            {m.body}
+                          </p>
                         </div>
-                        <p className="text-xs text-slate-600">
-                          {m.from.split('@')[0]}@...
-                        </p>
-                        <p className="mt-2 line-clamp-2 text-sm text-slate-800">
-                          {m.body}
-                        </p>
                       </Card>
                     ))}
                   </div>
@@ -581,10 +663,15 @@ export default function InboxPage() {
                     ))}
                   </div>
                 ) : (unassigned.data?.messages ?? []).length === 0 ? (
-                  <Card className="border-slate-200 p-4 text-center">
-                    <CheckCircle className="mx-auto h-8 w-8 text-emerald-500" />
-                    <p className="mt-2 text-sm text-slate-600">
+                  <Card className="border-slate-800/50 bg-slate-800/30 p-6 text-center">
+                    <div className="mx-auto w-fit rounded-full bg-emerald-500/20 p-4">
+                      <CheckCircle className="h-8 w-8 text-emerald-400" />
+                    </div>
+                    <p className="mt-3 text-sm font-medium text-slate-300">
                       All emails are mapped!
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      No unassigned emails at the moment
                     </p>
                   </Card>
                 ) : (
@@ -592,79 +679,94 @@ export default function InboxPage() {
                     {(unassigned.data?.messages ?? []).map((m: any) => (
                       <Card
                         key={m.id}
-                        className="border-amber-200 bg-amber-50 p-4"
+                        className="relative overflow-hidden border border-amber-500/30 bg-gradient-to-br from-amber-600/10 to-orange-600/10 p-4"
                       >
-                        <div className="mb-3 flex items-center justify-between">
-                          <AlertCircle className="h-4 w-4 text-amber-600" />
-                          <span className="text-xs text-slate-500">
-                            {new Date(m.createdAt).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <p className="mb-2 text-xs font-semibold text-slate-900">
-                          From: {m.from}
-                        </p>
-                        <div className="mb-3 rounded bg-white/80 p-3">
-                          <p className="text-xs font-medium text-slate-600 mb-1">
-                            Customer Message:
-                          </p>
-                          <p className="text-sm text-slate-700">{m.body}</p>
-                        </div>
-                        {m.aiSuggestion && (
-                          <div className="mt-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs font-medium text-violet-700">
-                                <Sparkles className="mr-1 inline h-3 w-3" />
-                                AI Suggestion: {m.aiSuggestion.proposedAction}
-                              </p>
-                              <Badge variant="secondary" className="text-xs">
-                                {(m.aiSuggestion.confidence * 100).toFixed(0)}%
-                                confidence
+                        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/20 blur-3xl" />
+                        <div className="relative">
+                          <div className="mb-3 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="h-4 w-4 text-amber-400" />
+                              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30">
+                                Unassigned
                               </Badge>
                             </div>
-                            <div className="rounded bg-white p-3 border border-slate-200">
-                              <p className="text-xs font-medium text-slate-600 mb-2">
-                                AI Reply:
-                              </p>
-                              <p className="text-sm text-slate-800 whitespace-pre-wrap">
-                                {m.aiSuggestion.reply}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              className="w-full bg-violet-600 hover:bg-violet-700"
-                              disabled={sendUnassignedReply.isLoading}
-                              onClick={async () => {
-                                try {
-                                  const result =
-                                    await sendUnassignedReply.mutateAsync({
-                                      messageId: m.id,
-                                      replyBody: m.aiSuggestion.reply,
-                                    });
-                                  if (result.ok) {
-                                    if ((result as any).stub) {
-                                      toast.warning(
-                                        'Reply logged (Mailgun not configured)',
-                                      );
-                                    } else {
-                                      toast.success('Reply sent successfully!');
-                                    }
-                                  } else {
-                                    toast.error(
-                                      `Failed to send: ${(result as any).error}`,
-                                    );
-                                  }
-                                } catch (error: any) {
-                                  toast.error(`Error: ${error.message}`);
-                                }
-                              }}
-                            >
-                              <Send className="mr-2 h-3 w-3" />
-                              {sendUnassignedReply.isLoading
-                                ? 'Sending...'
-                                : 'Send AI Reply'}
-                            </Button>
+                            <span className="flex items-center gap-1 text-xs text-slate-500">
+                              <Clock className="h-3 w-3" />
+                              {new Date(m.createdAt).toLocaleTimeString()}
+                            </span>
                           </div>
-                        )}
+                          <p className="mb-3 text-xs font-semibold text-amber-200">
+                            From: {m.from}
+                          </p>
+                          <div className="mb-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                            <p className="text-xs font-medium text-slate-400 mb-1.5">
+                              Customer Message:
+                            </p>
+                            <p className="text-sm text-slate-300">{m.body}</p>
+                          </div>
+                          {m.aiSuggestion && (
+                            <div className="mt-3 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                                  <p className="text-xs font-semibold text-violet-300">
+                                    {m.aiSuggestion.proposedAction}
+                                  </p>
+                                </div>
+                                <Badge className="bg-violet-500/20 text-violet-300 border-violet-500/30">
+                                  {(m.aiSuggestion.confidence * 100).toFixed(0)}
+                                  % confident
+                                </Badge>
+                              </div>
+                              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
+                                <p className="text-xs font-medium text-indigo-300 mb-2 flex items-center gap-1.5">
+                                  <Sparkles className="h-3 w-3" />
+                                  AI Generated Reply:
+                                </p>
+                                <p className="text-sm text-slate-300 whitespace-pre-wrap">
+                                  {m.aiSuggestion.reply}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                className="w-full bg-gradient-to-r from-violet-600 to-purple-600 font-semibold text-white shadow-lg shadow-violet-500/20 hover:from-violet-700 hover:to-purple-700"
+                                disabled={sendUnassignedReply.isLoading}
+                                onClick={async () => {
+                                  try {
+                                    const result =
+                                      await sendUnassignedReply.mutateAsync({
+                                        messageId: m.id,
+                                        replyBody: m.aiSuggestion.reply,
+                                      });
+                                    if (result.ok) {
+                                      if ((result as any).stub) {
+                                        toast.warning(
+                                          'Reply logged (Mailgun not configured)',
+                                        );
+                                      } else {
+                                        toast.success(
+                                          'Reply sent successfully!',
+                                        );
+                                      }
+                                    } else {
+                                      toast.error(
+                                        `Failed to send: ${(result as any).error}`,
+                                      );
+                                    }
+                                  } catch (error: any) {
+                                    toast.error(`Error: ${error.message}`);
+                                  }
+                                }}
+                              >
+                                <Send className="mr-2 h-3.5 w-3.5" />
+                                {sendUnassignedReply.isLoading
+                                  ? 'Sending...'
+                                  : 'Send AI Reply'}
+                                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </Card>
                     ))}
                   </div>

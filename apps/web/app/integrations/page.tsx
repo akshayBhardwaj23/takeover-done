@@ -29,6 +29,10 @@ import {
   Zap,
   Shield,
   Activity,
+  Sparkles,
+  Clock,
+  Link as LinkIcon,
+  ArrowRight,
 } from 'lucide-react';
 import {
   StatsCardSkeleton,
@@ -96,20 +100,32 @@ function IntegrationsInner() {
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/20">
         <div className="mx-auto max-w-7xl space-y-8 p-6">
           {/* Header */}
-          <div className="space-y-2">
-            <h1 className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
-              Integrations
-            </h1>
-            <p className="text-lg text-slate-600">
-              Connect your tools and automate your workflow
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 p-3 shadow-lg">
+                  <LinkIcon className="h-8 w-8 text-white" />
+                </div>
+                <h1 className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 bg-clip-text text-5xl font-black text-transparent">
+                  Integrations
+                </h1>
+              </div>
+              <p className="text-lg text-slate-600">
+                Connect your tools and automate your workflow with AI-powered
+                intelligence
+              </p>
+            </div>
+            <Badge className="bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-white shadow-lg">
+              <Sparkles className="mr-2 h-4 w-4" />
+              {shopifyConnections.length + emailConnections.length} Active
+            </Badge>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {connectionsLoading ? (
               <>
                 <StatsCardSkeleton />
@@ -118,82 +134,116 @@ function IntegrationsInner() {
               </>
             ) : (
               <>
-                <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
-                  <div className="flex items-center justify-between">
+                <Card className="group relative overflow-hidden border-none bg-gradient-to-br from-indigo-500 to-blue-600 p-6 shadow-xl transition-all hover:scale-105 hover:shadow-2xl">
+                  <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+                  <div className="relative flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-indigo-600">
+                      <p className="text-sm font-medium text-indigo-100">
                         Shopify Stores
                       </p>
-                      <p className="mt-2 text-3xl font-bold text-indigo-900">
+                      <p className="mt-2 text-4xl font-black text-white">
                         {shopifyConnections.length}
                       </p>
+                      <p className="mt-1 text-xs text-indigo-200">
+                        Connected & syncing
+                      </p>
                     </div>
-                    <ShoppingBag className="h-12 w-12 text-indigo-400" />
+                    <div className="rounded-2xl bg-white/20 p-4 backdrop-blur-sm">
+                      <ShoppingBag className="h-8 w-8 text-white" />
+                    </div>
                   </div>
                 </Card>
-                <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
-                  <div className="flex items-center justify-between">
+                <Card className="group relative overflow-hidden border-none bg-gradient-to-br from-amber-500 to-orange-600 p-6 shadow-xl transition-all hover:scale-105 hover:shadow-2xl">
+                  <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+                  <div className="relative flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-amber-600">
+                      <p className="text-sm font-medium text-amber-100">
                         Email Aliases
                       </p>
-                      <p className="mt-2 text-3xl font-bold text-amber-900">
+                      <p className="mt-2 text-4xl font-black text-white">
                         {emailConnections.length}
                       </p>
+                      <p className="mt-1 text-xs text-amber-200">
+                        AI-powered routing
+                      </p>
                     </div>
-                    <Mail className="h-12 w-12 text-amber-400" />
+                    <div className="rounded-2xl bg-white/20 p-4 backdrop-blur-sm">
+                      <Mail className="h-8 w-8 text-white" />
+                    </div>
                   </div>
                 </Card>
               </>
             )}
-            <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6">
-              <div className="flex items-center justify-between">
+            <Card className="group relative overflow-hidden border-none bg-gradient-to-br from-emerald-500 to-green-600 p-6 shadow-xl transition-all hover:scale-105 hover:shadow-2xl">
+              <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+              <div className="relative flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-emerald-600">
+                  <p className="text-sm font-medium text-emerald-100">
                     Active Status
                   </p>
-                  <p className="mt-2 text-3xl font-bold text-emerald-900">
+                  <p className="mt-2 text-4xl font-black text-white">
                     {
                       emailConnections.filter((c) => !c.metadata?.disabled)
                         .length
                     }
-                    /{emailConnections.length}
+                    <span className="text-2xl text-emerald-200">
+                      /{emailConnections.length || '0'}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-200">
+                    Healthy connections
                   </p>
                 </div>
-                <Activity className="h-12 w-12 text-emerald-400" />
+                <div className="rounded-2xl bg-white/20 p-4 backdrop-blur-sm">
+                  <Activity className="h-8 w-8 text-white" />
+                </div>
               </div>
             </Card>
           </div>
 
           <Dialog>
             {/* Shopify Integration Section */}
-            <section className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg transition-shadow hover:shadow-xl">
-              {/* Gradient overlay */}
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-cyan-500/5 to-blue-500/5" />
+            <section className="group relative overflow-hidden rounded-3xl border-2 border-slate-200/50 bg-white shadow-2xl transition-all hover:border-emerald-300/50 hover:shadow-emerald-100/50">
+              {/* Animated gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-cyan-500/10 to-blue-500/10 transition-opacity group-hover:opacity-80" />
+              <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl transition-all group-hover:bg-emerald-500/20" />
+              <div className="absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-cyan-500/10 blur-3xl transition-all group-hover:bg-cyan-500/20" />
 
-              <div className="relative p-8">
+              <div className="relative p-10">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 shadow-lg">
-                      <Store className="h-7 w-7 text-white" />
+                  <div className="flex items-start gap-6">
+                    <div className="relative">
+                      <div className="absolute inset-0 animate-pulse rounded-3xl bg-gradient-to-br from-emerald-400 to-cyan-400 opacity-30 blur-xl" />
+                      <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-emerald-500 to-cyan-600 shadow-2xl ring-4 ring-emerald-100">
+                        <Store className="h-8 w-8 text-white" />
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-slate-900">
-                        Shopify
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-slate-600">
+                    <div className="max-w-2xl">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-3xl font-black text-slate-900">
+                          Shopify
+                        </h2>
+                        <Badge className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+                          Popular
+                        </Badge>
+                      </div>
+                      <p className="mt-3 text-base leading-relaxed text-slate-600">
                         Connect your Shopify store to sync orders in real-time,
                         manage inventory, and automate customer support
-                        workflows.
+                        workflows with AI-powered intelligence.
                       </p>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <Badge className="bg-emerald-100 text-emerald-700">
-                          <Zap className="mr-1 h-3 w-3" />
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                          <Zap className="mr-1.5 h-3.5 w-3.5" />
                           Real-time sync
                         </Badge>
-                        <Badge className="bg-blue-100 text-blue-700">
-                          <Shield className="mr-1 h-3 w-3" />
+                        <Badge className="border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                          <Shield className="mr-1.5 h-3.5 w-3.5" />
                           Secure OAuth
+                        </Badge>
+                        <Badge className="border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100">
+                          <Activity className="mr-1.5 h-3.5 w-3.5" />
+                          Auto webhooks
                         </Badge>
                       </div>
                     </div>
@@ -201,73 +251,85 @@ function IntegrationsInner() {
                   <DialogTrigger asChild>
                     <Button
                       size="lg"
-                      className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700"
+                      className="group/btn bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-6 text-base font-semibold shadow-lg transition-all hover:scale-105 hover:from-emerald-700 hover:to-cyan-700 hover:shadow-xl"
                     >
-                      <Plus className="mr-2 h-4 w-4" />
+                      <Plus className="mr-2 h-5 w-5 transition-transform group-hover/btn:rotate-90" />
                       Connect Store
+                      <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover/btn:translate-x-1" />
                     </Button>
                   </DialogTrigger>
                 </div>
 
-                <div className="mt-8">
-                  <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                    Connected Stores
-                  </h3>
+                <div className="mt-10">
+                  <div className="mb-6 flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
+                      Connected Stores
+                    </h3>
+                    <Badge className="bg-slate-100 text-slate-700">
+                      {shopifyConnections.length} Total
+                    </Badge>
+                  </div>
                   {connectionsLoading ? (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                       <IntegrationCardSkeleton />
                       <IntegrationCardSkeleton />
                     </div>
                   ) : shopifyConnections.length === 0 ? (
-                    <Card className="border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                      <Store className="mx-auto h-12 w-12 text-slate-400" />
-                      <p className="mt-3 font-medium text-slate-900">
+                    <Card className="group border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/50 p-12 text-center transition-all hover:border-emerald-400 hover:bg-slate-50">
+                      <div className="mx-auto w-fit rounded-full bg-slate-200 p-6">
+                        <Store className="h-12 w-12 text-slate-400" />
+                      </div>
+                      <p className="mt-5 text-lg font-semibold text-slate-900">
                         No stores connected yet
                       </p>
-                      <p className="mt-1 text-sm text-slate-500">
-                        Get started by connecting your first Shopify store
+                      <p className="mt-2 text-sm text-slate-600">
+                        Get started by connecting your first Shopify store above
                       </p>
                     </Card>
                   ) : (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                       {shopifyConnections.map((c) => (
                         <Card
                           key={c.id}
-                          className="group/card border-slate-200 bg-gradient-to-br from-white to-slate-50 p-6 transition-all hover:border-indigo-300 hover:shadow-lg"
+                          className="group/card relative overflow-hidden border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-6 transition-all hover:scale-[1.02] hover:border-emerald-400 hover:shadow-2xl hover:shadow-emerald-100/50"
                         >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500">
-                                  <Store className="h-4 w-4 text-white" />
+                          <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-emerald-500/5 blur-2xl transition-all group-hover/card:bg-emerald-500/10" />
+                          <div className="relative">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 shadow-lg">
+                                    <Store className="h-5 w-5 text-white" />
+                                  </div>
+                                  <Badge className="bg-emerald-100 text-emerald-700">
+                                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                                    Active
+                                  </Badge>
                                 </div>
-                                <Badge variant="secondary" className="text-xs">
-                                  Active
-                                </Badge>
+                                <h4 className="mt-4 text-lg font-bold text-slate-900">
+                                  {c.shopDomain ?? '(unknown)'}
+                                </h4>
+                                {c.createdAt && (
+                                  <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    Connected{' '}
+                                    {new Date(c.createdAt).toLocaleDateString()}
+                                  </div>
+                                )}
                               </div>
-                              <h4 className="mt-3 font-semibold text-slate-900">
-                                {c.shopDomain ?? '(unknown)'}
-                              </h4>
-                              {c.createdAt && (
-                                <p className="mt-1 text-xs text-slate-500">
-                                  Connected{' '}
-                                  {new Date(c.createdAt).toLocaleDateString()}
-                                </p>
-                              )}
                             </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            className="mt-4 w-full group-hover/card:bg-indigo-50 group-hover/card:text-indigo-700"
-                            asChild
-                          >
-                            <a
-                              href={`/inbox?shop=${encodeURIComponent(c.shopDomain ?? '')}`}
+                            <Button
+                              className="mt-6 w-full bg-gradient-to-r from-emerald-600 to-cyan-600 font-semibold shadow-md transition-all hover:from-emerald-700 hover:to-cyan-700 hover:shadow-lg group-hover/card:scale-105"
+                              asChild
                             >
-                              Open Inbox
-                              <ExternalLink className="ml-2 h-4 w-4" />
-                            </a>
-                          </Button>
+                              <a
+                                href={`/inbox?shop=${encodeURIComponent(c.shopDomain ?? '')}`}
+                              >
+                                Open Inbox
+                                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover/card:translate-x-1" />
+                              </a>
+                            </Button>
+                          </div>
                         </Card>
                       ))}
                     </div>
@@ -324,40 +386,54 @@ function IntegrationsInner() {
           </Dialog>
 
           {/* Custom Email Integration Section */}
-          <section className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg transition-shadow hover:shadow-xl">
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-red-500/5" />
+          <section className="group relative overflow-hidden rounded-3xl border-2 border-slate-200/50 bg-white shadow-2xl transition-all hover:border-amber-300/50 hover:shadow-amber-100/50">
+            {/* Animated gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-red-500/10 transition-opacity group-hover:opacity-80" />
+            <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-amber-500/10 blur-3xl transition-all group-hover:bg-amber-500/20" />
+            <div className="absolute -bottom-20 -left-20 h-40 w-40 rounded-full bg-orange-500/10 blur-3xl transition-all group-hover:bg-orange-500/20" />
 
-            <div className="relative p-8">
+            <div className="relative p-10">
               <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 shadow-lg">
-                    <Mail className="h-7 w-7 text-white" />
+                <div className="flex items-start gap-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 animate-pulse rounded-3xl bg-gradient-to-br from-amber-400 to-orange-400 opacity-30 blur-xl" />
+                    <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-2xl ring-4 ring-amber-100">
+                      <Mail className="h-8 w-8 text-white" />
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      Custom Email
-                    </h2>
-                    <p className="mt-2 max-w-2xl text-slate-600">
+                  <div className="max-w-2xl">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-3xl font-black text-slate-900">
+                        Custom Email
+                      </h2>
+                      <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                        AI-Powered
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-base leading-relaxed text-slate-600">
                       Forward your support inbox to a unique alias. We'll
                       automatically analyze messages, map them to orders, and
-                      suggest AI-powered responses.
+                      suggest AI-powered responses in real-time.
                     </p>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Badge className="bg-amber-100 text-amber-700">
-                        <Zap className="mr-1 h-3 w-3" />
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <Badge className="border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                         AI-powered
                       </Badge>
-                      <Badge className="bg-orange-100 text-orange-700">
-                        <Shield className="mr-1 h-3 w-3" />
+                      <Badge className="border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100">
+                        <Shield className="mr-1.5 h-3.5 w-3.5" />
                         Encrypted
+                      </Badge>
+                      <Badge className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
+                        <Activity className="mr-1.5 h-3.5 w-3.5" />
+                        Auto-mapping
                       </Badge>
                     </div>
                   </div>
                 </div>
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700"
+                  className="group/btn bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-6 text-base font-semibold shadow-lg transition-all hover:scale-105 hover:from-amber-700 hover:to-orange-700 hover:shadow-xl"
                   onClick={() => {
                     const email = (session as any)?.user?.email;
                     if (!email) {
@@ -381,124 +457,146 @@ function IntegrationsInner() {
                   }}
                   disabled={createAlias.isPending}
                 >
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-2 h-5 w-5 transition-transform group-hover/btn:rotate-90" />
                   {createAlias.isPending ? 'Creating…' : 'Create Alias'}
+                  <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover/btn:translate-x-1" />
                 </Button>
               </div>
 
-              <div className="mt-8">
-                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500">
-                  Active Aliases
-                </h3>
+              <div className="mt-10">
+                <div className="mb-6 flex items-center justify-between">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">
+                    Active Aliases
+                  </h3>
+                  <Badge className="bg-slate-100 text-slate-700">
+                    {emailConnections.length} Total
+                  </Badge>
+                </div>
                 {connectionsLoading ? (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                     <IntegrationCardSkeleton />
                     <IntegrationCardSkeleton />
                   </div>
                 ) : emailConnections.length === 0 ? (
-                  <Card className="border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                    <Mail className="mx-auto h-12 w-12 text-slate-400" />
-                    <p className="mt-3 font-medium text-slate-900">
+                  <Card className="group border-2 border-dashed border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/50 p-12 text-center transition-all hover:border-amber-400 hover:bg-slate-50">
+                    <div className="mx-auto w-fit rounded-full bg-slate-200 p-6">
+                      <Mail className="h-12 w-12 text-slate-400" />
+                    </div>
+                    <p className="mt-5 text-lg font-semibold text-slate-900">
                       No email aliases created yet
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Create an alias to start receiving and analyzing emails
+                    <p className="mt-2 text-sm text-slate-600">
+                      Create an alias above to start receiving and analyzing
+                      emails
                     </p>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
                     {emailConnections.map((c) => (
                       <Card
                         key={c.id}
-                        className={`group/card border p-6 transition-all hover:shadow-lg ${
+                        className={`group/card relative overflow-hidden border-2 p-6 transition-all ${
                           (c as any)?.metadata?.disabled
-                            ? 'border-slate-200 bg-slate-50 opacity-60'
-                            : 'border-amber-200 bg-gradient-to-br from-white to-amber-50 hover:border-amber-300'
+                            ? 'border-slate-300 bg-slate-100/50 opacity-70'
+                            : 'border-amber-200 bg-gradient-to-br from-white to-amber-50/50 hover:scale-[1.02] hover:border-amber-400 hover:shadow-2xl hover:shadow-amber-100/50'
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                                  (c as any)?.metadata?.disabled
-                                    ? 'bg-slate-300'
-                                    : 'bg-gradient-to-br from-amber-500 to-orange-500'
-                                }`}
-                              >
-                                <Mail className="h-4 w-4 text-white" />
+                        <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-500/5 blur-2xl transition-all group-hover/card:bg-amber-500/10" />
+                        <div className="relative">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-lg ${
+                                    (c as any)?.metadata?.disabled
+                                      ? 'bg-slate-400'
+                                      : 'bg-gradient-to-br from-amber-500 to-orange-500'
+                                  }`}
+                                >
+                                  <Mail className="h-5 w-5 text-white" />
+                                </div>
+                                <Badge
+                                  className={
+                                    (c as any)?.metadata?.disabled
+                                      ? 'bg-slate-200 text-slate-600'
+                                      : 'bg-emerald-100 text-emerald-700'
+                                  }
+                                >
+                                  {(c as any)?.metadata?.disabled ? (
+                                    <>
+                                      <AlertCircle className="mr-1 h-3 w-3" />
+                                      Disabled
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                                      Active
+                                    </>
+                                  )}
+                                </Badge>
                               </div>
-                              <Badge
-                                variant="secondary"
-                                className={
-                                  (c as any)?.metadata?.disabled
-                                    ? 'bg-slate-200 text-slate-600'
-                                    : 'bg-emerald-100 text-emerald-700'
-                                }
-                              >
-                                {(c as any)?.metadata?.disabled
-                                  ? 'Disabled'
-                                  : 'Active'}
-                              </Badge>
+                              <div className="mt-4 break-all rounded-lg bg-slate-100 p-3 font-mono text-sm font-semibold text-slate-900">
+                                {(c as any)?.metadata?.alias ?? '(pending)'}
+                              </div>
+                              {(c as any)?.metadata?.shopDomain && (
+                                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                                  <Store className="h-3.5 w-3.5" />
+                                  {String((c as any).metadata.shopDomain)}
+                                </div>
+                              )}
                             </div>
-                            <div className="mt-3 break-all font-mono text-sm font-semibold text-slate-900">
-                              {(c as any)?.metadata?.alias ?? '(pending)'}
-                            </div>
-                            {(c as any)?.metadata?.shopDomain && (
-                              <p className="mt-1 text-xs text-slate-500">
-                                for {String((c as any).metadata.shopDomain)}
-                              </p>
-                            )}
                           </div>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {(c as any)?.metadata?.alias && (
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {(c as any)?.metadata?.alias && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 hover:bg-amber-50 hover:text-amber-700"
+                                onClick={async () => {
+                                  try {
+                                    await navigator.clipboard.writeText(
+                                      (c as any).metadata.alias,
+                                    );
+                                    toast.success('Alias copied!');
+                                  } catch {
+                                    toast.error('Copy failed');
+                                  }
+                                }}
+                              >
+                                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                                Copy
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
-                              className="flex-1"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(
-                                    (c as any).metadata.alias,
-                                  );
-                                  toast.success('Alias copied to clipboard!');
-                                } catch {
-                                  toast.error('Copy failed');
-                                }
-                              }}
+                              className="hover:bg-blue-50 hover:text-blue-700"
+                              onClick={() => rotateAlias.mutate({ id: c.id })}
+                              disabled={rotateAlias.isPending}
                             >
-                              <Copy className="mr-1 h-3 w-3" />
-                              Copy
+                              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                              {rotateAlias.isPending ? '...' : 'Rotate'}
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => rotateAlias.mutate({ id: c.id })}
-                            disabled={rotateAlias.isPending}
-                          >
-                            <RefreshCw className="mr-1 h-3 w-3" />
-                            {rotateAlias.isPending ? '...' : 'Rotate'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setAliasStatus.mutate({
-                                id: c.id,
-                                disabled: !(c as any)?.metadata?.disabled,
-                              })
-                            }
-                            disabled={setAliasStatus.isPending}
-                          >
-                            <Power className="mr-1 h-3 w-3" />
-                            {setAliasStatus.isPending
-                              ? 'Updating...'
-                              : (c as any)?.metadata?.disabled
-                                ? 'Enable'
-                                : 'Disable'}
-                          </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="hover:bg-emerald-50 hover:text-emerald-700"
+                              onClick={() =>
+                                setAliasStatus.mutate({
+                                  id: c.id,
+                                  disabled: !(c as any)?.metadata?.disabled,
+                                })
+                              }
+                              disabled={setAliasStatus.isPending}
+                            >
+                              <Power className="mr-1.5 h-3.5 w-3.5" />
+                              {setAliasStatus.isPending
+                                ? 'Updating...'
+                                : (c as any)?.metadata?.disabled
+                                  ? 'Enable'
+                                  : 'Disable'}
+                            </Button>
+                          </div>
                         </div>
                       </Card>
                     ))}
@@ -507,20 +605,21 @@ function IntegrationsInner() {
               </div>
 
               {/* Health & Setup Cards */}
-              <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-500">
-                      <Activity className="h-5 w-5 text-white" />
+              <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
+                <Card className="group relative overflow-hidden border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-7 transition-all hover:scale-[1.02] hover:border-violet-300 hover:shadow-lg">
+                  <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-violet-500/10 blur-2xl" />
+                  <div className="relative flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg">
+                      <Activity className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-slate-900">
+                      <h4 className="text-lg font-bold text-slate-900">
                         Email Health
                       </h4>
                       <p className="mt-1 text-sm text-slate-600">
                         Last inbound delivery
                       </p>
-                      <p className="mt-2 text-lg font-semibold text-violet-900">
+                      <p className="mt-3 text-lg font-bold text-violet-900">
                         {emailHealth.data?.lastInboundAt
                           ? new Date(
                               emailHealth.data.lastInboundAt as any,
@@ -531,33 +630,40 @@ function IntegrationsInner() {
                   </div>
                 </Card>
 
-                <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500">
-                      <CheckCircle2 className="h-5 w-5 text-white" />
+                <Card className="group relative overflow-hidden border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-7 transition-all hover:scale-[1.02] hover:border-blue-300 hover:shadow-lg">
+                  <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl" />
+                  <div className="relative flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
+                      <CheckCircle2 className="h-6 w-6 text-white" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-slate-900">
+                      <h4 className="text-lg font-bold text-slate-900">
                         Quick Setup
                       </h4>
-                      <ol className="mt-3 space-y-2 text-sm text-slate-700">
-                        <li className="flex items-start gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-semibold text-blue-900">
+                      <ol className="mt-4 space-y-3 text-sm text-slate-700">
+                        <li className="flex items-start gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-xs font-bold text-white shadow-sm">
                             1
                           </span>
-                          <span>Create an email alias above</span>
+                          <span className="pt-0.5">
+                            Create an email alias above
+                          </span>
                         </li>
-                        <li className="flex items-start gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-semibold text-blue-900">
+                        <li className="flex items-start gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-xs font-bold text-white shadow-sm">
                             2
                           </span>
-                          <span>Configure Mailgun route to webhook</span>
+                          <span className="pt-0.5">
+                            Configure Mailgun route to webhook
+                          </span>
                         </li>
-                        <li className="flex items-start gap-2">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-200 text-xs font-semibold text-blue-900">
+                        <li className="flex items-start gap-3">
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 text-xs font-bold text-white shadow-sm">
                             3
                           </span>
-                          <span>Forward your support inbox to alias</span>
+                          <span className="pt-0.5">
+                            Forward your support inbox to alias
+                          </span>
                         </li>
                       </ol>
                     </div>
