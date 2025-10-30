@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
+import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
+import DOMPurify from 'isomorphic-dompurify';
 
 // Simple shared-secret verification for MVP. In production, verify provider signature (Mailgun/Postmark)
 function verifySecret(req: NextRequest, secret: string | null) {
@@ -40,6 +42,14 @@ function extractOrderCandidate(text: string): string | null {
 
 export async function POST(req: NextRequest) {
   try {
+    // Idempotency: prefer Message-ID header; fallback to HMAC of body
+    const redis =
+      process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+        ? new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL!,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+          })
+        : null;
     // Basic guardrails
     const contentLength = Number(req.headers.get('content-length') || '0');
     if (contentLength > 25 * 1024 * 1024) {
@@ -119,7 +129,11 @@ export async function POST(req: NextRequest) {
     }
     const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
-    const body = text || html || '';
+    const rawBody = text || html || '';
+    const body = DOMPurify.sanitize(String(rawBody), {
+      ALLOWED_TAGS: [],
+      ALLOWED_ATTR: [],
+    }).slice(0, 20000);
     const customerEmail = from.toLowerCase();
 
     // Correlate to Order: try by email, then by parsed order number
@@ -147,16 +161,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Idempotency guard using message-id when available
+    const messageIdHeader =
+      (raw['Message-Id'] as string) ||
+      (raw['message-id'] as string) ||
+      undefined;
+    if (messageIdHeader && redis) {
+      const key = `email:webhook:${messageIdHeader}`;
+      const exists = await redis.get<string>(key);
+      if (exists) return NextResponse.json({ ok: true, deduped: true });
+    }
+
     // Create thread and message
     const thread = await prisma.thread.create({
       data: { customerEmail, subject: subject ?? null },
     });
 
     // Attempt to parse Message-ID header
-    const messageIdHeader =
-      (raw['Message-Id'] as string) ||
-      (raw['message-id'] as string) ||
-      undefined;
     const headers: Record<string, any> = {
       'message-id': messageIdHeader,
       subject,
@@ -406,6 +427,11 @@ Write responses that sound like they come from a real human support agent who ge
       },
     });
 
+    if (messageIdHeader && redis) {
+      await redis.set(`email:webhook:${messageIdHeader}`, '1', {
+        ex: 60 * 60 * 24,
+      });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('email webhook error', e);

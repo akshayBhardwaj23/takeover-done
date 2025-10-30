@@ -1,15 +1,113 @@
-import { initTRPC } from '@trpc/server';
+import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { prisma, logEvent } from '@ai-ecom/db';
+import { decryptSecure } from './crypto';
+import {
+  sanitizeLimited,
+  safeEmail,
+  safeShopDomain,
+  clampNumber,
+} from './validation';
 
-const t = initTRPC.create();
+type Context = {
+  session: any;
+  userId: string | null;
+};
+
+const t = initTRPC.context<Context>().create();
+
+// Rate limit helper (simplified for API package)
+// Note: Actual rate limiting happens in the web app middleware
+// This is a fallback check
+const requestCounts = new Map<string, { count: number; resetAt: number }>();
+
+function checkSimpleRateLimit(
+  userId: string,
+  maxRequests: number,
+  windowMs: number,
+): boolean {
+  const now = Date.now();
+  const key = userId;
+  const record = requestCounts.get(key);
+
+  if (!record || now > record.resetAt) {
+    requestCounts.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+
+  if (record.count >= maxRequests) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// Middleware to check if user is authenticated
+const isAuthenticated = t.middleware(({ ctx, next }) => {
+  if (!ctx.session || !ctx.userId) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'You must be logged in to access this resource',
+    });
+  }
+  return next({
+    ctx: {
+      session: ctx.session,
+      userId: ctx.userId,
+    },
+  });
+});
+
+// Rate limit middleware for general API calls (100 req/min)
+const withRateLimit = t.middleware(async ({ ctx, next }) => {
+  if (ctx.userId) {
+    const allowed = checkSimpleRateLimit(ctx.userId, 100, 60000);
+    if (!allowed) {
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Rate limit exceeded. Please try again later.',
+      });
+    }
+  }
+  return next();
+});
+
+// Rate limit middleware for AI operations (10 req/min)
+const withAIRateLimit = t.middleware(async ({ ctx, next }) => {
+  if (ctx.userId) {
+    const allowed = checkSimpleRateLimit(`ai:${ctx.userId}`, 10, 60000);
+    if (!allowed) {
+      throw new TRPCError({
+        code: 'TOO_MANY_REQUESTS',
+        message:
+          'AI rate limit exceeded. Please wait before generating more suggestions.',
+      });
+    }
+  }
+  return next();
+});
+
+// Public procedure (no authentication required)
+const publicProcedure = t.procedure;
+
+// Protected procedure (authentication + rate limiting)
+const protectedProcedure = t.procedure.use(isAuthenticated).use(withRateLimit);
+
+// AI procedure (authentication + AI rate limiting)
+const aiProcedure = t.procedure.use(isAuthenticated).use(withAIRateLimit);
+
+export { encryptSecure, decryptSecure } from './crypto';
 
 export const appRouter = t.router({
-  health: t.procedure.query(() => ({ status: 'ok' })),
-  echo: t.procedure
+  // Public endpoints (no auth required)
+  health: publicProcedure.query(() => ({ status: 'ok' })),
+  echo: publicProcedure
     .input(z.object({ text: z.string() }))
     .query(({ input }) => ({ text: input.text })),
-  ordersCount: t.procedure.query(async () => {
+
+  // Protected endpoints (auth required)
+  ordersCount: protectedProcedure.query(async ({ ctx }) => {
     try {
       const count = await prisma.order.count();
       return { count };
@@ -17,13 +115,13 @@ export const appRouter = t.router({
       return { count: 0 };
     }
   }),
-  threadsList: t.procedure
+  threadsList: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
     )
     .query(async ({ input }) => {
       try {
-        const take = input?.take ?? 20;
+        const take = clampNumber(input?.take ?? 20, 1, 100);
         const threads = await prisma.thread.findMany({
           take,
           orderBy: { createdAt: 'desc' },
@@ -33,7 +131,7 @@ export const appRouter = t.router({
         return { threads: [] };
       }
     }),
-  threadMessages: t.procedure
+  threadMessages: protectedProcedure
     .input(z.object({ threadId: z.string() }))
     .query(async ({ input }) => {
       try {
@@ -61,9 +159,10 @@ export const appRouter = t.router({
         return { messages: [] };
       }
     }),
-  connections: t.procedure.query(async () => {
+  connections: protectedProcedure.query(async ({ ctx }) => {
     try {
       const cons = await prisma.connection.findMany({
+        where: { userId: ctx.userId }, // Multi-tenant scoping
         orderBy: { createdAt: 'desc' },
         select: {
           id: true,
@@ -78,14 +177,20 @@ export const appRouter = t.router({
       return { connections: [] };
     }
   }),
-  rotateAlias: t.procedure
+  rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
-      const existing = await prisma.connection.findUnique({
-        where: { id: input.id },
+    .mutation(async ({ input, ctx }) => {
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
       });
       if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
-        return { ok: false } as any;
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
       }
       const domain = (existing.metadata as any)?.domain as string | undefined;
       if (!domain) return { ok: false } as any;
@@ -109,14 +214,20 @@ export const appRouter = t.router({
       await logEvent('email.alias.rotated', { alias }, 'connection', input.id);
       return { ok: true, connection: updated } as any;
     }),
-  setAliasStatus: t.procedure
+  setAliasStatus: protectedProcedure
     .input(z.object({ id: z.string(), disabled: z.boolean() }))
-    .mutation(async ({ input }) => {
-      const existing = await prisma.connection.findUnique({
-        where: { id: input.id },
+    .mutation(async ({ input, ctx }) => {
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
       });
       if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
-        return { ok: false } as any;
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
       }
       const updated = await prisma.connection.update({
         where: { id: input.id },
@@ -136,7 +247,7 @@ export const appRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
-  emailHealth: t.procedure.query(async () => {
+  emailHealth: protectedProcedure.query(async () => {
     try {
       const last = await prisma.message.findFirst({
         where: { direction: 'INBOUND' as any },
@@ -148,29 +259,54 @@ export const appRouter = t.router({
       return { lastInboundAt: null };
     }
   }),
-  createEmailAlias: t.procedure
+  createEmailAlias: protectedProcedure
     .input(
       z.object({
         userEmail: z.string().email(),
-        domain: z.string().min(3), // app inbound domain e.g., mail.example.com
-        shop: z.string().min(3), // shop domain to scope alias, e.g., dev-yourshop.myshopify.com
+        domain: z.string().min(3),
+        shop: z.string().min(3),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const cleanEmail = safeEmail(input.userEmail);
+      const cleanShop = safeShopDomain(input.shop);
+      const domain = sanitizeLimited(input.domain, 255);
+      if (!cleanEmail || !cleanShop) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid email or shop domain',
+        });
+      }
+      // Verify user owns the shop connection
+      const shopConnection = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      if (!shopConnection) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Shop access denied',
+        });
+      }
+
       // Create or ensure user exists
       const owner = await prisma.user.upsert({
-        where: { email: input.userEmail },
-        create: { email: input.userEmail },
+        where: { email: cleanEmail },
+        create: { email: cleanEmail },
         update: {},
       });
 
       // If an alias already exists for this shop, return it
       const existing = await prisma.connection.findFirst({
         where: {
-          userId: owner.id,
+          userId: ctx.userId, // Multi-tenant scoping
           type: 'CUSTOM_EMAIL' as any,
           AND: [
-            { metadata: { path: ['shopDomain'], equals: input.shop } } as any,
+            { metadata: { path: ['shopDomain'], equals: cleanShop } } as any,
           ],
         },
       });
@@ -179,11 +315,11 @@ export const appRouter = t.router({
       }
 
       const short = Math.random().toString(36).slice(2, 6);
-      const shopSlug = input.shop
+      const shopSlug = cleanShop
         .replace(/[^a-zA-Z0-9]/g, '')
         .slice(0, 8)
         .toLowerCase();
-      const alias = `in+${shopSlug}-${short}@${input.domain}`;
+      const alias = `in+${shopSlug}-${short}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -196,9 +332,9 @@ export const appRouter = t.router({
           metadata: {
             alias,
             provider: 'CUSTOM',
-            domain: input.domain,
+            domain,
             verifiedAt: null,
-            shopDomain: input.shop,
+            shopDomain: cleanShop,
           } as any,
         },
         select: { id: true },
@@ -207,14 +343,26 @@ export const appRouter = t.router({
       await logEvent('email.alias.created', { alias }, 'connection', conn.id);
       return { id: conn.id, alias };
     }),
-  ordersListDb: t.procedure
+  ordersListDb: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
-        const take = input?.take ?? 20;
+        const take = clampNumber(input?.take ?? 20, 1, 100);
+        // Get user's connections to filter orders
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true },
+        });
+        const connectionIds = connections.map((c) => c.id);
+
+        if (connectionIds.length === 0) {
+          return { orders: [] };
+        }
+
         const orders = await prisma.order.findMany({
+          where: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
           orderBy: { createdAt: 'desc' },
           take,
         });
@@ -223,17 +371,37 @@ export const appRouter = t.router({
         return { orders: [] };
       }
     }),
-  orderGet: t.procedure
+  orderGet: protectedProcedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
+        const cleanShop = safeShopDomain(input.shop);
+        if (!cleanShop) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid shop domain',
+          });
+        }
         const conn = await prisma.connection.findFirst({
-          where: { type: 'SHOPIFY', shopDomain: input.shop },
+          where: {
+            type: 'SHOPIFY',
+            shopDomain: cleanShop,
+            userId: ctx.userId, // Multi-tenant scoping
+          },
         });
-        if (!conn) return { order: null };
+        if (!conn) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
         const resp = await fetch(
-          `https://${input.shop}/admin/api/2024-07/orders/${input.orderId}.json`,
-          { headers: { 'X-Shopify-Access-Token': conn.accessToken } },
+          `https://${cleanShop}/admin/api/2024-07/orders/${input.orderId}.json`,
+          {
+            headers: {
+              'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+            },
+          },
         );
         if (!resp.ok) return { order: null };
         const json: any = await resp.json();
@@ -260,7 +428,7 @@ export const appRouter = t.router({
         return { order: null };
       }
     }),
-  aiSuggestReply: t.procedure
+  aiSuggestReply: aiProcedure
     .input(
       z.object({
         customerMessage: z.string().min(1),
@@ -271,11 +439,15 @@ export const appRouter = t.router({
       }),
     )
     .mutation(async ({ input }) => {
+      // Sanitize inputs
+      const message = sanitizeLimited(input.customerMessage, 5000);
+      const orderSummary = sanitizeLimited(input.orderSummary, 500);
+      const customerEmail = safeEmail(input.customerEmail) ?? undefined;
       const apiKey = process.env.OPENAI_API_KEY;
 
       // Enhanced fallback with personalization
-      const customerName = input.customerEmail
-        ? input.customerEmail
+      const customerName = customerEmail
+        ? customerEmail
             .split('@')[0]
             .replace(/[._]/g, ' ')
             .replace(/\b\w/g, (l) => l.toUpperCase())
@@ -288,8 +460,8 @@ export const appRouter = t.router({
         let body = `${greeting} ${customerName},\n\n`;
         body += `Thank you for reaching out to us! `;
 
-        if (input.orderSummary) {
-          body += `I can see your order details (${input.orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
+        if (orderSummary) {
+          body += `I can see your order details (${orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
         } else {
           body += `I'd be happy to assist you with your inquiry. `;
           body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
@@ -304,8 +476,8 @@ export const appRouter = t.router({
       }
 
       // Enhanced OpenAI prompt for better replies
-      const orderContext = input.orderSummary
-        ? `Order Details: ${input.orderSummary}`
+      const orderContext = orderSummary
+        ? `Order Details: ${orderSummary}`
         : 'No specific order referenced - customer may need to provide order number';
 
       const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's message.
@@ -352,7 +524,10 @@ Write a comprehensive reply that addresses their concern and provides clear next
 
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
               },
-              { role: 'user', content: prompt },
+              {
+                role: 'user',
+                content: prompt.replace(/\s+/g, ' ').slice(0, 8000),
+              },
             ],
             temperature: 0.7,
             max_tokens: 400,
@@ -374,8 +549,8 @@ Write responses that sound like they come from a real human support agent who ge
         let body = `${greeting} ${customerName},\n\n`;
         body += `Thank you for reaching out to us! `;
 
-        if (input.orderSummary) {
-          body += `I can see your order details (${input.orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
+        if (orderSummary) {
+          body += `I can see your order details (${orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
         } else {
           body += `I'd be happy to assist you with your inquiry. `;
           body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
@@ -389,7 +564,7 @@ Write responses that sound like they come from a real human support agent who ge
         return { suggestion: body };
       }
     }),
-  actionCreate: t.procedure
+  actionCreate: protectedProcedure
     .input(
       z.object({
         shop: z.string(),
@@ -407,14 +582,40 @@ Write responses that sound like they come from a real human support agent who ge
         draft: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const cleanShop = safeShopDomain(input.shop);
+      if (!cleanShop)
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid shop domain',
+        });
+      const cleanEmail = safeEmail(input.email ?? undefined) ?? undefined;
+      const cleanNote = sanitizeLimited(input.note, 5000);
+      const cleanDraft = sanitizeLimited(input.draft, 10000);
+      // Verify user owns the shop connection
+      const connection = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Shop access denied',
+        });
+      }
+
       // Ensure an Order row exists for this external order id
       const order = await prisma.order.upsert({
         where: { shopifyId: input.shopifyOrderId },
         create: {
           shopifyId: input.shopifyOrderId,
+          connectionId: connection.id, // Link to connection
           status: 'PENDING',
-          email: input.email ?? null,
+          email: cleanEmail ?? null,
           totalAmount: 0,
         },
         update: {},
@@ -426,9 +627,9 @@ Write responses that sound like they come from a real human support agent who ge
           type: input.type,
           status: 'PENDING',
           payload: {
-            shop: input.shop,
-            note: input.note,
-            draft: input.draft,
+            shop: cleanShop,
+            note: cleanNote,
+            draft: cleanDraft,
           } as any,
         },
       });
@@ -446,7 +647,7 @@ Write responses that sound like they come from a real human support agent who ge
 
       return { actionId: action.id };
     }),
-  actionApproveAndSend: t.procedure
+  actionApproveAndSend: protectedProcedure
     .input(
       z.object({
         actionId: z.string(),
@@ -455,8 +656,30 @@ Write responses that sound like they come from a real human support agent who ge
         body: z.string(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
+        const toEmail = safeEmail(input.to);
+        if (!toEmail) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid recipient email',
+          });
+        }
+        const subject = sanitizeLimited(input.subject, 500);
+        const body = sanitizeLimited(input.body, 20000);
+        // Verify user owns the action (via order -> connection)
+        const action = await prisma.action.findUnique({
+          where: { id: input.actionId },
+          include: { order: { include: { connection: true } } },
+        });
+
+        if (!action || action.order.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Action access denied',
+          });
+        }
+
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
@@ -465,9 +688,9 @@ Write responses that sound like they come from a real human support agent who ge
         if (apiKey && domain) {
           const formData = new FormData();
           formData.append('from', fromEmail);
-          formData.append('to', input.to);
-          formData.append('subject', input.subject);
-          formData.append('text', input.body);
+          formData.append('to', toEmail);
+          formData.append('subject', subject);
+          formData.append('text', body);
 
           const response = await fetch(
             `https://api.mailgun.net/v3/${domain}/messages`,
@@ -494,7 +717,7 @@ Write responses that sound like they come from a real human support agent who ge
 
           await logEvent(
             'email.sent',
-            { to: input.to, subject: input.subject, messageId: result.id },
+            { to: toEmail, subject, messageId: result.id },
             'action',
             input.actionId,
           );
@@ -537,23 +760,27 @@ Write responses that sound like they come from a real human support agent who ge
         return { ok: false, error: error.message };
       }
     }),
-  sendUnassignedReply: t.procedure
+  sendUnassignedReply: protectedProcedure
     .input(
       z.object({
         messageId: z.string(),
         replyBody: z.string(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        // Get the original message
+        const safeBody = sanitizeLimited(input.replyBody, 20000);
+        // Get the original message and verify ownership
         const message = await prisma.message.findUnique({
           where: { id: input.messageId },
-          include: { thread: true },
+          include: { thread: { include: { connection: true } } },
         });
 
-        if (!message) {
-          return { ok: false, error: 'Message not found' };
+        if (!message || message.thread.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Message access denied',
+          });
         }
 
         // Send email via Mailgun
@@ -569,7 +796,7 @@ Write responses that sound like they come from a real human support agent who ge
             'subject',
             `Re: ${message.thread.subject || 'Your inquiry'}`,
           );
-          formData.append('text', input.replyBody);
+          formData.append('text', safeBody);
 
           const response = await fetch(
             `https://api.mailgun.net/v3/${domain}/messages`,
@@ -594,7 +821,7 @@ Write responses that sound like they come from a real human support agent who ge
               threadId: message.threadId,
               from: fromEmail,
               to: message.from,
-              body: input.replyBody,
+              body: safeBody,
               direction: 'OUTBOUND',
             },
           });
@@ -628,14 +855,20 @@ Write responses that sound like they come from a real human support agent who ge
         return { ok: false, error: error.message };
       }
     }),
-  messagesByOrder: t.procedure
+  messagesByOrder: protectedProcedure
     .input(z.object({ shopifyOrderId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
-        const order = await prisma.order.findUnique({
+        const order = await prisma.order.findFirst({
           where: { shopifyId: input.shopifyOrderId },
+          include: { connection: true },
         });
-        if (!order) return { messages: [] };
+        if (!order || order.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Order access denied',
+          });
+        }
         const msgs = await prisma.message.findMany({
           where: { orderId: order.id },
           orderBy: { createdAt: 'desc' },
@@ -662,15 +895,30 @@ Write responses that sound like they come from a real human support agent who ge
         return { messages: [] };
       }
     }),
-  unassignedInbound: t.procedure
+  unassignedInbound: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const take = input?.take ?? 20;
+        // Get user's connections to filter messages
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
+          select: { id: true },
+        });
+        const connectionIds = connections.map((c) => c.id);
+
+        if (connectionIds.length === 0) {
+          return { messages: [] };
+        }
+
         const msgs = await prisma.message.findMany({
-          where: { orderId: null, direction: 'INBOUND' as any },
+          where: {
+            orderId: null,
+            direction: 'INBOUND' as any,
+            thread: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
+          },
           orderBy: { createdAt: 'desc' },
           take,
           select: {
@@ -690,36 +938,71 @@ Write responses that sound like they come from a real human support agent who ge
         return { messages: [] };
       }
     }),
-  assignMessageToOrder: t.procedure
+  assignMessageToOrder: protectedProcedure
     .input(z.object({ messageId: z.string(), shopifyOrderId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
-        const order = await prisma.order.findUnique({
-          where: { shopifyId: input.shopifyOrderId },
+        // Verify user owns both the message and order
+        const message = await prisma.message.findUnique({
+          where: { id: input.messageId },
+          include: { thread: { include: { connection: true } } },
+        });
+
+        if (!message || message.thread.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Message access denied',
+          });
+        }
+
+        const order = await prisma.order.findFirst({
+          where: {
+            shopifyId: input.shopifyOrderId,
+            connection: { userId: ctx.userId }, // Verify user owns the order
+          },
           select: { id: true },
         });
-        if (!order) return { ok: false } as any;
+
+        if (!order) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Order access denied',
+          });
+        }
+
         await prisma.message.update({
           where: { id: input.messageId },
           data: { orderId: order.id },
         });
         return { ok: true } as any;
-      } catch {
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
         return { ok: false } as any;
       }
     }),
-  refreshOrderFromShopify: t.procedure
+  refreshOrderFromShopify: protectedProcedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const conn = await prisma.connection.findFirst({
-          where: { type: 'SHOPIFY', shopDomain: input.shop },
+          where: {
+            type: 'SHOPIFY',
+            shopDomain: input.shop,
+            userId: ctx.userId, // Multi-tenant scoping
+          },
         });
-        if (!conn) return { ok: false, error: 'No Shopify connection found' };
+        if (!conn) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
 
         const url = `https://${input.shop}/admin/api/2024-07/orders/${input.orderId}.json`;
         const resp = await fetch(url, {
-          headers: { 'X-Shopify-Access-Token': conn.accessToken },
+          headers: {
+            'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+          },
         });
         if (!resp.ok)
           return { ok: false, error: 'Failed to fetch from Shopify' };
@@ -741,6 +1024,7 @@ Write responses that sound like they come from a real human support agent who ge
           where: { shopifyId: order.id.toString() },
           create: {
             shopifyId: order.id.toString(),
+            connectionId: conn.id, // Link to connection
             ...orderData,
           },
           update: orderData,
@@ -751,23 +1035,34 @@ Write responses that sound like they come from a real human support agent who ge
         return { ok: false, error: error.message || 'Unknown error' };
       }
     }),
-  ordersRecent: t.procedure
+  ordersRecent: protectedProcedure
     .input(
       z.object({
         shop: z.string(),
         limit: z.number().min(1).max(50).optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const limit = input.limit ?? 10;
         const conn = await prisma.connection.findFirst({
-          where: { type: 'SHOPIFY', shopDomain: input.shop },
+          where: {
+            type: 'SHOPIFY',
+            shopDomain: input.shop,
+            userId: ctx.userId, // Multi-tenant scoping
+          },
         });
-        if (!conn) return { orders: [] };
+        if (!conn) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
         const url = `https://${input.shop}/admin/api/2024-07/orders.json?status=any&limit=${limit}&order=created_at%20desc`;
-        const resp = await fetch(url, {
-          headers: { 'X-Shopify-Access-Token': conn.accessToken },
+        const resp: Response = await fetch(url, {
+          headers: {
+            'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+          },
         });
         if (!resp.ok) return { orders: [] };
         const json: any = await resp.json();
@@ -785,15 +1080,44 @@ Write responses that sound like they come from a real human support agent who ge
         return { orders: [] };
       }
     }),
-  getAnalytics: t.procedure.query(async () => {
+  getAnalytics: protectedProcedure.query(async ({ ctx }) => {
     try {
+      // Get user's connections for scoping
+      const connections = await prisma.connection.findMany({
+        where: { userId: ctx.userId },
+        select: { id: true },
+      });
+      const connectionIds = connections.map((c) => c.id);
+
+      if (connectionIds.length === 0) {
+        // Return empty analytics if no connections
+        return {
+          totalEmails: 0,
+          emailsThisWeek: 0,
+          emailsThisMonth: 0,
+          mappedEmails: 0,
+          unmappedEmails: 0,
+          totalOrders: 0,
+          actionsTaken: 0,
+          actionsThisWeek: 0,
+          aiSuggestionAccuracy: 0,
+          aiSuggestionsTotal: 0,
+          averageResponseTime: null,
+          customerSatisfactionScore: 0,
+          volumeTrend: [],
+        };
+      }
+
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      // Total emails
+      // Total emails (scoped to user's connections)
       const totalEmails = await prisma.message.count({
-        where: { direction: 'INBOUND' },
+        where: {
+          direction: 'INBOUND',
+          thread: { connectionId: { in: connectionIds } },
+        },
       });
 
       // Emails this week
@@ -801,6 +1125,7 @@ Write responses that sound like they come from a real human support agent who ge
         where: {
           direction: 'INBOUND',
           createdAt: { gte: weekAgo },
+          thread: { connectionId: { in: connectionIds } },
         },
       });
 
@@ -809,14 +1134,16 @@ Write responses that sound like they come from a real human support agent who ge
         where: {
           direction: 'INBOUND',
           createdAt: { gte: monthAgo },
+          thread: { connectionId: { in: connectionIds } },
         },
       });
 
-      // Mapped vs unmapped
+      // Mapped vs unmapped (scoped)
       const mappedEmails = await prisma.message.count({
         where: {
           direction: 'INBOUND',
           orderId: { not: null },
+          thread: { connectionId: { in: connectionIds } },
         },
       });
 
@@ -824,30 +1151,41 @@ Write responses that sound like they come from a real human support agent who ge
         where: {
           direction: 'INBOUND',
           orderId: null,
+          thread: { connectionId: { in: connectionIds } },
         },
       });
 
-      // Total orders
-      const totalOrders = await prisma.order.count();
-
-      // Actions taken
-      const actionsTaken = await prisma.action.count();
-
-      // Actions this week
-      const actionsThisWeek = await prisma.action.count({
-        where: { createdAt: { gte: weekAgo } },
+      // Total orders (scoped to user's connections)
+      const totalOrders = await prisma.order.count({
+        where: { connectionId: { in: connectionIds } },
       });
 
-      // AI suggestions
-      const aiSuggestions = await prisma.aISuggestion.count();
+      // Actions taken (scoped via order -> connection)
+      const actionsTaken = await prisma.action.count({
+        where: { order: { connectionId: { in: connectionIds } } },
+      });
+
+      // Actions this week (scoped)
+      const actionsThisWeek = await prisma.action.count({
+        where: {
+          createdAt: { gte: weekAgo },
+          order: { connectionId: { in: connectionIds } },
+        },
+      });
+
+      // AI suggestions (scoped)
+      const aiSuggestions = await prisma.aISuggestion.count({
+        where: { message: { thread: { connectionId: { in: connectionIds } } } },
+      });
       const aiSuggestionAccuracy =
         aiSuggestions > 0 ? actionsTaken / aiSuggestions : 0;
 
-      // Average response time (time from inbound message to first action on that order)
+      // Average response time (time from inbound message to first action on that order) - scoped
       const messagesWithActions = await prisma.message.findMany({
         where: {
           direction: 'INBOUND',
           orderId: { not: null },
+          thread: { connectionId: { in: connectionIds } },
         },
         include: {
           order: {
@@ -897,7 +1235,7 @@ Write responses that sound like they come from a real human support agent who ge
       const customerSatisfactionScore =
         actionsTaken > 0 ? (positiveActions / actionsTaken) * 100 : 0;
 
-      // Email volume trend (last 7 days)
+      // Email volume trend (last 7 days) - scoped
       const volumeTrend = [];
       for (let i = 6; i >= 0; i--) {
         const dayStart = new Date(now);
@@ -910,6 +1248,7 @@ Write responses that sound like they come from a real human support agent who ge
           where: {
             direction: 'INBOUND',
             createdAt: { gte: dayStart, lte: dayEnd },
+            thread: { connectionId: { in: connectionIds } },
           },
         });
 
@@ -953,23 +1292,43 @@ Write responses that sound like they come from a real human support agent who ge
       };
     }
   }),
-  getShopifyAnalytics: t.procedure
+  getShopifyAnalytics: protectedProcedure
     .input(z.object({ shop: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
+        // Verify user owns this shop connection
+        const connection = await prisma.connection.findFirst({
+          where: {
+            shopDomain: input.shop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
+        });
+
+        if (!connection) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
+
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-        // Total orders for this shop
+        // Total orders for this shop (scoped via connectionId)
         const totalOrders = await prisma.order.count({
-          where: { shopDomain: input.shop },
+          where: {
+            shopDomain: input.shop,
+            connectionId: connection.id,
+          },
         });
 
         // Orders this week
         const ordersThisWeek = await prisma.order.count({
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             createdAt: { gte: weekAgo },
           },
         });
@@ -978,13 +1337,17 @@ Write responses that sound like they come from a real human support agent who ge
         const ordersThisMonth = await prisma.order.count({
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             createdAt: { gte: monthAgo },
           },
         });
 
         // Total revenue (sum of all order totalAmount values - stored in cents)
         const allOrders = await prisma.order.findMany({
-          where: { shopDomain: input.shop },
+          where: {
+            shopDomain: input.shop,
+            connectionId: connection.id,
+          },
           select: { totalAmount: true },
         });
 
@@ -997,6 +1360,7 @@ Write responses that sound like they come from a real human support agent who ge
         const weekOrders = await prisma.order.findMany({
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             createdAt: { gte: weekAgo },
           },
           select: { totalAmount: true },
@@ -1011,6 +1375,7 @@ Write responses that sound like they come from a real human support agent who ge
         const monthOrders = await prisma.order.findMany({
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             createdAt: { gte: monthAgo },
           },
           select: { totalAmount: true },
@@ -1025,11 +1390,12 @@ Write responses that sound like they come from a real human support agent who ge
         const averageOrderValue =
           totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-        // Unique customers
+        // Unique customers (scoped)
         const uniqueCustomers = await prisma.order.groupBy({
           by: ['email'],
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             email: { not: null },
           },
         });
@@ -1041,14 +1407,18 @@ Write responses that sound like they come from a real human support agent who ge
           by: ['email'],
           where: {
             shopDomain: input.shop,
+            connectionId: connection.id,
             email: { not: null },
             createdAt: { gte: weekAgo },
           },
         });
 
-        // Order status breakdown
+        // Order status breakdown (scoped)
         const ordersGrouped = await prisma.order.findMany({
-          where: { shopDomain: input.shop },
+          where: {
+            shopDomain: input.shop,
+            connectionId: connection.id,
+          },
           select: { status: true },
         });
 
@@ -1067,7 +1437,7 @@ Write responses that sound like they come from a real human support agent who ge
         // Top products placeholder (no lineItems field in schema yet)
         const topProducts: { name: string; count: number }[] = [];
 
-        // Revenue trend (last 7 days)
+        // Revenue trend (last 7 days) - scoped
         const revenueTrend = [];
         for (let i = 6; i >= 0; i--) {
           const dayStart = new Date(now);
@@ -1079,6 +1449,7 @@ Write responses that sound like they come from a real human support agent who ge
           const dayOrders = await prisma.order.findMany({
             where: {
               shopDomain: input.shop,
+              connectionId: connection.id,
               createdAt: { gte: dayStart, lte: dayEnd },
             },
             select: { totalAmount: true },

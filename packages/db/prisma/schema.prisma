@@ -8,25 +8,101 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String       @id @default(cuid())
+  email       String       @unique
+  name        String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   connections Connection[]
 }
 
 model Connection {
-  id        String   @id @default(cuid())
-  type      ConnectionType
-  accessToken String
+  id           String         @id @default(cuid())
+  type         ConnectionType
+  accessToken  String
   refreshToken String?
-  shopDomain  String? // for Shopify
-  metadata   Json?
-  user       User     @relation(fields: [userId], references: [id])
-  userId     String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  shopDomain   String?
+  metadata     Json?
+  userId       String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id])
+  orders       Order[]
+  threads      Thread[]
+}
+
+model Order {
+  id           String     @id @default(cuid())
+  shopifyId    String     @unique
+  status       String
+  email        String?
+  totalAmount  Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  shopDomain   String?
+  name         String?
+  connectionId String
+  actions      Action[]
+  messages     Message[]
+  connection   Connection @relation(fields: [connectionId], references: [id])
+}
+
+model Thread {
+  id            String     @id @default(cuid())
+  subject       String?
+  customerEmail String
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  connectionId  String
+  messages      Message[]
+  connection    Connection @relation(fields: [connectionId], references: [id])
+}
+
+model Message {
+  id           String           @id @default(cuid())
+  threadId     String
+  orderId      String?
+  from         String
+  to           String
+  body         String
+  direction    MessageDirection
+  createdAt    DateTime         @default(now())
+  headers      Json?
+  messageId    String?          @unique
+  aiSuggestion AISuggestion?
+  order        Order?           @relation(fields: [orderId], references: [id])
+  thread       Thread           @relation(fields: [threadId], references: [id])
+}
+
+model AISuggestion {
+  id             String     @id @default(cuid())
+  messageId      String     @unique
+  reply          String
+  proposedAction ActionType
+  orderId        String?
+  confidence     Float
+  createdAt      DateTime   @default(now())
+  message        Message    @relation(fields: [messageId], references: [id])
+}
+
+model Action {
+  id         String       @id @default(cuid())
+  orderId    String
+  type       ActionType
+  status     ActionStatus @default(PENDING)
+  payload    Json?
+  createdAt  DateTime     @default(now())
+  executedAt DateTime?
+  order      Order        @relation(fields: [orderId], references: [id])
+}
+
+model Event {
+  id        String   @id @default(cuid())
+  type      String
+  entity    String?
+  entityId  String?
+  payload   Json?
+  createdAt DateTime @default(now())
 }
 
 enum ConnectionType {
@@ -35,70 +111,9 @@ enum ConnectionType {
   CUSTOM_EMAIL
 }
 
-model Order {
-  id          String   @id @default(cuid())
-  shopifyId   String   @unique
-  name        String?  // Customer-facing order number like "#1001"
-  shopDomain  String?
-  status      String
-  email       String?
-  totalAmount Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  messages    Message[]
-  actions     Action[]
-}
-
-model Thread {
-  id        String   @id @default(cuid())
-  subject   String?
-  customerEmail String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  messages  Message[]
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  thread    Thread   @relation(fields: [threadId], references: [id])
-  threadId  String
-  order     Order?   @relation(fields: [orderId], references: [id])
-  orderId   String?
-  from      String
-  to        String
-  body      String
-  messageId String?  @unique
-  headers   Json?
-  direction MessageDirection
-  createdAt DateTime @default(now())
-  aiSuggestion AISuggestion?
-}
-
 enum MessageDirection {
   INBOUND
   OUTBOUND
-}
-
-model AISuggestion {
-  id        String   @id @default(cuid())
-  message   Message  @relation(fields: [messageId], references: [id])
-  messageId String   @unique
-  reply     String
-  proposedAction ActionType
-  orderId   String?
-  confidence Float
-  createdAt DateTime @default(now())
-}
-
-model Action {
-  id        String   @id @default(cuid())
-  order     Order    @relation(fields: [orderId], references: [id])
-  orderId   String
-  type      ActionType
-  status    ActionStatus @default(PENDING)
-  payload   Json?
-  createdAt DateTime @default(now())
-  executedAt DateTime?
 }
 
 enum ActionType {
@@ -116,14 +131,3 @@ enum ActionStatus {
   REJECTED
   EXECUTED
 }
-
-model Event {
-  id        String   @id @default(cuid())
-  type      String
-  entity    String?
-  entityId  String?
-  payload   Json?
-  createdAt DateTime @default(now())
-}
-
-

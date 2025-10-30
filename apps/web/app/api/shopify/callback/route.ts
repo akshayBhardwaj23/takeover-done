@@ -4,6 +4,7 @@ import { prisma, logEvent } from '@ai-ecom/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 import { registerWebhooks, listWebhooks } from '../../../../lib/shopify';
+import { encryptSecure } from '@ai-ecom/api';
 
 export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
   await prisma.connection.create({
     data: {
       type: 'SHOPIFY',
-      accessToken: tokenJson.access_token,
+      accessToken: encryptSecure(tokenJson.access_token),
       shopDomain: shop,
       userId: owner.id,
     },
