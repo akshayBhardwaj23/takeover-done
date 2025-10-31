@@ -13,6 +13,7 @@
     "@ai-ecom/db": "workspace:*",
     "@trpc/server": "^10.45.2",
     "isomorphic-dompurify": "^2.30.1",
+    "razorpay": "^2.9.6",
     "validator": "^13.15.20",
     "zod": "^3.23.8"
   },

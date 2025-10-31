@@ -1,6 +1,29 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { prisma, logEvent } from '@ai-ecom/db';
+import {
+  prisma,
+  logEvent,
+  getUsageSummary,
+  getUsageHistory,
+  canSendEmail,
+  PLAN_LIMITS,
+  ensureSubscription,
+  incrementEmailSent,
+} from '@ai-ecom/db';
+import {
+  getOrCreateCustomer,
+  createSubscription as createRazorpaySubscription,
+  getSubscription,
+  cancelSubscription as cancelRazorpaySubscription,
+} from './payments/razorpay';
+import { getRazorpayPlanConfig } from './payments/planMapping';
+import {
+  detectCurrency,
+  getPlanPrice,
+  formatPrice,
+  PLAN_PRICING,
+  type Currency,
+} from './payments/currency';
 import { decryptSecure } from './crypto';
 import {
   sanitizeLimited,
@@ -680,6 +703,15 @@ Write responses that sound like they come from a real human support agent who ge
           });
         }
 
+        // Check usage limits before sending
+        const limitCheck = await canSendEmail(ctx.userId);
+        if (!limitCheck.allowed) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
+          });
+        }
+
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
@@ -722,6 +754,11 @@ Write responses that sound like they come from a real human support agent who ge
             input.actionId,
           );
 
+          // Increment usage tracking
+          await incrementEmailSent(ctx.userId).catch((err) => {
+            console.error('Failed to increment email usage:', err);
+          });
+
           return { ok: true, status: updated.status, messageId: result.id };
         } else {
           // Fallback to stub if Mailgun not configured
@@ -740,6 +777,11 @@ Write responses that sound like they come from a real human support agent who ge
             'action',
             input.actionId,
           );
+
+          // Increment usage tracking even for stubs (they still count)
+          await incrementEmailSent(ctx.userId).catch((err) => {
+            console.error('Failed to increment email usage:', err);
+          });
 
           return { ok: true, status: updated.status, stub: true };
         }
@@ -780,6 +822,15 @@ Write responses that sound like they come from a real human support agent who ge
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
+          });
+        }
+
+        // Check usage limits before sending
+        const limitCheck = await canSendEmail(ctx.userId);
+        if (!limitCheck.allowed) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
           });
         }
 
@@ -833,6 +884,11 @@ Write responses that sound like they come from a real human support agent who ge
             input.messageId,
           );
 
+          // Increment usage tracking
+          await incrementEmailSent(ctx.userId).catch((err) => {
+            console.error('Failed to increment email usage:', err);
+          });
+
           return { ok: true, messageId: result.id };
         } else {
           await logEvent(
@@ -841,6 +897,11 @@ Write responses that sound like they come from a real human support agent who ge
             'message',
             input.messageId,
           );
+
+          // Increment usage tracking even for stubs (they still count)
+          await incrementEmailSent(ctx.userId).catch((err) => {
+            console.error('Failed to increment email usage:', err);
+          });
 
           return { ok: true, stub: true };
         }
@@ -1500,6 +1561,325 @@ Write responses that sound like they come from a real human support agent who ge
           topProducts: [],
           revenueTrend: [],
         };
+      }
+    }),
+
+  // Usage & Subscription endpoints
+  getUsageSummary: protectedProcedure
+    .input(
+      z
+        .object({
+          currency: z.enum(['USD', 'INR']).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const summary = await getUsageSummary(ctx.userId);
+        const currency = input?.currency || detectCurrency() || 'INR';
+        const pricing = PLAN_PRICING[summary.planType];
+
+        return {
+          ...summary,
+          currency,
+          price: pricing ? pricing[currency] : 0,
+          priceUSD: pricing ? pricing.USD : 0,
+          priceINR: pricing ? pricing.INR : 0,
+          formattedPrice: pricing
+            ? formatPrice(pricing[currency], currency)
+            : 'Custom',
+        };
+      } catch (error) {
+        console.error('Usage summary error:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch usage summary',
+        });
+      }
+    }),
+
+  getUsageHistory: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const history = await getUsageHistory(ctx.userId);
+      return { history };
+    } catch (error) {
+      console.error('Usage history error:', error);
+      return { history: [] };
+    }
+  }),
+
+  checkEmailLimit: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const limitCheck = await canSendEmail(ctx.userId);
+      return limitCheck;
+    } catch (error) {
+      console.error('Email limit check error:', error);
+      return {
+        allowed: false,
+        current: 0,
+        limit: 0,
+        percentage: 100,
+      };
+    }
+  }),
+
+  getAvailablePlans: protectedProcedure
+    .input(
+      z
+        .object({
+          currency: z.enum(['USD', 'INR']).optional(),
+          country: z.string().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input, ctx }) => {
+      // Detect currency if not provided
+      const currency =
+        input?.currency || detectCurrency(input?.country, undefined) || 'INR';
+
+      return {
+        currency,
+        plans: Object.entries(PLAN_LIMITS).map(([key, value]) => {
+          const pricing = PLAN_PRICING[key];
+          return {
+            type: key,
+            name: value.name,
+            emailsPerMonth: value.emailsPerMonth,
+            stores: value.stores,
+            price: pricing ? pricing[currency] : -1,
+            priceUSD: pricing ? pricing.USD : -1,
+            priceINR: pricing ? pricing.INR : -1,
+            formattedPrice: pricing
+              ? formatPrice(pricing[currency], currency)
+              : 'Custom',
+          };
+        }),
+      };
+    }),
+
+  // Payment/Subscription endpoints
+  createCheckoutSession: protectedProcedure
+    .input(
+      z.object({
+        planType: z.enum(['STARTER', 'GROWTH', 'PRO']),
+        currency: z.enum(['USD', 'INR']).optional(),
+        country: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Get user details
+        const user = await prisma.user.findUnique({
+          where: { id: ctx.userId },
+          select: { email: true, name: true },
+        });
+
+        if (!user) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'User not found',
+          });
+        }
+
+        // Detect currency if not provided
+        const currency =
+          input.currency || detectCurrency(input.country, undefined) || 'INR';
+
+        // Get current subscription
+        const subscription = await ensureSubscription(ctx.userId);
+
+        // Get Razorpay plan config with currency
+        const planConfig = getRazorpayPlanConfig(input.planType, currency);
+        if (!planConfig) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid plan type for payment',
+          });
+        }
+
+        // Create or get Razorpay customer
+        const customer = await getOrCreateCustomer(
+          user.email,
+          user.name || 'Customer',
+        );
+
+        // Create Razorpay subscription with currency
+        const razorpaySubscription = await createRazorpaySubscription(
+          customer.id,
+          input.planType,
+          ctx.userId,
+          currency,
+        );
+
+        // Update our subscription record
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+        const updatedSubscription = await prisma.subscription.update({
+          where: { userId: ctx.userId },
+          data: {
+            planType: input.planType,
+            status: 'active',
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            paymentGateway: 'razorpay',
+            gatewaySubscriptionId: razorpaySubscription.id,
+            gatewayCustomerId: customer.id,
+            gatewayPlanId: planConfig.planId,
+            metadata: {
+              currency,
+              razorpaySubscription: {
+                id: razorpaySubscription.id,
+                status: razorpaySubscription.status,
+                current_start: razorpaySubscription.current_start,
+                current_end: razorpaySubscription.current_end,
+              },
+            } as any,
+          },
+        });
+
+        await logEvent(
+          'subscription.created',
+          {
+            planType: input.planType,
+            subscriptionId: razorpaySubscription.id,
+          },
+          'subscription',
+          updatedSubscription.id,
+        );
+
+        return {
+          subscriptionId: razorpaySubscription.id,
+          checkoutUrl: razorpaySubscription.short_url,
+          status: razorpaySubscription.status,
+        };
+      } catch (error: any) {
+        console.error('Error creating checkout session:', error);
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to create checkout session',
+        });
+      }
+    }),
+
+  getSubscriptionStatus: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const subscription = await prisma.subscription.findUnique({
+        where: { userId: ctx.userId },
+      });
+
+      if (!subscription) {
+        return { status: 'no_subscription' };
+      }
+
+      // If Razorpay subscription exists, fetch latest status
+      if (
+        subscription.gatewaySubscriptionId &&
+        subscription.paymentGateway === 'razorpay'
+      ) {
+        try {
+          const razorpaySub = await getSubscription(
+            subscription.gatewaySubscriptionId,
+          );
+          return {
+            status: razorpaySub.status,
+            subscriptionId: subscription.id,
+            planType: subscription.planType,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            razorpayStatus: razorpaySub.status,
+          };
+        } catch (error) {
+          // If fetching fails, return our DB status
+          return {
+            status: subscription.status,
+            subscriptionId: subscription.id,
+            planType: subscription.planType,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+          };
+        }
+      }
+
+      return {
+        status: subscription.status,
+        subscriptionId: subscription.id,
+        planType: subscription.planType,
+        currentPeriodEnd: subscription.currentPeriodEnd,
+      };
+    } catch (error) {
+      console.error('Error fetching subscription status:', error);
+      return { status: 'error' };
+    }
+  }),
+
+  cancelSubscription: protectedProcedure
+    .input(
+      z.object({
+        cancelAtPeriodEnd: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const subscription = await prisma.subscription.findUnique({
+          where: { userId: ctx.userId },
+        });
+
+        if (!subscription) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'No subscription found',
+          });
+        }
+
+        if (
+          !subscription.gatewaySubscriptionId ||
+          subscription.paymentGateway !== 'razorpay'
+        ) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'No active payment subscription to cancel',
+          });
+        }
+
+        // Cancel Razorpay subscription
+        await cancelRazorpaySubscription(
+          subscription.gatewaySubscriptionId,
+          input.cancelAtPeriodEnd,
+        );
+
+        // Update our subscription
+        const updated = await prisma.subscription.update({
+          where: { userId: ctx.userId },
+          data: {
+            status: input.cancelAtPeriodEnd ? 'active' : 'cancelled',
+            canceledAt: input.cancelAtPeriodEnd ? null : new Date(),
+            metadata: {
+              ...((subscription.metadata as any) || {}),
+              cancelled: true,
+              cancelledAt: new Date().toISOString(),
+              cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+            } as any,
+          },
+        });
+
+        await logEvent(
+          'subscription.cancelled',
+          {
+            cancelAtPeriodEnd: input.cancelAtPeriodEnd,
+          },
+          'subscription',
+          subscription.id,
+        );
+
+        return { ok: true, subscription: updated };
+      } catch (error: any) {
+        console.error('Error canceling subscription:', error);
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to cancel subscription',
+        });
       }
     }),
 });

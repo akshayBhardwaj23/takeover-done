@@ -29,6 +29,7 @@ import {
   UnassignedEmailSkeleton,
 } from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
+import { UpgradePrompt } from '../../components/UpgradePrompt';
 
 type DbOrder = {
   id: string;
@@ -95,7 +96,26 @@ export default function InboxPage() {
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
     onSuccess: () => {
       unassigned.refetch();
+      emailLimit.refetch(); // Refresh usage after sending
     },
+    onError: (error) => {
+      if (
+        error.data?.code === 'FORBIDDEN' &&
+        error.message?.includes('Email limit')
+      ) {
+        toast.error(
+          error.message || 'Email limit reached. Please upgrade your plan.',
+        );
+        emailLimit.refetch();
+      } else {
+        toast.error('Failed to send reply');
+      }
+    },
+  });
+
+  // Check email usage limits
+  const emailLimit = trpc.checkEmailLimit.useQuery(undefined, {
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Get AI suggestion from messages
@@ -421,6 +441,31 @@ export default function InboxPage() {
                     AI Reply Assistant
                   </h3>
                 </div>
+                {/* Usage Warning */}
+                {emailLimit.data && !emailLimit.data.allowed && (
+                  <div className="mb-4">
+                    <UpgradePrompt
+                      usagePercentage={emailLimit.data.percentage}
+                      currentUsage={emailLimit.data.current}
+                      limit={emailLimit.data.limit}
+                      planName="Current"
+                      variant="inline"
+                    />
+                  </div>
+                )}
+                {emailLimit.data &&
+                  emailLimit.data.allowed &&
+                  emailLimit.data.percentage >= 80 && (
+                    <div className="mb-4">
+                      <UpgradePrompt
+                        usagePercentage={emailLimit.data.percentage}
+                        currentUsage={emailLimit.data.current}
+                        limit={emailLimit.data.limit}
+                        planName="Current"
+                        variant="inline"
+                      />
+                    </div>
+                  )}
                 <div className="space-y-3">
                   <Button
                     onClick={() => {
@@ -456,46 +501,72 @@ export default function InboxPage() {
                   />
                   <Button
                     onClick={async () => {
+                      // Check limit before attempting to send
+                      if (emailLimit.data && !emailLimit.data.allowed) {
+                        toast.error(
+                          `Email limit reached (${emailLimit.data.current}/${emailLimit.data.limit}). Please upgrade to continue sending.`,
+                        );
+                        return;
+                      }
+
                       const o = orderDetail.data?.order;
                       if (!o) return;
-                      const res = await createAction.mutateAsync({
-                        shop: shop,
-                        shopifyOrderId: o.id,
-                        email: o.email ?? undefined,
-                        type: 'INFO_REQUEST',
-                        note: 'Manual approval',
-                        draft,
-                      });
-                      const sendResult = await approveSend.mutateAsync({
-                        actionId: res.actionId,
-                        to: o.email ?? 'customer@example.com',
-                        subject: `Re: ${o.name}`,
-                        body: draft,
-                      });
-                      if (sendResult.ok) {
-                        if ((sendResult as any).stub) {
-                          toast.warning(
-                            'Reply logged (Mailgun not configured)',
-                          );
+                      try {
+                        const res = await createAction.mutateAsync({
+                          shop: shop,
+                          shopifyOrderId: o.id,
+                          email: o.email ?? undefined,
+                          type: 'INFO_REQUEST',
+                          note: 'Manual approval',
+                          draft,
+                        });
+                        const sendResult = await approveSend.mutateAsync({
+                          actionId: res.actionId,
+                          to: o.email ?? 'customer@example.com',
+                          subject: `Re: ${o.name}`,
+                          body: draft,
+                        });
+                        if (sendResult.ok) {
+                          if ((sendResult as any).stub) {
+                            toast.warning(
+                              'Reply logged (Mailgun not configured)',
+                            );
+                          } else {
+                            toast.success('Reply sent successfully!');
+                          }
+                          setDraft(''); // Clear draft after sending
+                          emailLimit.refetch(); // Refresh usage
                         } else {
-                          toast.success('Reply sent successfully!');
+                          toast.error(
+                            `Failed to send: ${(sendResult as any).error}`,
+                          );
                         }
-                        setDraft(''); // Clear draft after sending
-                      } else {
-                        toast.error(
-                          `Failed to send: ${(sendResult as any).error}`,
-                        );
+                      } catch (error: any) {
+                        if (
+                          error.data?.code === 'FORBIDDEN' &&
+                          error.message?.includes('Email limit')
+                        ) {
+                          toast.error(error.message || 'Email limit reached');
+                          emailLimit.refetch();
+                        } else {
+                          toast.error('Failed to send reply');
+                        }
                       }
                     }}
                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 font-bold shadow-lg shadow-indigo-500/20 hover:from-indigo-700 hover:to-purple-700"
                     disabled={
-                      !draft || createAction.isPending || approveSend.isPending
+                      !draft ||
+                      createAction.isPending ||
+                      approveSend.isPending ||
+                      (emailLimit.data && !emailLimit.data.allowed)
                     }
                   >
                     <Send className="mr-2 h-4 w-4" />
                     {createAction.isPending || approveSend.isPending
                       ? 'Sending...'
-                      : 'Send Reply'}
+                      : emailLimit.data && !emailLimit.data.allowed
+                        ? 'Limit Reached'
+                        : 'Send Reply'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>

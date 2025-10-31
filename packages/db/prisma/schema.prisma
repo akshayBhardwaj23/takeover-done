@@ -8,12 +8,60 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(cuid())
-  email       String       @unique
+  id          String        @id @default(cuid())
+  email       String        @unique
   name        String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   connections Connection[]
+  subscription Subscription?
+}
+
+enum PlanType {
+  STARTER
+  GROWTH
+  PRO
+  ENTERPRISE
+  TRIAL
+}
+
+model Subscription {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  planType      PlanType  @default(TRIAL)
+  status        String    @default("active") // active, cancelled, expired, past_due
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  canceledAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  // Payment gateway information
+  paymentGateway String?  // razorpay, paddle, etc.
+  gatewaySubscriptionId String? // Razorpay subscription ID
+  gatewayCustomerId String? // Razorpay customer ID
+  gatewayPlanId String? // Razorpay plan ID
+  metadata     Json? // Additional payment metadata
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageRecords  UsageRecord[]
+  
+  @@index([gatewaySubscriptionId])
+  @@index([gatewayCustomerId])
+}
+
+model UsageRecord {
+  id            String    @id @default(cuid())
+  subscriptionId String
+  periodStart   DateTime  // Start of billing period
+  periodEnd     DateTime  // End of billing period
+  emailsSent    Int       @default(0)
+  emailsReceived Int      @default(0)
+  aiSuggestions Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, periodStart])
+  @@index([subscriptionId, periodStart])
 }
 
 model Connection {
