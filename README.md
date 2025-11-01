@@ -137,25 +137,24 @@ cd packages/db && pnpm prisma generate
 
 ## 🐛 Troubleshooting
 
-### "Can't access my subdomain"
+### Quick Fixes
 
-- Check if your Cloudflare tunnel is running
-- Verify DNS propagation (can take a few minutes)
-- Check `~/.cloudflared/config.yml` has correct hostname
+- **tRPC 500 errors**: Clear `.next` cache and restart dev server
+- **Orders not appearing**: Re-register Shopify webhooks via `/api/shopify/webhooks/register?shop=...`
+- **Email webhook 404**: Check that route file exists and restart dev server
+- **Wrong order matched**: Order matching now prioritizes order numbers from email subject/body
 
-### "Database connection failed"
+### Common Issues
 
-- Verify `DATABASE_URL` in `packages/db/.env`
-- Test connection with `pnpm prisma studio`
-- Check if database is accessible from your network
+See [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) for detailed solutions to:
+- Webhook configuration and registration
+- tRPC/router import failures
+- Database migration issues
+- Order matching problems
+- Redis configuration
+- UI display issues
 
-### "Webhooks not working"
-
-- Ensure your Cloudflare tunnel is running
-- Check `NEXTAUTH_URL` in `.env.local` points to your subdomain
-- Verify Shopify/Mailgun webhook URLs are configured correctly
-
-See [DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md) for more troubleshooting tips.
+Or check [DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md) for general setup help.
 
 ## 📄 License
 

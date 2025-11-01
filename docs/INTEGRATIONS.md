@@ -8,14 +8,15 @@
 - Non-protected Admin API reads (recent orders, single order)
 - Webhook receiver with HMAC verification
 
-**Protected topics** (require Partner approval)
+**Essential webhooks** (always registered)
 
-- `orders/create`, `refunds/create`, `orders/fulfilled`
-- Controlled by `PROTECTED_WEBHOOKS` flag
+- `orders/create`, `orders/fulfilled`, `refunds/create`, `app/uninstalled`
+- These are required for core functionality and are always registered
 
-**Non-protected topics**
+**Additional topics** (optional, controlled by `PROTECTED_WEBHOOKS` flag)
 
-- `app/uninstalled`, `shop/update`, `products/create`
+- `shop/update`, `products/create`
+- Only registered when `PROTECTED_WEBHOOKS=true`
 
 **Env keys**
 
@@ -62,7 +63,10 @@ sequenceDiagram
   - Verify shared secret (header `x-email-webhook-secret`) and provider signature (Mailgun-style) when configured
   - Parse envelope, headers, subject, text/html, attachments
   - Identify tenant via alias in `Connection.metadata.alias` (e.g., `in+<tenant>-<id>@mail.<app-domain>`) and persist `Thread`/`Message`
-  - Correlate to `Order` by customer email and heuristics (order number parsing)
+  - Correlate to `Order` with priority:
+  1. **Order number from subject/body** (e.g., "Order 1003", "#1003") - highest priority
+  2. **Customer email matching** - fallback only if no order number found
+- This ensures emails mentioning specific orders are correctly matched
   - Create `AISuggestion` stub (worker pipeline recommended)
   - Guardrails: payload size cap (25MB), alias disable/enable enforced, rotate alias supported
 

@@ -25,6 +25,7 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
   - Lists orders persisted from Shopify webhooks in our Postgres via Prisma
 - `messagesByOrder({ shopifyOrderId })` → `{ messages: Message[] }`
   - Returns messages mapped to a specific order with AI suggestions and thread info
+  - Each message includes `thread.subject` for displaying email subjects in the UI
 - `unassignedInbound({ take? })` → `{ messages: Message[] }`
   - Returns inbound messages not yet mapped to any order
 - `getAnalytics()` → `{ totalEmails, emailsThisWeek, emailsThisMonth, mappedEmails, unmappedEmails, totalOrders, actionsTaken, actionsThisWeek, aiSuggestionAccuracy, aiSuggestionsTotal, averageResponseTime, customerSatisfactionScore, volumeTrend }`
