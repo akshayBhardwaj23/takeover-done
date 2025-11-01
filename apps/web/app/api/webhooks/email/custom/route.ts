@@ -42,7 +42,19 @@ function verifyMailgunSignature(raw: any): boolean {
 }
 
 function extractOrderCandidate(text: string): string | null {
-  const patterns = [/#\s?(\d{3,8})/i, /order\s?(\d{3,8})/i];
+  // Improved patterns to catch various formats:
+  // - "#1003" or "# 1003"
+  // - "order 1003" or "Order 1003"
+  // - "order status 1003" or "Order status 1003"
+  // - "order #1003"
+  // - Just standalone numbers in context (more lenient)
+  const patterns = [
+    /#\s?(\d{3,8})/i,                    // #1003 or # 1003
+    /order\s+#?\s?(\d{3,8})/i,           // order #1003 or order 1003
+    /order\s+status\s+(\d{3,8})/i,       // order status 1003
+    /order\s+number\s+(\d{3,8})/i,       // order number 1003
+    /\b(\d{4,5})\b/i,                    // Standalone 4-5 digit numbers (likely order numbers)
+  ];
   for (const re of patterns) {
     const m = text.match(re);
     if (m) return m[1];
@@ -158,33 +170,63 @@ export async function POST(req: NextRequest) {
     // Correlate to Order: prioritize order number from subject/body, then fallback to email
     let orderId: string | undefined;
     
+    // Get shop domain from connection metadata to scope order search
+    const shopDomain = (metadata.shopDomain as string | undefined) || 
+                       (conn.shopDomain || undefined);
+    
     // First, try to extract and match order number from subject/body (more specific)
     const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
     if (candidate) {
-      // Try matching by order name first (e.g., "#1001" or "1001")
-      const byName = await prisma.order.findFirst({
-        where: {
-          OR: [
-            { name: `#${candidate}` },
-            { name: candidate },
-            { shopifyId: candidate },
-          ],
-        },
-      });
-      if (byName) {
-        orderId = byName.id;
+      console.log(`[Email Webhook] Extracted order candidate: ${candidate} from subject/body`);
+      
+      // Build where clause with shop domain scoping if available
+      const orderWhere: any = {
+        OR: [
+          { name: `#${candidate}` },
+          { name: candidate },
+          { shopifyId: candidate },
+        ],
+      };
+      
+      // Scope to same shop if we have shop domain from connection
+      if (shopDomain) {
+        orderWhere.shopDomain = shopDomain;
+      }
+      
+      // Also scope to same connection if we have connectionId
+      if (conn.id) {
+        // Orders belong to connections, so filter by connectionId
+        const byName = await prisma.order.findFirst({
+          where: {
+            ...orderWhere,
+            connectionId: conn.id,
+          },
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
+        }
+      } else {
+        // Fallback if no connectionId - just match by name/shopifyId and shopDomain
+        const byName = await prisma.order.findFirst({
+          where: orderWhere,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
+        }
+      }
+      
+      if (!orderId && candidate) {
+        console.warn(`[Email Webhook] Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`);
       }
     }
     
-    // Fallback: if no order number found, try matching by customer email
+    // IMPORTANT: Do NOT fallback to email matching if no order number is found
+    // If no order matches, leave orderId as undefined so email goes to "Unassigned Emails" section
+    // This allows manual assignment by support staff
     if (!orderId) {
-      const recentOrder = await prisma.order.findFirst({
-        where: { email: customerEmail },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (recentOrder) {
-        orderId = recentOrder.id;
-      }
+      console.log(`[Email Webhook] No order matched - email will be marked as unassigned (customer: ${customerEmail})`);
     }
 
     // Idempotency guard using message-id when available
@@ -248,226 +290,36 @@ export async function POST(req: NextRequest) {
       thread.id,
     );
 
-    // Enqueue background job to generate AI suggestion
-    // Generate AI suggestion (OpenAI if configured; otherwise heuristic fallback)
-    async function generateSuggestion(): Promise<{
-      reply: string;
-      proposedAction:
-        | 'REFUND'
-        | 'CANCEL'
-        | 'REPLACE_ITEM'
-        | 'ADDRESS_CHANGE'
-        | 'INFO_REQUEST'
-        | 'NONE';
-      confidence: number;
-    }> {
-      const lower = `${subject ?? ''} ${body}`.toLowerCase();
-      const keywordToAction: Array<{ re: RegExp; action: any }> = [
-        { re: /(refund|money\s*back|chargeback)/, action: 'REFUND' },
-        { re: /(cancel|cancellation)/, action: 'CANCEL' },
-        { re: /(replace|replacement|damaged)/, action: 'REPLACE_ITEM' },
-        {
-          re: /(address|ship\s*to|wrong\s*address|change\s*address)/,
-          action: 'ADDRESS_CHANGE',
-        },
-        { re: /(where is|status|update|tracking)/, action: 'INFO_REQUEST' },
-      ];
-      let action: any = 'NONE';
-      for (const k of keywordToAction) {
-        if (k.re.test(lower)) {
-          action = k.action;
-          break;
-        }
-      }
-
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        // Enhanced fallback with personalization
-        const customerName = customerEmail
-          .split('@')[0]
-          .replace(/[._]/g, ' ')
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-        const order = orderId
-          ? await prisma.order.findUnique({ where: { id: orderId } })
-          : null;
-
-        let reply = `Hi ${customerName},\n\n`;
-        reply += `Thank you for reaching out to us! `;
-
-        if (order) {
-          reply += `I can see your order ${order.name || `#${order.shopifyId}`} in our system and I'm here to help you with any questions or concerns you may have.\n\n`;
-        } else {
-          reply += `I'd be happy to assist you with your inquiry. `;
-          reply += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
-        }
-
-        // Action-specific responses
-        if (action === 'REFUND') {
-          reply += `I understand you're interested in a refund. I can definitely help you with that process. `;
-          reply += `Let me review your order details and get back to you with the next steps within the next few hours.\n\n`;
-        } else if (action === 'CANCEL') {
-          reply += `I see you'd like to cancel your order. `;
-          reply += `Let me check if your order is still eligible for cancellation and I'll get back to you with the details.\n\n`;
-        } else if (action === 'REPLACE_ITEM') {
-          reply += `I understand you need a replacement for an item. `;
-          reply += `I'll review your order and arrange for a replacement to be sent out to you.\n\n`;
-        } else if (action === 'ADDRESS_CHANGE') {
-          reply += `I can help you update your shipping address. `;
-          reply += `Let me check your order status and make the necessary changes for you.\n\n`;
-        } else if (action === 'INFO_REQUEST') {
-          reply += `I'll look into your order status and provide you with a detailed update. `;
-          reply += `You can expect to hear from me with tracking information and next steps.\n\n`;
-        } else {
-          reply += `I'm reviewing your message and will provide you with a detailed response shortly. `;
-          reply += `I want to make sure I address all your concerns properly.\n\n`;
-        }
-
-        reply += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        reply += `Best regards,\n`;
-        reply += `Customer Support Team`;
-
-        return {
-          reply,
-          proposedAction: action,
-          confidence: action === 'NONE' ? 0.4 : 0.6,
-        } as any;
-      }
-
-      // Compose detailed prompt with order context
-      const order = orderId
-        ? await prisma.order.findUnique({ where: { id: orderId } })
-        : null;
-
-      // Extract customer name from email if possible
-      const customerName = customerEmail
-        .split('@')[0]
-        .replace(/[._]/g, ' ')
-        .replace(/\b\w/g, (l) => l.toUpperCase());
-
-      const orderContext = order
-        ? `Order Details:
-- Order Number: ${order.name || `#${order.shopifyId}`}
-- Total Amount: $${(order.totalAmount / 100).toFixed(2)}
-- Status: ${order.status}
-- Customer Email: ${order.email || 'Not provided'}`
-        : 'No order found - customer may need to provide order number';
-
-      const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's email.
-
-Guidelines:
-- Be warm, professional, and empathetic
-- Acknowledge their specific concern
-- Use their name if available (${customerName})
-- Reference their order details if available
-- Provide clear next steps
-- Keep it conversational but professional
-- Show understanding of their situation
-- Offer specific solutions based on their request
-
-${orderContext}
-
-Customer Email:
-Subject: ${subject ?? '(no subject)'}
-From: ${customerEmail}
-Message: ${body}
-
-Write a comprehensive reply that addresses their concern and provides clear next steps.`;
-
-      try {
-        const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: `You are a professional customer support representative with excellent communication skills. You write personalized, empathetic, and helpful responses that make customers feel valued and understood. You always:
-
-1. Acknowledge the customer's specific concern
-2. Use a warm, professional tone
-3. Reference their order details when available
-4. Provide clear, actionable next steps
-5. Show genuine care for their experience
-6. Keep responses comprehensive but not overwhelming
-7. Use the customer's name when appropriate
-8. Address their specific request directly
-
-Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
-              },
-              { role: 'user', content: prompt },
-            ],
-            temperature: 0.7,
-            max_tokens: 400,
-          }),
-        });
-        if (!resp.ok) throw new Error(`openai ${resp.status}`);
-        const json: any = await resp.json();
-        const reply: string =
-          json.choices?.[0]?.message?.content ??
-          "Thanks for reaching out. I'll follow up shortly with details.";
-
-        // Lightweight action inference from LLM output
-        const rlower = reply.toLowerCase();
-        if (/refund/.test(rlower)) action = 'REFUND';
-        else if (/cancel/.test(rlower)) action = 'CANCEL';
-        else if (/replace/.test(rlower)) action = 'REPLACE_ITEM';
-        else if (/address/.test(rlower)) action = 'ADDRESS_CHANGE';
-        else if (/(update|status|tracking)/.test(rlower))
-          action = 'INFO_REQUEST';
-
-        return { reply, proposedAction: action, confidence: 0.75 } as any;
-      } catch {
-        // Enhanced fallback for API errors
-        const customerName = customerEmail
-          .split('@')[0]
-          .replace(/[._]/g, ' ')
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-        const order = orderId
-          ? await prisma.order.findUnique({ where: { id: orderId } })
-          : null;
-
-        let fallback = `Hi ${customerName},\n\n`;
-        fallback += `Thank you for contacting us! `;
-
-        if (order) {
-          fallback += `I can see your order ${order.name || `#${order.shopifyId}`} and I'm here to help.\n\n`;
-        } else {
-          fallback += `I'd be happy to assist you with your inquiry.\n\n`;
-        }
-
-        fallback += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
-        fallback += `I want to make sure I address all your concerns properly.\n\n`;
-        fallback += `If you have any urgent questions, please don't hesitate to reach out.\n\n`;
-        fallback += `Best regards,\nCustomer Support Team`;
-
-        return {
-          reply: fallback,
-          proposedAction: action,
-          confidence: 0.5,
-        } as any;
-      }
-    }
-
-    const gen = await generateSuggestion();
-    await prisma.aISuggestion.upsert({
-      where: { messageId: msg.id },
-      update: {
-        reply: gen.reply,
-        proposedAction: gen.proposedAction as any,
-        confidence: gen.confidence,
-      },
-      create: {
+    // Enqueue background job to generate AI suggestion (non-blocking)
+    // This allows webhook to return immediately and prevents timeouts
+    try {
+      // Dynamic import to avoid build-time dependency issues
+      const { enqueueInboxJob } = await import('@ai-ecom/worker');
+      await enqueueInboxJob('inbound-email-process', {
         messageId: msg.id,
-        reply: gen.reply,
-        proposedAction: gen.proposedAction as any,
-        orderId: orderId ?? null,
-        confidence: gen.confidence,
-      },
-    });
+      });
+      console.log(`[Email Webhook] Queued AI processing job for message ${msg.id}`);
+    } catch (error) {
+      // If worker is not available, log but don't fail the webhook
+      // This allows graceful degradation
+      console.warn(
+        '[Email Webhook] Failed to queue background job, AI suggestion will be generated later:',
+        error,
+      );
+      // Create a placeholder suggestion that will be updated when worker processes it
+      await prisma.aISuggestion.upsert({
+        where: { messageId: msg.id },
+        update: {},
+        create: {
+          messageId: msg.id,
+          reply:
+            'Processing your message... AI suggestion will be available shortly.',
+          proposedAction: 'NONE' as any,
+          orderId: orderId ?? null,
+          confidence: 0.1,
+        },
+      });
+    }
 
     if (messageIdHeader && redis) {
       try {
