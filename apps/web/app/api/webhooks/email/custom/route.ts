@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
-import DOMPurify from 'isomorphic-dompurify';
+
+export const dynamic = 'force-dynamic';
+
+// Simple HTML sanitization (server-safe, no jsdom dependency)
+function stripHtml(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/&[#a-zA-Z0-9]+;/g, '') // Remove HTML entities
+    .replace(/&#\d+;/g, '') // Remove numeric entities
+    .trim();
+}
 
 // Simple shared-secret verification for MVP. In production, verify provider signature (Mailgun/Postmark)
 function verifySecret(req: NextRequest, secret: string | null) {
@@ -43,13 +53,22 @@ function extractOrderCandidate(text: string): string | null {
 export async function POST(req: NextRequest) {
   try {
     // Idempotency: prefer Message-ID header; fallback to HMAC of body
-    const redis =
-      process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-        ? new Redis({
-            url: process.env.UPSTASH_REDIS_REST_URL!,
-            token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-          })
-        : null;
+    let redis = null;
+    const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    
+    // Only initialize Redis if we have valid URLs (not placeholders)
+    if (redisUrl && redisToken && !redisUrl.includes('...') && redisUrl.startsWith('https://')) {
+      try {
+        redis = new Redis({
+          url: redisUrl,
+          token: redisToken,
+        });
+      } catch (err) {
+        console.warn('[Email Webhook] Failed to initialize Redis, continuing without idempotency:', err);
+        redis = null;
+      }
+    }
     // Basic guardrails
     const contentLength = Number(req.headers.get('content-length') || '0');
     if (contentLength > 25 * 1024 * 1024) {
@@ -130,11 +149,11 @@ export async function POST(req: NextRequest) {
     const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
     const rawBody = text || html || '';
-    const body = DOMPurify.sanitize(String(rawBody), {
-      ALLOWED_TAGS: [],
-      ALLOWED_ATTR: [],
-    }).slice(0, 20000);
-    const customerEmail = from.toLowerCase();
+    const body = stripHtml(String(rawBody)).slice(0, 20000);
+    
+    // Extract email from "Name <email@domain.com>" format
+    const emailMatch = from.match(/<([^>]+)>/) || from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const customerEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
 
     // Correlate to Order: try by email, then by parsed order number
     let orderId: string | undefined;
@@ -167,14 +186,30 @@ export async function POST(req: NextRequest) {
       (raw['message-id'] as string) ||
       undefined;
     if (messageIdHeader && redis) {
-      const key = `email:webhook:${messageIdHeader}`;
-      const exists = await redis.get<string>(key);
-      if (exists) return NextResponse.json({ ok: true, deduped: true });
+      try {
+        const key = `email:webhook:${messageIdHeader}`;
+        const exists = await redis.get<string>(key);
+        if (exists) return NextResponse.json({ ok: true, deduped: true });
+      } catch (err) {
+        console.warn('[Email Webhook] Redis idempotency check failed, continuing:', err);
+      }
     }
 
     // Create thread and message
+    // Thread requires connectionId - use the connection we found earlier
+    if (!conn) {
+      return NextResponse.json(
+        { error: 'no connection found for alias' },
+        { status: 404 },
+      );
+    }
+    
     const thread = await prisma.thread.create({
-      data: { customerEmail, subject: subject ?? null },
+      data: {
+        customerEmail,
+        subject: subject ?? null,
+        connectionId: conn.id,
+      },
     });
 
     // Attempt to parse Message-ID header
@@ -428,9 +463,13 @@ Write responses that sound like they come from a real human support agent who ge
     });
 
     if (messageIdHeader && redis) {
-      await redis.set(`email:webhook:${messageIdHeader}`, '1', {
-        ex: 60 * 60 * 24,
-      });
+      try {
+        await redis.set(`email:webhook:${messageIdHeader}`, '1', {
+          ex: 60 * 60 * 24,
+        });
+      } catch (err) {
+        console.warn('[Email Webhook] Failed to set Redis key, continuing:', err);
+      }
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

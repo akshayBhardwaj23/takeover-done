@@ -9,18 +9,22 @@ type WebhookTopic =
 export async function registerWebhooks(shop: string, accessToken: string) {
   const appUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost:3000';
   const address = `${appUrl}/api/webhooks/shopify`;
-  const protectedTopics: WebhookTopic[] = [
+  // Always register orders/create and other essential webhooks
+  // The PROTECTED_WEBHOOKS flag controls additional webhooks
+  const essentialTopics: WebhookTopic[] = [
     'orders/create',
-    'refunds/create',
     'orders/fulfilled',
-  ];
-  const safeTopics: WebhookTopic[] = [
+    'refunds/create',
     'app/uninstalled',
+  ];
+  const additionalTopics: WebhookTopic[] = [
     'shop/update',
     'products/create',
   ];
   const topics: WebhookTopic[] =
-    process.env.PROTECTED_WEBHOOKS === 'true' ? protectedTopics : safeTopics;
+    process.env.PROTECTED_WEBHOOKS === 'true'
+      ? [...essentialTopics, ...additionalTopics]
+      : essentialTopics;
   for (const topic of topics) {
     try {
       const resp = await fetch(

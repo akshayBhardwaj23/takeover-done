@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ai-ecom/db';
 import { registerWebhooks, listWebhooks } from '../../../../../lib/shopify';
+import { decryptSecure } from '@ai-ecom/api';
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -17,8 +18,12 @@ export async function GET(req: NextRequest) {
       { status: 404 },
     );
 
-  await registerWebhooks(shop, conn.accessToken).catch(() => {});
-  const current = await listWebhooks(shop, conn.accessToken).catch(() => null);
+  // Decrypt the access token before using it
+  const accessToken = decryptSecure(conn.accessToken);
+  await registerWebhooks(shop, accessToken).catch((err) => {
+    console.error('Failed to register webhooks:', err);
+  });
+  const current = await listWebhooks(shop, accessToken).catch(() => null);
 
   return NextResponse.json({
     ok: true,

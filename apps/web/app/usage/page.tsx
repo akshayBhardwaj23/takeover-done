@@ -53,11 +53,26 @@ export default function UsagePage() {
     );
   }
 
+  if (usage.error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <div className="text-center space-y-4">
+          <div className="text-red-400 text-lg font-semibold">Error loading usage data</div>
+          <div className="text-slate-400 text-sm">{usage.error.message || 'Unknown error'}</div>
+          <div className="text-slate-500 text-xs">Code: {usage.error.data?.code || 'N/A'}</div>
+        </div>
+      </div>
+    );
+  }
+
   const data = usage.data;
   if (!data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        <div className="text-white">No usage data available</div>
+        <div className="text-center space-y-4">
+          <div className="text-white">No usage data available</div>
+          <div className="text-slate-400 text-sm">Make sure you're signed in</div>
+        </div>
       </div>
     );
   }

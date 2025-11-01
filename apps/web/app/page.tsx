@@ -1,12 +1,10 @@
 'use client';
-import { trpc } from '../lib/trpc';
 import Link from 'next/link';
 import { useState } from 'react';
 import Floating3DCards from './components/Floating3DCards';
 import ModularGrid from './components/ModularGrid';
 
 export default function HomePage() {
-  const connections = trpc.connections.useQuery();
   const [annual, setAnnual] = useState(false);
 
   return (

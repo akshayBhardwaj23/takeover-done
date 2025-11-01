@@ -33,16 +33,24 @@ export async function getOrCreateCustomer(
 
   // Try to find existing customer by email
   try {
-    const customers = await razorpay.customers.all({
-      email,
-      count: 1,
+    // Razorpay customers.all() doesn't support email filter directly
+    // We'll need to fetch all and filter, or create new if not found
+    // For now, we'll create a new customer if lookup fails
+    const customersResponse = await razorpay.customers.all({
+      count: 100, // Fetch recent customers
     });
 
-    if (customers.items.length > 0) {
-      return customers.items[0];
+    const customers = (customersResponse as any).items || [];
+    const matchingCustomer = customers.find(
+      (c: any) => c.email === email.toLowerCase(),
+    );
+
+    if (matchingCustomer) {
+      return matchingCustomer;
     }
   } catch (error) {
     console.error('Error fetching customer:', error);
+    // Continue to create new customer
   }
 
   // Create new customer
@@ -188,10 +196,11 @@ export async function cancelSubscription(
 
   try {
     if (cancelAtPeriodEnd) {
-      // Cancel at period end (don't renew)
-      const subscription = await razorpay.subscriptions.cancel(subscriptionId, {
-        cancel_at_period_end: true,
-      });
+      // Cancel at period end - Razorpay API: cancel accepts boolean for cancel_at_period_end
+      const subscription = await razorpay.subscriptions.cancel(
+        subscriptionId,
+        true, // cancel_at_period_end
+      );
       return subscription;
     } else {
       // Cancel immediately
@@ -223,12 +232,18 @@ export async function updateSubscription(
     // Cancel current subscription
     await cancelSubscription(subscriptionId, true); // Cancel at period end
 
+    // Get the end date for the current subscription period
+    const currentEnd =
+      subscription.current_end || subscription.end_at || Date.now() / 1000;
+
     // Create new subscription for the customer
     const newSubscription = await razorpay.subscriptions.create({
       plan_id: newPlanId,
       customer_notify: 1,
       total_count: 12,
-      start_at: Math.floor(subscription.current_end / 1000), // Start when current ends
+      start_at: Math.floor(
+        typeof currentEnd === 'number' ? currentEnd : currentEnd / 1000,
+      ), // Start when current ends
       notes: subscription.notes,
     });
 

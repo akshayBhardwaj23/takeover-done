@@ -1,14 +1,17 @@
-import DOMPurify from 'isomorphic-dompurify';
 import validator from 'validator';
+
+// Simple HTML tag and entity removal (server-safe, no jsdom dependency)
+function stripHtmlSimple(input: string): string {
+  return input
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/&[#a-zA-Z0-9]+;/g, '') // Remove HTML entities like &nbsp;, &amp;, etc.
+    .replace(/&#\d+;/g, '') // Remove numeric HTML entities like &#123;
+    .trim();
+}
 
 export function sanitizePlainText(input: string | undefined | null): string {
   if (!input) return '';
-  // Remove any HTML, keep plain text only
-  const cleaned = DOMPurify.sanitize(String(input), {
-    ALLOWED_TAGS: [],
-    ALLOWED_ATTR: [],
-  });
-  return cleaned.trim();
+  return stripHtmlSimple(String(input));
 }
 
 export function sanitizeLimited(
