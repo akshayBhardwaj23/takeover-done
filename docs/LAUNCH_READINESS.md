@@ -8,6 +8,7 @@
 ## ✅ What's Ready (Strong Foundation)
 
 ### Core Features Complete
+
 - ✅ **Shopify OAuth Integration** - Fully functional
 - ✅ **OpenAI Integration** - Real AI replies (not stub)
 - ✅ **Email Sending** - Mailgun integration working
@@ -18,6 +19,7 @@
 - ✅ **Webhook Idempotency** - Preventing duplicates
 
 ### Security & Infrastructure
+
 - ✅ **HMAC Verification** - Shopify webhooks secured
 - ✅ **OAuth Security** - State validation, token encryption
 - ✅ **Rate Limiting** - Per-user, per-endpoint limits
@@ -25,6 +27,7 @@
 - ✅ **Redis Infrastructure** - Rate limiting & idempotency working
 
 ### User Experience
+
 - ✅ **Loading States** - Skeleton loaders
 - ✅ **Toast Notifications** - User feedback
 - ✅ **Error Handling** - Try/catch with fallbacks
@@ -39,17 +42,20 @@
 **Status:** Infrastructure ready, but AI processing still blocking
 
 **Problem:**
+
 - Redis/BullMQ is **set up** ✅
 - Worker is **configured** ✅
 - BUT: Email webhooks are **still calling OpenAI inline** ❌
 
 **Impact:**
+
 - Webhooks can timeout (Shopify/Mailgun timeout after 5-10 seconds)
 - Poor scalability (can't handle high email volume)
 - No retry logic for OpenAI failures
 - User waits for AI generation (poor UX)
 
 **What Needs to Happen:**
+
 ```typescript
 // Current (in webhook):
 const aiSuggestion = await openai.chat.completions.create(...); // ❌ Blocks
@@ -68,11 +74,13 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 **Status:** Worker exists but doesn't have proper retry configuration
 
 **Problem:**
+
 - If OpenAI API fails, job fails permanently
 - No exponential backoff
 - No max retry limit
 
 **What Needs to Happen:**
+
 ```typescript
 // Worker job should have:
 {
@@ -92,6 +100,7 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 ### 3. 🟡 **Production Deployment Checklist**
 
 **Missing:**
+
 - [ ] Production environment variables configured
 - [ ] Database migrations verified
 - [ ] Worker deployment process documented
@@ -110,6 +119,7 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 **Status:** Sentry configured but needs verification
 
 **Check:**
+
 - [ ] Sentry catching errors in production?
 - [ ] Alerts configured for critical errors?
 - [ ] Log aggregation working?
@@ -123,12 +133,14 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 ## 🟢 Nice-to-Have (Can Launch Without)
 
 ### Minor Features
+
 - ⚪ Basic audit UI timeline (marked incomplete in roadmap)
 - ⚪ Gmail integration (has TODO stubs, but Mailgun works)
 - ⚪ Smart templates, tone control (Phase 2)
 - ⚪ SLA timers, reminders (Phase 2)
 
 ### These are fine to add post-launch:
+
 - Feature parity gaps don't block MVP launch
 - Can iterate based on user feedback
 
@@ -136,13 +148,13 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 
 ## 📊 Launch Readiness Score
 
-| Category | Status | Score |
-|----------|--------|-------|
-| **Core Features** | ✅ Complete | 95% |
-| **Security** | ✅ Complete | 100% |
-| **Infrastructure** | 🟡 Partial | 75% |
-| **Production Ready** | 🟡 Needs Work | 60% |
-| **Monitoring** | 🟡 Needs Verification | 70% |
+| Category             | Status                | Score |
+| -------------------- | --------------------- | ----- |
+| **Core Features**    | ✅ Complete           | 95%   |
+| **Security**         | ✅ Complete           | 100%  |
+| **Infrastructure**   | 🟡 Partial            | 75%   |
+| **Production Ready** | 🟡 Needs Work         | 60%   |
+| **Monitoring**       | 🟡 Needs Verification | 70%   |
 
 **Overall: 80% Ready**
 
@@ -151,6 +163,7 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 ## 🚀 Launch Recommendation
 
 ### Option 1: **Soft Launch (Recommended)**
+
 **Timeline:** 1-2 weeks
 
 1. **Week 1: Critical Fixes**
@@ -170,14 +183,17 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 ---
 
 ### Option 2: **Launch Now (Higher Risk)**
+
 **Timeline:** Immediate
 
 **Pros:**
+
 - Get real user feedback faster
 - Start iterating on actual needs
 - Learn what actually matters
 
 **Cons:**
+
 - Webhook timeouts possible under load
 - OpenAI failures = lost emails
 - Poor UX if AI processing is slow
@@ -190,6 +206,7 @@ await enqueueInboxJob('generate-ai-suggestion', { messageId: msg.id }); // ✅ R
 ## 🔧 Quick Wins (Can Do Today)
 
 ### 1. Move AI to Background (2-4 hours)
+
 ```typescript
 // In apps/web/app/api/webhooks/email/custom/route.ts
 // After creating message, queue job instead of calling OpenAI
@@ -203,6 +220,7 @@ await enqueueInboxJob('inbound-email-process', {
 ```
 
 ### 2. Add Retry Logic (30 min)
+
 ```typescript
 // In apps/worker/src/index.ts
 await inboxQueue.add(name, data, {
@@ -215,7 +233,9 @@ await inboxQueue.add(name, data, {
 ```
 
 ### 3. Update Worker to Call OpenAI (1-2 hours)
+
 The worker currently has a stub. Update it to:
+
 - Fetch message + order context
 - Call OpenAI
 - Save AI suggestion
@@ -237,6 +257,7 @@ The worker currently has a stub. Update it to:
 ### **🟡 Launch with Caveats (Recommended Path)**
 
 **Do this:**
+
 1. Fix background job processing (Critical - 2-4 hours)
 2. Add retry logic (Quick - 30 min)
 3. Test with 2-3 real emails end-to-end
@@ -244,6 +265,7 @@ The worker currently has a stub. Update it to:
 5. Monitor closely for first week
 
 **Why this works:**
+
 - Infrastructure is solid (Redis, security, rate limiting)
 - Core features work
 - Main risk is webhook timeout under load (fixable)
@@ -251,6 +273,7 @@ The worker currently has a stub. Update it to:
 - Can iterate quickly
 
 **What to tell users:**
+
 - "Beta launch - we're actively improving"
 - "If you see delays in AI suggestions, refresh - they're processing in background"
 - Collect feedback aggressively
@@ -281,13 +304,13 @@ The worker currently has a stub. Update it to:
 ✅ Security is production-ready  
 ✅ Core features work  
 ✅ Infrastructure (Redis, DB, monitoring) is set up  
-✅ UI is polished  
+✅ UI is polished
 
 **Main gaps are operational:**
+
 - Background processing needs implementation
 - Production deployment needs verification
 
 **Recommendation: 1-2 weeks to production-ready launch** with the critical fixes.
 
 You have a strong MVP! Just needs the operational polish for production workloads.
-
