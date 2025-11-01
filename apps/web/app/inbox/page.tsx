@@ -56,6 +56,7 @@ export default function InboxPage() {
   );
   const dbOrders = trpc.ordersListDb.useQuery({ take: 20 });
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const orderDetail = trpc.orderGet.useQuery(
     { shop: shop || '', orderId: selected || '' },
     { enabled: !!shop && !!selected },
@@ -692,7 +693,12 @@ export default function InboxPage() {
                     {(messages.data?.messages ?? []).map((m: any) => (
                       <Card
                         key={m.id}
-                        className="group relative overflow-hidden border border-slate-800/50 bg-slate-800/30 p-4 transition-all hover:border-indigo-500/30 hover:bg-slate-800/50"
+                        className={`group relative cursor-pointer overflow-hidden border p-4 transition-all ${
+                          selectedMessageId === m.id
+                            ? 'border-indigo-500/50 bg-gradient-to-br from-indigo-600/20 to-purple-600/20 shadow-lg shadow-indigo-500/10'
+                            : 'border-slate-800/50 bg-slate-800/30 hover:border-indigo-500/30 hover:bg-slate-800/50'
+                        }`}
+                        onClick={() => setSelectedMessageId(selectedMessageId === m.id ? null : m.id)}
                       >
                         <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-indigo-500/10 blur-2xl transition-all group-hover:bg-indigo-500/20" />
                         <div className="relative">
@@ -711,12 +717,32 @@ export default function InboxPage() {
                               {new Date(m.createdAt).toLocaleTimeString()}
                             </span>
                           </div>
+                          {m.thread?.subject && (
+                            <p className="mb-2 text-sm font-semibold text-white">
+                              {m.thread.subject}
+                            </p>
+                          )}
                           <p className="mb-2 text-xs text-slate-400">
                             {m.from.split('@')[0]}@...
                           </p>
-                          <p className="line-clamp-2 text-sm text-slate-300">
+                          <p className={`text-sm text-slate-300 ${
+                            selectedMessageId === m.id ? '' : 'line-clamp-2'
+                          }`}>
                             {m.body}
                           </p>
+                          {selectedMessageId === m.id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="mt-2 w-full border-slate-700 text-xs text-slate-400 hover:bg-slate-800"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedMessageId(null);
+                              }}
+                            >
+                              Show Less
+                            </Button>
+                          )}
                         </div>
                       </Card>
                     ))}

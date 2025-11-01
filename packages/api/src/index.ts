@@ -942,6 +942,11 @@ Write responses that sound like they come from a real human support agent who ge
             body: true,
             direction: true,
             createdAt: true,
+            thread: {
+              select: {
+                subject: true,
+              },
+            },
             aiSuggestion: {
               select: {
                 reply: true,

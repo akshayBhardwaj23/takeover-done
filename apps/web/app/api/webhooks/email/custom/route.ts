@@ -155,28 +155,35 @@ export async function POST(req: NextRequest) {
     const emailMatch = from.match(/<([^>]+)>/) || from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
     const customerEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
 
-    // Correlate to Order: try by email, then by parsed order number
+    // Correlate to Order: prioritize order number from subject/body, then fallback to email
     let orderId: string | undefined;
-    const recentOrder = await prisma.order.findFirst({
-      where: { email: customerEmail },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (recentOrder) {
-      orderId = recentOrder.id;
-    } else {
-      const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
-      if (candidate) {
-        // Try matching by order name first (e.g., "#1001" or "1001")
-        const byName = await prisma.order.findFirst({
-          where: {
-            OR: [
-              { name: `#${candidate}` },
-              { name: candidate },
-              { shopifyId: candidate },
-            ],
-          },
-        });
-        if (byName) orderId = byName.id;
+    
+    // First, try to extract and match order number from subject/body (more specific)
+    const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
+    if (candidate) {
+      // Try matching by order name first (e.g., "#1001" or "1001")
+      const byName = await prisma.order.findFirst({
+        where: {
+          OR: [
+            { name: `#${candidate}` },
+            { name: candidate },
+            { shopifyId: candidate },
+          ],
+        },
+      });
+      if (byName) {
+        orderId = byName.id;
+      }
+    }
+    
+    // Fallback: if no order number found, try matching by customer email
+    if (!orderId) {
+      const recentOrder = await prisma.order.findFirst({
+        where: { email: customerEmail },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (recentOrder) {
+        orderId = recentOrder.id;
       }
     }
 
