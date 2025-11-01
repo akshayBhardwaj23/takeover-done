@@ -14,14 +14,14 @@
 
 ### Pre-Production Requirements
 
-- [ ] **Redis/BullMQ setup for async job processing** (CRITICAL)
-  - Move AI suggestion generation to background worker
-  - Implement retry logic for OpenAI API failures
-  - Prevent webhook timeouts during high email volume
-  - Enable horizontal scaling with multiple worker instances
-  - Setup: Upstash Redis (free tier) or self-hosted Redis
-  - Update `REDIS_URL` in environment variables
-  - Benefits: Faster webhook responses (<100ms), better reliability, production-ready architecture
+- [x] **Redis/BullMQ setup for async job processing** (COMPLETE ✅)
+  - [x] Move AI suggestion generation to background worker
+  - [x] Implement retry logic for OpenAI API failures (3 attempts, exponential backoff)
+  - [x] Prevent webhook timeouts during high email volume
+  - [x] Enable horizontal scaling with multiple worker instances
+  - [x] Setup: Upstash Redis configured
+  - [x] Update `REDIS_URL` in environment variables
+  - [x] Benefits: Faster webhook responses (~350ms), better reliability, production-ready architecture
 
 ### Phase 2 — Inbox maturity
 
