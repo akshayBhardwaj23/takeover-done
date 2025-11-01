@@ -22,6 +22,7 @@ See [docs/RUNBOOK.md](./docs/RUNBOOK.md)
 - [**API_REFERENCE.md**](./docs/API_REFERENCE.md) - tRPC API documentation
 - [**ROADMAP.md**](./docs/ROADMAP.md) - Feature roadmap and todos
 - [**MAILGUN_SETUP.md**](./MAILGUN_SETUP.md) - Mailgun email configuration guide
+- [**SENTRY_SETUP.md**](./docs/SENTRY_SETUP.md) - Error monitoring setup
 
 ## 🏗️ Architecture
 
@@ -44,6 +45,7 @@ ai-ecom-tool/
 - **Auth**: NextAuth.js (Google OAuth)
 - **Integrations**: Shopify OAuth, Mailgun (email), OpenAI (AI suggestions)
 - **Infrastructure**: Cloudflare Tunnel, BullMQ (Redis)
+- **Monitoring**: Sentry (error tracking)
 
 ## 🌟 Key Features
 

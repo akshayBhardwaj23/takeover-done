@@ -58,6 +58,11 @@ REDIS_URL="redis://localhost:6379"
 # REDIS_URL="rediss://:password@host:port"
 
 # ============================================
+# SENTRY (Production Error Monitoring)
+# ============================================
+NEXT_PUBLIC_SENTRY_DSN="https://xxxxx@xxxxx.ingest.sentry.io/xxxxx"
+
+# ============================================
 # FEATURE FLAGS (Optional)
 # ============================================
 PROTECTED_WEBHOOKS=true
@@ -83,6 +88,7 @@ DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require&pgbo
 - `SHOPIFY_WEBHOOK_SECRET` - From Shopify app settings
 - `MAILGUN_API_KEY`, `MAILGUN_SIGNING_KEY`, `MAILGUN_DOMAIN` - From Mailgun dashboard
 - `OPENAI_API_KEY` - From OpenAI platform
+- `NEXT_PUBLIC_SENTRY_DSN` - From Sentry project settings (only needed for production)
 
 ### Individual Values (You Set)
 
