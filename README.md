@@ -6,23 +6,25 @@ AI-powered customer support automation for Shopify merchants. Automatically read
 
 ### For Team Members
 
-**Setting up for the first time?** → See [docs/DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md)
+**Setting up for the first time?** → See [docs/setup/DEVELOPMENT_SETUP.md](./docs/setup/DEVELOPMENT_SETUP.md)
 
 ### For Production
 
-See [docs/RUNBOOK.md](./docs/RUNBOOK.md)
+See [docs/operations/RUNBOOK.md](./docs/operations/RUNBOOK.md)
 
 ## 📚 Documentation
 
-- [**DEVELOPMENT_SETUP.md**](./docs/DEVELOPMENT_SETUP.md) - Team member setup guide
-- [**RUNBOOK.md**](./docs/RUNBOOK.md) - Operations and deployment guide
-- [**PROJECT_OVERVIEW.md**](./docs/PROJECT_OVERVIEW.md) - Architecture and features
-- [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) - Technical architecture
-- [**INTEGRATIONS.md**](./docs/INTEGRATIONS.md) - Shopify and email integration
-- [**API_REFERENCE.md**](./docs/API_REFERENCE.md) - tRPC API documentation
-- [**ROADMAP.md**](./docs/ROADMAP.md) - Feature roadmap and todos
-- [**MAILGUN_SETUP.md**](./MAILGUN_SETUP.md) - Mailgun email configuration guide
-- [**SENTRY_SETUP.md**](./docs/SENTRY_SETUP.md) - Error monitoring setup
+**📖 [Full Documentation Index](./docs/README.md)** - All documentation organized by category
+
+### Quick Links
+
+- **[Development Setup](./docs/setup/DEVELOPMENT_SETUP.md)** - Team member setup guide
+- **[Architecture](./docs/architecture/ARCHITECTURE.md)** - Technical architecture
+- **[Deployment Guide](./docs/deployment/DEPLOYMENT_RECOMMENDATIONS.md)** - Production deployment
+- **[Runbook](./docs/operations/RUNBOOK.md)** - Operations and deployment guide
+- **[API Reference](./docs/architecture/API_REFERENCE.md)** - tRPC API documentation
+- **[Roadmap](./docs/planning/ROADMAP.md)** - Feature roadmap and todos
+- **[Mailgun Setup](./MAILGUN_SETUP.md)** - Mailgun email configuration guide
 
 ## 🏗️ Architecture
 
@@ -76,7 +78,7 @@ ai-ecom-tool/
 - Cloudflare Tunnel (your own subdomain: `yourname.zyyp.ai`)
 - Local development server
 
-See [DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md) for detailed instructions.
+See [docs/setup/DEVELOPMENT_SETUP.md](./docs/setup/DEVELOPMENT_SETUP.md) for detailed instructions.
 
 ## 🏃 Running Locally
 
@@ -148,7 +150,7 @@ cd packages/db && pnpm prisma generate
 
 ### Common Issues
 
-See [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) for detailed solutions to:
+See [docs/operations/TROUBLESHOOTING.md](./docs/operations/TROUBLESHOOTING.md) for detailed solutions to:
 - Webhook configuration and registration
 - tRPC/router import failures
 - Database migration issues
@@ -156,7 +158,7 @@ See [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) for detailed solutions 
 - Redis configuration
 - UI display issues
 
-Or check [DEVELOPMENT_SETUP.md](./docs/DEVELOPMENT_SETUP.md) for general setup help.
+Or check [docs/setup/DEVELOPMENT_SETUP.md](./docs/setup/DEVELOPMENT_SETUP.md) for general setup help.
 
 ## 📄 License
 
