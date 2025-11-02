@@ -65,19 +65,35 @@ function extractOrderCandidate(text: string): string | null {
 export async function POST(req: NextRequest) {
   try {
     // Idempotency: prefer Message-ID header; fallback to HMAC of body
+    // Only use Upstash Redis in production/staging (not in local development)
+    // Development should use local Redis configured separately
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isStaging =
+      process.env.ENVIRONMENT === 'staging' || process.env.NODE_ENV === 'production';
+    const useUpstash = isProduction || isStaging;
+    
     let redis = null;
     const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
     const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
     
-    // Only initialize Redis if we have valid URLs (not placeholders)
-    if (redisUrl && redisToken && !redisUrl.includes('...') && redisUrl.startsWith('https://')) {
+    // Only initialize Upstash Redis in staging/production
+    if (
+      useUpstash &&
+      redisUrl &&
+      redisToken &&
+      !redisUrl.includes('...') &&
+      redisUrl.startsWith('https://')
+    ) {
       try {
         redis = new Redis({
           url: redisUrl,
           token: redisToken,
         });
       } catch (err) {
-        console.warn('[Email Webhook] Failed to initialize Redis, continuing without idempotency:', err);
+        console.warn(
+          '[Email Webhook] Failed to initialize Redis, continuing without idempotency:',
+          err,
+        );
         redis = null;
       }
     }

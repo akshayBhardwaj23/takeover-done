@@ -1,9 +1,20 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client (only if credentials are provided)
+// Only use Upstash Redis in production/staging environments
+// Development should use local Redis (configured via REDIS_URL for BullMQ)
+// This saves Upstash free tier quota (500K commands/month) for production use
+const isProduction = process.env.NODE_ENV === 'production';
+const isStaging =
+  process.env.ENVIRONMENT === 'staging' ||
+  process.env.NODE_ENV === 'production';
+const useUpstash = isProduction || isStaging;
+
+// Initialize Upstash Redis client (only in staging/production)
 const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  useUpstash &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
@@ -15,7 +26,7 @@ export const apiLimiter = redis
   ? new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(100, '1 m'),
-      analytics: true,
+      analytics: isProduction, // Only enable in production to save commands in dev
       prefix: 'ratelimit:api',
     })
   : null;
@@ -26,7 +37,7 @@ export const aiLimiter = redis
   ? new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(10, '1 m'),
-      analytics: true,
+      analytics: isProduction, // Only enable in production to save commands in dev
       prefix: 'ratelimit:ai',
     })
   : null;
@@ -36,7 +47,7 @@ export const emailLimiter = redis
   ? new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(20, '1 m'),
-      analytics: true,
+      analytics: isProduction, // Only enable in production to save commands in dev
       prefix: 'ratelimit:email',
     })
   : null;
@@ -46,7 +57,7 @@ export const webhookLimiter = redis
   ? new Ratelimit({
       redis,
       limiter: Ratelimit.slidingWindow(60, '1 m'),
-      analytics: true,
+      analytics: isProduction, // Only enable in production to save commands in dev
       prefix: 'ratelimit:webhook',
     })
   : null;
@@ -121,4 +132,3 @@ export async function checkRateLimit(
     return { success };
   }
 }
-

@@ -7,19 +7,34 @@ export async function POST(req: NextRequest) {
   // Idempotency: prevent replayed webhooks
   const webhookId = req.headers.get('x-shopify-webhook-id');
   
-  // Only initialize Redis if we have valid URLs (not placeholders)
+  // Only use Upstash Redis in production/staging (not in local development)
+  // Development should use local Redis configured separately
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isStaging =
+    process.env.ENVIRONMENT === 'staging' || process.env.NODE_ENV === 'production';
+  const useUpstash = isProduction || isStaging;
+  
   let redis = null;
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   
-  if (redisUrl && redisToken && !redisUrl.includes('...') && redisUrl.startsWith('https://')) {
+  if (
+    useUpstash &&
+    redisUrl &&
+    redisToken &&
+    !redisUrl.includes('...') &&
+    redisUrl.startsWith('https://')
+  ) {
     try {
       redis = new Redis({
         url: redisUrl,
         token: redisToken,
       });
     } catch (err) {
-      console.warn('[Shopify Webhook] Failed to initialize Redis, continuing without idempotency:', err);
+      console.warn(
+        '[Shopify Webhook] Failed to initialize Redis, continuing without idempotency:',
+        err,
+      );
       redis = null;
     }
   }

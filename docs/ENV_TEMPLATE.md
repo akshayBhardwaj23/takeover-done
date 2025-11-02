@@ -1,170 +1,287 @@
-# Environment Variables Template
+# Environment Variables Setup Guide
 
-## File Locations
+## 🎯 Strategy: Local Redis (Dev) + Upstash (Staging/Production)
 
-1. `/apps/web/.env.local` - Web app environment variables
-2. `/packages/db/.env` - Database connection for Prisma
+This guide helps you configure Redis correctly for each environment:
+- **Development**: Local Redis (free, fast, no quotas)
+- **Staging**: Upstash Redis (shared with production or separate)
+- **Production**: Upstash Redis (managed, reliable)
 
-## `/apps/web/.env.local`
+---
+
+## 📁 File Locations
+
+### Development (Local):
+- `apps/web/.env.local` - Web app environment variables
+- `apps/worker/.env` - Worker environment variables
+
+### Production/Staging:
+- Set in deployment platform (Vercel, Railway, etc.)
+- Never commit these files!
+
+---
+
+## 🔧 Development Setup (Local Redis)
+
+### Step 1: Install Local Redis
+
+**macOS:**
+```bash
+brew install redis
+brew services start redis
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt-get update
+sudo apt-get install redis-server
+sudo systemctl start redis
+```
+
+**Verify:**
+```bash
+redis-cli ping
+# Should return: PONG
+```
+
+### Step 2: Configure Web App (`apps/web/.env.local`)
 
 ```bash
 # ============================================
-# DATABASE (SHARED - get from team lead)
+# DEVELOPMENT: Local Redis (NO Upstash)
 # ============================================
-DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require&pgbouncer=true&connection_limit=1"
+
+# Local Redis (for BullMQ worker and rate limiting fallback)
+REDIS_URL=redis://localhost:6379
+
+# Remove or comment out Upstash variables in development
+# UPSTASH_REDIS_REST_URL=
+# UPSTASH_REDIS_REST_TOKEN=
+
+# Node environment
+NODE_ENV=development
 
 # ============================================
-# NEXTAUTH
+# Database
 # ============================================
-# SHARED: Same secret for all developers
-NEXTAUTH_SECRET="your-secret-key-here"
-
-# INDIVIDUAL: Your own subdomain
-NEXTAUTH_URL="https://yourname.zyyp.ai"
+DATABASE_URL=postgresql://...
 
 # ============================================
-# GOOGLE OAUTH (SHARED - get from team lead)
+# Auth
 # ============================================
-GOOGLE_CLIENT_ID="xxxxx.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECRET="GOCSPX-xxxxx"
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-here
 
 # ============================================
-# SHOPIFY (SHARED - get from team lead)
+# OpenAI
 # ============================================
-SHOPIFY_CLIENT_ID="xxxxx"
-SHOPIFY_CLIENT_SECRET="xxxxx"
-SHOPIFY_WEBHOOK_SECRET="xxxxx"
-
-# INDIVIDUAL: Your own subdomain (same as NEXTAUTH_URL)
-SHOPIFY_APP_URL="https://yourname.zyyp.ai"
+OPENAI_API_KEY=sk-proj-...
 
 # ============================================
-# MAILGUN (SHARED - get from team lead)
+# Other services
 # ============================================
-MAILGUN_API_KEY="xxxxx"
-MAILGUN_SIGNING_KEY="xxxxx"
-MAILGUN_DOMAIN="mg.yourdomain.com"
-
-# ============================================
-# OPENAI (SHARED - get from team lead)
-# ============================================
-OPENAI_API_KEY="sk-xxxxx"
-
-# ============================================
-# REDIS (Optional - for background jobs)
-# ============================================
-REDIS_URL="redis://localhost:6379"
-# Or use Upstash for cloud Redis:
-# REDIS_URL="rediss://:password@host:port"
-
-# ============================================
-# SENTRY (Production Error Monitoring)
-# ============================================
-NEXT_PUBLIC_SENTRY_DSN="https://xxxxx@xxxxx.ingest.sentry.io/xxxxx"
-
-# ============================================
-# FEATURE FLAGS (Optional)
-# ============================================
-PROTECTED_WEBHOOKS=true
-MOCK_WEBHOOKS=false
-NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN="mg.yourdomain.com"
+SHOPIFY_API_KEY=...
+SHOPIFY_CLIENT_SECRET=...
+MAILGUN_API_KEY=...
+# ... other vars
 ```
 
-## `/packages/db/.env`
+### Step 3: Configure Worker (`apps/worker/.env`)
 
 ```bash
-# Same DATABASE_URL as in apps/web/.env.local
-DATABASE_URL="postgresql://user:password@host:5432/database?sslmode=require&pgbouncer=true&connection_limit=1"
+# ============================================
+# DEVELOPMENT: Local Redis
+# ============================================
+
+# Local Redis for BullMQ queues
+REDIS_URL=redis://localhost:6379
+
+# ============================================
+# Database
+# ============================================
+DATABASE_URL=postgresql://...
+
+# ============================================
+# OpenAI (for AI suggestions)
+# ============================================
+OPENAI_API_KEY=sk-proj-...
 ```
 
-## Getting the Values
+---
 
-### Shared Values (Ask Team Lead)
+## 🚀 Staging Setup (Upstash Redis)
 
-- `DATABASE_URL` - Supabase or PostgreSQL connection string
-- `NEXTAUTH_SECRET` - Random secret for session encryption
-- `GOOGLE_CLIENT_ID` & `GOOGLE_CLIENT_SECRET` - From Google Cloud Console
-- `SHOPIFY_CLIENT_ID` & `SHOPIFY_CLIENT_SECRET` - From Shopify Partner Dashboard
-- `SHOPIFY_WEBHOOK_SECRET` - From Shopify app settings
-- `MAILGUN_API_KEY`, `MAILGUN_SIGNING_KEY`, `MAILGUN_DOMAIN` - From Mailgun dashboard
-- `OPENAI_API_KEY` - From OpenAI platform
-- `NEXT_PUBLIC_SENTRY_DSN` - From Sentry project settings (only needed for production)
+### Step 1: Create/Use Upstash Redis Instance
 
-### Individual Values (You Set)
+1. Go to [Upstash Console](https://console.upstash.com/)
+2. Create or use existing Redis database
+3. Copy connection details:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+   - `REDIS_URL` (TCP connection string)
 
-- `NEXTAUTH_URL` - Your Cloudflare tunnel URL (e.g., `https://john.zyyp.ai`)
-- `SHOPIFY_APP_URL` - Same as your `NEXTAUTH_URL`
+### Step 2: Set Environment Variables (Vercel/Railway)
 
-## Quick Setup
-
+**In Vercel (Staging/Preview):**
 ```bash
-# 1. Create the env files
-touch apps/web/.env.local
-touch packages/db/.env
+# Environment: Preview (staging)
 
-# 2. Copy the template above into each file
-# 3. Ask your team lead for the SHARED values
-# 4. Set your INDIVIDUAL values (your subdomain)
-# 5. Save and restart your dev server
+# Upstash Redis
+REDIS_URL=rediss://default:...@factual-osprey-17727.upstash.io:6379
+UPSTASH_REDIS_REST_URL=https://factual-osprey-17727.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AX...
+
+# Environment
+NODE_ENV=production  # or staging
+ENVIRONMENT=staging
+
+# Database
+DATABASE_URL=postgresql://...
+
+# ... other vars
 ```
 
-## Verification
-
-Test your environment setup:
-
+**In Railway (Staging Worker):**
 ```bash
-# Test database connection
-cd packages/db
-pnpm prisma studio
-# Should open a browser with your database
+# Environment: Staging
 
-# Test web app
-cd apps/web
-pnpm dev
-# Should start without errors
+# Upstash Redis
+REDIS_URL=rediss://default:...@factual-osprey-17727.upstash.io:6379
 
-# Test public access
-curl https://yourname.zyyp.ai
-# Should return HTML (not connection error)
+# Environment
+NODE_ENV=production  # or staging
+ENVIRONMENT=staging
+
+# Database
+DATABASE_URL=postgresql://...
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-...
 ```
 
-## Troubleshooting
+---
 
-### "DATABASE_URL is not defined"
+## 🎯 Production Setup (Upstash Redis)
 
-- Check that `DATABASE_URL` exists in both files
-- Verify no typos in the variable name
-- Restart your terminal/IDE
+### Step 1: Use Same Upstash Instance (or Separate)
 
-### "Invalid DATABASE_URL"
+**Option A: Same Upstash for Staging + Production**
+- Use different queue prefixes to avoid conflicts
+- More cost-effective
 
-- Check the connection string format
-- Verify credentials are correct
-- Test connection with `psql` or a database client
+**Option B: Separate Upstash Instance**
+- Better isolation
+- Easier to debug
 
-### "NextAuth configuration error"
+### Step 2: Set Environment Variables
 
-- Verify `NEXTAUTH_URL` matches your tunnel URL
-- Check `NEXTAUTH_SECRET` is set (any random string works)
-- Ensure `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set
+**In Vercel (Production):**
+```bash
+# Environment: Production
 
-### "Shopify OAuth fails"
+# Upstash Redis
+REDIS_URL=rediss://default:...@factual-osprey-17727.upstash.io:6379
+UPSTASH_REDIS_REST_URL=https://factual-osprey-17727.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AX...
 
-- Verify `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET`
-- Check `SHOPIFY_APP_URL` matches your tunnel URL
-- Ensure your tunnel is running
+# Environment
+NODE_ENV=production
+ENVIRONMENT=production
 
-## Security Notes
+# Database
+DATABASE_URL=postgresql://...
 
-1. **Never commit `.env.local` or `.env` files to Git**
-2. **Never share credentials in public channels**
-3. **Use a password manager to share credentials securely**
-4. **Rotate secrets if they're accidentally exposed**
+# ... other vars
+```
 
-## Production Environment
+**In Railway (Production Worker):**
+```bash
+# Environment: Production
 
-For production deployment, set these environment variables in your hosting platform (Vercel, Railway, etc.). The values will be different from development:
+# Upstash Redis
+REDIS_URL=rediss://default:...@factual-osprey-17727.upstash.io:6379
 
-- `NEXTAUTH_URL` → Your production domain (e.g., `https://app.yourdomain.com`)
-- `DATABASE_URL` → Production database connection string
-- All API keys should be production keys, not test/development keys
+# Environment
+NODE_ENV=production
+ENVIRONMENT=production
+
+# Database
+DATABASE_URL=postgresql://...
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-...
+```
+
+---
+
+## ✅ Verification
+
+### Check Which Redis You're Using:
+
+**In Development (should see):**
+```bash
+# Terminal output when starting app:
+[Redis] Connected successfully  # Local Redis
+# OR
+Rate limiting using in-memory fallback  # If Upstash vars not set
+```
+
+**In Production/Staging (should see):**
+```bash
+[Redis] Connected successfully  # Upstash Redis
+Rate limiting using Upstash Ratelimit  # Analytics enabled
+```
+
+---
+
+## 🔍 Environment Detection Logic
+
+The app automatically detects environment:
+
+```typescript
+// In apps/web/lib/rate-limit.ts
+const isProduction = process.env.NODE_ENV === 'production';
+const isStaging = process.env.ENVIRONMENT === 'staging' || 
+                  process.env.NODE_ENV === 'production';
+
+// Only use Upstash in production/staging
+const useUpstash = isProduction || isStaging;
+
+const redis = useUpstash &&
+  process.env.UPSTASH_REDIS_REST_URL &&
+  process.env.UPSTASH_REDIS_REST_TOKEN
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
+  : null;
+```
+
+---
+
+## 📝 Quick Reference
+
+| Environment | Redis | REDIS_URL | UPSTASH vars | Rate Limiting |
+|-------------|-------|-----------|--------------|---------------|
+| **Development** | Local | `redis://localhost:6379` | ❌ Not set | In-memory fallback |
+| **Staging** | Upstash | `rediss://...upstash.io:6379` | ✅ Set | Upstash Ratelimit |
+| **Production** | Upstash | `rediss://...upstash.io:6379` | ✅ Set | Upstash Ratelimit (analytics) |
+
+---
+
+## 🚨 Important Notes
+
+1. **Never commit `.env.local` or `.env` files** - They're in `.gitignore`
+2. **Development**: Local Redis = **0 commands** to Upstash ✅
+3. **Staging/Production**: Upstash = **shared quota** (500K/month free tier)
+4. **Worker always uses `REDIS_URL`** - Make sure it points to correct Redis
+5. **Rate limiting** uses Upstash REST API only in production/staging
+
+---
+
+## 🎯 Summary
+
+- ✅ **Dev**: Local Redis → 0 Upstash commands
+- ✅ **Staging**: Upstash → ~50K commands/month
+- ✅ **Production**: Upstash → ~200K commands/month
+- ✅ **Total**: ~250K/month → **Well within 500K free tier!** 🎉
