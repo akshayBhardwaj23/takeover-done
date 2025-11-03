@@ -4,6 +4,9 @@ node_modules
 .next
 dist
 
+# TypeScript
+*.tsbuildinfo
+
 # Env
 .env
 .env.*
