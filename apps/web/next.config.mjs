@@ -17,7 +17,7 @@ const nextConfig = {
   experimental: {
     typedRoutes: true,
   },
-  transpilePackages: ['@ai-ecom/api', '@ai-ecom/db'],
+  transpilePackages: ['@ai-ecom/api', '@ai-ecom/db', '@ai-ecom/worker'],
   // Allow dev assets to be requested from the tunnel origin
   allowedDevOrigins: [
     process.env.SHOPIFY_APP_URL || 'http://localhost:3000',
@@ -36,18 +36,18 @@ const nextConfig = {
 export default withSentryConfig(nextConfig, {
   org: 'zyyp-ai',
   project: 'ai-ecom-tool',
-  
+
   silent: !process.env.CI,
-  
+
   // Hides source maps from generated client bundles
   hideSourceMaps: true,
-  
+
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   disableLogger: true,
-  
+
   // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers
   tunnelRoute: '/monitoring',
-  
+
   // Enables automatic instrumentation of Vercel Cron Monitors
   automaticVercelMonitors: true,
 });
