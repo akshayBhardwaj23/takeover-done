@@ -17,7 +17,24 @@ const nextConfig = {
   experimental: {
     typedRoutes: true,
   },
-  transpilePackages: ['@ai-ecom/api', '@ai-ecom/db', '@ai-ecom/worker'],
+  transpilePackages: [
+    '@ai-ecom/api',
+    '@ai-ecom/api-components',
+    '@ai-ecom/db',
+    '@ai-ecom/worker',
+  ],
+  webpack: (config, { isServer }) => {
+    // Ensure dependencies from transpiled workspace packages resolve correctly
+    // This fixes issues where Radix UI packages aren't found during transpilation
+    if (!isServer) {
+      // For client-side builds, ensure dependencies resolve from root node_modules
+      config.resolve.modules = [
+        'node_modules',
+        ...(config.resolve.modules || []),
+      ];
+    }
+    return config;
+  },
   typescript: {
     // Disable TypeScript errors during build (allows build to succeed with type errors)
     ignoreBuildErrors: true,
