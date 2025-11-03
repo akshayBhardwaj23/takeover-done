@@ -281,7 +281,7 @@ export default function UsagePage() {
             </div>
             {history.data?.history && history.data.history.length > 0 ? (
               <div className="space-y-4">
-                {history.data.history.map((record, idx) => {
+                {history.data.history.map((record: { periodStart: string; periodEnd: string; emailsSent: number; emailsReceived: number; aiSuggestions: number }, idx) => {
                   const periodStart = new Date(record.periodStart);
                   const periodEnd = new Date(record.periodEnd);
                   return (
