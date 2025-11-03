@@ -9,12 +9,45 @@
 ## 🎯 Overview
 
 **What we're setting up:**
+
 - ✅ Staging web app on Vercel (FREE - preview deployment)
 - ✅ Staging worker on Railway (~$5/month)
 - ✅ Staging database on Supabase (free tier available)
 - ✅ Redis on Upstash (free tier available)
 - ✅ Staging Shopify test app
 - ✅ Staging Mailgun configuration
+
+## 🌳 Branch Strategy (IMPORTANT!)
+
+**Recommended: Two Branches**
+
+- ✅ **`main` branch** → Production (live for users)
+  - Auto-deploys to production URL
+  - Uses Production environment variables
+- ✅ **`staging` branch** → Staging (for testing)
+  - Auto-deploys to preview URL
+  - Uses Preview environment variables
+
+**How it works:**
+
+1. Vercel connects to your repo and uses `main` as Production Branch
+2. You create a `staging` branch
+3. When you push to `main` → Production deployment
+4. When you push to `staging` → Preview deployment (staging)
+5. Environment variables are set separately for Production vs Preview
+
+**Why this is better:**
+
+- ✅ Same codebase, different environments
+- ✅ Test changes in staging before merging to `main`
+- ✅ Production stays stable while you test
+- ✅ Automatic deployments for both
+
+**Alternative (Not Recommended):** Using `main` for both staging and production would require:
+
+- Two separate Vercel projects (complex)
+- Manual switching between environments (error-prone)
+- No easy way to test before production
 
 ---
 
@@ -37,6 +70,14 @@ Before starting, make sure you have:
 
 ## Step 1: Create Staging Branch
 
+**Why separate branches?**
+
+- `main` branch → Production deployments (live for users)
+- `staging` branch → Preview deployments (for testing)
+- Vercel automatically handles this with branch-based deployments
+
+**Create staging branch:**
+
 ```bash
 # In your project root
 git checkout -b staging
@@ -44,8 +85,9 @@ git push origin staging
 ```
 
 **Verify:**
+
 - Check GitHub - you should see a `staging` branch
-- This branch will auto-deploy on Vercel
+- This branch will auto-deploy on Vercel as a Preview deployment
 
 ---
 
@@ -123,18 +165,21 @@ pnpm prisma studio
 ### 3.2 Get Connection Details
 
 1. Once created, you'll see three important values:
-   
+
    **REST URL:**
+
    ```
    https://[endpoint].upstash.io
    ```
-   
+
    **REST Token:**
+
    ```
    AXxxxxxxxxxxxxx
    ```
-   
+
    **Redis URL (TCP):**
+
    ```
    rediss://default:[token]@[endpoint].upstash.io:6379
    ```
@@ -167,7 +212,7 @@ If you don't have `redis-cli` installed, that's okay - we'll verify later throug
 1. **Project Name:** `ai-ecom-staging` (or any name you prefer)
 2. **Framework Preset:** Next.js (auto-detected)
 3. **Root Directory:** Click "Edit" and set to `apps/web`
-4. **Build Command:** 
+4. **Build Command:**
    ```
    cd ../.. && pnpm install && pnpm build --filter @ai-ecom/web
    ```
@@ -228,15 +273,33 @@ SENTRY_DSN=[YOUR_SENTRY_DSN]
 ```
 
 **Important:**
+
 - Set environment to **Preview** (not Production!)
 - You can update Shopify and Mailgun values later
 
-### 4.4 Configure Branch Settings
+### 4.4 Configure Branch Settings (IMPORTANT!)
 
-1. In project settings, go to **Git**
-2. **Production Branch:** `main` (we're setting up staging first)
+**How Vercel handles branches:**
+
+1. Go to **Settings** → **Git** in your Vercel project
+2. **Production Branch:** Set to `main`
+   - ✅ Deployments from `main` = Production (live, uses Production env vars)
+   - ✅ Deployments from `staging` = Preview (testing, uses Preview env vars)
+   - ✅ Deployments from other branches = Preview (also uses Preview env vars)
+
 3. **Preview Branches:** Enable automatic deployments
-4. All branches except `main` will deploy as previews
+   - This means any push to `staging` will auto-deploy as Preview
+   - Your `main` branch stays as Production
+
+**Key Point:** You configure environment variables separately for:
+
+- **Production** environment (for `main` branch)
+- **Preview** environment (for `staging` and other branches)
+
+When you add env vars in Vercel, select the environment:
+
+- Use **Preview** environment for staging env vars
+- Use **Production** environment for production env vars
 
 ### 4.5 Deploy
 
@@ -288,11 +351,13 @@ After deployment, you'll have your staging URL. Update these variables:
 3. Configure:
 
    **Build Command:**
+
    ```
    cd ../.. && pnpm install && pnpm build --filter @ai-ecom/worker
    ```
-   
+
    **Start Command:**
+
    ```
    node dist/index.js
    ```
@@ -333,6 +398,7 @@ PROTECTED_WEBHOOKS=true
    ```
 
 If you see errors, check:
+
 - Environment variables are correct
 - Redis URL is valid
 - Database URL is valid
@@ -428,6 +494,7 @@ You can skip this initially and set it up later. Here's the quick setup:
 ### 7.4 Update Vercel Variables
 
 Add to Vercel environment variables:
+
 ```bash
 MAILGUN_API_KEY=key-[YOUR_KEY]
 MAILGUN_DOMAIN=staging.your-domain.com
@@ -444,19 +511,23 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### 8.1 Basic Health Checks
 
 **Web App:**
+
 - [ ] Visit staging URL: `https://staging-[your-project].vercel.app`
 - [ ] Page loads without errors
 - [ ] Check browser console for errors
 
 **Worker:**
+
 - [ ] Check Railway logs - should show "Worker started"
 - [ ] Check Railway logs - should show "Connected to Redis"
 
 **Database:**
+
 - [ ] Verify Prisma Studio can connect
 - [ ] Or query database directly in Supabase dashboard
 
 **Redis:**
+
 - [ ] Check Upstash dashboard - should show connection activity
 
 ### 8.2 Test Shopify Integration
@@ -492,6 +563,7 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### Complete End-to-End Test
 
 **Full Flow Test:**
+
 1. ✅ Install Shopify app in staging
 2. ✅ Create test order in Shopify
 3. ✅ Verify webhook received (check Vercel logs)
@@ -506,18 +578,22 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### Monitoring Setup
 
 **Vercel:**
+
 - Check **Analytics** tab for errors
 - Monitor function invocations
 
 **Railway:**
+
 - Check **Metrics** for CPU/memory
 - Monitor **Logs** for errors
 
 **Supabase:**
+
 - Check **Database** → **Usage** for connections
 - Monitor query performance
 
 **Upstash:**
+
 - Check **Monitoring** for command count
 - Verify within free tier limits
 
@@ -526,6 +602,7 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ## 🎉 Staging Environment Complete!
 
 **You now have:**
+
 - ✅ Staging web app on Vercel (FREE)
 - ✅ Staging worker on Railway (~$5/month)
 - ✅ Staging database on Supabase (FREE tier)
@@ -534,6 +611,7 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 - ✅ (Optional) Mailgun configured
 
 **Next Steps:**
+
 1. Continue testing in staging
 2. When ready, follow production deployment guide
 3. Use staging to test all features before production
@@ -545,22 +623,26 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### Issue: Vercel Build Fails
 
 **Check:**
+
 - Root directory is `apps/web`
 - Build command is correct
 - All dependencies in `package.json`
 
 **Fix:**
+
 - Check build logs in Vercel dashboard
 - Verify `transpilePackages` in `next.config.mjs`
 
 ### Issue: Worker Not Starting
 
 **Check:**
+
 - Railway logs for errors
 - Environment variables are set
 - Redis URL is correct
 
 **Fix:**
+
 - Verify `REDIS_URL` format: `rediss://default:...`
 - Check Railway service settings
 - Verify build completed successfully
@@ -568,11 +650,13 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### Issue: Database Connection Fails
 
 **Check:**
+
 - Connection string format
 - Using pooler URL (port 6543) for Vercel
 - Password is correct
 
 **Fix:**
+
 - Use connection pooler URL for Vercel
 - Verify in Supabase dashboard that project is active
 - Check IP allowlist (should allow all for pooler)
@@ -580,11 +664,13 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ### Issue: Shopify OAuth Fails
 
 **Check:**
+
 - `SHOPIFY_APP_URL` matches actual Vercel URL
 - Callback URL matches in Shopify dashboard
 - API credentials are correct
 
 **Fix:**
+
 - Update `SHOPIFY_APP_URL` in Vercel with actual URL
 - Verify redirect URL in Shopify matches exactly
 
@@ -597,4 +683,3 @@ MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 - Railway Support: [railway.app/support](https://railway.app/support)
 
 **You're all set with staging! 🚀**
-

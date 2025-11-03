@@ -36,7 +36,10 @@ function ShopifyAnalyticsInner() {
 
   // Auto-select first store if none selected
   if (!selectedShop && shopifyStores.length > 0) {
-    setSelectedShop(shopifyStores[0].shopDomain);
+    const firstStoreDomain = shopifyStores[0].shopDomain;
+    if (firstStoreDomain) {
+      setSelectedShop(firstStoreDomain);
+    }
   }
 
   if (!selectedShop) {

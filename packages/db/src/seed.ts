@@ -7,6 +7,20 @@ async function main() {
     update: {},
   });
 
+  const connection = await prisma.connection.upsert({
+    where: {
+      id: 'test-connection-1',
+    },
+    create: {
+      id: 'test-connection-1',
+      type: 'SHOPIFY',
+      accessToken: 'test-token',
+      userId: user.id,
+      shopDomain: 'test-shop.myshopify.com',
+    },
+    update: {},
+  });
+
   await prisma.order.upsert({
     where: { shopifyId: 'test-order-1' },
     create: {
@@ -14,6 +28,7 @@ async function main() {
       status: 'UNFULFILLED',
       email: 'customer@example.com',
       totalAmount: 1999,
+      connectionId: connection.id,
     },
     update: {},
   });
@@ -30,5 +45,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-
-

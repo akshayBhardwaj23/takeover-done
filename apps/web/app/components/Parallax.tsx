@@ -12,10 +12,14 @@ export default function Parallax({ children, speed = 0.4 }: Props) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+
+    // Store el in a const so TypeScript knows it's non-null in closures
+    const element: HTMLDivElement = el;
+
     function onScroll() {
-      const rect = el.getBoundingClientRect();
+      const rect = element.getBoundingClientRect();
       const offset = rect.top - window.innerHeight / 2;
-      el.style.transform = `translateY(${offset * speed * -0.1}px)`;
+      element.style.transform = `translateY(${offset * speed * -0.1}px)`;
     }
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -27,5 +31,3 @@ export default function Parallax({ children, speed = 0.4 }: Props) {
     </div>
   );
 }
-
-

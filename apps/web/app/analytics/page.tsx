@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
     {
       title: 'Avg Response Time',
       value:
-        stats.averageResponseTime > 0
+        stats.averageResponseTime != null && stats.averageResponseTime > 0
           ? stats.averageResponseTime < 60
             ? `${stats.averageResponseTime}m`
             : `${(stats.averageResponseTime / 60).toFixed(1)}h`
