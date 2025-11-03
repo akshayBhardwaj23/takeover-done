@@ -1,0 +1,600 @@
+# Staging Environment Setup Guide (Vercel Free + Railway)
+
+**Goal:** Set up a complete staging environment for testing before production  
+**Timeline:** 2-3 hours  
+**Cost:** ~$5-10/month (Railway worker only, Vercel is free for staging)
+
+---
+
+## 🎯 Overview
+
+**What we're setting up:**
+- ✅ Staging web app on Vercel (FREE - preview deployment)
+- ✅ Staging worker on Railway (~$5/month)
+- ✅ Staging database on Supabase (free tier available)
+- ✅ Redis on Upstash (free tier available)
+- ✅ Staging Shopify test app
+- ✅ Staging Mailgun configuration
+
+---
+
+## 📋 Pre-Flight Checklist
+
+Before starting, make sure you have:
+
+- [ ] GitHub repository with code pushed
+- [ ] A `staging` branch created (or we'll create it)
+- [ ] All required accounts ready:
+  - [ ] Vercel account (free tier works!)
+  - [ ] Railway account
+  - [ ] Supabase account
+  - [ ] Upstash account
+  - [ ] Shopify Partners account
+  - [ ] Mailgun account
+- [ ] Password manager ready to store credentials
+
+---
+
+## Step 1: Create Staging Branch
+
+```bash
+# In your project root
+git checkout -b staging
+git push origin staging
+```
+
+**Verify:**
+- Check GitHub - you should see a `staging` branch
+- This branch will auto-deploy on Vercel
+
+---
+
+## Step 2: Set Up Staging Database (Supabase)
+
+### 2.1 Create Supabase Project
+
+1. Go to [Supabase Dashboard](https://app.supabase.com/)
+2. Click **New Project**
+3. Fill in:
+   - **Name:** `ai-ecom-staging`
+   - **Database Password:** Generate a strong password (SAVE THIS!)
+   - **Region:** Choose closest to you
+   - Click **Create new project**
+   - Wait 2-3 minutes for setup
+
+### 2.2 Get Connection String
+
+1. Once project is ready, go to **Settings** → **Database**
+2. Scroll to **Connection string**
+3. Select **URI** tab
+4. Copy the connection string (looks like):
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+   ```
+5. **IMPORTANT:** Replace `[YOUR-PASSWORD]` with your actual password
+6. For Vercel serverless, use the **Connection Pooler** instead:
+   - Select **Connection pooling** tab
+   - Choose **Session mode**
+   - Copy the connection string (port 6543):
+     ```
+     postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+     ```
+   - Or use URI format:
+     ```
+     postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+     ```
+
+**Save this connection string!** You'll need it as `DATABASE_URL` for staging.
+
+### 2.3 Run Migrations
+
+```bash
+# Set staging database URL
+export DATABASE_URL="postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+
+# Navigate to project root
+cd /Users/akshaybhardwaj/Desktop/Projects/ai-ecom-tool
+
+# Run migrations
+pnpm db:migrate
+
+# Verify (optional - opens Prisma Studio)
+cd packages/db
+pnpm prisma studio
+# Should open browser and show your database tables
+```
+
+**Expected output:** Migrations should run successfully and create all tables.
+
+---
+
+## Step 3: Set Up Staging Redis (Upstash)
+
+### 3.1 Create Upstash Redis Database
+
+1. Go to [Upstash Console](https://console.upstash.com/)
+2. Click **Create Database**
+3. Configure:
+   - **Name:** `ai-ecom-redis-staging` (or `ai-ecom-redis` if sharing with production)
+   - **Type:** Regional (choose closest region)
+   - **Region:** Select closest to you
+   - Click **Create**
+
+### 3.2 Get Connection Details
+
+1. Once created, you'll see three important values:
+   
+   **REST URL:**
+   ```
+   https://[endpoint].upstash.io
+   ```
+   
+   **REST Token:**
+   ```
+   AXxxxxxxxxxxxxx
+   ```
+   
+   **Redis URL (TCP):**
+   ```
+   rediss://default:[token]@[endpoint].upstash.io:6379
+   ```
+
+2. **Save all three values!** You'll need them.
+
+### 3.3 Verify Connection (Optional)
+
+```bash
+# Test Redis connection
+redis-cli -u "rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379" ping
+# Should return: PONG
+```
+
+If you don't have `redis-cli` installed, that's okay - we'll verify later through the app.
+
+---
+
+## Step 4: Deploy Staging Web App (Vercel)
+
+### 4.1 Connect Repository to Vercel
+
+1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
+2. Click **Add New...** → **Project**
+3. Import your GitHub repository
+4. Authorize Vercel to access your GitHub if needed
+
+### 4.2 Configure Project Settings
+
+1. **Project Name:** `ai-ecom-staging` (or any name you prefer)
+2. **Framework Preset:** Next.js (auto-detected)
+3. **Root Directory:** Click "Edit" and set to `apps/web`
+4. **Build Command:** 
+   ```
+   cd ../.. && pnpm install && pnpm build --filter @ai-ecom/web
+   ```
+5. **Output Directory:** `.next` (auto-detected, but verify)
+6. **Install Command:**
+   ```
+   cd ../.. && pnpm install
+   ```
+
+### 4.3 Configure Environment Variables
+
+**Before deploying, add environment variables:**
+
+1. Click **Environment Variables** in the configuration screen
+2. Add each variable below (we'll get some values in later steps):
+
+```bash
+# Environment
+NODE_ENV=production
+ENVIRONMENT=staging
+NEXTAUTH_URL=https://staging-[your-project].vercel.app
+
+# Database (from Step 2)
+DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+
+# Redis (from Step 3)
+REDIS_URL=rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379
+UPSTASH_REDIS_REST_URL=https://[ENDPOINT].upstash.io
+UPSTASH_REDIS_REST_TOKEN=AX[TOKEN]
+
+# Auth (generate secrets)
+NEXTAUTH_SECRET=[GENERATE: openssl rand -base64 32]
+GOOGLE_CLIENT_ID=[YOUR_GOOGLE_CLIENT_ID]
+GOOGLE_CLIENT_SECRET=[YOUR_GOOGLE_CLIENT_SECRET]
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-[YOUR_KEY]
+
+# Shopify (we'll set this up in Step 6 - use placeholder for now)
+SHOPIFY_API_KEY=[PLACEHOLDER]
+SHOPIFY_API_SECRET=[PLACEHOLDER]
+SHOPIFY_APP_URL=https://staging-[your-project].vercel.app
+SHOPIFY_SCOPES=read_orders,write_orders,read_products
+SHOPIFY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
+
+# Mailgun (we'll set this up in Step 7 - use placeholder for now)
+MAILGUN_API_KEY=[PLACEHOLDER]
+MAILGUN_DOMAIN=[PLACEHOLDER]
+MAILGUN_FROM_EMAIL=[PLACEHOLDER]
+MAILGUN_SIGNING_KEY=[PLACEHOLDER]
+
+# Feature Flags
+PROTECTED_WEBHOOKS=true
+MOCK_WEBHOOKS=false
+
+# Sentry (optional for staging)
+SENTRY_DSN=[YOUR_SENTRY_DSN]
+```
+
+**Important:**
+- Set environment to **Preview** (not Production!)
+- You can update Shopify and Mailgun values later
+
+### 4.4 Configure Branch Settings
+
+1. In project settings, go to **Git**
+2. **Production Branch:** `main` (we're setting up staging first)
+3. **Preview Branches:** Enable automatic deployments
+4. All branches except `main` will deploy as previews
+
+### 4.5 Deploy
+
+1. Click **Deploy**
+2. Vercel will:
+   - Install dependencies
+   - Build the project
+   - Deploy to a preview URL
+3. Wait for deployment to complete (2-5 minutes)
+4. Once done, note your staging URL: `https://staging-[your-project].vercel.app`
+
+**Update `NEXTAUTH_URL` and `SHOPIFY_APP_URL` with the actual URL after deployment!**
+
+### 4.6 Update Environment Variables
+
+After deployment, you'll have your staging URL. Update these variables:
+
+1. Go to **Settings** → **Environment Variables**
+2. Update:
+   - `NEXTAUTH_URL` → Your actual staging URL
+   - `SHOPIFY_APP_URL` → Your actual staging URL
+3. Redeploy (or it will auto-redeploy)
+
+---
+
+## Step 5: Deploy Staging Worker (Railway)
+
+### 5.1 Create Railway Project
+
+1. Go to [Railway Dashboard](https://railway.app/dashboard)
+2. Click **New Project**
+3. Select **Deploy from GitHub repo**
+4. Authorize Railway to access your GitHub
+5. Select your repository
+
+### 5.2 Create Worker Service
+
+1. In your Railway project, click **+ New**
+2. Select **GitHub Repo** (your repo should already be connected)
+3. **Configure Service:**
+   - **Source:** Your GitHub repo
+   - **Branch:** `staging`
+   - **Root Directory:** `apps/worker`
+
+### 5.3 Configure Build Settings
+
+1. Click on the service you just created
+2. Go to **Settings** tab
+3. Configure:
+
+   **Build Command:**
+   ```
+   cd ../.. && pnpm install && pnpm build --filter @ai-ecom/worker
+   ```
+   
+   **Start Command:**
+   ```
+   node dist/index.js
+   ```
+
+### 5.4 Add Environment Variables
+
+Go to **Variables** tab and add:
+
+```bash
+# Environment
+NODE_ENV=production
+ENVIRONMENT=staging
+
+# Database (same as Vercel staging)
+DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
+
+# Redis (same as Vercel staging)
+REDIS_URL=rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379
+UPSTASH_REDIS_REST_URL=https://[ENDPOINT].upstash.io
+UPSTASH_REDIS_REST_TOKEN=AX[TOKEN]
+
+# OpenAI
+OPENAI_API_KEY=sk-proj-[YOUR_KEY]
+
+# Feature Flags
+PROTECTED_WEBHOOKS=true
+```
+
+### 5.5 Deploy Worker
+
+1. Railway will automatically detect changes and deploy
+2. Go to **Deployments** tab to see build progress
+3. Once deployed, check **Logs** tab
+4. **Verify logs show:**
+   ```
+   Worker started successfully
+   Connected to Redis
+   ```
+
+If you see errors, check:
+- Environment variables are correct
+- Redis URL is valid
+- Database URL is valid
+
+---
+
+## Step 6: Set Up Staging Shopify App
+
+### 6.1 Create Test App in Shopify Partners
+
+1. Go to [Shopify Partners Dashboard](https://partners.shopify.com/)
+2. Click **Apps** → **Create app**
+3. Choose **Custom app** (for testing)
+4. **App name:** `AI E-Commerce Tool (Staging)`
+5. **App URL:** `https://staging-[your-project].vercel.app`
+6. **Allowed redirection URL(s):**
+   ```
+   https://staging-[your-project].vercel.app/api/shopify/callback
+   ```
+
+### 6.2 Configure API Credentials
+
+1. Go to **API credentials** tab
+2. Note your:
+   - **Client ID** → This is your `SHOPIFY_API_KEY`
+   - **Client secret** → This is your `SHOPIFY_API_SECRET`
+3. **Generate webhook secret:**
+   ```bash
+   openssl rand -hex 32
+   ```
+   Save this as `SHOPIFY_WEBHOOK_SECRET`
+
+### 6.3 Configure Scopes
+
+1. Go to **Configuration** tab
+2. Under **API scopes**, select:
+   - `read_orders`
+   - `write_orders`
+   - `read_products`
+   - (Add more if needed)
+
+### 6.4 Update Vercel Environment Variables
+
+1. Go back to Vercel → Your project → **Settings** → **Environment Variables**
+2. Update:
+   - `SHOPIFY_API_KEY` → Client ID from Shopify
+   - `SHOPIFY_API_SECRET` → Client secret from Shopify
+   - `SHOPIFY_WEBHOOK_SECRET` → Generated secret
+   - `SHOPIFY_APP_URL` → Should already be set
+3. Redeploy (or wait for auto-redeploy)
+
+### 6.5 Test Shopify Installation
+
+1. Go to your staging URL: `https://staging-[your-project].vercel.app`
+2. Navigate to `/integrations`
+3. Click "Connect Shopify"
+4. Enter a test shop domain: `your-test-shop.myshopify.com`
+5. Complete OAuth flow
+6. **Verify:**
+   - Redirects back to `/integrations?connected=1`
+   - Check database - should see connection record
+   - Webhooks should auto-register
+
+---
+
+## Step 7: Set Up Staging Mailgun (Optional for Now)
+
+You can skip this initially and set it up later. Here's the quick setup:
+
+### 7.1 Add Domain to Mailgun
+
+1. Go to [Mailgun Dashboard](https://app.mailgun.com/)
+2. **Sending** → **Domains** → **Add New Domain**
+3. Add your domain or subdomain: `staging.your-domain.com`
+4. Follow DNS setup instructions (add DNS records)
+5. Wait for verification (24-48 hours)
+
+### 7.2 Get API Keys
+
+1. **Settings** → **API Keys**
+   - Copy **Private API key** → `MAILGUN_API_KEY`
+2. **Settings** → **API Security**
+   - Copy **HTTP webhook signing key** → `MAILGUN_SIGNING_KEY`
+
+### 7.3 Configure Email Route
+
+1. **Receiving** → **Routes** → **Create Route**
+2. **Route expression:** `match_recipient("staging@your-domain.com")`
+3. **Action:** Forward to webhook
+4. **Webhook URL:** `https://staging-[your-project].vercel.app/api/webhooks/email/custom`
+5. **Secret:** Generate and save (add to Vercel as header secret)
+
+### 7.4 Update Vercel Variables
+
+Add to Vercel environment variables:
+```bash
+MAILGUN_API_KEY=key-[YOUR_KEY]
+MAILGUN_DOMAIN=staging.your-domain.com
+MAILGUN_FROM_EMAIL=staging@your-domain.com
+MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
+```
+
+**You can set this up later if needed.**
+
+---
+
+## Step 8: Test Staging Environment
+
+### 8.1 Basic Health Checks
+
+**Web App:**
+- [ ] Visit staging URL: `https://staging-[your-project].vercel.app`
+- [ ] Page loads without errors
+- [ ] Check browser console for errors
+
+**Worker:**
+- [ ] Check Railway logs - should show "Worker started"
+- [ ] Check Railway logs - should show "Connected to Redis"
+
+**Database:**
+- [ ] Verify Prisma Studio can connect
+- [ ] Or query database directly in Supabase dashboard
+
+**Redis:**
+- [ ] Check Upstash dashboard - should show connection activity
+
+### 8.2 Test Shopify Integration
+
+1. Go to staging URL → `/integrations`
+2. Connect a test Shopify store
+3. Verify:
+   - [ ] OAuth flow completes
+   - [ ] Connection saved in database
+   - [ ] Webhooks registered (check Shopify dashboard or app logs)
+
+### 8.3 Test Email Flow (If Mailgun Set Up)
+
+1. Send test email to your staging email address
+2. Verify:
+   - [ ] Email received via Mailgun webhook
+   - [ ] Thread created in database
+   - [ ] Worker processes email and generates AI suggestion
+
+### 8.4 Test Worker Job Processing
+
+1. From web app, trigger a job (e.g., approve an AI suggestion)
+2. Check Railway logs
+3. Verify:
+   - [ ] Job queued in Redis
+   - [ ] Worker picks up job
+   - [ ] Job completes successfully
+
+---
+
+## Step 9: Verify Everything Works
+
+### Complete End-to-End Test
+
+**Full Flow Test:**
+1. ✅ Install Shopify app in staging
+2. ✅ Create test order in Shopify
+3. ✅ Verify webhook received (check Vercel logs)
+4. ✅ Verify order appears in database
+5. ✅ Send email mentioning order number
+6. ✅ Verify email webhook received
+7. ✅ Verify worker processes email
+8. ✅ Check inbox for AI suggestion
+9. ✅ Approve and send email
+10. ✅ Verify email sent via Mailgun
+
+### Monitoring Setup
+
+**Vercel:**
+- Check **Analytics** tab for errors
+- Monitor function invocations
+
+**Railway:**
+- Check **Metrics** for CPU/memory
+- Monitor **Logs** for errors
+
+**Supabase:**
+- Check **Database** → **Usage** for connections
+- Monitor query performance
+
+**Upstash:**
+- Check **Monitoring** for command count
+- Verify within free tier limits
+
+---
+
+## 🎉 Staging Environment Complete!
+
+**You now have:**
+- ✅ Staging web app on Vercel (FREE)
+- ✅ Staging worker on Railway (~$5/month)
+- ✅ Staging database on Supabase (FREE tier)
+- ✅ Redis on Upstash (FREE tier)
+- ✅ Shopify test app configured
+- ✅ (Optional) Mailgun configured
+
+**Next Steps:**
+1. Continue testing in staging
+2. When ready, follow production deployment guide
+3. Use staging to test all features before production
+
+---
+
+## 🔧 Troubleshooting Staging
+
+### Issue: Vercel Build Fails
+
+**Check:**
+- Root directory is `apps/web`
+- Build command is correct
+- All dependencies in `package.json`
+
+**Fix:**
+- Check build logs in Vercel dashboard
+- Verify `transpilePackages` in `next.config.mjs`
+
+### Issue: Worker Not Starting
+
+**Check:**
+- Railway logs for errors
+- Environment variables are set
+- Redis URL is correct
+
+**Fix:**
+- Verify `REDIS_URL` format: `rediss://default:...`
+- Check Railway service settings
+- Verify build completed successfully
+
+### Issue: Database Connection Fails
+
+**Check:**
+- Connection string format
+- Using pooler URL (port 6543) for Vercel
+- Password is correct
+
+**Fix:**
+- Use connection pooler URL for Vercel
+- Verify in Supabase dashboard that project is active
+- Check IP allowlist (should allow all for pooler)
+
+### Issue: Shopify OAuth Fails
+
+**Check:**
+- `SHOPIFY_APP_URL` matches actual Vercel URL
+- Callback URL matches in Shopify dashboard
+- API credentials are correct
+
+**Fix:**
+- Update `SHOPIFY_APP_URL` in Vercel with actual URL
+- Verify redirect URL in Shopify matches exactly
+
+---
+
+## 📞 Need Help?
+
+- Check [Complete Deployment Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md)
+- Vercel Support: [vercel.com/support](https://vercel.com/support)
+- Railway Support: [railway.app/support](https://railway.app/support)
+
+**You're all set with staging! 🚀**
+
