@@ -21,7 +21,7 @@ const nextConfig = {
     '@ai-ecom/api',
     '@ai-ecom/api-components',
     '@ai-ecom/db',
-    '@ai-ecom/worker',
+    // @ai-ecom/worker is not transpiled - it's only dynamically imported at runtime
   ],
   webpack: (config, { isServer }) => {
     // Ensure dependencies from transpiled workspace packages resolve correctly
@@ -35,20 +35,19 @@ const nextConfig = {
     }
     
     // Externalize worker package for dynamic imports (it's only used at runtime)
+    // This prevents webpack from trying to bundle it during build
     if (isServer) {
-      config.externals = config.externals || [];
-      if (typeof config.externals === 'function') {
-        const originalExternals = config.externals;
-        config.externals = [
-          originalExternals,
-          ({ request }, callback) => {
-            if (request === '@ai-ecom/worker') {
-              return callback(null, `commonjs ${request}`);
-            }
-            callback();
-          },
-        ];
-      }
+      const originalExternals = config.externals;
+      config.externals = [
+        ...(Array.isArray(originalExternals) ? originalExternals : [originalExternals].filter(Boolean)),
+        ({ request }, callback) => {
+          // Externalize worker package - it's dynamically imported at runtime only
+          if (request === '@ai-ecom/worker') {
+            return callback(null, `commonjs ${request}`);
+          }
+          callback();
+        },
+      ];
     }
     
     return config;
