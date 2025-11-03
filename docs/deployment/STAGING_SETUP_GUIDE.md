@@ -91,6 +91,8 @@ git push origin staging
 
 ---
 
+zyypstagingdb
+
 ## Step 2: Set Up Staging Database (Supabase)
 
 ### 2.1 Create Supabase Project
@@ -130,21 +132,79 @@ git push origin staging
 
 ### 2.3 Run Migrations
 
-```bash
-# Set staging database URL
-export DATABASE_URL="postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+**⚠️ Run these commands in your Terminal/Command Line on your local development machine** (not in the guide file!)
 
-# Navigate to project root
-cd /Users/akshaybhardwaj/Desktop/Projects/ai-ecom-tool
+**Step-by-step:**
 
-# Run migrations
-pnpm db:migrate
+1. **Open Terminal** on your Mac (or Command Prompt/PowerShell on Windows)
 
-# Verify (optional - opens Prisma Studio)
-cd packages/db
-pnpm prisma studio
-# Should open browser and show your database tables
-```
+2. **Copy your staging database connection string** from Step 2.2 (the one that looks like `postgresql://postgres:...`)
+
+3. **Temporarily update your `.env` file** (Prisma reads from this file):
+
+   ⚠️ **Important:** Your `.env` file likely has your **local development** database URL. You need to temporarily change it to staging, run migrations, then change it back.
+
+   **Option A: Edit the file directly** (Recommended)
+   - Open `packages/db/.env` in your editor
+   - **Save your current local DATABASE_URL** (copy it somewhere safe - you'll need it for local dev!)
+   - Replace the `DATABASE_URL` line with your staging connection string:
+     ```
+     DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[YOUR-PASSWORD]@aws-1-[REGION].pooler.supabase.com:5432/postgres"
+     ```
+   - ⚠️ **Use port 5432 (direct connection) for migrations**, NOT 6543 (pooler)
+   - Port 6543 (pooler) is for Vercel app connections, but migrations work better with port 5432
+   - Replace `[PROJECT-REF]`, `[YOUR-PASSWORD]`, and `[REGION]` with your actual Supabase staging values
+   - **After migrations complete, change it back to your local development URL**
+
+   **Option B: Use terminal** (replace with your actual connection string):
+
+   ```bash
+   cd packages/db
+   echo 'DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"' > .env
+   ```
+
+   ⚠️ **Important:**
+   - **For migrations**: Use port **5432** (direct connection) - migrations work better with direct connections
+   - **For Vercel**: You'll use port **6543** (pooler) in environment variables - better for serverless
+   - If you see "Tenant or user not found" error, check:
+     - ✅ Is your password correct? (no extra spaces or quotes)
+     - ✅ Is your project reference correct?
+     - ✅ Is your region correct in the connection string?
+
+4. **Navigate to your project folder:**
+
+   ```bash
+   cd /Users/akshaybhardwaj/Desktop/Projects/ai-ecom-tool
+   ```
+
+   (Replace with your actual project path if different)
+
+5. **Run migrations:**
+
+   ```bash
+   pnpm db:migrate
+   ```
+
+6. **Verify (optional):**
+   ```bash
+   cd packages/db
+   pnpm prisma studio
+   ```
+   This opens Prisma Studio in your browser to view your staging database tables.
+
+**Important distinction:**
+
+- **For local migrations** (`pnpm db:migrate`): Use port **5432** (direct connection) - Prisma migrations work better with direct connections
+- **For Vercel app connections**: Use port **6543** (pooler) with `?pgbouncer=true&connection_limit=1` - better for serverless environments
+
+**Troubleshooting "Tenant or user not found" error:**
+
+- ✅ For migrations: Use port **5432** (direct connection), NOT 6543 - Prisma migrations need direct database access
+- ✅ Verify your password and project reference are correct in the `.env` file
+- ✅ Check that your `.env` file in `packages/db/` has the correct staging URL (not an old/production URL)
+- ✅ Make sure the connection string format is correct (no extra spaces, quotes are properly escaped)
+
+**Note:** After migrations, you'll set `DATABASE_URL` in Vercel's environment variables (covered in Step 4). The `.env` file will be used for local development and migrations.
 
 **Expected output:** Migrations should run successfully and create all tables.
 
@@ -264,18 +324,49 @@ MAILGUN_DOMAIN=[PLACEHOLDER]
 MAILGUN_FROM_EMAIL=[PLACEHOLDER]
 MAILGUN_SIGNING_KEY=[PLACEHOLDER]
 
+# Encryption (REQUIRED - for encrypting sensitive data like access tokens)
+ENCRYPTION_KEY=[GENERATE: openssl rand -hex 32]
+# This must be a 64-character hex string (32 bytes)
+
+# Inbound Email Domain (for displaying custom email addresses in UI)
+NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=[YOUR_MAILGUN_DOMAIN]
+# Example: mg.zyyp.ai or yourdomain.com
+
+# Razorpay (for payment processing - required if using payment features)
+RAZORPAY_KEY_ID=[YOUR_RAZORPAY_KEY_ID]
+RAZORPAY_KEY_SECRET=[YOUR_RAZORPAY_KEY_SECRET]
+RAZORPAY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
+# Optional - plan IDs (defaults are used if not set):
+# RAZORPAY_PLAN_STARTER_INR=plan_starter_inr
+# RAZORPAY_PLAN_STARTER_USD=plan_starter_usd
+# RAZORPAY_PLAN_GROWTH_INR=plan_growth_inr
+# RAZORPAY_PLAN_GROWTH_USD=plan_growth_usd
+# RAZORPAY_PLAN_PRO_INR=plan_pro_inr
+# RAZORPAY_PLAN_PRO_USD=plan_pro_usd
+
 # Feature Flags
 PROTECTED_WEBHOOKS=true
 MOCK_WEBHOOKS=false
 
 # Sentry (optional for staging)
-SENTRY_DSN=[YOUR_SENTRY_DSN]
+NEXT_PUBLIC_SENTRY_DSN=https://[PROJECT_ID]@[ORG].ingest.sentry.io/[PROJECT_ID]
 ```
 
 **Important:**
 
 - Set environment to **Preview** (not Production!)
+- **REQUIRED**: `ENCRYPTION_KEY` is critical - without it, access tokens won't be encrypted
+- **REQUIRED if using payments**: Razorpay variables are needed for subscription/payment features
+- **REQUIRED for email UI**: `NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN` is needed to display email addresses in the integrations page
 - You can update Shopify and Mailgun values later
+
+**How to generate ENCRYPTION_KEY:**
+
+```bash
+openssl rand -hex 32
+```
+
+This generates a 64-character hex string. **Save this securely** - you'll need the same key for production!
 
 ### 4.4 Configure Branch Settings (IMPORTANT!)
 
