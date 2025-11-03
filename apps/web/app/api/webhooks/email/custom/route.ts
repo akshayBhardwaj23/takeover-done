@@ -309,8 +309,10 @@ export async function POST(req: NextRequest) {
     // Enqueue background job to generate AI suggestion (non-blocking)
     // This allows webhook to return immediately and prevents timeouts
     try {
-      // Dynamic import to avoid build-time dependency issues
-      const { enqueueInboxJob } = await import('@ai-ecom/worker');
+      // Use string-based dynamic import to prevent webpack from analyzing at build time
+      const workerModule = '@ai-ecom/worker';
+      const worker = await import(/* webpackIgnore: true */ workerModule);
+      const { enqueueInboxJob } = worker;
       await enqueueInboxJob('inbound-email-process', {
         messageId: msg.id,
       });

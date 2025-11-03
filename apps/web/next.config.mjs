@@ -33,6 +33,24 @@ const nextConfig = {
         ...(config.resolve.modules || []),
       ];
     }
+    
+    // Externalize worker package for dynamic imports (it's only used at runtime)
+    if (isServer) {
+      config.externals = config.externals || [];
+      if (typeof config.externals === 'function') {
+        const originalExternals = config.externals;
+        config.externals = [
+          originalExternals,
+          ({ request }, callback) => {
+            if (request === '@ai-ecom/worker') {
+              return callback(null, `commonjs ${request}`);
+            }
+            callback();
+          },
+        ];
+      }
+    }
+    
     return config;
   },
   typescript: {
