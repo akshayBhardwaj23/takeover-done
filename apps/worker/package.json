@@ -11,11 +11,11 @@
   },
   "dependencies": {
     "bullmq": "^5.9.1",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "typescript": "^5.5.4"
   },
   "devDependencies": {
     "dotenv": "^17.2.3",
-    "tsx": "^4.19.1",
-    "typescript": "^5.5.4"
+    "tsx": "^4.19.1"
   }
 }

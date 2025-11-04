@@ -181,6 +181,9 @@ importers:
       ioredis:
         specifier: ^5.4.1
         version: 5.8.1
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
     devDependencies:
       dotenv:
         specifier: ^17.2.3
@@ -188,9 +191,6 @@ importers:
       tsx:
         specifier: ^4.19.1
         version: 4.20.6
-      typescript:
-        specifier: ^5.5.4
-        version: 5.9.3
 
   packages/api:
     dependencies:

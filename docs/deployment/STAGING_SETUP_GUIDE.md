@@ -433,7 +433,7 @@ After deployment, you'll have your staging URL. Update these variables:
 3. **Configure Service:**
    - **Source:** Your GitHub repo
    - **Branch:** `staging`
-   - **Root Directory:** `apps/worker`
+   - **Root Directory:** `.` (root of the monorepo, NOT `apps/worker`)
 
 ### 5.3 Configure Build Settings
 
@@ -444,14 +444,18 @@ After deployment, you'll have your staging URL. Update these variables:
    **Build Command:**
 
    ```
-   cd ../.. && pnpm install && pnpm build --filter @ai-ecom/worker
+   pnpm install && pnpm build --filter @ai-ecom/worker
    ```
+
+   **⚠️ Important:** Root Directory must be `.` (repo root), not `apps/worker`. This allows pnpm to resolve workspace dependencies correctly.
 
    **Start Command:**
 
    ```
-   node dist/index.js
+   node apps/worker/dist/index.js
    ```
+
+   **⚠️ Note:** Since Root Directory is `.` (repo root), the start command needs the full path to the built file.
 
 ### 5.4 Add Environment Variables
 
