@@ -32,11 +32,19 @@ const nextConfig = {
   ],
   // Include Prisma binaries in the serverless function output
   // This fixes "Query Engine not found" errors in Vercel
-  // Paths are relative to apps/web directory, but outputFileTracingRoot makes them relative to repo root
+  // Paths are relative to outputFileTracingRoot (repo root)
   outputFileTracingIncludes: {
     '/api/**/*': [
-      'node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/**/*',
-      'node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client/**/*',
+      'node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
+      'node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
+      'packages/db/node_modules/.prisma/client/**/*',
+      'packages/db/node_modules/@prisma/client/**/*',
+    ],
+    '/(.*)/': [
+      'node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
+      'node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
+      'packages/db/node_modules/.prisma/client/**/*',
+      'packages/db/node_modules/@prisma/client/**/*',
     ],
   },
   webpack: (config, { isServer }) => {
