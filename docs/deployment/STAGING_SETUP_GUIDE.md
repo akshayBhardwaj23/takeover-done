@@ -300,6 +300,8 @@ ENVIRONMENT=staging
 NEXTAUTH_URL=https://staging-[your-project].vercel.app
 
 # Database (from Step 2)
+# ⚠️ CRITICAL: Must use connection pooler (port 6543) with pgbouncer=true for Vercel serverless
+# Without connection pooling, Vercel's serverless functions will exhaust database connections
 DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
 
 # Redis (from Step 3)
@@ -475,6 +477,7 @@ NODE_ENV=production
 ENVIRONMENT=staging
 
 # Database (same as Vercel staging)
+# ⚠️ CRITICAL: Must use connection pooler (port 6543) with pgbouncer=true
 DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
 
 # Redis (same as Vercel staging)
