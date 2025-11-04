@@ -1,7 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist"
+    "outDir": "dist",
+    "noEmit": false,
+    "baseUrl": ".",
+    "paths": {
+      "@ai-ecom/api": ["../../packages/api/src"],
+      "@ai-ecom/db": ["../../packages/db/src"],
+      "@ai-ecom/worker": ["./src"]
+    }
   },
   "include": ["src"]
 }

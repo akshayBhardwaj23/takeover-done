@@ -452,10 +452,10 @@ After deployment, you'll have your staging URL. Update these variables:
    **Start Command:**
 
    ```
-   node apps/worker/dist/index.js
+   node apps/worker/dist/apps/worker/src/index.js
    ```
 
-   **⚠️ Note:** Since Root Directory is `.` (repo root), the start command needs the full path to the built file.
+   **⚠️ Note:** TypeScript outputs to `apps/worker/dist/apps/worker/src/index.js` when building from the repo root. The start command must match this path.
 
 ### 5.4 Add Environment Variables
 
