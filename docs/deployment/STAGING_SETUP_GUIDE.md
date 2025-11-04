@@ -354,10 +354,6 @@ MOCK_WEBHOOKS=false
 
 # Sentry (optional for staging)
 NEXT_PUBLIC_SENTRY_DSN=https://[PROJECT_ID]@[ORG].ingest.sentry.io/[PROJECT_ID]
-
-# Prisma (CRITICAL for Vercel deployment)
-PRISMA_CLI_QUERY_ENGINE_TYPE=binary
-PRISMA_QUERY_ENGINE_LIBRARY=/var/task/packages/db/node_modules/.prisma/client/libquery_engine-rhel-openssl-3.0.x.so.node
 ```
 
 **Important:**
