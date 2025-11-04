@@ -30,16 +30,18 @@ The application uses Mailgun to send customer support emails. Each Shopify store
 ### Configuration
 
 **Store Support Email:**
+
 ```typescript
 // Via tRPC mutation
 updateConnectionSettings({
-  connectionId: "connection-id",
-  supportEmail: "support@theirstore.com",
-  storeName: "Their Store Name" // Optional
-})
+  connectionId: 'connection-id',
+  supportEmail: 'support@theirstore.com',
+  storeName: 'Their Store Name', // Optional
+});
 ```
 
 **Email Format:**
+
 - FROM: `"Their Store Name <support@mail.zyyp.ai>"`
 - Reply-To: `support@theirstore.com`
 - TO: `customer@example.com`
@@ -68,12 +70,13 @@ Allow stores to connect their own Gmail/Outlook SMTP accounts to send emails dir
 ### Architecture
 
 **Connection Metadata Schema:**
+
 ```typescript
 Connection.metadata = {
   // Current fields
   supportEmail: string,
   storeName: string,
-  
+
   // Future SMTP fields
   smtpProvider: 'MAILGUN' | 'GMAIL' | 'OUTLOOK',
   smtpConfig?: {
@@ -100,27 +103,32 @@ Connection.metadata = {
 #### 2. SMTP Credential Storage
 
 **Encryption:**
+
 - Use existing `encryptSecure` function for SMTP passwords
 - Store OAuth tokens encrypted in `smtpConfig`
 - Never store credentials in plain text
 
 **Storage:**
+
 - Store in `Connection.metadata.smtpConfig`
 - Encrypt sensitive fields: `user`, `password`, `refreshToken`
 
 #### 3. OAuth Flow for Gmail/Outlook
 
 **Gmail OAuth:**
+
 - Use Google OAuth 2.0
 - Request `https://www.googleapis.com/auth/gmail.send` scope
 - Store access token and refresh token (encrypted)
 
 **Outlook OAuth:**
+
 - Use Microsoft Graph OAuth 2.0
 - Request `https://graph.microsoft.com/Mail.Send` scope
 - Store access token and refresh token (encrypted)
 
 **Similar to Shopify OAuth:**
+
 - Create `/api/gmail/oauth/start` and `/api/gmail/oauth/callback` routes
 - Create `/api/outlook/oauth/start` and `/api/outlook/oauth/callback` routes
 - Store tokens in Connection metadata
@@ -144,22 +152,17 @@ if (smtpProvider === 'MAILGUN') {
     to: toEmail,
     subject,
     body,
-    smtpConfig: metadata.smtpConfig
+    smtpConfig: metadata.smtpConfig,
   });
 }
 ```
 
 **SMTP Sending Function:**
+
 ```typescript
 import nodemailer from 'nodemailer';
 
-async function sendViaSMTP({
-  from,
-  to,
-  subject,
-  body,
-  smtpConfig
-}) {
+async function sendViaSMTP({ from, to, subject, body, smtpConfig }) {
   const decryptedConfig = {
     ...smtpConfig,
     user: decryptSecure(smtpConfig.user),
@@ -188,6 +191,7 @@ async function sendViaSMTP({
 #### 5. OAuth Token Refresh
 
 **Background Job:**
+
 - Check token expiration before sending
 - Refresh if expired using refresh token
 - Update Connection metadata with new tokens
@@ -196,9 +200,11 @@ async function sendViaSMTP({
 #### 6. UI Integration
 
 **Files to modify:**
+
 - `apps/web/app/integrations/page.tsx`
 
 **Add:**
+
 - "Connect Email Account" button for each Shopify store
 - OAuth flow UI
 - SMTP provider selector (Mailgun/Gmail/Outlook)
@@ -207,12 +213,14 @@ async function sendViaSMTP({
 #### 7. Fallback Logic
 
 **When SMTP fails:**
+
 - Log error
 - Optionally fallback to Mailgun
 - Notify user of failure
 - Store error for debugging
 
 **Error Handling:**
+
 - Invalid credentials
 - Network issues
 - Rate limits
@@ -293,6 +301,7 @@ MICROSOFT_CLIENT_SECRET=xxx
 ### Current Mutations
 
 **`updateConnectionSettings`**
+
 - Configure support email and store name for a connection
 - Input: `connectionId`, `supportEmail?`, `storeName?`
 - Updates `Connection.metadata`
@@ -300,16 +309,19 @@ MICROSOFT_CLIENT_SECRET=xxx
 ### Future Mutations (Planned)
 
 **`connectSMTP`**
+
 - Connect Gmail/Outlook account via OAuth
 - Input: `connectionId`, `provider` ('GMAIL' | 'OUTLOOK')
 - Returns OAuth URL
 
 **`updateSMTPConfig`**
+
 - Manually configure SMTP (for non-OAuth providers)
 - Input: `connectionId`, `smtpConfig`
 - Encrypts credentials before storing
 
 **`testSMTP`**
+
 - Test SMTP configuration
 - Input: `connectionId`
 - Sends test email to verify setup
@@ -339,4 +351,3 @@ MICROSOFT_CLIENT_SECRET=xxx
 
 - [STAGING_SETUP_GUIDE.md](../deployment/STAGING_SETUP_GUIDE.md) - Mailgun setup for staging
 - [MAILGUN_SETUP.md](../../MAILGUN_SETUP.md) - Basic Mailgun configuration
-
