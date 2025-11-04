@@ -324,11 +324,19 @@ SHOPIFY_APP_URL=https://staging-[your-project].vercel.app
 SHOPIFY_SCOPES=read_orders,write_orders,read_products
 SHOPIFY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
 
-# Mailgun (we'll set this up in Step 7 - use placeholder for now)
-MAILGUN_API_KEY=[PLACEHOLDER]
-MAILGUN_DOMAIN=[PLACEHOLDER]
-MAILGUN_FROM_EMAIL=[PLACEHOLDER]
-MAILGUN_SIGNING_KEY=[PLACEHOLDER]
+# Mailgun (Free tier works for staging! See notes below)
+# Option 1: Use Mailgun Sandbox Domain (Free - Recommended for Staging)
+# Get your sandbox domain from Mailgun Dashboard → Sending → Domains
+# Format: sandbox123456.mailgun.org
+MAILGUN_API_KEY=key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+MAILGUN_DOMAIN=sandbox123456.mailgun.org
+MAILGUN_FROM_EMAIL=support@sandbox123456.mailgun.org
+MAILGUN_SIGNING_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Option 2: Use Custom Domain (Free tier with domain verification)
+# If you have a custom domain, you can verify it on Mailgun free tier
+# MAILGUN_DOMAIN=mg.yourdomain.com
+# MAILGUN_FROM_EMAIL=support@yourdomain.com
 
 # Encryption (REQUIRED - for encrypting sensitive data like access tokens)
 ENCRYPTION_KEY=[GENERATE: openssl rand -hex 32]
@@ -589,26 +597,77 @@ You can skip this initially and set it up later. Here's the quick setup:
 2. **Settings** → **API Security**
    - Copy **HTTP webhook signing key** → `MAILGUN_SIGNING_KEY`
 
-### 7.3 Configure Email Route
+### 7.3 Mailgun Free Tier for Staging ⭐
+
+**Yes, you can use Mailgun's free tier for staging!** Here's what you need to know:
+
+#### Free Tier Limitations:
+- ✅ **5,000 emails/month** (perfect for staging/testing)
+- ✅ **Sandbox domain** (`sandbox123456.mailgun.org`) - emails only deliver to **authorized recipients**
+- ✅ **Custom domain** - can verify your own domain (still free tier)
+- ⚠️ **Sandbox limitation**: Emails only sent to addresses you authorize in Mailgun dashboard
+
+#### Option 1: Use Sandbox Domain (Easiest for Staging)
+
+1. **Get your sandbox domain:**
+   - Go to Mailgun Dashboard → **Sending** → **Domains**
+   - You'll see: `sandbox123456.mailgun.org` (numbers vary)
+   - Copy this domain
+
+2. **Authorize test recipients:**
+   - Go to **Sending** → **Authorized Recipients**
+   - Add email addresses you want to receive emails (e.g., your personal email)
+   - These are the **only** addresses that will receive emails from sandbox domain
+
+3. **Set in Vercel:**
+   ```bash
+   MAILGUN_API_KEY=key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   MAILGUN_DOMAIN=sandbox123456.mailgun.org
+   MAILGUN_FROM_EMAIL=support@sandbox123456.mailgun.org
+   MAILGUN_SIGNING_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=sandbox123456.mailgun.org
+   ```
+
+**Important:** With sandbox domain, emails will only be delivered to addresses you've authorized in Mailgun. This is perfect for staging where you only need to test with a few email addresses.
+
+#### Option 2: Use Custom Domain (More Flexible)
+
+1. **Verify your domain in Mailgun:**
+   - Add your domain (e.g., `mg.yourdomain.com`)
+   - Follow DNS verification steps
+   - Once verified, you can send to any email address
+
+2. **Set in Vercel:**
+   ```bash
+   MAILGUN_DOMAIN=mg.yourdomain.com
+   MAILGUN_FROM_EMAIL=support@yourdomain.com
+   NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mg.yourdomain.com
+   ```
+
+### 7.4 Configure Email Route (Optional - for Inbound Emails)
+
+If you want to receive emails (webhooks), set up a route:
 
 1. **Receiving** → **Routes** → **Create Route**
-2. **Route expression:** `match_recipient("staging@your-domain.com")`
+2. **Route expression:** `match_recipient("in+*@your-domain.com")` (or pattern matching your alias format)
 3. **Action:** Forward to webhook
 4. **Webhook URL:** `https://staging-[your-project].vercel.app/api/webhooks/email/custom`
-5. **Secret:** Generate and save (add to Vercel as header secret)
+5. **Secret:** Generate and save (add to Vercel as `MAILGUN_SIGNING_KEY`)
 
-### 7.4 Update Vercel Variables
+**Note:** This is optional - you can skip it if you only need to **send** emails (not receive).
 
-Add to Vercel environment variables:
+### 7.5 Summary
 
-```bash
-MAILGUN_API_KEY=key-[YOUR_KEY]
-MAILGUN_DOMAIN=staging.your-domain.com
-MAILGUN_FROM_EMAIL=staging@your-domain.com
-MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
-```
+**For staging, Mailgun free tier is perfect:**
+- ✅ 5,000 emails/month is plenty for testing
+- ✅ Sandbox domain works great if you only need to test with a few email addresses
+- ✅ Custom domain works if you want to send to any email address
+- ✅ No cost for staging/testing
 
-**You can set this up later if needed.**
+**When to upgrade to paid:**
+- Production needs > 5,000 emails/month
+- Need to send to unverified recipients without custom domain
+- Need dedicated IP or higher deliverability
 
 ---
 
