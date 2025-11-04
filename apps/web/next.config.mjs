@@ -23,6 +23,15 @@ const nextConfig = {
     '@ai-ecom/db',
     // @ai-ecom/worker is not transpiled - it's only dynamically imported at runtime
   ],
+  // Include Prisma binaries in the serverless function output
+  // This fixes "Query Engine not found" errors in Vercel
+  // The paths are relative to apps/web directory
+  outputFileTracingIncludes: {
+    '/api/**/*': [
+      '../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
+      '../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
+    ],
+  },
   webpack: (config, { isServer }) => {
     // Ensure dependencies from transpiled workspace packages resolve correctly
     // This fixes issues where Radix UI packages aren't found during transpilation
