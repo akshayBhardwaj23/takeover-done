@@ -54,13 +54,15 @@ const nextConfig = {
         ...(config.resolve.modules || []),
       ];
     }
-    
+
     // Externalize worker package for dynamic imports (it's only used at runtime)
     // This prevents webpack from trying to bundle it during build
     if (isServer) {
       const originalExternals = config.externals;
       config.externals = [
-        ...(Array.isArray(originalExternals) ? originalExternals : [originalExternals].filter(Boolean)),
+        ...(Array.isArray(originalExternals)
+          ? originalExternals
+          : [originalExternals].filter(Boolean)),
         ({ request }, callback) => {
           // Externalize worker package - it's dynamically imported at runtime only
           if (request === '@ai-ecom/worker') {
@@ -70,7 +72,7 @@ const nextConfig = {
         },
       ];
     }
-    
+
     return config;
   },
   typescript: {
