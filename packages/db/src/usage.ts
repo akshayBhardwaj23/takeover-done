@@ -1,4 +1,4 @@
-import { prisma } from './index';
+import { prisma } from './index.js';
 
 // Base plan limits (without pricing - pricing is currency-dependent)
 export const PLAN_LIMITS = {
