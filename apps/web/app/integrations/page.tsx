@@ -1,7 +1,7 @@
 'use client';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
-import { Suspense, useEffect, useState, type ChangeEvent } from 'react';
+import { Suspense, useEffect, useState, useRef, type ChangeEvent } from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import {
@@ -53,6 +53,7 @@ type ConnectionSummary = {
 function IntegrationsInner() {
   const toast = useToast();
   const { data: session } = useSession();
+  const router = useRouter();
   const sp = useSearchParams();
   const connected = sp.get('connected');
   const shop = sp.get('shop');
@@ -71,13 +72,36 @@ function IntegrationsInner() {
   const [shopInput, setShopInput] = useState('');
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
+  
+  // Track if we've already shown notifications to prevent duplicates
+  const notificationShownRef = useRef(false);
 
   useEffect(() => {
-    const already = (sp as any).get('already');
-    if (already === '1' && shop) {
-      toast.success(`Store already connected: ${shop}`);
+    // Only show notifications once per page load
+    if (notificationShownRef.current) return;
+    
+    const already = sp.get('already');
+    const connected = sp.get('connected');
+    const shopParam = sp.get('shop');
+    
+    if (!shopParam) return;
+    
+    // Mark as shown immediately to prevent duplicates
+    notificationShownRef.current = true;
+    
+    if (already === '1') {
+      toast.success(`Store already connected: ${shopParam}`);
+    } else if (connected === '1') {
+      toast.success(`Store connected successfully: ${shopParam}`);
     }
-  }, [sp, shop, toast]);
+    
+    // Clean up URL params after showing notification to prevent re-triggering
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete('already');
+    newUrl.searchParams.delete('connected');
+    newUrl.searchParams.delete('shop');
+    router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+  }, [sp, router, toast]); // Only re-run if search params actually change
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

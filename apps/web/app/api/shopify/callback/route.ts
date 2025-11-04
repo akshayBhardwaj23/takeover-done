@@ -62,14 +62,32 @@ export async function GET(req: NextRequest) {
       })
     : await ensureDefaultUser();
 
-  await prisma.connection.create({
-    data: {
-      type: 'SHOPIFY',
-      accessToken: encryptSecure(tokenJson.access_token),
-      shopDomain: shop,
-      userId: owner.id,
-    },
+  // Check if store already exists BEFORE creating
+  const existing = await prisma.connection.findFirst({
+    where: { shopDomain: shop },
   });
+
+  const isNewConnection = !existing;
+
+  if (isNewConnection) {
+    // Only create if it doesn't exist
+    await prisma.connection.create({
+      data: {
+        type: 'SHOPIFY',
+        accessToken: encryptSecure(tokenJson.access_token),
+        shopDomain: shop,
+        userId: owner.id,
+      },
+    });
+  } else {
+    // Update existing connection with new token
+    await prisma.connection.update({
+      where: { id: existing.id },
+      data: {
+        accessToken: encryptSecure(tokenJson.access_token),
+      },
+    });
+  }
 
   // Best-effort register webhooks for this shop
   await registerWebhooks(shop, tokenJson.access_token).catch(() => {});
@@ -97,14 +115,12 @@ export async function GET(req: NextRequest) {
 
   const base = process.env.SHOPIFY_APP_URL || new URL(req.url).origin;
   const url = new URL('/integrations', base);
-  // if store already existed, surface a toast via query param
-  try {
-    const existing = await prisma.connection.findFirst({
-      where: { shopDomain: shop },
-    });
-    if (existing) url.searchParams.set('already', '1');
-  } catch {}
-  url.searchParams.set('connected', '1');
+  // Set query params based on whether connection was new or existing
+  if (!isNewConnection) {
+    url.searchParams.set('already', '1');
+  } else {
+    url.searchParams.set('connected', '1');
+  }
   url.searchParams.set('shop', shop);
   const res = NextResponse.redirect(url);
   res.cookies.set('shopify_oauth_state', '', { maxAge: -1, path: '/' });
