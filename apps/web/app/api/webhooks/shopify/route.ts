@@ -3,6 +3,9 @@ import crypto from 'node:crypto';
 import { prisma, logEvent } from '@ai-ecom/db';
 import { Redis } from '@upstash/redis';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
+
 export async function POST(req: NextRequest) {
   // Idempotency: prevent replayed webhooks
   const webhookId = req.headers.get('x-shopify-webhook-id');

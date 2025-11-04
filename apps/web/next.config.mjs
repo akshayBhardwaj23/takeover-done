@@ -23,6 +23,20 @@ const nextConfig = {
     typedRoutes: true,
     // Set the root for file tracing to ensure correct path resolution in monorepo
     outputFileTracingRoot: path.join(__dirname, '../..'),
+    // Include Prisma binaries in the serverless function output
+    // Paths are relative to apps/web directory
+    outputFileTracingIncludes: {
+      'app/**': [
+        './node_modules/.prisma/client',
+        './node_modules/@prisma/client',
+      ],
+      'lib/**': [
+        './node_modules/.prisma/client',
+        './node_modules/@prisma/client',
+      ],
+    },
+    // Prevent Next.js from bundling Prisma (it needs native binaries)
+    serverComponentsExternalPackages: ['@prisma/client', 'prisma'],
   },
   transpilePackages: [
     '@ai-ecom/api',
@@ -30,23 +44,6 @@ const nextConfig = {
     '@ai-ecom/db',
     // @ai-ecom/worker is not transpiled - it's only dynamically imported at runtime
   ],
-  // Include Prisma binaries in the serverless function output
-  // This fixes "Query Engine not found" errors in Vercel
-  // Paths are relative to outputFileTracingRoot (repo root)
-  outputFileTracingIncludes: {
-    '/api/**/*': [
-      'node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
-      'node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
-      'packages/db/node_modules/.prisma/client/**/*',
-      'packages/db/node_modules/@prisma/client/**/*',
-    ],
-    '/(.*)/': [
-      'node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
-      'node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
-      'packages/db/node_modules/.prisma/client/**/*',
-      'packages/db/node_modules/@prisma/client/**/*',
-    ],
-  },
   webpack: (config, { isServer }) => {
     // Ensure dependencies from transpiled workspace packages resolve correctly
     // This fixes issues where Radix UI packages aren't found during transpilation

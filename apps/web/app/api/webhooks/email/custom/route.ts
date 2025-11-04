@@ -3,6 +3,8 @@ import { prisma, logEvent } from '@ai-ecom/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // Simple HTML sanitization (server-safe, no jsdom dependency)

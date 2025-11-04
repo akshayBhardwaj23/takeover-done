@@ -6,6 +6,9 @@ import { authOptions } from '../../../../lib/auth';
 import { registerWebhooks, listWebhooks } from '../../../../lib/shopify';
 import { encryptSecure } from '@ai-ecom/api';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
+
 export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const secret = process.env.SHOPIFY_API_SECRET ?? '';
