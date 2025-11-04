@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 import { withSentryConfig } from '@sentry/nextjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const securityHeaders = [
   {
@@ -16,6 +21,8 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     typedRoutes: true,
+    // Set the root for file tracing to ensure correct path resolution in monorepo
+    outputFileTracingRoot: path.join(__dirname, '../..'),
   },
   transpilePackages: [
     '@ai-ecom/api',
@@ -25,11 +32,11 @@ const nextConfig = {
   ],
   // Include Prisma binaries in the serverless function output
   // This fixes "Query Engine not found" errors in Vercel
-  // The paths are relative to apps/web directory
+  // Paths are relative to apps/web directory, but outputFileTracingRoot makes them relative to repo root
   outputFileTracingIncludes: {
     '/api/**/*': [
-      '../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**/*',
-      '../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**/*',
+      'node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/.prisma/client/**/*',
+      'node_modules/.pnpm/@prisma+client@5.22.0_prisma@5.22.0/node_modules/@prisma/client/**/*',
     ],
   },
   webpack: (config, { isServer }) => {

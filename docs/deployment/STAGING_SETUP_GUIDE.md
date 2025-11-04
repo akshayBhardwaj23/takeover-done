@@ -273,9 +273,13 @@ If you don't have `redis-cli` installed, that's okay - we'll verify later throug
 2. **Framework Preset:** Next.js (auto-detected)
 3. **Root Directory:** Click "Edit" and set to `apps/web`
 4. **Build Command:**
+
    ```
-   cd ../.. && pnpm install && pnpm build --filter @ai-ecom/web
+   cd ../.. && pnpm install && pnpm --filter @ai-ecom/db run prisma:generate && pnpm build --filter @ai-ecom/web
    ```
+
+   **⚠️ Important:** This explicitly generates Prisma Client with the correct binary targets before building the web app. The `postinstall` script also runs automatically, but this ensures it happens in the correct order.
+
 5. **Output Directory:** `.next` (auto-detected, but verify)
 6. **Install Command:**
    ```
