@@ -175,6 +175,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@ai-ecom/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       bullmq:
         specifier: ^5.9.1
         version: 5.61.0

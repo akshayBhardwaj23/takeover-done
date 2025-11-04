@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@ai-ecom/db": "workspace:*",
     "bullmq": "^5.9.1",
     "ioredis": "^5.4.1",
     "typescript": "^5.5.4"

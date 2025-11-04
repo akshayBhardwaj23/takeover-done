@@ -447,7 +447,11 @@ After deployment, you'll have your staging URL. Update these variables:
    pnpm install && pnpm build --filter @ai-ecom/worker
    ```
 
-   **⚠️ Important:** Root Directory must be `.` (repo root), not `apps/worker`. This allows pnpm to resolve workspace dependencies correctly.
+   **⚠️ Important:** Root Directory must be `.` (repo root), not `apps/worker`. This allows:
+   - pnpm to see the entire monorepo workspace
+   - `pnpm install` to link workspace packages (like `@ai-ecom/db`) into `node_modules`
+   - Turbo to build dependencies (`@ai-ecom/db`) before the worker
+   - Node.js to resolve `@ai-ecom/db` at runtime via the workspace symlink
 
    **Start Command:**
 
