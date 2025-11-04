@@ -270,7 +270,7 @@ export const appRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
-  emailHealth: protectedProcedure.query(async () => {
+  emailHealth: publicProcedure.query(async () => {
     try {
       const last = await prisma.message.findFirst({
         where: { direction: 'INBOUND' as any },
