@@ -39,6 +39,18 @@ Optional enhancements (Email & AI)
 - [x] Better order correlation heuristics (regex, recent-window, AI-based matching)
 - [x] Order name field for customer-facing order numbers (#1001 vs internal ID)
 - [x] Email-to-order mapping by order name, email, and internal ID
+- [x] **Store support email configuration** (COMPLETE ✅)
+  - [x] Per-store support email and store name configuration
+  - [x] Emails sent FROM store name with Reply-To to store's support email
+  - [x] Works with Mailgun free tier (single domain)
+  - [x] `updateConnectionSettings` tRPC mutation for configuration
+- [ ] **SMTP integration (Gmail/Outlook)** (PLANNED)
+  - [ ] OAuth flow for Gmail and Outlook
+  - [ ] Store SMTP credentials securely (encrypted)
+  - [ ] Switch email sending to store's SMTP when configured
+  - [ ] Fallback to Mailgun if SMTP fails
+  - [ ] Token refresh mechanism for OAuth
+  - [ ] UI for connecting email accounts
 - [ ] Outbound sending domain/identity management and DKIM alignment
 - [x] Per-tenant guardrails (size cap) and alias disable/rotate controls
 - [x] Per-store email aliases (unique forwarding address per Shopify store)

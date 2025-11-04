@@ -270,6 +270,62 @@ export const appRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
+  updateConnectionSettings: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string(),
+        supportEmail: z.string().email().optional(),
+        storeName: z.string().min(1).max(100).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Verify user owns the connection
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
+      });
+
+      if (!existing) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      // Update metadata with support email and/or store name
+      const currentMetadata = (existing.metadata as any) ?? {};
+      const updatedMetadata: any = { ...currentMetadata };
+
+      if (input.supportEmail !== undefined) {
+        updatedMetadata.supportEmail = input.supportEmail;
+      }
+
+      if (input.storeName !== undefined) {
+        updatedMetadata.storeName = input.storeName;
+      }
+
+      const updated = await prisma.connection.update({
+        where: { id: input.connectionId },
+        data: {
+          metadata: updatedMetadata,
+        },
+        select: { id: true, metadata: true },
+      });
+
+      await logEvent(
+        'connection.settings.updated',
+        {
+          supportEmail: input.supportEmail,
+          storeName: input.storeName,
+        },
+        'connection',
+        input.connectionId,
+      );
+
+      return { ok: true, connection: updated };
+    }),
   emailHealth: publicProcedure.query(async () => {
     try {
       const last = await prisma.message.findFirst({
@@ -342,7 +398,17 @@ export const appRouter = t.router({
         .replace(/[^a-zA-Z0-9]/g, '')
         .slice(0, 8)
         .toLowerCase();
-      const alias = `in+${shopSlug}-${short}@${domain}`;
+
+      // Add environment suffix to alias for routing (local/staging/production)
+      // This allows using a single Mailgun domain with multiple routes
+      const envSuffix =
+        process.env.NODE_ENV === 'development'
+          ? '-local'
+          : process.env.ENVIRONMENT === 'staging'
+            ? '-staging'
+            : ''; // Production has no suffix
+
+      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -378,7 +444,7 @@ export const appRouter = t.router({
           where: { userId: ctx.userId },
           select: { id: true },
         });
-        const connectionIds = connections.map((c) => c.id);
+        const connectionIds = connections.map((c: { id: string }) => c.id);
 
         if (connectionIds.length === 0) {
           return { orders: [] };
@@ -715,7 +781,25 @@ Write responses that sound like they come from a real human support agent who ge
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
-        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+        const defaultFromEmail =
+          process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+
+        // Get store's support email from connection metadata
+        const connection = action.order.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeSupportEmail = metadata.supportEmail as string | undefined;
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
+
+        // Build FROM email with store name for better branding
+        // Format: "Store Name <support@mail.zyyp.ai>"
+        // Reply-To will be set to store's actual support email
+        const fromEmail = storeSupportEmail
+          ? `${storeName} <${defaultFromEmail}>`
+          : defaultFromEmail;
+        const replyToEmail = storeSupportEmail || defaultFromEmail;
 
         if (apiKey && domain) {
           const formData = new FormData();
@@ -723,6 +807,11 @@ Write responses that sound like they come from a real human support agent who ge
           formData.append('to', toEmail);
           formData.append('subject', subject);
           formData.append('text', body);
+
+          // Set Reply-To to store's support email so replies go to the store
+          if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+            formData.append('h:Reply-To', replyToEmail);
+          }
 
           const response = await fetch(
             `https://api.mailgun.net/v3/${domain}/messages`,
@@ -837,7 +926,25 @@ Write responses that sound like they come from a real human support agent who ge
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
-        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+        const defaultFromEmail =
+          process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+
+        // Get store's support email from connection metadata
+        const connection = message.thread.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeSupportEmail = metadata.supportEmail as string | undefined;
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
+
+        // Build FROM email with store name for better branding
+        // Format: "Store Name <support@mail.zyyp.ai>"
+        // Reply-To will be set to store's actual support email
+        const fromEmail = storeSupportEmail
+          ? `${storeName} <${defaultFromEmail}>`
+          : defaultFromEmail;
+        const replyToEmail = storeSupportEmail || defaultFromEmail;
 
         if (apiKey && domain) {
           const formData = new FormData();
@@ -848,6 +955,11 @@ Write responses that sound like they come from a real human support agent who ge
             `Re: ${message.thread.subject || 'Your inquiry'}`,
           );
           formData.append('text', safeBody);
+
+          // Set Reply-To to store's support email so replies go to the store
+          if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+            formData.append('h:Reply-To', replyToEmail);
+          }
 
           const response = await fetch(
             `https://api.mailgun.net/v3/${domain}/messages`,
@@ -973,7 +1085,7 @@ Write responses that sound like they come from a real human support agent who ge
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
           select: { id: true },
         });
-        const connectionIds = connections.map((c) => c.id);
+        const connectionIds = connections.map((c: { id: string }) => c.id);
 
         if (connectionIds.length === 0) {
           return { messages: [] };
@@ -1153,7 +1265,7 @@ Write responses that sound like they come from a real human support agent who ge
         where: { userId: ctx.userId },
         select: { id: true },
       });
-      const connectionIds = connections.map((c) => c.id);
+      const connectionIds = connections.map((c: { id: string }) => c.id);
 
       if (connectionIds.length === 0) {
         // Return empty analytics if no connections
@@ -1489,12 +1601,12 @@ Write responses that sound like they come from a real human support agent who ge
         });
 
         const fulfilled = ordersGrouped.filter(
-          (o) =>
+          (o: { status: string }) =>
             o.status.toLowerCase().includes('fulfilled') ||
             o.status === 'completed',
         ).length;
         const pending = ordersGrouped.filter(
-          (o) =>
+          (o: { status: string }) =>
             o.status.toLowerCase().includes('pending') ||
             o.status.toLowerCase().includes('processing') ||
             o.status === 'open',

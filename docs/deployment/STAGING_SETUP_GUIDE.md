@@ -602,6 +602,7 @@ You can skip this initially and set it up later. Here's the quick setup:
 **Yes, you can use Mailgun's free tier for staging!** Here's what you need to know:
 
 #### Free Tier Limitations:
+
 - ✅ **5,000 emails/month** (perfect for staging/testing)
 - ✅ **Sandbox domain** (`sandbox123456.mailgun.org`) - emails only deliver to **authorized recipients**
 - ✅ **Custom domain** - can verify your own domain (still free tier)
@@ -644,27 +645,138 @@ You can skip this initially and set it up later. Here's the quick setup:
    NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mg.yourdomain.com
    ```
 
-### 7.4 Configure Email Route (Optional - for Inbound Emails)
+### 7.4 Configure Email Routes (for Receiving Emails)
 
-If you want to receive emails (webhooks), set up a route:
+**Since Mailgun free tier only allows ONE custom domain, we use environment-specific alias patterns:**
 
-1. **Receiving** → **Routes** → **Create Route**
-2. **Route expression:** `match_recipient("in+*@your-domain.com")` (or pattern matching your alias format)
-3. **Action:** Forward to webhook
-4. **Webhook URL:** `https://staging-[your-project].vercel.app/api/webhooks/email/custom`
-5. **Secret:** Generate and save (add to Vercel as `MAILGUN_SIGNING_KEY`)
+The code automatically generates aliases with environment suffixes:
+
+- **Local:** `in+shop-slug-xxxx-local@mail.zyyp.ai`
+- **Staging:** `in+shop-slug-xxxx-staging@mail.zyyp.ai`
+- **Production:** `in+shop-slug-xxxx@mail.zyyp.ai`
+
+#### Setup Steps:
+
+1. **Verify your domain in Mailgun:**
+   - Go to Mailgun Dashboard → **Sending** → **Domains**
+   - Add `mail.zyyp.ai` (or your chosen domain)
+   - Follow DNS verification steps
+
+2. **Create separate routes for each environment:**
+
+   **Route 1: Local Development**
+   - **Route expression:** `match_recipient("in+*-local@mail.zyyp.ai")`
+   - **Action:** Forward to webhook
+   - **Webhook URL:** `https://dev.zyyp.ai/api/webhooks/email/custom` (your Cloudflare tunnel)
+   - **Priority:** 1 (highest - routes are matched in priority order)
+
+   **Route 2: Staging**
+   - **Route expression:** `match_recipient("in+*-staging@mail.zyyp.ai")`
+   - **Action:** Forward to webhook
+   - **Webhook URL:** `https://staging-[your-project].vercel.app/api/webhooks/email/custom`
+   - **Priority:** 2
+
+   **Route 3: Production**
+   - **Route expression:** `match_recipient("in+*@mail.zyyp.ai")` (catches all remaining patterns)
+   - **Action:** Forward to webhook
+   - **Webhook URL:** `https://your-production-domain.com/api/webhooks/email/custom`
+   - **Priority:** 3 (lowest - catches everything else)
+
+3. **Set environment variables:**
+
+   **Local (`.env.local`):**
+
+   ```bash
+   MAILGUN_DOMAIN=mail.zyyp.ai
+   MAILGUN_FROM_EMAIL=support@mail.zyyp.ai
+   NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mail.zyyp.ai
+   NODE_ENV=development  # This triggers -local suffix
+   ```
+
+   **Staging (Vercel):**
+
+   ```bash
+   MAILGUN_DOMAIN=mail.zyyp.ai
+   MAILGUN_FROM_EMAIL=support@mail.zyyp.ai
+   NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mail.zyyp.ai
+   ENVIRONMENT=staging  # This triggers -staging suffix
+   ```
+
+   **Production (Vercel):**
+
+   ```bash
+   MAILGUN_DOMAIN=mail.zyyp.ai
+   MAILGUN_FROM_EMAIL=support@mail.zyyp.ai
+   NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN=mail.zyyp.ai
+   # No ENVIRONMENT or NODE_ENV=production (no suffix)
+   ```
+
+4. **Get Mailgun Signing Key:**
+   - Mailgun Dashboard → **Settings** → **API Security**
+   - Copy **HTTP webhook signing key** → `MAILGUN_SIGNING_KEY`
+   - Use the **same** signing key for all environments (it's domain-specific)
+
+**How it works:**
+
+- When you create an email alias in local, it becomes: `in+shop-abc123-local@mail.zyyp.ai`
+- Mailgun routes emails matching `*-local@mail.zyyp.ai` to your local webhook
+- Staging aliases get `-staging` suffix and route to staging webhook
+- Production aliases have no suffix and route to production webhook
 
 **Note:** This is optional - you can skip it if you only need to **send** emails (not receive).
 
-### 7.5 Summary
+### 7.5 Configure Store Support Email (Optional)
+
+Each Shopify store can configure its own support email address. When sending emails to customers:
+
+- **FROM:** `"Store Name <support@mail.zyyp.ai>"` (shows store name)
+- **Reply-To:** `support@theirstore.com` (store's configured support email)
+
+This allows customers to reply directly to the store's support email while emails are sent through Mailgun.
+
+**How to configure:**
+
+1. **Via API (tRPC):**
+
+   ```typescript
+   // Update connection settings
+   trpc.updateConnectionSettings.mutate({
+     connectionId: 'your-connection-id',
+     supportEmail: 'support@theirstore.com',
+     storeName: 'Their Store Name', // Optional
+   });
+   ```
+
+2. **Via Database (direct):**
+   ```sql
+   UPDATE "Connection"
+   SET metadata = jsonb_set(
+     COALESCE(metadata, '{}'::jsonb),
+     '{supportEmail}',
+     '"support@theirstore.com"'
+   )
+   WHERE id = 'connection-id';
+   ```
+
+**If not configured:**
+
+- Emails will use default FROM: `support@mail.zyyp.ai`
+- No Reply-To header will be set
+- Store name will default to `shopDomain`
+
+**For more details:** See [EMAIL_CONFIGURATION.md](../features/EMAIL_CONFIGURATION.md)
+
+### 7.6 Summary
 
 **For staging, Mailgun free tier is perfect:**
+
 - ✅ 5,000 emails/month is plenty for testing
 - ✅ Sandbox domain works great if you only need to test with a few email addresses
 - ✅ Custom domain works if you want to send to any email address
 - ✅ No cost for staging/testing
 
 **When to upgrade to paid:**
+
 - Production needs > 5,000 emails/month
 - Need to send to unverified recipients without custom domain
 - Need dedicated IP or higher deliverability
