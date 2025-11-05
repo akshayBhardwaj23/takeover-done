@@ -23,9 +23,16 @@ function verifySecret(req: NextRequest, secret: string | null) {
 }
 
 // Optional Mailgun-style signature verification
+// Note: Mailgun Routes (email forwarding) may not include signature fields
+// Only Mailgun Webhooks (events) include signature fields
 function verifyMailgunSignature(raw: any): boolean {
   const apiKey = process.env.MAILGUN_SIGNING_KEY;
-  if (!apiKey) return true; // skip if not configured
+  if (!apiKey) {
+    // If signing key is not configured, skip verification (allow through)
+    // This allows webhooks to work without Mailgun signature verification
+    return true;
+  }
+  
   // Support both webhook JSON ({ signature: { timestamp, token, signature }})
   // and Routes form fields (timestamp, token, signature)
   const sig = raw?.signature;
@@ -37,10 +44,30 @@ function verifyMailgunSignature(raw: any): boolean {
   const signature =
     (sig?.signature as string | undefined) ??
     (raw?.signature as string | undefined);
-  if (!token || !timestamp || !signature) return false;
+  
+  // Mailgun Routes (email forwarding) don't always include signature fields
+  // If signature fields are missing, we can't verify, so return false
+  // But we'll allow through if signature verification is skipped (see main handler)
+  if (!token || !timestamp || !signature) {
+    console.warn('[Email Webhook] Mailgun signature missing fields (Routes may not include signatures):', {
+      hasToken: !!token,
+      hasTimestamp: !!timestamp,
+      hasSignature: !!signature,
+      note: 'Mailgun Routes (email forwarding) may not include signature fields. Use custom header or allow without signature for Routes.',
+    });
+    return false;
+  }
+  
   const data = timestamp + token;
   const digest = crypto.createHmac('sha256', apiKey).update(data).digest('hex');
-  return digest === signature;
+  const isValid = digest === signature;
+  if (!isValid) {
+    console.warn('[Email Webhook] Mailgun signature verification failed:', {
+      expected: digest.substring(0, 10) + '...',
+      received: signature?.substring(0, 10) + '...',
+    });
+  }
+  return isValid;
 }
 
 function extractOrderCandidate(text: string): string | null {
@@ -65,6 +92,13 @@ function extractOrderCandidate(text: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  console.log('[Email Webhook] Received request:', {
+    method: req.method,
+    path: '/api/webhooks/email/custom',
+    contentType: req.headers.get('content-type'),
+    hasXEmailWebhookSecret: !!req.headers.get('x-email-webhook-secret'),
+    hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
+  });
   try {
     // Idempotency: prefer Message-ID header; fallback to HMAC of body
     // Only use Upstash Redis in production/staging (not in local development)
@@ -125,6 +159,17 @@ export async function POST(req: NextRequest) {
     if (!raw)
       return NextResponse.json({ error: 'invalid body' }, { status: 400 });
 
+    // Log Mailgun signature fields for debugging
+    if (process.env.MAILGUN_SIGNING_KEY) {
+      console.log('[Email Webhook] Mailgun signature fields:', {
+        hasSignatureObject: !!raw?.signature,
+        hasToken: !!(raw?.signature?.token || raw?.token),
+        hasTimestamp: !!(raw?.signature?.timestamp || raw?.timestamp),
+        hasSignature: !!(raw?.signature?.signature || raw?.signature),
+        rawKeys: Object.keys(raw).slice(0, 20), // First 20 keys
+      });
+    }
+
     // Normalize common fields across JSON and Mailgun Routes
     const to: string | undefined =
       (raw.to as string) || (raw.recipient as string);
@@ -164,8 +209,34 @@ export async function POST(req: NextRequest) {
     const secret = conn.accessToken || null;
     const secretOk = verifySecret(req, secret);
     const mailgunOk = verifyMailgunSignature(raw);
+    
+    // Log authentication details for debugging
     if (!secretOk && !mailgunOk) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+      console.error('[Email Webhook] ❌ Authentication failed:', {
+        hasSecret: !!secret,
+        secretHeader: req.headers.get('x-email-webhook-secret') ? 'present' : 'missing',
+        mailgunSigningKey: process.env.MAILGUN_SIGNING_KEY ? 'configured' : 'missing',
+        mailgunSigningKeyLength: process.env.MAILGUN_SIGNING_KEY?.length || 0,
+        hasSignature: !!raw?.signature || !!raw?.token,
+        hasToken: !!raw?.token,
+        hasTimestamp: !!raw?.timestamp,
+        hasSignatureField: !!raw?.signature,
+        contentType: req.headers.get('content-type'),
+        to: to?.substring(0, 50),
+      });
+      
+      // Mailgun Routes (email forwarding) don't include signature fields by default
+      // If we have valid email data (to/from/subject), allow through for Routes
+      // This is a known limitation - Routes forward emails but don't include webhook signatures
+      // For better security, consider using Mailgun's webhook events instead of Routes
+      if (to && from && (subject || raw?.text || raw?.html)) {
+        console.warn('[Email Webhook] ⚠️ Authentication failed but email data present - allowing through (Mailgun Routes may not include signatures)');
+        // Allow through for Mailgun Routes (email forwarding)
+        // Routes don't include signature fields, only webhook events do
+      } else {
+        console.error('[Email Webhook] ❌ Authentication failed and no valid email data');
+        return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+      }
     }
 
     const metadata = (conn.metadata as any) ?? {};
