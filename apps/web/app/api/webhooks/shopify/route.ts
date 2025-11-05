@@ -61,14 +61,28 @@ export async function POST(req: NextRequest) {
   const shop = req.headers.get('x-shopify-shop-domain') ?? '';
   const payload = await req.text();
 
-  if (!secret)
+  if (!secret) {
+    console.error('[Shopify Webhook] ❌ Missing SHOPIFY_API_SECRET');
     return NextResponse.json({ error: 'Missing secret' }, { status: 500 });
+  }
   const digest = crypto
     .createHmac('sha256', secret)
     .update(payload, 'utf8')
     .digest('base64');
-  if (digest !== hmac)
+  if (digest !== hmac) {
+    console.error(
+      '[Shopify Webhook] ❌ Invalid HMAC - Secret mismatch!',
+      '\nShop:',
+      shop,
+      '\nTopic:',
+      topic,
+      '\nExpected:',
+      digest.substring(0, 10) + '...',
+      '\nReceived:',
+      hmac.substring(0, 10) + '...',
+    );
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
+  }
 
   await logEvent('shopify.webhook', { topic, shop });
 
@@ -124,17 +138,24 @@ export async function POST(req: NextRequest) {
 
     if (!conn) {
       // If no connection found for this shop, skip persistence safely
-      console.warn(
-        '[Shopify Webhook] No connection found for shop:',
+      console.error(
+        '[Shopify Webhook] ❌ No connection found for shop:',
         normalizedShop,
         'topic:',
         topic,
+        '\nAvailable connections:',
+        await prisma.connection
+          .findMany({
+            where: { type: 'SHOPIFY' as any },
+            select: { shopDomain: true },
+          })
+          .then((conns) => conns.map((c) => c.shopDomain)),
       );
       await logEvent('shopify.webhook.no_connection', {
         shop: normalizedShop,
         topic,
       });
-      return NextResponse.json({ ok: true, ignored: true });
+      return NextResponse.json({ ok: true, ignored: true, error: 'no_connection' });
     }
 
     if (topic === 'orders/create') {
@@ -186,6 +207,12 @@ export async function POST(req: NextRequest) {
       });
     }
   } catch (err) {
+    console.error('[Shopify Webhook] ❌ Error persisting webhook:', {
+      topic,
+      shop,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     await logEvent('shopify.webhook.persist.error', {
       topic,
       shop,
