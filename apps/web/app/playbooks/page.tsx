@@ -7,7 +7,7 @@ import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import PlaybookBuilder from '../components/PlaybookBuilder';
 import PlaybookCard from '../components/PlaybookCard';
-import { useToast, ToastContainer } from '../components/Toast';
+import { useToast, ToastContainer } from '../../components/Toast';
 import {
   Plus,
   Sparkles,

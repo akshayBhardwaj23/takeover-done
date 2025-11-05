@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
-import { seedDefaultPlaybooks } from '@ai-ecom/db/src/seedPlaybooks';
+import { authOptions } from '../../../../lib/auth';
+import { seedDefaultPlaybooks } from '@ai-ecom/db';
 
 /**
  * Seed default playbooks for the current user
