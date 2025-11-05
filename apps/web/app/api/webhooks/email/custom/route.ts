@@ -2,10 +2,51 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Helper to log to both console and Sentry
+function logWithSentry(
+  level: 'info' | 'warning' | 'error',
+  message: string,
+  context?: any,
+) {
+  // Always log to console (for Vercel logs)
+  if (level === 'error') {
+    console.error(message, context);
+  } else if (level === 'warning') {
+    console.warn(message, context);
+  } else {
+    console.error(message, context); // Use console.error for visibility in Vercel
+  }
+
+  // Also send to Sentry if enabled
+  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    if (level === 'error') {
+      Sentry.captureMessage(message, {
+        level: 'error',
+        extra: context,
+        tags: { source: 'email-webhook' },
+      });
+    } else if (level === 'warning') {
+      Sentry.captureMessage(message, {
+        level: 'warning',
+        extra: context,
+        tags: { source: 'email-webhook' },
+      });
+    } else {
+      Sentry.addBreadcrumb({
+        message,
+        level: 'info',
+        data: context,
+        category: 'email-webhook',
+      });
+    }
+  }
+}
 
 // Simple HTML sanitization (server-safe, no jsdom dependency)
 function stripHtml(input: string): string {
@@ -135,8 +176,13 @@ function extractOrderCandidate(text: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+  let errorRequestId = requestId; // For use in catch block
+
   // Use console.error for visibility in Vercel logs (console.log is often filtered/buffered)
-  console.error('[Email Webhook] 📧 Received request:', {
+  // Also log to Sentry for better visibility
+  logWithSentry('info', '[Email Webhook] 📧 Received request', {
+    requestId,
     method: req.method,
     path: '/api/webhooks/email/custom',
     contentType: req.headers.get('content-type'),
@@ -301,24 +347,33 @@ export async function POST(req: NextRequest) {
     // Log authentication status (always, not just on failure, to debug intermittent issues)
     // Use console.error/warn for visibility in Vercel logs
     const authPassed = secretOk || mailgunOk || basicAuthOk;
-    console.error('[Email Webhook] 🔐 Authentication check:', {
-      secretOk,
-      mailgunOk,
-      basicAuthOk,
-      authPassed,
-      hasSecret: !!secret,
-      hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
-      contentType: req.headers.get('content-type'),
-      hasSignature: !!(raw?.signature || raw?.token),
-    });
+    logWithSentry(
+      authPassed ? 'info' : 'warning',
+      '[Email Webhook] 🔐 Authentication check',
+      {
+        requestId,
+        secretOk,
+        mailgunOk,
+        basicAuthOk,
+        authPassed,
+        hasSecret: !!secret,
+        hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
+        contentType: req.headers.get('content-type'),
+        hasSignature: !!(raw?.signature || raw?.token),
+      },
+    );
 
     if (authPassed) {
-      console.error(
+      logWithSentry(
+        'info',
         '[Email Webhook] ✅ Authentication PASSED - proceeding with email processing',
+        { requestId },
       );
     } else {
-      console.error(
+      logWithSentry(
+        'warning',
         '[Email Webhook] ❌ Authentication FAILED - all methods failed',
+        { requestId },
       );
     }
 
@@ -611,20 +666,42 @@ export async function POST(req: NextRequest) {
 
     // Log successful processing
     // Use console.error for visibility in Vercel logs
-    console.error('[Email Webhook] ✅✅✅ SUCCESSFULLY PROCESSED EMAIL:', {
-      messageId: msg.id,
-      threadId: thread.id,
-      orderId: orderId || 'unassigned',
-      from: customerEmail,
-      to: to,
-      subject: subject || '(no subject)',
-      inngestTriggered: true,
-      timestamp: new Date().toISOString(),
-    });
+    logWithSentry(
+      'info',
+      '[Email Webhook] ✅✅✅ SUCCESSFULLY PROCESSED EMAIL',
+      {
+        requestId,
+        messageId: msg.id,
+        threadId: thread.id,
+        orderId: orderId || 'unassigned',
+        from: customerEmail,
+        to: to,
+        subject: subject || '(no subject)',
+        inngestTriggered: true,
+        timestamp: new Date().toISOString(),
+      },
+    );
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error('email webhook error', e);
+    const error = e instanceof Error ? e : new Error(String(e));
+    console.error('[Email Webhook] ❌ Error processing webhook:', error);
+
+    // Send error to Sentry
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      Sentry.captureException(error, {
+        tags: {
+          source: 'email-webhook',
+          endpoint: '/api/webhooks/email/custom',
+        },
+        extra: {
+          requestId: errorRequestId,
+          url: req.url,
+          method: req.method,
+        },
+      });
+    }
+
     return NextResponse.json({ error: 'server error' }, { status: 500 });
   }
 }

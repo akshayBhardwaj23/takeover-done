@@ -353,7 +353,7 @@ RAZORPAY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
 PROTECTED_WEBHOOKS=true
 MOCK_WEBHOOKS=false
 
-# Sentry (optional for staging)
+# Sentry (RECOMMENDED for staging - better logging than Vercel)
 NEXT_PUBLIC_SENTRY_DSN=https://[PROJECT_ID]@[ORG].ingest.sentry.io/[PROJECT_ID]
 ```
 
@@ -736,6 +736,73 @@ This allows customers to reply directly to the store's support email while email
 - Production needs > 5,000 emails/month
 - Need to send to unverified recipients without custom domain
 - Need dedicated IP or higher deliverability
+
+---
+
+## Step 6: Set Up Sentry for Better Logging (RECOMMENDED)
+
+**Why Sentry?** Vercel logs are often filtered or buffered, making it hard to debug issues. Sentry provides:
+
+- ✅ **Reliable logging** - All logs show up immediately
+- ✅ **Better visibility** - Structured logs with context
+- ✅ **Error tracking** - Automatic error capture with stack traces
+- ✅ **Searchable** - Easy to find specific logs/errors
+- ✅ **Free tier** - 5,000 events/month (plenty for staging)
+
+### 6.1 Create Sentry Account (if not already done)
+
+1. Go to [sentry.io](https://sentry.io) and sign up/login
+2. Create a new project (or use existing)
+3. Select **Next.js** as the platform
+4. Copy your **DSN** (Data Source Name)
+
+### 6.2 Add Sentry DSN to Vercel
+
+1. **Vercel Dashboard** → Your project → **Settings** → **Environment Variables**
+2. Add:
+   ```bash
+   NEXT_PUBLIC_SENTRY_DSN=https://[PROJECT_ID]@[ORG].ingest.sentry.io/[PROJECT_ID]
+   ```
+3. Set environment to **Preview** (staging)
+4. **Redeploy** your staging deployment
+
+### 6.3 Verify Sentry is Working
+
+1. **Send a test email** to your Mailgun alias
+2. **Check Sentry Dashboard** → **Issues** or **Performance**
+3. You should see:
+   - `[Email Webhook] 📧 Received request` - Info breadcrumb
+   - `[Email Webhook] 🔐 Authentication check` - Info/warning message
+   - `[Email Webhook] ✅✅✅ SUCCESSFULLY PROCESSED EMAIL` - Success breadcrumb
+
+### 6.4 Search Logs in Sentry
+
+**To find webhook logs:**
+
+1. **Sentry Dashboard** → **Discover**
+2. Search for:
+   - `source:email-webhook` - All webhook logs
+   - `message:[Email Webhook]` - All webhook messages
+   - `level:info` - Info logs
+   - `level:warning` - Warning logs
+   - `level:error` - Error logs
+
+**To find specific requests:**
+
+- Each log includes a `requestId` - use this to trace a single request through all logs
+- Filter by `timestamp` to see logs from a specific time
+
+### 6.5 Sentry vs Vercel Logs
+
+| Feature        | Vercel Logs    | Sentry                               |
+| -------------- | -------------- | ------------------------------------ |
+| Visibility     | Often filtered | Always visible                       |
+| Search         | Basic          | Advanced                             |
+| Context        | Limited        | Rich (requestId, tags, extra data)   |
+| Error tracking | Basic          | Advanced (stack traces, breadcrumbs) |
+| Cost           | Free           | Free tier (5K events/month)          |
+
+**Recommendation:** Use Sentry for staging to get reliable logging and better debugging.
 
 ---
 
