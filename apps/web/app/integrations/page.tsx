@@ -124,7 +124,7 @@ function IntegrationsInner() {
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/20">
+      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/20 pt-20">
         <div className="mx-auto max-w-7xl space-y-8 p-6">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -379,16 +379,16 @@ function IntegrationsInner() {
                     Store Domain
                   </label>
                   <Input
-                    type="text"
-                    name="shop"
-                    placeholder="your-shop.myshopify.com"
-                    required
-                    value={shopInput}
+                  type="text"
+                  name="shop"
+                  placeholder="your-shop.myshopify.com"
+                  required
+                  value={shopInput}
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                       setShopInput((e as any).target.value)
                     }
                     className="h-11"
-                  />
+                />
                 </div>
                 <Button
                   type="submit"
@@ -649,9 +649,9 @@ function IntegrationsInner() {
                               emailHealth.data.lastInboundAt as any,
                             ).toLocaleString()
                           : 'No deliveries yet'}
-                      </p>
-                    </div>
-                  </div>
+              </p>
+            </div>
+          </div>
                 </Card>
 
                 <Card className="group relative overflow-hidden border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-7 transition-all hover:scale-[1.02] hover:border-blue-300 hover:shadow-lg">
@@ -696,8 +696,8 @@ function IntegrationsInner() {
               </div>
             </div>
           </section>
-        </div>
-      </main>
+      </div>
+    </main>
     </>
   );
 }
