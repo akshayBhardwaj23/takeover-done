@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import AISuggestionBox from '../components/AISuggestionBox';
 import {
   DollarSign,
   ShoppingBag,
@@ -179,6 +180,9 @@ function ShopifyAnalyticsInner() {
           <Store className="mr-1 h-4 w-4" />
           {selectedShop}
         </Badge>
+
+        {/* AI Suggestion Box */}
+        <AISuggestionBox shop={selectedShop} />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -3,6 +3,7 @@
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import AISuggestionBox from '../components/AISuggestionBox';
 import {
   TrendingUp,
   Mail,
@@ -128,6 +129,9 @@ export default function AnalyticsPage() {
             Live Data
           </Badge>
         </div>
+
+        {/* AI Suggestion Box */}
+        <AISuggestionBox />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

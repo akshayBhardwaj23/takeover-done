@@ -2020,6 +2020,219 @@ Write responses that sound like they come from a real human support agent who ge
         });
       }
     }),
+
+  // AI Insights - aggregate data and generate suggestions
+  getAggregatedInsights: aiProcedure
+    .input(z.object({ shop: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      try {
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true, shopDomain: true, type: true },
+        });
+        
+        const connectionIds = connections.map(c => c.id);
+        
+        if (connectionIds.length === 0) {
+          return { shopifyMetrics: null, emailMetrics: null };
+        }
+
+        // Time ranges
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        // Shopify metrics
+        let shopifyMetrics: any = null;
+        const shopifyConn = connections.find(c => c.type === 'SHOPIFY');
+        
+        if (shopifyConn) {
+          const shopDomain = input?.shop || shopifyConn.shopDomain;
+          
+          // Current week orders
+          const ordersThisWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          // Previous week orders for comparison
+          const ordersPrevWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
+          const revenuePrevWeek = ordersPrevWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
+          
+          const revenueChange = revenuePrevWeek > 0 
+            ? ((revenueThisWeek - revenuePrevWeek) / revenuePrevWeek) * 100 
+            : 0;
+
+          const ordersChange = ordersPrevWeek.length > 0
+            ? ((ordersThisWeek.length - ordersPrevWeek.length) / ordersPrevWeek.length) * 100
+            : 0;
+
+          // Count refunds (assuming REFUNDED status)
+          const refundsThisWeek = ordersThisWeek.filter(o => 
+            o.status?.toLowerCase().includes('refund')
+          ).length;
+          const refundRate = ordersThisWeek.length > 0 
+            ? (refundsThisWeek / ordersThisWeek.length) * 100 
+            : 0;
+
+          const avgOrderValue = ordersThisWeek.length > 0
+            ? revenueThisWeek / ordersThisWeek.length
+            : 0;
+
+          shopifyMetrics = {
+            totalRevenue: revenueThisWeek,
+            totalOrders: ordersThisWeek.length,
+            avgOrderValue,
+            refundRate,
+            fulfillmentTime: 2.5, // Placeholder - would need fulfillment data
+            weekOverWeekChange: {
+              revenue: revenueChange,
+              orders: ordersChange,
+              refunds: refundRate,
+            },
+          };
+        }
+
+        // Email metrics
+        let emailMetrics: any = null;
+        const emailConns = connections.filter(c => c.type === 'CUSTOM_EMAIL');
+        
+        if (emailConns.length > 0) {
+          // Current week emails
+          const emailsThisWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const emailsPrevWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const volumeChange = emailsPrevWeek > 0
+            ? ((emailsThisWeek - emailsPrevWeek) / emailsPrevWeek) * 100
+            : 0;
+
+          // Get recent messages for sentiment/complaint analysis
+          const recentMessages = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+            select: { body: true },
+            take: 50,
+          });
+
+          // Simple sentiment analysis based on keywords
+          let negativeSentimentCount = 0;
+          const complaintKeywords: { [key: string]: number } = {};
+          
+          for (const msg of recentMessages) {
+            const body = msg.body?.toLowerCase() || '';
+            
+            // Negative sentiment keywords
+            if (body.match(/\b(angry|disappointed|frustrated|terrible|worst|horrible|awful)\b/)) {
+              negativeSentimentCount++;
+            }
+            
+            // Track complaint topics
+            if (body.includes('discount') || body.includes('coupon')) {
+              complaintKeywords['discount issues'] = (complaintKeywords['discount issues'] || 0) + 1;
+            }
+            if (body.includes('shipping') || body.includes('delivery')) {
+              complaintKeywords['shipping delays'] = (complaintKeywords['shipping delays'] || 0) + 1;
+            }
+            if (body.includes('refund') || body.includes('return')) {
+              complaintKeywords['refund requests'] = (complaintKeywords['refund requests'] || 0) + 1;
+            }
+            if (body.includes('quality') || body.includes('damaged') || body.includes('defective')) {
+              complaintKeywords['product quality'] = (complaintKeywords['product quality'] || 0) + 1;
+            }
+          }
+
+          const sentimentScore = recentMessages.length > 0
+            ? (negativeSentimentCount / recentMessages.length) * -1
+            : 0;
+
+          const topComplaints = Object.entries(complaintKeywords)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([topic]) => topic);
+
+          // Calculate avg response time
+          const messagesWithResponses = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+              order: { actions: { some: {} } },
+            },
+            include: {
+              order: {
+                include: {
+                  actions: { orderBy: { createdAt: 'asc' }, take: 1 },
+                },
+              },
+            },
+            take: 50,
+          });
+
+          let totalResponseMinutes = 0;
+          let responseCount = 0;
+          
+          for (const msg of messagesWithResponses) {
+            const firstAction = msg.order?.actions[0];
+            if (firstAction) {
+              const diffMs = firstAction.createdAt.getTime() - msg.createdAt.getTime();
+              const diffMinutes = diffMs / (1000 * 60);
+              if (diffMinutes >= 0 && diffMinutes < 10000) {
+                totalResponseMinutes += diffMinutes;
+                responseCount++;
+              }
+            }
+          }
+
+          const avgResponseTime = responseCount > 0 
+            ? totalResponseMinutes / responseCount 
+            : 0;
+
+          emailMetrics = {
+            totalEmails: emailsThisWeek,
+            avgResponseTime,
+            sentimentScore,
+            topComplaints,
+            weekOverWeekChange: {
+              volume: volumeChange,
+              negativeSentiment: negativeSentimentCount > 0 ? 
+                (negativeSentimentCount / recentMessages.length) * 100 : 0,
+            },
+          };
+        }
+
+        return { shopifyMetrics, emailMetrics };
+      } catch (error) {
+        console.error('Error fetching aggregated insights:', error);
+        return { shopifyMetrics: null, emailMetrics: null };
+      }
+    }),
 });
 
 export type AppRouter = typeof appRouter;

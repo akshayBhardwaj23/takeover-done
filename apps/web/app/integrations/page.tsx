@@ -4,6 +4,7 @@ import { trpc } from '../../lib/trpc';
 import { Suspense, useEffect, useState, useRef, type ChangeEvent } from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
+import AISuggestionBox from '../components/AISuggestionBox';
 import {
   Dialog,
   DialogContent,
@@ -147,6 +148,9 @@ function IntegrationsInner() {
               {shopifyConnections.length + emailConnections.length} Active
             </Badge>
           </div>
+
+          {/* AI Suggestion Box */}
+          <AISuggestionBox shop={shopifyConnections[0]?.shopDomain || undefined} />
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
