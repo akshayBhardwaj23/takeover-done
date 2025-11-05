@@ -217,8 +217,29 @@ export const appRouter = t.router({
       }
       const domain = (existing.metadata as any)?.domain as string | undefined;
       if (!domain) return { ok: false } as any;
-      const short = Math.random().toString(36).slice(2, 8);
-      const alias = `in+${existing.userId.slice(0, 6)}-${short}@${domain}`;
+
+      // Get shop domain from metadata to generate consistent shop slug
+      const shopDomain = (existing.metadata as any)?.shopDomain as
+        | string
+        | undefined;
+      if (!shopDomain) return { ok: false } as any;
+
+      // Generate new alias with same format as createEmailAlias
+      const short = Math.random().toString(36).slice(2, 6);
+      const shopSlug = shopDomain
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 8)
+        .toLowerCase();
+
+      // Add environment suffix to alias for routing (local/staging/production)
+      const envSuffix =
+        process.env.NODE_ENV === 'development'
+          ? '-local'
+          : process.env.ENVIRONMENT === 'staging'
+            ? '-staging'
+            : ''; // Production has no suffix
+
+      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);

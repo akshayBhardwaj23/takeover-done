@@ -665,19 +665,22 @@ The code automatically generates aliases with environment suffixes:
 2. **Create separate routes for each environment:**
 
    **Route 1: Local Development**
-   - **Route expression:** `match_recipient("in+*-local@mail.zyyp.ai")`
+   - **Expression type:** Match recipient
+   - **Route expression (regex):** `.*-local@mail\\.zyyp\\.ai$`
    - **Action:** Forward to webhook
    - **Webhook URL:** `https://dev.zyyp.ai/api/webhooks/email/custom` (your Cloudflare tunnel)
    - **Priority:** 1 (highest - routes are matched in priority order)
 
    **Route 2: Staging**
-   - **Route expression:** `match_recipient("in+*-staging@mail.zyyp.ai")`
+   - **Expression type:** Match recipient
+   - **Route expression (regex):** `.*-staging@mail\\.zyyp\\.ai$`
    - **Action:** Forward to webhook
    - **Webhook URL:** `https://staging-[your-project].vercel.app/api/webhooks/email/custom`
    - **Priority:** 2
 
    **Route 3: Production**
-   - **Route expression:** `match_recipient("in+*@mail.zyyp.ai")` (catches all remaining patterns)
+   - **Expression type:** Match recipient
+   - **Route expression (regex):** `.*@mail\\.zyyp\\.ai$` (catches all remaining patterns)
    - **Action:** Forward to webhook
    - **Webhook URL:** `https://your-production-domain.com/api/webhooks/email/custom`
    - **Priority:** 3 (lowest - catches everything else)
