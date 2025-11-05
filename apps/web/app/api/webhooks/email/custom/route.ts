@@ -135,12 +135,14 @@ function extractOrderCandidate(text: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  console.log('[Email Webhook] Received request:', {
+  // Use console.error for visibility in Vercel logs (console.log is often filtered/buffered)
+  console.error('[Email Webhook] 📧 Received request:', {
     method: req.method,
     path: '/api/webhooks/email/custom',
     contentType: req.headers.get('content-type'),
     hasXEmailWebhookSecret: !!req.headers.get('x-email-webhook-secret'),
     hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
+    timestamp: new Date().toISOString(),
   });
   try {
     // Idempotency: prefer Message-ID header; fallback to HMAC of body
@@ -235,7 +237,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Log successful parsing for debugging intermittent issues
-    console.log('[Email Webhook] Request parsed successfully:', {
+    // Use console.error for visibility in Vercel logs
+    console.error('[Email Webhook] 📦 Request parsed successfully:', {
       contentType,
       rawKeys: Object.keys(raw).slice(0, 15),
       hasTo: !!(raw.to || raw.recipient),
@@ -243,8 +246,9 @@ export async function POST(req: NextRequest) {
     });
 
     // Log Mailgun signature fields for debugging
+    // Use console.error for visibility in Vercel logs
     if (process.env.MAILGUN_SIGNING_KEY) {
-      console.log('[Email Webhook] Mailgun signature fields:', {
+      console.error('[Email Webhook] 🔑 Mailgun signature fields:', {
         hasSignatureObject: !!raw?.signature,
         hasToken: !!(raw?.signature?.token || raw?.token),
         hasTimestamp: !!(raw?.signature?.timestamp || raw?.timestamp),
@@ -295,8 +299,9 @@ export async function POST(req: NextRequest) {
     const basicAuthOk = verifyBasicAuth(req);
 
     // Log authentication status (always, not just on failure, to debug intermittent issues)
+    // Use console.error/warn for visibility in Vercel logs
     const authPassed = secretOk || mailgunOk || basicAuthOk;
-    console.log('[Email Webhook] Authentication check:', {
+    console.error('[Email Webhook] 🔐 Authentication check:', {
       secretOk,
       mailgunOk,
       basicAuthOk,
@@ -308,8 +313,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (authPassed) {
-      console.log(
-        '[Email Webhook] ✅ Authentication passed - proceeding with email processing',
+      console.error(
+        '[Email Webhook] ✅ Authentication PASSED - proceeding with email processing',
+      );
+    } else {
+      console.error(
+        '[Email Webhook] ❌ Authentication FAILED - all methods failed',
       );
     }
 
@@ -421,8 +430,8 @@ export async function POST(req: NextRequest) {
     // First, try to extract and match order number from subject/body (more specific)
     const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
     if (candidate) {
-      console.log(
-        `[Email Webhook] Extracted order candidate: ${candidate} from subject/body`,
+      console.error(
+        `[Email Webhook] 🔍 Extracted order candidate: ${candidate} from subject/body`,
       );
 
       // Build where clause with shop domain scoping if available
@@ -450,8 +459,8 @@ export async function POST(req: NextRequest) {
         });
         if (byName) {
           orderId = byName.id;
-          console.log(
-            `[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+          console.error(
+            `[Email Webhook] ✅ Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
           );
         }
       } else {
@@ -461,8 +470,8 @@ export async function POST(req: NextRequest) {
         });
         if (byName) {
           orderId = byName.id;
-          console.log(
-            `[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+          console.error(
+            `[Email Webhook] ✅ Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
           );
         }
       }
@@ -478,8 +487,8 @@ export async function POST(req: NextRequest) {
     // If no order matches, leave orderId as undefined so email goes to "Unassigned Emails" section
     // This allows manual assignment by support staff
     if (!orderId) {
-      console.log(
-        `[Email Webhook] No order matched - email will be marked as unassigned (customer: ${customerEmail})`,
+      console.error(
+        `[Email Webhook] ⚠️ No order matched - email will be marked as unassigned (customer: ${customerEmail})`,
       );
     }
 
@@ -499,12 +508,12 @@ export async function POST(req: NextRequest) {
         });
         if (!wasNew) {
           // Key already exists - this is a duplicate webhook
-          console.log(
+          console.error(
             `[Email Webhook] ⚠️ Duplicate webhook detected (Message-ID: ${messageIdHeader}), skipping - already processed`,
           );
           return NextResponse.json({ ok: true, deduped: true });
         } else {
-          console.log(
+          console.error(
             `[Email Webhook] ✅ New webhook (Message-ID: ${messageIdHeader}), processing...`,
           );
         }
@@ -572,8 +581,8 @@ export async function POST(req: NextRequest) {
           messageId: msg.id,
         },
       });
-      console.log(
-        `[Email Webhook] Triggered Inngest event for message ${msg.id}`,
+      console.error(
+        `[Email Webhook] 🚀 Triggered Inngest event for message ${msg.id}`,
       );
     } catch (error) {
       // If Inngest is not available, log but don't fail the webhook
@@ -601,7 +610,8 @@ export async function POST(req: NextRequest) {
     // No need to set again here - it was already set if this webhook is new
 
     // Log successful processing
-    console.log('[Email Webhook] ✅ Successfully processed email:', {
+    // Use console.error for visibility in Vercel logs
+    console.error('[Email Webhook] ✅✅✅ SUCCESSFULLY PROCESSED EMAIL:', {
       messageId: msg.id,
       threadId: thread.id,
       orderId: orderId || 'unassigned',
@@ -609,6 +619,7 @@ export async function POST(req: NextRequest) {
       to: to,
       subject: subject || '(no subject)',
       inngestTriggered: true,
+      timestamp: new Date().toISOString(),
     });
 
     return NextResponse.json({ ok: true });
