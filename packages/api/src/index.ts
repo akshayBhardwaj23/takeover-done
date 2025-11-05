@@ -2236,9 +2236,22 @@ Write responses that sound like they come from a real human support agent who ge
 
   // Playbook Management
   getPlaybooks: protectedProcedure
-    .input(z.object({ category: z.string().optional() }).optional())
+    .input(z.object({ category: z.string().optional(), seedDefaults: z.boolean().optional() }).optional())
     .query(async ({ input, ctx }) => {
       try {
+        // Auto-seed default playbooks if user has none and seedDefaults is true
+        if (input?.seedDefaults) {
+          const existingCount = await prisma.playbook.count({
+            where: { userId: ctx.userId },
+          });
+
+          if (existingCount === 0) {
+            // Import and seed default playbooks
+            const { seedDefaultPlaybooks } = await import('@ai-ecom/db');
+            await seedDefaultPlaybooks(ctx.userId);
+          }
+        }
+
         const where: any = { userId: ctx.userId };
         if (input?.category) {
           where.category = input.category;

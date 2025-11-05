@@ -34,7 +34,9 @@ export default function PlaybooksPage() {
   const [editingPlaybook, setEditingPlaybook] = useState<any>(null);
 
   const { data, isLoading, refetch } = trpc.getPlaybooks.useQuery(
-    selectedCategory !== 'all' ? { category: selectedCategory } : undefined
+    selectedCategory !== 'all' 
+      ? { category: selectedCategory, seedDefaults: true } 
+      : { seedDefaults: true }
   );
 
   const createMutation = trpc.createPlaybook.useMutation({
