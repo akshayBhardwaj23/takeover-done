@@ -2233,6 +2233,298 @@ Write responses that sound like they come from a real human support agent who ge
         return { shopifyMetrics: null, emailMetrics: null };
       }
     }),
+
+  // Playbook Management
+  getPlaybooks: protectedProcedure
+    .input(z.object({ category: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      try {
+        const where: any = { userId: ctx.userId };
+        if (input?.category) {
+          where.category = input.category;
+        }
+
+        const playbooks = await prisma.playbook.findMany({
+          where,
+          orderBy: [
+            { isDefault: 'desc' },
+            { enabled: 'desc' },
+            { createdAt: 'desc' },
+          ],
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            category: true,
+            trigger: true,
+            conditions: true,
+            actions: true,
+            confidenceThreshold: true,
+            requiresApproval: true,
+            enabled: true,
+            isDefault: true,
+            executionCount: true,
+            lastExecutedAt: true,
+            createdAt: true,
+          },
+        });
+
+        return { playbooks };
+      } catch (error) {
+        console.error('Error fetching playbooks:', error);
+        return { playbooks: [] };
+      }
+    }),
+
+  createPlaybook: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        category: z.enum(['REFUND_RETURN', 'MARKETING', 'FULFILLMENT', 'SUPPORT', 'INVENTORY', 'CUSTOM']),
+        trigger: z.any(),
+        conditions: z.any(),
+        actions: z.any(),
+        confidenceThreshold: z.number().min(0).max(1).default(0.8),
+        requiresApproval: z.boolean().default(false),
+        enabled: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: sanitizeLimited(input.name, 100),
+            description: input.description ? sanitizeLimited(input.description, 500) : null,
+            category: input.category,
+            trigger: input.trigger,
+            conditions: input.conditions,
+            actions: input.actions,
+            confidenceThreshold: input.confidenceThreshold,
+            requiresApproval: input.requiresApproval,
+            enabled: input.enabled,
+          },
+        });
+
+        await logEvent('playbook.created', { playbookId: playbook.id, category: input.category }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        console.error('Error creating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to create playbook',
+        });
+      }
+    }),
+
+  updatePlaybook: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        trigger: z.any().optional(),
+        conditions: z.any().optional(),
+        actions: z.any().optional(),
+        confidenceThreshold: z.number().min(0).max(1).optional(),
+        requiresApproval: z.boolean().optional(),
+        enabled: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow editing default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot edit default playbooks. Clone it to create your own version.',
+          });
+        }
+
+        const updateData: any = {};
+        if (input.name !== undefined) updateData.name = sanitizeLimited(input.name, 100);
+        if (input.description !== undefined) updateData.description = input.description ? sanitizeLimited(input.description, 500) : null;
+        if (input.trigger !== undefined) updateData.trigger = input.trigger;
+        if (input.conditions !== undefined) updateData.conditions = input.conditions;
+        if (input.actions !== undefined) updateData.actions = input.actions;
+        if (input.confidenceThreshold !== undefined) updateData.confidenceThreshold = input.confidenceThreshold;
+        if (input.requiresApproval !== undefined) updateData.requiresApproval = input.requiresApproval;
+        if (input.enabled !== undefined) updateData.enabled = input.enabled;
+
+        const playbook = await prisma.playbook.update({
+          where: { id: input.id },
+          data: updateData,
+        });
+
+        await logEvent('playbook.updated', { playbookId: playbook.id }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error updating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to update playbook',
+        });
+      }
+    }),
+
+  deletePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow deleting default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot delete default playbooks. Disable it instead.',
+          });
+        }
+
+        await prisma.playbook.delete({
+          where: { id: input.id },
+        });
+
+        await logEvent('playbook.deleted', { playbookId: input.id }, 'playbook', input.id);
+
+        return { ok: true };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error deleting playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to delete playbook',
+        });
+      }
+    }),
+
+  clonePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify access (can clone any playbook, including defaults)
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found',
+          });
+        }
+
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: `${existing.name} (Copy)`,
+            description: existing.description,
+            category: existing.category,
+            trigger: existing.trigger,
+            conditions: existing.conditions,
+            actions: existing.actions,
+            confidenceThreshold: existing.confidenceThreshold,
+            requiresApproval: existing.requiresApproval,
+            enabled: false, // Cloned playbooks start disabled
+            isDefault: false, // Clones are never defaults
+          },
+        });
+
+        await logEvent('playbook.cloned', { sourceId: input.id, newId: playbook.id }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error cloning playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to clone playbook',
+        });
+      }
+    }),
+
+  getPlaybookExecutions: protectedProcedure
+    .input(
+      z.object({
+        playbookId: z.string().optional(),
+        limit: z.number().min(1).max(100).default(20),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const where: any = {};
+        
+        if (input.playbookId) {
+          // Verify user owns the playbook
+          const playbook = await prisma.playbook.findFirst({
+            where: { id: input.playbookId, userId: ctx.userId },
+          });
+
+          if (!playbook) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Playbook not found or access denied',
+            });
+          }
+
+          where.playbookId = input.playbookId;
+        } else {
+          // Get all playbooks owned by user
+          const userPlaybooks = await prisma.playbook.findMany({
+            where: { userId: ctx.userId },
+            select: { id: true },
+          });
+
+          where.playbookId = { in: userPlaybooks.map(p => p.id) };
+        }
+
+        const executions = await prisma.playbookExecution.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input.limit,
+          include: {
+            playbook: {
+              select: {
+                name: true,
+                category: true,
+              },
+            },
+          },
+        });
+
+        return { executions };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error fetching playbook executions:', error);
+        return { executions: [] };
+      }
+    }),
 });
 
 export type AppRouter = typeof appRouter;

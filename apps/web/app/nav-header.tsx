@@ -23,6 +23,12 @@ export default function Header() {
           {isAuthed && (
             <>
               <a
+                href="/playbooks"
+                className="hover:text-gray-900 transition-colors"
+              >
+                Playbooks
+              </a>
+              <a
                 href="/analytics"
                 className="hover:text-gray-900 transition-colors"
               >
