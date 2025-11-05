@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ai-ecom/db';
 
-export const runtime = 'edge';
+// Cannot use edge runtime with Prisma - it requires Node.js runtime
+export const runtime = 'nodejs';
 
 interface TriggerData {
   type: 'shopify_event' | 'email_intent' | 'scheduled';

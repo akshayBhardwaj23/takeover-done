@@ -1,10 +1,11 @@
 import { prisma } from './index';
+import { PlaybookCategory } from '@prisma/client';
 
 const DEFAULT_PLAYBOOKS = [
   {
     name: 'Damaged Product – Auto Refund',
     description: 'Automatically refund orders under $100 when customer reports damaged or defective products',
-    category: 'REFUND_RETURN',
+    category: 'REFUND_RETURN' as PlaybookCategory,
     trigger: {
       type: 'email_intent',
       config: { intent: 'refund_request' },
@@ -25,7 +26,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Size Issue – Auto Exchange',
     description: 'Detect size complaints and offer automatic exchange to correct size',
-    category: 'REFUND_RETURN',
+    category: 'REFUND_RETURN' as PlaybookCategory,
     trigger: {
       type: 'email_intent',
       config: { intent: 'exchange_request' },
@@ -45,7 +46,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Inactive Customer Re-Engagement',
     description: 'Send personalized re-engagement email with 10% discount to customers inactive for 30+ days',
-    category: 'MARKETING',
+    category: 'MARKETING' as PlaybookCategory,
     trigger: {
       type: 'scheduled',
       config: { frequency: 'daily', time: '10:00' },
@@ -67,7 +68,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Cart Abandonment Recovery',
     description: 'Follow up with customers who abandoned carts with personalized discount',
-    category: 'MARKETING',
+    category: 'MARKETING' as PlaybookCategory,
     trigger: {
       type: 'shopify_event',
       config: { event: 'cart_abandoned' },
@@ -88,7 +89,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Negative Review Auto-Response',
     description: 'Automatically respond to negative feedback with empathy and create support ticket',
-    category: 'SUPPORT',
+    category: 'SUPPORT' as PlaybookCategory,
     trigger: {
       type: 'email_intent',
       config: { intent: 'product_complaint' },
@@ -109,7 +110,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Delayed Order Escalation',
     description: 'Alert team and send apology email for orders unfulfilled after 5 days',
-    category: 'FULFILLMENT',
+    category: 'FULFILLMENT' as PlaybookCategory,
     trigger: {
       type: 'scheduled',
       config: { frequency: 'daily', time: '09:00' },
@@ -130,7 +131,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'Low Stock Auto Restock Alert',
     description: 'Send alert when product inventory falls below threshold',
-    category: 'INVENTORY',
+    category: 'INVENTORY' as PlaybookCategory,
     trigger: {
       type: 'shopify_event',
       config: { event: 'product_out_of_stock' },
@@ -150,7 +151,7 @@ const DEFAULT_PLAYBOOKS = [
   {
     name: 'VIP Customer Fast Track',
     description: 'Automatically prioritize and fast-track orders from high-value customers',
-    category: 'FULFILLMENT',
+    category: 'FULFILLMENT' as PlaybookCategory,
     trigger: {
       type: 'shopify_event',
       config: { event: 'order_created' },
