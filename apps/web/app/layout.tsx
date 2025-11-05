@@ -2,8 +2,6 @@ import './globals.css';
 import { Providers } from './providers';
 import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
-import SmoothScroll from './components/SmoothScroll';
-import CursorFollower from './components/CursorFollower';
 import Header from './nav-header';
 
 export const metadata = {
@@ -25,8 +23,6 @@ export default function RootLayout({
         <Providers>
           <Header />
           <PageFade>{children}</PageFade>
-          <SmoothScroll />
-          <CursorFollower />
         </Providers>
       </body>
     </html>
