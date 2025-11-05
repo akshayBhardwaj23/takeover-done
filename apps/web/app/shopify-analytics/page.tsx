@@ -147,7 +147,7 @@ function ShopifyAnalyticsInner() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-20">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
