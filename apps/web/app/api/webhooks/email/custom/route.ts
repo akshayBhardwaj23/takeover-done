@@ -25,26 +25,14 @@ function logWithSentry(
 
   // Also send to Sentry if enabled
   if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-    if (level === 'error') {
-      Sentry.captureMessage(message, {
-        level: 'error',
-        extra: context,
-        tags: { source: 'email-webhook' },
-      });
-    } else if (level === 'warning') {
-      Sentry.captureMessage(message, {
-        level: 'warning',
-        extra: context,
-        tags: { source: 'email-webhook' },
-      });
-    } else {
-      Sentry.addBreadcrumb({
-        message,
-        level: 'info',
-        data: context,
-        category: 'email-webhook',
-      });
-    }
+    // Use captureMessage for all levels so they appear in Discover
+    // addBreadcrumb only shows up when there's an error/issue
+    Sentry.captureMessage(message, {
+      level:
+        level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
+      extra: context,
+      tags: { source: 'email-webhook' },
+    });
   }
 }
 
@@ -77,36 +65,19 @@ function verifyBasicAuth(req: NextRequest): boolean {
 }
 
 // Mailgun signature verification
-// IMPORTANT: This only works for Mailgun Events Webhooks (configured under Webhooks → Stored Messages)
+// This works for Mailgun Events Webhooks (configured under Webhooks → Stored Messages)
 // Mailgun Routes (email forwarding) do NOT include signature fields
-//
-// To use Events Webhooks:
-// 1. Mailgun Dashboard → Webhooks → Stored Messages
-// 2. Add webhook: https://your-domain.com/api/webhooks/email/custom
-// 3. Get HTTP webhook signing key from: Domains → mail.zyyp.ai → Webhooks
-// 4. Set MAILGUN_SIGNING_KEY to that HTTP webhook signing key (NOT the API key)
-//
-// Alternative for Routes (if you must use Routes):
-// - Add basic auth to Route URL: https://webhook:secret@your-domain.com/api/webhooks/email/custom
-// - Verify basic auth server-side instead of signature
 function verifyMailgunSignature(raw: any): boolean {
   const signingKey = process.env.MAILGUN_SIGNING_KEY;
   if (!signingKey) {
-    // If signing key is not configured, skip verification (allow through)
-    // This allows Routes to work without signature verification
-    // Note: For Routes, consider using basic auth in the URL instead
+    // If signing key is not configured, skip verification
     return true;
   }
 
   // Verify we're using the HTTP webhook signing key format (not API key)
-  // HTTP webhook signing keys are typically 32-char hex strings (no "key-" prefix)
-  // API keys start with "key-"
   if (signingKey.startsWith('key-')) {
     console.error(
       '[Email Webhook] ❌ MAILGUN_SIGNING_KEY appears to be an API key, not HTTP webhook signing key!',
-    );
-    console.error(
-      '[Email Webhook] Get HTTP webhook signing key from: Mailgun → Domains → mail.zyyp.ai → Webhooks',
     );
     return false;
   }
@@ -123,19 +94,7 @@ function verifyMailgunSignature(raw: any): boolean {
     (sig?.signature as string | undefined) ??
     (raw?.signature as string | undefined);
 
-  // Mailgun Routes (email forwarding) don't always include signature fields
-  // If signature fields are missing, we can't verify, so return false
-  // But we'll allow through if signature verification is skipped (see main handler)
   if (!token || !timestamp || !signature) {
-    console.warn(
-      '[Email Webhook] Mailgun signature missing fields (Routes may not include signatures):',
-      {
-        hasToken: !!token,
-        hasTimestamp: !!timestamp,
-        hasSignature: !!signature,
-        note: 'Mailgun Routes (email forwarding) may not include signature fields. Use custom header or allow without signature for Routes.',
-      },
-    );
     return false;
   }
 
@@ -282,27 +241,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid body' }, { status: 400 });
     }
 
-    // Log successful parsing for debugging intermittent issues
-    // Use console.error for visibility in Vercel logs
-    console.error('[Email Webhook] 📦 Request parsed successfully:', {
-      contentType,
-      rawKeys: Object.keys(raw).slice(0, 15),
-      hasTo: !!(raw.to || raw.recipient),
-      hasFrom: !!(raw.from || raw.sender),
-    });
-
-    // Log Mailgun signature fields for debugging
-    // Use console.error for visibility in Vercel logs
-    if (process.env.MAILGUN_SIGNING_KEY) {
-      console.error('[Email Webhook] 🔑 Mailgun signature fields:', {
-        hasSignatureObject: !!raw?.signature,
-        hasToken: !!(raw?.signature?.token || raw?.token),
-        hasTimestamp: !!(raw?.signature?.timestamp || raw?.timestamp),
-        hasSignature: !!(raw?.signature?.signature || raw?.signature),
-        rawKeys: Object.keys(raw).slice(0, 20), // First 20 keys
-      });
-    }
-
     // Normalize common fields across JSON and Mailgun Routes
     const to: string | undefined =
       (raw.to as string) || (raw.recipient as string);
@@ -344,112 +282,12 @@ export async function POST(req: NextRequest) {
     const mailgunOk = verifyMailgunSignature(raw);
     const basicAuthOk = verifyBasicAuth(req);
 
-    // Log authentication status (always, not just on failure, to debug intermittent issues)
-    // Use console.error/warn for visibility in Vercel logs
-    const authPassed = secretOk || mailgunOk || basicAuthOk;
-    logWithSentry(
-      authPassed ? 'info' : 'warning',
-      '[Email Webhook] 🔐 Authentication check',
-      {
-        requestId,
-        secretOk,
-        mailgunOk,
-        basicAuthOk,
-        authPassed,
-        hasSecret: !!secret,
-        hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
-        contentType: req.headers.get('content-type'),
-        hasSignature: !!(raw?.signature || raw?.token),
-      },
-    );
-
-    if (authPassed) {
-      logWithSentry(
-        'info',
-        '[Email Webhook] ✅ Authentication PASSED - proceeding with email processing',
-        { requestId },
-      );
-    } else {
-      logWithSentry(
-        'warning',
-        '[Email Webhook] ❌ Authentication FAILED - all methods failed',
-        { requestId },
-      );
-    }
-
-    // Log authentication details for debugging
+    // Require at least one authentication method to pass
     if (!secretOk && !mailgunOk && !basicAuthOk) {
-      const contentType = req.headers.get('content-type') || '';
-      const isFormData =
-        contentType.includes('multipart/form-data') ||
-        contentType.includes('application/x-www-form-urlencoded');
-
-      console.error('[Email Webhook] ❌ Authentication failed:', {
-        hasSecret: !!secret,
-        secretHeader: req.headers.get('x-email-webhook-secret')
-          ? 'present'
-          : 'missing',
-        mailgunSigningKey: process.env.MAILGUN_SIGNING_KEY
-          ? 'configured'
-          : 'missing',
-        mailgunSigningKeyLength: process.env.MAILGUN_SIGNING_KEY?.length || 0,
-        mailgunSigningKeyFormat: process.env.MAILGUN_SIGNING_KEY?.startsWith(
-          'key-',
-        )
-          ? 'API_KEY (WRONG!)'
-          : 'HTTP_WEBHOOK_KEY (correct)',
-        hasBasicAuth: !!req.headers.get('authorization'),
-        hasSignature: !!raw?.signature || !!raw?.token,
-        hasToken: !!raw?.token,
-        hasTimestamp: !!raw?.timestamp,
-        hasSignatureField: !!raw?.signature,
-        contentType,
-        isFormData,
-        likelyRoutes: isFormData && !raw?.signature && !raw?.token,
-        to: to?.substring(0, 50),
-        from: from?.substring(0, 50),
-        rawKeys: Object.keys(raw || {}).slice(0, 10),
-        recommendation:
-          isFormData && !raw?.signature
-            ? 'This looks like Mailgun Routes (no signatures). Switch to Events Webhooks or add basic auth to Route URL.'
-            : 'Check MAILGUN_SIGNING_KEY is HTTP webhook signing key (not API key)',
-      });
-
-      // Mailgun Routes (email forwarding) don't include signature fields by default
-      // If we have valid email routing data (to/from), allow through for Routes
-      // This is a known limitation - Routes forward emails but don't include webhook signatures
-      // For better security, consider using Mailgun's webhook events instead of Routes
-      // Note: We already validated to/from exist earlier, so if we reach here, they should exist
-      // But double-check in case of edge cases (e.g., empty strings, null values after parsing)
-      if (to && from && to.trim() && from.trim()) {
-        console.warn(
-          '[Email Webhook] ⚠️ Authentication failed but email routing data present - allowing through (Mailgun Routes may not include signatures)',
-        );
-        console.warn(
-          '[Email Webhook] 💡 RECOMMENDATION: Switch to Mailgun Events Webhooks for better security:',
-          'Mailgun Dashboard → Webhooks → Stored Messages → Add webhook',
-        );
-        // Allow through for Mailgun Routes (email forwarding)
-        // Routes don't include signature fields, only webhook events do
-        // We trust the connection lookup (alias matching) as a form of authentication
-      } else {
-        console.error(
-          '[Email Webhook] ❌ Authentication failed and no valid email routing data:',
-          {
-            hasTo: !!to,
-            hasFrom: !!from,
-            toValue: to?.substring(0, 50),
-            fromValue: from?.substring(0, 50),
-            toTrimmed: to?.trim(),
-            fromTrimmed: from?.trim(),
-            hasSubject: !!subject,
-            hasText: !!text,
-            hasHtml: !!html,
-            rawKeys: Object.keys(raw || {}),
-          },
-        );
-        return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-      }
+      console.error(
+        '[Email Webhook] ❌ Authentication failed: all methods failed',
+      );
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
     const metadata = (conn.metadata as any) ?? {};
