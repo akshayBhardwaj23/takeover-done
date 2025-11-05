@@ -5,6 +5,8 @@ import { Redis } from '@upstash/redis';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
+// Ensure we get fresh request body (no caching)
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   // Idempotency: prevent replayed webhooks
@@ -55,20 +57,53 @@ export async function POST(req: NextRequest) {
       );
     }
   }
+
+  // Get headers and secret first for debugging
   const secret = process.env.SHOPIFY_API_SECRET;
   const hmac = req.headers.get('x-shopify-hmac-sha256') ?? '';
   const topic = req.headers.get('x-shopify-topic') ?? '';
   const shop = req.headers.get('x-shopify-shop-domain') ?? '';
-  const payload = await req.text();
+
+  // Debug logging
+  console.log('[Shopify Webhook] Received webhook:', {
+    shop,
+    topic,
+    webhookId,
+    hmacPresent: !!hmac,
+    hmacPrefix: hmac.substring(0, 10) + '...',
+    secretPresent: !!secret,
+    secretLength: secret?.length ?? 0,
+    secretPrefix: secret
+      ? secret.substring(0, 3) + '...' + secret.substring(secret.length - 3)
+      : 'missing',
+  });
 
   if (!secret) {
     console.error('[Shopify Webhook] ❌ Missing SHOPIFY_API_SECRET');
     return NextResponse.json({ error: 'Missing secret' }, { status: 500 });
   }
+
+  // Read raw body as text (Shopify sends JSON as text)
+  // Important: Must read body BEFORE any other processing
+  const payload = await req.text();
+  const payloadLength = payload.length;
+
+  // Calculate HMAC using the exact payload Shopify sent
   const digest = crypto
     .createHmac('sha256', secret)
     .update(payload, 'utf8')
     .digest('base64');
+
+  // Debug HMAC calculation
+  console.log('[Shopify Webhook] HMAC validation:', {
+    payloadLength,
+    payloadPreview:
+      payload.substring(0, 100) + (payload.length > 100 ? '...' : ''),
+    computedHMAC: digest,
+    receivedHMAC: hmac,
+    match: digest === hmac,
+  });
+
   if (digest !== hmac) {
     console.error(
       '[Shopify Webhook] ❌ Invalid HMAC - Secret mismatch!',
@@ -76,10 +111,16 @@ export async function POST(req: NextRequest) {
       shop,
       '\nTopic:',
       topic,
-      '\nExpected:',
-      digest.substring(0, 10) + '...',
-      '\nReceived:',
-      hmac.substring(0, 10) + '...',
+      '\nPayload length:',
+      payloadLength,
+      '\nComputed HMAC:',
+      digest,
+      '\nReceived HMAC:',
+      hmac,
+      '\nSecret length:',
+      secret.length,
+      '\nSecret preview:',
+      secret.substring(0, 3) + '...' + secret.substring(secret.length - 3),
     );
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }
@@ -149,13 +190,19 @@ export async function POST(req: NextRequest) {
             where: { type: 'SHOPIFY' as any },
             select: { shopDomain: true },
           })
-          .then((conns) => conns.map((c) => c.shopDomain)),
+          .then((conns: Array<{ shopDomain: string | null }>) =>
+            conns.map((c) => c.shopDomain),
+          ),
       );
       await logEvent('shopify.webhook.no_connection', {
         shop: normalizedShop,
         topic,
       });
-      return NextResponse.json({ ok: true, ignored: true, error: 'no_connection' });
+      return NextResponse.json({
+        ok: true,
+        ignored: true,
+        error: 'no_connection',
+      });
     }
 
     if (topic === 'orders/create') {

@@ -322,7 +322,7 @@ SHOPIFY_API_KEY=[PLACEHOLDER]
 SHOPIFY_API_SECRET=[PLACEHOLDER]
 SHOPIFY_APP_URL=https://staging-[your-project].vercel.app
 SHOPIFY_SCOPES=read_orders,write_orders,read_products
-SHOPIFY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
+# Note: SHOPIFY_API_SECRET is used for both OAuth and webhook HMAC validation - no separate webhook secret needed
 
 # Mailgun (Free tier works for staging! See notes below)
 # Option 1: Use Mailgun Sandbox Domain (Free - Recommended for Staging)
@@ -538,12 +538,7 @@ If you see errors, check:
 1. Go to **API credentials** tab
 2. Note your:
    - **Client ID** → This is your `SHOPIFY_API_KEY`
-   - **Client secret** → This is your `SHOPIFY_API_SECRET`
-3. **Generate webhook secret:**
-   ```bash
-   openssl rand -hex 32
-   ```
-   Save this as `SHOPIFY_WEBHOOK_SECRET`
+   - **Client secret** → This is your `SHOPIFY_API_SECRET` (used for both OAuth and webhook HMAC validation)
 
 ### 6.3 Configure Scopes
 
@@ -559,8 +554,7 @@ If you see errors, check:
 1. Go back to Vercel → Your project → **Settings** → **Environment Variables**
 2. Update:
    - `SHOPIFY_API_KEY` → Client ID from Shopify
-   - `SHOPIFY_API_SECRET` → Client secret from Shopify
-   - `SHOPIFY_WEBHOOK_SECRET` → Generated secret
+   - `SHOPIFY_API_SECRET` → Client secret from Shopify (this is used for webhook HMAC validation - no separate webhook secret needed)
    - `SHOPIFY_APP_URL` → Should already be set
 3. Redeploy (or wait for auto-redeploy)
 
