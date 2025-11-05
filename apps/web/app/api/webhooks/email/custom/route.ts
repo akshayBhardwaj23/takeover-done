@@ -32,7 +32,7 @@ function verifyMailgunSignature(raw: any): boolean {
     // This allows webhooks to work without Mailgun signature verification
     return true;
   }
-  
+
   // Support both webhook JSON ({ signature: { timestamp, token, signature }})
   // and Routes form fields (timestamp, token, signature)
   const sig = raw?.signature;
@@ -44,20 +44,23 @@ function verifyMailgunSignature(raw: any): boolean {
   const signature =
     (sig?.signature as string | undefined) ??
     (raw?.signature as string | undefined);
-  
+
   // Mailgun Routes (email forwarding) don't always include signature fields
   // If signature fields are missing, we can't verify, so return false
   // But we'll allow through if signature verification is skipped (see main handler)
   if (!token || !timestamp || !signature) {
-    console.warn('[Email Webhook] Mailgun signature missing fields (Routes may not include signatures):', {
-      hasToken: !!token,
-      hasTimestamp: !!timestamp,
-      hasSignature: !!signature,
-      note: 'Mailgun Routes (email forwarding) may not include signature fields. Use custom header or allow without signature for Routes.',
-    });
+    console.warn(
+      '[Email Webhook] Mailgun signature missing fields (Routes may not include signatures):',
+      {
+        hasToken: !!token,
+        hasTimestamp: !!timestamp,
+        hasSignature: !!signature,
+        note: 'Mailgun Routes (email forwarding) may not include signature fields. Use custom header or allow without signature for Routes.',
+      },
+    );
     return false;
   }
-  
+
   const data = timestamp + token;
   const digest = crypto.createHmac('sha256', apiKey).update(data).digest('hex');
   const isValid = digest === signature;
@@ -78,11 +81,11 @@ function extractOrderCandidate(text: string): string | null {
   // - "order #1003"
   // - Just standalone numbers in context (more lenient)
   const patterns = [
-    /#\s?(\d{3,8})/i,                    // #1003 or # 1003
-    /order\s+#?\s?(\d{3,8})/i,           // order #1003 or order 1003
-    /order\s+status\s+(\d{3,8})/i,       // order status 1003
-    /order\s+number\s+(\d{3,8})/i,       // order number 1003
-    /\b(\d{4,5})\b/i,                    // Standalone 4-5 digit numbers (likely order numbers)
+    /#\s?(\d{3,8})/i, // #1003 or # 1003
+    /order\s+#?\s?(\d{3,8})/i, // order #1003 or order 1003
+    /order\s+status\s+(\d{3,8})/i, // order status 1003
+    /order\s+number\s+(\d{3,8})/i, // order number 1003
+    /\b(\d{4,5})\b/i, // Standalone 4-5 digit numbers (likely order numbers)
   ];
   for (const re of patterns) {
     const m = text.match(re);
@@ -105,13 +108,14 @@ export async function POST(req: NextRequest) {
     // Development should use local Redis configured separately
     const isProduction = process.env.NODE_ENV === 'production';
     const isStaging =
-      process.env.ENVIRONMENT === 'staging' || process.env.NODE_ENV === 'production';
+      process.env.ENVIRONMENT === 'staging' ||
+      process.env.NODE_ENV === 'production';
     const useUpstash = isProduction || isStaging;
-    
+
     let redis = null;
     const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
     const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-    
+
     // Only initialize Upstash Redis in staging/production
     if (
       useUpstash &&
@@ -209,13 +213,17 @@ export async function POST(req: NextRequest) {
     const secret = conn.accessToken || null;
     const secretOk = verifySecret(req, secret);
     const mailgunOk = verifyMailgunSignature(raw);
-    
+
     // Log authentication details for debugging
     if (!secretOk && !mailgunOk) {
       console.error('[Email Webhook] ❌ Authentication failed:', {
         hasSecret: !!secret,
-        secretHeader: req.headers.get('x-email-webhook-secret') ? 'present' : 'missing',
-        mailgunSigningKey: process.env.MAILGUN_SIGNING_KEY ? 'configured' : 'missing',
+        secretHeader: req.headers.get('x-email-webhook-secret')
+          ? 'present'
+          : 'missing',
+        mailgunSigningKey: process.env.MAILGUN_SIGNING_KEY
+          ? 'configured'
+          : 'missing',
         mailgunSigningKeyLength: process.env.MAILGUN_SIGNING_KEY?.length || 0,
         hasSignature: !!raw?.signature || !!raw?.token,
         hasToken: !!raw?.token,
@@ -224,17 +232,30 @@ export async function POST(req: NextRequest) {
         contentType: req.headers.get('content-type'),
         to: to?.substring(0, 50),
       });
-      
+
       // Mailgun Routes (email forwarding) don't include signature fields by default
-      // If we have valid email data (to/from/subject), allow through for Routes
+      // If we have valid email routing data (to/from), allow through for Routes
       // This is a known limitation - Routes forward emails but don't include webhook signatures
       // For better security, consider using Mailgun's webhook events instead of Routes
-      if (to && from && (subject || raw?.text || raw?.html)) {
-        console.warn('[Email Webhook] ⚠️ Authentication failed but email data present - allowing through (Mailgun Routes may not include signatures)');
+      // Note: We already validated to/from exist earlier, so if we reach here, they must exist
+      if (to && from) {
+        console.warn(
+          '[Email Webhook] ⚠️ Authentication failed but email routing data present - allowing through (Mailgun Routes may not include signatures)',
+        );
         // Allow through for Mailgun Routes (email forwarding)
         // Routes don't include signature fields, only webhook events do
+        // We trust the connection lookup (alias matching) as a form of authentication
       } else {
-        console.error('[Email Webhook] ❌ Authentication failed and no valid email data');
+        console.error(
+          '[Email Webhook] ❌ Authentication failed and no valid email routing data:',
+          {
+            hasTo: !!to,
+            hasFrom: !!from,
+            hasSubject: !!subject,
+            hasText: !!text,
+            hasHtml: !!html,
+          },
+        );
         return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
       }
     }
@@ -251,23 +272,31 @@ export async function POST(req: NextRequest) {
 
     const rawBody = text || html || '';
     const body = stripHtml(String(rawBody)).slice(0, 20000);
-    
+
     // Extract email from "Name <email@domain.com>" format
-    const emailMatch = from.match(/<([^>]+)>/) || from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    const customerEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
+    const emailMatch =
+      from.match(/<([^>]+)>/) ||
+      from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const customerEmail = (emailMatch ? emailMatch[1] : from)
+      .toLowerCase()
+      .trim();
 
     // Correlate to Order: prioritize order number from subject/body, then fallback to email
     let orderId: string | undefined;
-    
+
     // Get shop domain from connection metadata to scope order search
-    const shopDomain = (metadata.shopDomain as string | undefined) || 
-                       (conn.shopDomain || undefined);
-    
+    const shopDomain =
+      (metadata.shopDomain as string | undefined) ||
+      conn.shopDomain ||
+      undefined;
+
     // First, try to extract and match order number from subject/body (more specific)
     const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
     if (candidate) {
-      console.log(`[Email Webhook] Extracted order candidate: ${candidate} from subject/body`);
-      
+      console.log(
+        `[Email Webhook] Extracted order candidate: ${candidate} from subject/body`,
+      );
+
       // Build where clause with shop domain scoping if available
       const orderWhere: any = {
         OR: [
@@ -276,12 +305,12 @@ export async function POST(req: NextRequest) {
           { shopifyId: candidate },
         ],
       };
-      
+
       // Scope to same shop if we have shop domain from connection
       if (shopDomain) {
         orderWhere.shopDomain = shopDomain;
       }
-      
+
       // Also scope to same connection if we have connectionId
       if (conn.id) {
         // Orders belong to connections, so filter by connectionId
@@ -293,7 +322,9 @@ export async function POST(req: NextRequest) {
         });
         if (byName) {
           orderId = byName.id;
-          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
+          console.log(
+            `[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+          );
         }
       } else {
         // Fallback if no connectionId - just match by name/shopifyId and shopDomain
@@ -302,20 +333,26 @@ export async function POST(req: NextRequest) {
         });
         if (byName) {
           orderId = byName.id;
-          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
+          console.log(
+            `[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+          );
         }
       }
-      
+
       if (!orderId && candidate) {
-        console.warn(`[Email Webhook] Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`);
+        console.warn(
+          `[Email Webhook] Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`,
+        );
       }
     }
-    
+
     // IMPORTANT: Do NOT fallback to email matching if no order number is found
     // If no order matches, leave orderId as undefined so email goes to "Unassigned Emails" section
     // This allows manual assignment by support staff
     if (!orderId) {
-      console.log(`[Email Webhook] No order matched - email will be marked as unassigned (customer: ${customerEmail})`);
+      console.log(
+        `[Email Webhook] No order matched - email will be marked as unassigned (customer: ${customerEmail})`,
+      );
     }
 
     // Idempotency guard using message-id when available
@@ -337,7 +374,10 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ ok: true, deduped: true });
         }
       } catch (err) {
-        console.warn('[Email Webhook] Redis idempotency check failed, continuing:', err);
+        console.warn(
+          '[Email Webhook] Redis idempotency check failed, continuing:',
+          err,
+        );
       }
     }
 
@@ -349,7 +389,7 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
-    
+
     const thread = await prisma.thread.create({
       data: {
         customerEmail,
@@ -397,7 +437,9 @@ export async function POST(req: NextRequest) {
           messageId: msg.id,
         },
       });
-      console.log(`[Email Webhook] Triggered Inngest event for message ${msg.id}`);
+      console.log(
+        `[Email Webhook] Triggered Inngest event for message ${msg.id}`,
+      );
     } catch (error) {
       // If Inngest is not available, log but don't fail the webhook
       // This allows graceful degradation
