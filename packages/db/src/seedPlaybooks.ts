@@ -196,22 +196,3 @@ export async function seedDefaultPlaybooks(userId: string) {
   console.log(`Created ${DEFAULT_PLAYBOOKS.length} default playbooks`);
 }
 
-// CLI command to seed for a specific user
-if (require.main === module) {
-  const userId = process.argv[2];
-  if (!userId) {
-    console.error('Usage: tsx seedPlaybooks.ts <userId>');
-    process.exit(1);
-  }
-
-  seedDefaultPlaybooks(userId)
-    .then(() => {
-      console.log('Done!');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('Error seeding playbooks:', error);
-      process.exit(1);
-    });
-}
-
