@@ -48,8 +48,16 @@ export async function POST(req: NextRequest) {
   if (webhookId && redis) {
     try {
       const key = `webhook:${webhookId}`;
-      const exists = await redis.get<string>(key);
-      if (exists) return NextResponse.json({ ok: true, deduped: true });
+      // Use SETNX (SET with NX) - atomic check-and-set in 1 command instead of GET+SET (2 commands)
+      // Returns 1 if key was set (first time), 0 if already exists (duplicate)
+      const wasNew = await redis.set(key, '1', {
+        nx: true, // Only set if key doesn't exist
+        ex: 60 * 60 * 24, // 24 hour TTL
+      });
+      if (!wasNew) {
+        // Key already exists - this is a duplicate webhook
+        return NextResponse.json({ ok: true, deduped: true });
+      }
     } catch (err) {
       console.warn(
         '[Shopify Webhook] Redis idempotency check failed, continuing:',
@@ -266,15 +274,7 @@ export async function POST(req: NextRequest) {
       err: String(err),
     });
   }
-  if (webhookId && redis) {
-    try {
-      await redis.set(`webhook:${webhookId}`, '1', { ex: 60 * 60 * 24 });
-    } catch (err) {
-      console.warn(
-        '[Shopify Webhook] Failed to set Redis key, continuing:',
-        err,
-      );
-    }
-  }
+  // Note: Webhook idempotency is already handled at the start with SETNX
+  // No need to set again here - it was already set if this webhook is new
   return NextResponse.json({ ok: true });
 }

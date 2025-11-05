@@ -1,8 +1,8 @@
 # Staging Environment Setup Guide (Vercel Free + Railway)
 
 **Goal:** Set up a complete staging environment for testing before production  
-**Timeline:** 2-3 hours  
-**Cost:** ~$5-10/month (Railway worker only, Vercel is free for staging)
+**Timeline:** 1-2 hours  
+**Cost:** FREE (all services have free tiers)
 
 ---
 
@@ -11,9 +11,9 @@
 **What we're setting up:**
 
 - ✅ Staging web app on Vercel (FREE - preview deployment)
-- ✅ Staging worker on Railway (~$5/month)
+- ✅ Background jobs with Inngest (FREE - 50K events/month)
 - ✅ Staging database on Supabase (free tier available)
-- ✅ Redis on Upstash (free tier available)
+- ✅ Redis on Upstash (free tier available - only for webhook idempotency, optional)
 - ✅ Staging Shopify test app
 - ✅ Staging Mailgun configuration
 
@@ -210,9 +210,11 @@ zyypstagingdb
 
 ---
 
-## Step 3: Set Up Staging Redis (Upstash)
+## Step 3: Set Up Staging Redis (Upstash) - Optional
 
-### 3.1 Create Upstash Redis Database
+**Note:** Redis is now **optional** and only used for webhook idempotency. With Inngest handling background jobs, Redis usage is minimal (~1-2K commands/month for webhook deduplication).
+
+### 3.1 Create Upstash Redis Database (Optional)
 
 1. Go to [Upstash Console](https://console.upstash.com/)
 2. Click **Create Database**
@@ -238,23 +240,9 @@ zyypstagingdb
    AXxxxxxxxxxxxxx
    ```
 
-   **Redis URL (TCP):**
+2. **Save both values!** You'll need them for webhook idempotency.
 
-   ```
-   rediss://default:[token]@[endpoint].upstash.io:6379
-   ```
-
-2. **Save all three values!** You'll need them.
-
-### 3.3 Verify Connection (Optional)
-
-```bash
-# Test Redis connection
-redis-cli -u "rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379" ping
-# Should return: PONG
-```
-
-If you don't have `redis-cli` installed, that's okay - we'll verify later through the app.
+**Note:** If you want to use Inngest's built-in deduplication instead, you can skip Redis entirely and have zero Redis usage.
 
 ---
 
@@ -304,10 +292,13 @@ NEXTAUTH_URL=https://staging-[your-project].vercel.app
 # Without connection pooling, Vercel's serverless functions will exhaust database connections
 DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
 
-# Redis (from Step 3)
-REDIS_URL=rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379
+# Redis (from Step 3 - Optional, only for webhook idempotency)
 UPSTASH_REDIS_REST_URL=https://[ENDPOINT].upstash.io
 UPSTASH_REDIS_REST_TOKEN=AX[TOKEN]
+# Note: REDIS_URL not needed - Inngest handles background jobs, Redis only for webhook deduplication
+
+# Inngest (from Step 5)
+INNGEST_EVENT_KEY=signkey-prod-xxxxxxxxxxxxx
 
 # Auth (generate secrets)
 NEXTAUTH_SECRET=[GENERATE: openssl rand -base64 32]
@@ -430,92 +421,60 @@ After deployment, you'll have your staging URL. Update these variables:
 
 ---
 
-## Step 5: Deploy Staging Worker (Railway)
+## Step 5: Set Up Inngest for Background Jobs
 
-### 5.1 Create Railway Project
+**Why Inngest?** Zero Redis polling, event-driven, free tier with 50K events/month - perfect for staging!
 
-1. Go to [Railway Dashboard](https://railway.app/dashboard)
-2. Click **New Project**
-3. Select **Deploy from GitHub repo**
-4. Authorize Railway to access your GitHub
-5. Select your repository
+### 5.1 Create Inngest Account
 
-### 5.2 Create Worker Service
+1. Go to [Inngest Dashboard](https://www.inngest.com)
+2. Sign up (free tier: 50K events/month)
+3. Create a new app
+4. Go to **Settings** → **Keys**
+5. Copy the **Event Key** (starts with `signkey-`)
 
-1. In your Railway project, click **+ New**
-2. Select **GitHub Repo** (your repo should already be connected)
-3. **Configure Service:**
-   - **Source:** Your GitHub repo
-   - **Branch:** `staging`
-   - **Root Directory:** `.` (root of the monorepo, NOT `apps/worker`)
+### 5.2 Connect Inngest to Vercel (Recommended)
 
-### 5.3 Configure Build Settings
+1. In Inngest Dashboard → Onboarding → Step 2: "Deploy your Inngest app"
+2. Click **"Connect Inngest to Vercel"** button
+3. Authorize Inngest to access your Vercel account
+4. Select your Vercel project (`takeover-done-web` or similar)
+5. This enables auto-sync on every deploy
 
-1. Click on the service you just created
-2. Go to **Settings** tab
-3. Configure:
+### 5.3 Add Environment Variable to Vercel
 
-   **Build Command:**
+1. Go to **Vercel** → Your Project → **Settings** → **Environment Variables**
+2. Add:
+   - **Key:** `INNGEST_EVENT_KEY`
+   - **Value:** Your Event Key from Inngest (from Step 5.1)
+   - **Environment:** Preview
+3. Click **Save**
 
-   ```
-   pnpm install && pnpm build --filter @ai-ecom/worker
-   ```
+### 5.4 Deploy and Sync
 
-   **⚠️ Important:** Root Directory must be `.` (repo root), not `apps/worker`. This allows:
-   - pnpm to see the entire monorepo workspace
-   - `pnpm install` to link workspace packages (like `@ai-ecom/db`) into `node_modules`
-   - Turbo to build dependencies (`@ai-ecom/db`) before the worker
-   - Node.js to resolve `@ai-ecom/db` at runtime via the workspace symlink
+1. **Deploy your code** (if not already deployed):
 
-   **Start Command:**
-
-   ```
-   node apps/worker/dist/apps/worker/src/index.js
+   ```bash
+   git add .
+   git commit -m "feat: migrate to Inngest for background jobs"
+   git push
    ```
 
-   **⚠️ Note:** TypeScript outputs to `apps/worker/dist/apps/worker/src/index.js` when building from the repo root. The start command must match this path.
+2. **After deployment, sync Inngest:**
+   - If connected to Vercel: Functions auto-sync on deploy ✅
+   - If not connected: Go to Inngest Dashboard → **Apps** → **Create App** → Enter your Vercel URL: `https://your-app.vercel.app/api/inngest` → **Sync**
 
-### 5.4 Add Environment Variables
+3. **Verify sync:**
+   - Inngest Dashboard → **Functions**
+   - You should see: `process-inbound-email` function ✅
 
-Go to **Variables** tab and add:
+### 5.5 Benefits of Inngest
 
-```bash
-# Environment
-NODE_ENV=production
-ENVIRONMENT=staging
-
-# Database (same as Vercel staging)
-# ⚠️ CRITICAL: Must use connection pooler (port 6543) with pgbouncer=true
-DATABASE_URL=postgresql://postgres:[PASSWORD]@[PROJECT-REF].pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1
-
-# Redis (same as Vercel staging)
-REDIS_URL=rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379
-UPSTASH_REDIS_REST_URL=https://[ENDPOINT].upstash.io
-UPSTASH_REDIS_REST_TOKEN=AX[TOKEN]
-
-# OpenAI
-OPENAI_API_KEY=sk-proj-[YOUR_KEY]
-
-# Feature Flags
-PROTECTED_WEBHOOKS=true
-```
-
-### 5.5 Deploy Worker
-
-1. Railway will automatically detect changes and deploy
-2. Go to **Deployments** tab to see build progress
-3. Once deployed, check **Logs** tab
-4. **Verify logs show:**
-   ```
-   Worker started successfully
-   Connected to Redis
-   ```
-
-If you see errors, check:
-
-- Environment variables are correct
-- Redis URL is valid
-- Database URL is valid
+- ✅ **Zero Redis polling** - Event-driven, no idle commands
+- ✅ **Free tier** - 50K events/month (plenty for staging)
+- ✅ **Auto-sync** - Functions sync automatically on deploy (if Vercel connected)
+- ✅ **Built-in retries** - Automatic retry logic
+- ✅ **No Railway needed** - Runs serverlessly on Inngest infrastructure
 
 ---
 
@@ -790,19 +749,20 @@ This allows customers to reply directly to the store's support email while email
 - [ ] Page loads without errors
 - [ ] Check browser console for errors
 
-**Worker:**
+**Inngest:**
 
-- [ ] Check Railway logs - should show "Worker started"
-- [ ] Check Railway logs - should show "Connected to Redis"
+- [ ] Check Inngest Dashboard → Functions - should show `process-inbound-email` synced
+- [ ] Check Inngest Dashboard → Runs - should see function executions
 
 **Database:**
 
 - [ ] Verify Prisma Studio can connect
 - [ ] Or query database directly in Supabase dashboard
 
-**Redis:**
+**Redis (Optional):**
 
-- [ ] Check Upstash dashboard - should show connection activity
+- [ ] If using Redis for webhook idempotency: Check Upstash dashboard - should show minimal activity (~1-2K commands/month)
+- [ ] If not using Redis: Zero Redis usage (Inngest handles deduplication)
 
 ### 8.2 Test Shopify Integration
 
@@ -821,14 +781,22 @@ This allows customers to reply directly to the store's support email while email
    - [ ] Thread created in database
    - [ ] Worker processes email and generates AI suggestion
 
-### 8.4 Test Worker Job Processing
+### 8.4 Test Inngest Background Jobs
 
-1. From web app, trigger a job (e.g., approve an AI suggestion)
-2. Check Railway logs
-3. Verify:
-   - [ ] Job queued in Redis
-   - [ ] Worker picks up job
-   - [ ] Job completes successfully
+1. Send a test email to your Mailgun alias
+2. **Check Vercel logs:**
+   - [ ] `[Email Webhook] Triggered Inngest event for message...`
+3. **Check Inngest Dashboard:**
+   - [ ] Go to **Runs** - should see `email/inbound.process` event
+   - [ ] Click on the run to see execution details
+   - [ ] Should show "Success" status
+4. **Verify in dashboard:**
+   - [ ] AI suggestion appears
+   - [ ] Message is processed correctly
+5. **Benefits:**
+   - ✅ No Redis polling - event-driven
+   - ✅ Built-in retries if function fails
+   - ✅ Monitor execution in Inngest dashboard
 
 ---
 
@@ -856,10 +824,11 @@ This allows customers to reply directly to the store's support email while email
 - Check **Analytics** tab for errors
 - Monitor function invocations
 
-**Railway:**
+**Inngest:**
 
-- Check **Metrics** for CPU/memory
-- Monitor **Logs** for errors
+- Check **Runs** tab for function executions
+- Monitor **Functions** tab for sync status
+- Check **Events** tab for incoming events
 
 **Supabase:**
 
@@ -878,9 +847,9 @@ This allows customers to reply directly to the store's support email while email
 **You now have:**
 
 - ✅ Staging web app on Vercel (FREE)
-- ✅ Staging worker on Railway (~$5/month)
+- ✅ Background jobs with Inngest (FREE - 50K events/month)
 - ✅ Staging database on Supabase (FREE tier)
-- ✅ Redis on Upstash (FREE tier)
+- ✅ Redis on Upstash (FREE tier - optional, only for webhook idempotency)
 - ✅ Shopify test app configured
 - ✅ (Optional) Mailgun configured
 
@@ -907,19 +876,34 @@ This allows customers to reply directly to the store's support email while email
 - Check build logs in Vercel dashboard
 - Verify `transpilePackages` in `next.config.mjs`
 
-### Issue: Worker Not Starting
+### Issue: Inngest Functions Not Running
 
 **Check:**
 
-- Railway logs for errors
-- Environment variables are set
-- Redis URL is correct
+- Inngest Dashboard → Runs for errors
+- `INNGEST_EVENT_KEY` is set in Vercel environment variables
+- Inngest app is synced (Dashboard → Apps)
 
 **Fix:**
 
-- Verify `REDIS_URL` format: `rediss://default:...`
-- Check Railway service settings
-- Verify build completed successfully
+- Verify `INNGEST_EVENT_KEY` is correct in Vercel
+- Re-sync Inngest app (Dashboard → Apps → Sync)
+- Check Vercel logs for: `[Email Webhook] Triggered Inngest event`
+- Review Inngest Dashboard → Runs for detailed error messages
+
+### Issue: Inngest Functions Not Syncing
+
+**Check:**
+
+- Inngest Dashboard → Apps → Is app synced?
+- Vercel deployment completed successfully
+- `/api/inngest` endpoint is accessible
+
+**Fix:**
+
+- If connected to Vercel: Wait for auto-sync after deployment
+- If not connected: Manually sync in Inngest Dashboard → Apps → Create App → Enter Vercel URL
+- Verify endpoint: `https://your-app.vercel.app/api/inngest`
 
 ### Issue: Database Connection Fails
 

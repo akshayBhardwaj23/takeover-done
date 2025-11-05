@@ -255,8 +255,16 @@ export async function POST(req: NextRequest) {
     if (messageIdHeader && redis) {
       try {
         const key = `email:webhook:${messageIdHeader}`;
-        const exists = await redis.get<string>(key);
-        if (exists) return NextResponse.json({ ok: true, deduped: true });
+        // Use SETNX (SET with NX) - atomic check-and-set in 1 command instead of GET+SET (2 commands)
+        // Returns 1 if key was set (first time), 0 if already exists (duplicate)
+        const wasNew = await redis.set(key, '1', {
+          nx: true, // Only set if key doesn't exist
+          ex: 60 * 60 * 24, // 24 hour TTL
+        });
+        if (!wasNew) {
+          // Key already exists - this is a duplicate webhook
+          return NextResponse.json({ ok: true, deduped: true });
+        }
       } catch (err) {
         console.warn('[Email Webhook] Redis idempotency check failed, continuing:', err);
       }
@@ -308,25 +316,25 @@ export async function POST(req: NextRequest) {
       thread.id,
     );
 
-    // Enqueue background job to generate AI suggestion (non-blocking)
-    // This allows webhook to return immediately and prevents timeouts
+    // Trigger Inngest event to generate AI suggestion (non-blocking, event-driven)
+    // This replaces BullMQ worker - zero Redis polling!
     try {
-      // Use string-based dynamic import to prevent webpack from analyzing at build time
-      const workerModule = '@ai-ecom/worker';
-      const worker = await import(/* webpackIgnore: true */ workerModule);
-      const { enqueueInboxJob } = worker;
-      await enqueueInboxJob('inbound-email-process', {
-        messageId: msg.id,
+      const { inngest } = await import('../../../../../inngest/client');
+      await inngest.send({
+        name: 'email/inbound.process',
+        data: {
+          messageId: msg.id,
+        },
       });
-      console.log(`[Email Webhook] Queued AI processing job for message ${msg.id}`);
+      console.log(`[Email Webhook] Triggered Inngest event for message ${msg.id}`);
     } catch (error) {
-      // If worker is not available, log but don't fail the webhook
+      // If Inngest is not available, log but don't fail the webhook
       // This allows graceful degradation
       console.warn(
-        '[Email Webhook] Failed to queue background job, AI suggestion will be generated later:',
+        '[Email Webhook] Failed to trigger Inngest event, AI suggestion will be generated later:',
         error,
       );
-      // Create a placeholder suggestion that will be updated when worker processes it
+      // Create a placeholder suggestion that will be updated when Inngest processes it
       await prisma.aISuggestion.upsert({
         where: { messageId: msg.id },
         update: {},
@@ -341,15 +349,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (messageIdHeader && redis) {
-      try {
-        await redis.set(`email:webhook:${messageIdHeader}`, '1', {
-          ex: 60 * 60 * 24,
-        });
-      } catch (err) {
-        console.warn('[Email Webhook] Failed to set Redis key, continuing:', err);
-      }
-    }
+    // Note: Webhook idempotency is already handled at the start with SETNX
+    // No need to set again here - it was already set if this webhook is new
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('email webhook error', e);

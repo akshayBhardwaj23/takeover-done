@@ -44,7 +44,8 @@
     "typescript": "^5.5.4",
     "@types/node": "^20.14.12",
     "@prisma/client": "^5.19.1",
-    "prisma": "^5.19.1"
+    "prisma": "^5.19.1",
+    "inngest": "^3.44.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

@@ -312,9 +312,18 @@ Write responses that sound like they come from a real human support agent who ge
     },
     {
       connection,
+      // Optimize Redis usage: reduce polling frequency significantly
+      // 10 seconds = ~259K commands/month (allows ~240K for users within 500K limit)
       limiter: {
-        max: 5, // Process max 5 jobs concurrently
-        duration: 1000,
+        max: 5, // Process max 5 jobs per interval
+        duration: 10000, // 10 second interval (reduces polling from ~1s to 10s = 90% reduction)
+      },
+      concurrency: 2, // Process max 2 jobs concurrently (reduces overhead)
+      // Reduce Redis commands by increasing polling delay
+      settings: {
+        lockDuration: 30000, // 30 seconds (default is 30000)
+        stalledInterval: 30000, // Check for stalled jobs every 30s (default is 30000)
+        maxStalledCount: 1, // Fail after 1 stall (default is 1)
       },
     },
   );
@@ -324,7 +333,20 @@ Write responses that sound like they come from a real human support agent who ge
     async (job) => {
       console.log('Processing action job', job.id, job.name);
     },
-    { connection },
+    {
+      connection,
+      // Optimize Redis usage: reduce polling frequency
+      limiter: {
+        max: 10, // Process max 10 jobs per interval
+        duration: 10000, // 10 second interval (reduces polling significantly)
+      },
+      concurrency: 2, // Process max 2 jobs concurrently
+      settings: {
+        lockDuration: 30000,
+        stalledInterval: 30000,
+        maxStalledCount: 1,
+      },
+    },
   );
 
   new QueueEvents('inbox', { connection });

@@ -2,7 +2,7 @@
 
 **Complete guides for deploying your AI E-Commerce Tool - Staging First, Then Production**
 
-**Setup:** Vercel (Web Apps) + Railway (Workers)
+**Setup:** Vercel (Web Apps) + Inngest (Background Jobs)
 
 ---
 
@@ -46,29 +46,29 @@
 ```
 Production:
 ├── Web App → Vercel (main branch) → https://your-app.com
-├── Worker → Railway (main branch) → Background jobs
+├── Background Jobs → Inngest (serverless, event-driven) → Zero Redis polling
 ├── Database → Supabase PostgreSQL
-├── Redis → Upstash
+├── Redis → Upstash (optional, only for webhook idempotency)
 └── External: Shopify, Mailgun, OpenAI
 
 Staging:
 ├── Web App → Vercel Preview (staging branch) → https://staging-your-app.vercel.app
-├── Worker → Railway (staging branch) → Background jobs
+├── Background Jobs → Inngest (serverless, event-driven) → Zero Redis polling
 ├── Database → Supabase (separate or same with different schema)
-├── Redis → Upstash (shared with production, different queue prefixes)
+├── Redis → Upstash (optional, only for webhook idempotency)
 └── External: Shopify Test App, Mailgun, OpenAI
 ```
 
 ### Cost Breakdown (Monthly)
 
 ```
-Vercel Pro Plan:            $20/month
-Railway Production Worker:   $5-10/month
-Railway Staging Worker:      $5/month (optional)
+Vercel Pro Plan:            $20/month (or free for staging)
+Inngest:                    FREE (50K events/month) or $20/month for more
 Supabase:                   Free tier or $25/month
-Upstash Redis:              Free tier or $10/month
+Upstash Redis:              FREE (optional, minimal usage ~1-2K commands/month)
 ────────────────────────────────────────────
-Total:                      $30-60/month
+Staging Total:              FREE (all free tiers)
+Production Total:           $20-45/month (depending on Inngest/Supabase usage)
 ```
 
 ---
@@ -87,7 +87,7 @@ Total:                      $30-60/month
 
 ### Phase 3: Application Deployment (Day 2)
 - [ ] Deploy web apps (Vercel)
-- [ ] Deploy workers (Railway)
+- [ ] Set up Inngest for background jobs
 - [ ] Configure environment variables
 
 ### Phase 4: Integrations (Day 3)
@@ -114,7 +114,7 @@ Total:                      $30-60/month
 | Service | Purpose | Cost | Sign Up |
 |---------|---------|------|---------|
 | **Vercel** | Web app hosting | $20/month (Pro) | [vercel.com](https://vercel.com) |
-| **Railway** | Worker hosting | $5-10/month | [railway.app](https://railway.app) |
+| **Inngest** | Background jobs (serverless) | FREE (50K events/month) | [inngest.com](https://www.inngest.com) |
 | **Supabase** | PostgreSQL database | Free tier available | [supabase.com](https://supabase.com) |
 | **Upstash** | Redis cache/queues | Free tier available | [upstash.com](https://upstash.com) |
 | **Shopify Partners** | App management | Free | [partners.shopify.com](https://partners.shopify.com) |
@@ -129,14 +129,14 @@ Total:                      $30-60/month
 
 1. **Follow the Staging Guide**
    - Start with **[STAGING_SETUP_GUIDE.md](./STAGING_SETUP_GUIDE.md)**
-   - Set up staging database, Redis, Vercel, Railway
+   - Set up staging database, Redis (optional), Vercel, Inngest
    - Configure staging environment variables
    - Test everything in staging
 
 2. **Verify Staging Works**
    - Test Shopify OAuth
    - Test email webhooks
-   - Test worker processing
+   - Test Inngest background jobs
    - Verify all integrations
 
 ### Phase 2: Move to Production (After Staging Works)
@@ -159,14 +159,14 @@ Total:                      $30-60/month
 1. Create database (Supabase)
 2. Create Redis instance (Upstash) or use existing with different prefixes
 3. Deploy web app (Vercel)
-4. Deploy worker (Railway)
+4. Set up Inngest for background jobs
 5. Configure environment variables
 6. Set up integrations (Shopify, Mailgun)
 7. Test end-to-end
 
 ### Updating Environment Variables
 
-1. Go to platform dashboard (Vercel/Railway)
+1. Go to platform dashboard (Vercel/Inngest)
 2. Navigate to Environment Variables
 3. Add or update variable
 4. Redeploy service (automatic or manual)
@@ -185,13 +185,13 @@ cd packages/db
 pnpm prisma studio
 ```
 
-### Testing Worker Connection
+### Testing Inngest Functions
 
-1. Check Railway logs
-2. Should see "Connected to Redis"
-3. Should see "Worker started successfully"
-4. Queue a test job from web app
-5. Verify worker processes it
+1. Check Inngest Dashboard → Functions
+2. Should see functions synced
+3. Trigger a test event (send test email)
+4. Check Inngest Dashboard → Runs
+5. Verify function executes successfully
 
 ---
 
@@ -203,7 +203,7 @@ pnpm prisma studio
 |-------|----------|-----------|
 | Build fails | Check `transpilePackages` in `next.config.mjs` | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#troubleshooting) |
 | DB connection fails | Verify connection pooler URL | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#database-setup-postgresql) |
-| Worker not processing | Check Redis connection | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#troubleshooting) |
+| Inngest functions not running | Check `INNGEST_EVENT_KEY` and sync status | [Guide](./INNGEST_SETUP.md#troubleshooting) |
 | Webhooks not received | Verify URLs and secrets | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#shopify-app-configuration) |
 
 ### Getting Help
@@ -221,7 +221,7 @@ Your deployment is successful when:
 
 - ✅ All services deployed and running
 - ✅ Database migrations complete
-- ✅ Worker processing jobs successfully
+- ✅ Inngest functions processing events successfully
 - ✅ Shopify OAuth flow works end-to-end
 - ✅ Email webhooks receiving and processing
 - ✅ Monitoring configured and alerting
@@ -245,7 +245,7 @@ Your deployment is successful when:
 ### Platform Support
 
 - **Vercel:** [vercel.com/support](https://vercel.com/support)
-- **Railway:** [railway.app/support](https://railway.app/support)
+- **Inngest:** [inngest.com/docs](https://www.inngest.com/docs)
 - **Supabase:** [supabase.com/support](https://supabase.com/support)
 - **Upstash:** [upstash.com/support](https://upstash.com/support)
 
@@ -286,7 +286,7 @@ Your deployment is successful when:
 - Use free tiers where possible
 - Share Redis between environments (with different prefixes)
 - Use same database for staging if isolation not critical
-- Consider pausing staging worker when not actively testing
+- Inngest scales automatically - no need to pause (serverless)
 
 ### Security Best Practices
 
