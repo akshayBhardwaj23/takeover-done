@@ -1,5 +1,9 @@
 ## Roadmap
 
+> **MVP Status:** ✅ **READY FOR LAUNCH** - See [MVP Readiness Assessment](./MVP_READINESS_ASSESSMENT.md) for detailed status
+
+---
+
 ### Phase 1 — MVP hardening
 
 - [x] Replace AI stub with OpenAI (responses with order context)
@@ -14,14 +18,14 @@
 
 ### Pre-Production Requirements
 
-- [x] **Redis/BullMQ setup for async job processing** (COMPLETE ✅)
-  - [x] Move AI suggestion generation to background worker
+- [x] **Background job processing setup** (COMPLETE ✅ - Using Inngest)
+  - [x] Move AI suggestion generation to background worker (Inngest functions)
   - [x] Implement retry logic for OpenAI API failures (3 attempts, exponential backoff)
   - [x] Prevent webhook timeouts during high email volume
-  - [x] Enable horizontal scaling with multiple worker instances
-  - [x] Setup: Upstash Redis configured
-  - [x] Update `REDIS_URL` in environment variables
-  - [x] Benefits: Faster webhook responses (~350ms), better reliability, production-ready architecture
+  - [x] Serverless scaling (Inngest handles scaling automatically)
+  - [x] Setup: Inngest configured and deployed
+  - [x] Benefits: Faster webhook responses, better reliability, production-ready architecture
+  - **Note:** Using Inngest (serverless) instead of BullMQ/Redis for better scalability
 
 ### Phase 2 — Inbox maturity
 
@@ -64,10 +68,26 @@ Optional enhancements (Email & AI)
 
 ### Phase 4 — Platform & scale
 
-- Multi-tenant isolation and RBAC
-- Billing (Stripe), plans, metering
-- Observability: tracing, logs, metrics, dashboards
-- Rate limiting and abuse prevention
+- [x] Multi-tenant isolation and RBAC (COMPLETE ✅)
+  - [x] Complete data isolation by userId
+  - [x] All queries scoped to user's connections
+  - [x] Authentication required for all endpoints
+  - [ ] Role-based access control (multi-user support - post-MVP)
+- [x] Billing (Razorpay), plans, metering (COMPLETE ✅)
+  - [x] Subscription management
+  - [x] Usage tracking and limits
+  - [x] Plan types (STARTER, GROWTH, PRO, ENTERPRISE, TRIAL)
+  - [x] Upgrade prompts and limits enforcement
+- [x] Observability: tracing, logs, metrics, dashboards (COMPLETE ✅)
+  - [x] Sentry error tracking
+  - [x] Event logging system
+  - [x] Analytics dashboards
+  - [x] Performance monitoring
+- [x] Rate limiting and abuse prevention (COMPLETE ✅)
+  - [x] API rate limiting (100 req/min)
+  - [x] AI rate limiting (10 req/min)
+  - [x] Email rate limiting (20 req/min)
+  - [x] Webhook rate limiting (60 req/min)
 
 ### Phase 5 — Advanced AI
 
