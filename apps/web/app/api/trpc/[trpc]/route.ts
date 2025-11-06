@@ -44,7 +44,11 @@ const handler = async (
     }
 
     const session = await getServerSession(authOptions);
-    console.log('[tRPC] Session:', session?.user?.email || 'no session');
+    console.log('[tRPC] Session check:', {
+      hasSession: !!session,
+      userEmail: session?.user?.email || 'no session',
+      procedure: procedureName,
+    });
 
     // Get user ID from database using email, create user if doesn't exist
     let userId: string | null = null;
@@ -126,14 +130,17 @@ const handler = async (
       req: request,
       router: appRouter,
       createContext: () => {
-        console.log('[tRPC] Creating context:', {
-          hasSession: !!session,
-          userId,
-        });
-        return {
+        const context = {
           session,
           userId,
         };
+        console.log('[tRPC] Creating context:', {
+          hasSession: !!session,
+          hasUserId: !!userId,
+          userEmail: session?.user?.email || 'none',
+          procedure: procedureName,
+        });
+        return context;
       },
       onError: ({ error, path, type }) => {
         console.error(

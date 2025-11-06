@@ -543,14 +543,21 @@ export default function InboxPage() {
                           );
                         }
                       } catch (error: any) {
-                        if (
+                        console.error('Send email error:', error);
+                        if (error.data?.code === 'UNAUTHORIZED') {
+                          toast.error('Please log in to send emails');
+                        } else if (
                           error.data?.code === 'FORBIDDEN' &&
                           error.message?.includes('Email limit')
                         ) {
                           toast.error(error.message || 'Email limit reached');
                           emailLimit.refetch();
                         } else {
-                          toast.error('Failed to send reply');
+                          toast.error(
+                            error.message ||
+                              error.data?.message ||
+                              'Failed to send reply',
+                          );
                         }
                       }
                     }}

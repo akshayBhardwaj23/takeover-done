@@ -822,79 +822,83 @@ Write responses that sound like they come from a real human support agent who ge
           : defaultFromEmail;
         const replyToEmail = storeSupportEmail || defaultFromEmail;
 
-        if (apiKey && domain) {
-          const formData = new FormData();
-          formData.append('from', fromEmail);
-          formData.append('to', toEmail);
-          formData.append('subject', subject);
-          formData.append('text', body);
-
-          // Set Reply-To to store's support email so replies go to the store
-          if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
-            formData.append('h:Reply-To', replyToEmail);
-          }
-
-          const response = await fetch(
-            `https://api.mailgun.net/v3/${domain}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-              },
-              body: formData,
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error(`Mailgun API error: ${response.status}`);
-          }
-
-          const result = await response.json();
-
-          // Mark action as executed
-          const updated = await prisma.action.update({
-            where: { id: input.actionId },
-            data: { status: 'EXECUTED', executedAt: new Date() },
+        if (!apiKey || !domain) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              'Mailgun API key or domain not configured. Please check environment variables.',
           });
-
-          await logEvent(
-            'email.sent',
-            { to: toEmail, subject, messageId: result.id },
-            'action',
-            input.actionId,
-          );
-
-          // Increment usage tracking
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, status: updated.status, messageId: result.id };
-        } else {
-          // Fallback to stub if Mailgun not configured
-          const updated = await prisma.action.update({
-            where: { id: input.actionId },
-            data: { status: 'APPROVED' },
-          });
-
-          await logEvent(
-            'email.sent.stub',
-            {
-              to: input.to,
-              subject: input.subject,
-              reason: 'mailgun_not_configured',
-            },
-            'action',
-            input.actionId,
-          );
-
-          // Increment usage tracking even for stubs (they still count)
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, status: updated.status, stub: true };
         }
+
+        const formData = new FormData();
+        formData.append('from', fromEmail);
+        formData.append('to', toEmail);
+        formData.append('subject', subject);
+        formData.append('text', body);
+
+        // Set Reply-To to store's support email so replies go to the store
+        if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+          formData.append('h:Reply-To', replyToEmail);
+        }
+
+        const response = await fetch(
+          `https://api.mailgun.net/v3/${domain}/messages`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+            },
+            body: formData,
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response
+            .text()
+            .catch(() => 'Unable to read error');
+          console.error('[Mailgun API Error]', {
+            status: response.status,
+            statusText: response.statusText,
+            domain,
+            apiKeyPrefix: apiKey.substring(0, 8) + '...',
+            error: errorText,
+          });
+
+          if (response.status === 401) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                'Mailgun API authentication failed. Please verify MAILGUN_API_KEY and MAILGUN_DOMAIN are set correctly in Vercel environment variables.',
+            });
+          }
+
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Mailgun API error: ${response.status} ${response.statusText}. ${errorText.substring(0, 200)}`,
+          });
+        }
+
+        const result = await response.json();
+
+        // Mark action as executed
+        const updated = await prisma.action.update({
+          where: { id: input.actionId },
+          data: { status: 'EXECUTED', executedAt: new Date() },
+        });
+
+        await logEvent(
+          'email.sent',
+          { to: toEmail, subject, messageId: result.id },
+          'action',
+          input.actionId,
+        );
+
+        // Increment usage tracking
+        await incrementEmailSent(ctx.userId).catch((err) => {
+          console.error('Failed to increment email usage:', err);
+        });
+
+        return { ok: true, status: updated.status, messageId: result.id };
       } catch (error: any) {
         // Mark action as failed
         await prisma.action.update({
@@ -967,77 +971,91 @@ Write responses that sound like they come from a real human support agent who ge
           : defaultFromEmail;
         const replyToEmail = storeSupportEmail || defaultFromEmail;
 
-        if (apiKey && domain) {
-          const formData = new FormData();
-          formData.append('from', fromEmail);
-          formData.append('to', message.from);
-          formData.append(
-            'subject',
-            `Re: ${message.thread.subject || 'Your inquiry'}`,
-          );
-          formData.append('text', safeBody);
-
-          // Set Reply-To to store's support email so replies go to the store
-          if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
-            formData.append('h:Reply-To', replyToEmail);
-          }
-
-          const response = await fetch(
-            `https://api.mailgun.net/v3/${domain}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-              },
-              body: formData,
-            },
-          );
-
-          if (!response.ok) {
-            throw new Error(`Mailgun API error: ${response.status}`);
-          }
-
-          const result = await response.json();
-
-          // Create outbound message record
-          await prisma.message.create({
-            data: {
-              threadId: message.threadId,
-              from: fromEmail,
-              to: message.from,
-              body: safeBody,
-              direction: 'OUTBOUND',
-            },
+        if (!apiKey || !domain) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              'Mailgun API key or domain not configured. Please check environment variables.',
           });
-
-          await logEvent(
-            'email.sent.unassigned',
-            { to: message.from, messageId: result.id },
-            'message',
-            input.messageId,
-          );
-
-          // Increment usage tracking
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, messageId: result.id };
-        } else {
-          await logEvent(
-            'email.sent.stub',
-            { to: message.from, reason: 'mailgun_not_configured' },
-            'message',
-            input.messageId,
-          );
-
-          // Increment usage tracking even for stubs (they still count)
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, stub: true };
         }
+
+        const formData = new FormData();
+        formData.append('from', fromEmail);
+        formData.append('to', message.from);
+        formData.append(
+          'subject',
+          `Re: ${message.thread.subject || 'Your inquiry'}`,
+        );
+        formData.append('text', safeBody);
+
+        // Set Reply-To to store's support email so replies go to the store
+        if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+          formData.append('h:Reply-To', replyToEmail);
+        }
+
+        const response = await fetch(
+          `https://api.mailgun.net/v3/${domain}/messages`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+            },
+            body: formData,
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response
+            .text()
+            .catch(() => 'Unable to read error');
+          console.error('[Mailgun API Error]', {
+            status: response.status,
+            statusText: response.statusText,
+            domain,
+            apiKeyPrefix: apiKey.substring(0, 8) + '...',
+            error: errorText,
+          });
+
+          if (response.status === 401) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                'Mailgun API authentication failed. Please verify MAILGUN_API_KEY and MAILGUN_DOMAIN are set correctly in Vercel environment variables.',
+            });
+          }
+
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Mailgun API error: ${response.status} ${response.statusText}. ${errorText.substring(0, 200)}`,
+          });
+        }
+
+        const result = await response.json();
+
+        // Create outbound message record
+        await prisma.message.create({
+          data: {
+            threadId: message.threadId,
+            from: fromEmail,
+            to: message.from,
+            body: safeBody,
+            direction: 'OUTBOUND',
+          },
+        });
+
+        await logEvent(
+          'email.sent.unassigned',
+          { to: message.from, messageId: result.id },
+          'message',
+          input.messageId,
+        );
+
+        // Increment usage tracking
+        await incrementEmailSent(ctx.userId).catch((err) => {
+          console.error('Failed to increment email usage:', err);
+        });
+
+        return { ok: true, messageId: result.id };
       } catch (error: any) {
         await logEvent(
           'email.sent.error',
