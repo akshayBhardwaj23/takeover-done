@@ -73,35 +73,37 @@ function IntegrationsInner() {
   const [shopInput, setShopInput] = useState('');
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
-  
+
   // Track if we've already shown notifications to prevent duplicates
   const notificationShownRef = useRef(false);
 
   useEffect(() => {
     // Only show notifications once per page load
     if (notificationShownRef.current) return;
-    
+
     const already = sp.get('already');
     const connected = sp.get('connected');
     const shopParam = sp.get('shop');
-    
+
     if (!shopParam) return;
-    
+
     // Mark as shown immediately to prevent duplicates
     notificationShownRef.current = true;
-    
+
     if (already === '1') {
       toast.success(`Store already connected: ${shopParam}`);
     } else if (connected === '1') {
       toast.success(`Store connected successfully: ${shopParam}`);
     }
-    
+
     // Clean up URL params after showing notification to prevent re-triggering
     const newUrl = new URL(window.location.href);
     newUrl.searchParams.delete('already');
     newUrl.searchParams.delete('connected');
     newUrl.searchParams.delete('shop');
-    router.replace(newUrl.pathname + newUrl.search, { scroll: false });
+    router.replace(`${newUrl.pathname}${newUrl.search}` as any, {
+      scroll: false,
+    });
   }, [sp, router, toast]); // Only re-run if search params actually change
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -150,7 +152,9 @@ function IntegrationsInner() {
           </div>
 
           {/* AI Suggestion Box */}
-          <AISuggestionBox shop={shopifyConnections[0]?.shopDomain || undefined} />
+          <AISuggestionBox
+            shop={shopifyConnections[0]?.shopDomain || undefined}
+          />
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -383,16 +387,16 @@ function IntegrationsInner() {
                     Store Domain
                   </label>
                   <Input
-                  type="text"
-                  name="shop"
-                  placeholder="your-shop.myshopify.com"
-                  required
-                  value={shopInput}
+                    type="text"
+                    name="shop"
+                    placeholder="your-shop.myshopify.com"
+                    required
+                    value={shopInput}
                     onChange={(e: ChangeEvent<HTMLInputElement>) =>
                       setShopInput((e as any).target.value)
                     }
                     className="h-11"
-                />
+                  />
                 </div>
                 <Button
                   type="submit"
@@ -653,9 +657,9 @@ function IntegrationsInner() {
                               emailHealth.data.lastInboundAt as any,
                             ).toLocaleString()
                           : 'No deliveries yet'}
-              </p>
-            </div>
-          </div>
+                      </p>
+                    </div>
+                  </div>
                 </Card>
 
                 <Card className="group relative overflow-hidden border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-7 transition-all hover:scale-[1.02] hover:border-blue-300 hover:shadow-lg">
@@ -700,8 +704,8 @@ function IntegrationsInner() {
               </div>
             </div>
           </section>
-      </div>
-    </main>
+        </div>
+      </main>
     </>
   );
 }
