@@ -2038,6 +2038,524 @@ Write responses that sound like they come from a real human support agent who ge
         });
       }
     }),
+
+  // AI Insights - aggregate data and generate suggestions
+  getAggregatedInsights: aiProcedure
+    .input(z.object({ shop: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      try {
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true, shopDomain: true, type: true },
+        });
+        
+        const connectionIds = connections.map(c => c.id);
+        
+        if (connectionIds.length === 0) {
+          return { shopifyMetrics: null, emailMetrics: null };
+        }
+
+        // Time ranges
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        // Shopify metrics
+        let shopifyMetrics: any = null;
+        const shopifyConn = connections.find(c => c.type === 'SHOPIFY');
+        
+        if (shopifyConn) {
+          const shopDomain = input?.shop || shopifyConn.shopDomain;
+          
+          // Current week orders
+          const ordersThisWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          // Previous week orders for comparison
+          const ordersPrevWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
+          const revenuePrevWeek = ordersPrevWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
+          
+          const revenueChange = revenuePrevWeek > 0 
+            ? ((revenueThisWeek - revenuePrevWeek) / revenuePrevWeek) * 100 
+            : 0;
+
+          const ordersChange = ordersPrevWeek.length > 0
+            ? ((ordersThisWeek.length - ordersPrevWeek.length) / ordersPrevWeek.length) * 100
+            : 0;
+
+          // Count refunds (assuming REFUNDED status)
+          const refundsThisWeek = ordersThisWeek.filter(o => 
+            o.status?.toLowerCase().includes('refund')
+          ).length;
+          const refundRate = ordersThisWeek.length > 0 
+            ? (refundsThisWeek / ordersThisWeek.length) * 100 
+            : 0;
+
+          const avgOrderValue = ordersThisWeek.length > 0
+            ? revenueThisWeek / ordersThisWeek.length
+            : 0;
+
+          shopifyMetrics = {
+            totalRevenue: revenueThisWeek,
+            totalOrders: ordersThisWeek.length,
+            avgOrderValue,
+            refundRate,
+            fulfillmentTime: 2.5, // Placeholder - would need fulfillment data
+            weekOverWeekChange: {
+              revenue: revenueChange,
+              orders: ordersChange,
+              refunds: refundRate,
+            },
+          };
+        }
+
+        // Email metrics
+        let emailMetrics: any = null;
+        const emailConns = connections.filter(c => c.type === 'CUSTOM_EMAIL');
+        
+        if (emailConns.length > 0) {
+          // Current week emails
+          const emailsThisWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const emailsPrevWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const volumeChange = emailsPrevWeek > 0
+            ? ((emailsThisWeek - emailsPrevWeek) / emailsPrevWeek) * 100
+            : 0;
+
+          // Get recent messages for sentiment/complaint analysis
+          const recentMessages = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+            select: { body: true },
+            take: 50,
+          });
+
+          // Simple sentiment analysis based on keywords
+          let negativeSentimentCount = 0;
+          const complaintKeywords: { [key: string]: number } = {};
+          
+          for (const msg of recentMessages) {
+            const body = msg.body?.toLowerCase() || '';
+            
+            // Negative sentiment keywords
+            if (body.match(/\b(angry|disappointed|frustrated|terrible|worst|horrible|awful)\b/)) {
+              negativeSentimentCount++;
+            }
+            
+            // Track complaint topics
+            if (body.includes('discount') || body.includes('coupon')) {
+              complaintKeywords['discount issues'] = (complaintKeywords['discount issues'] || 0) + 1;
+            }
+            if (body.includes('shipping') || body.includes('delivery')) {
+              complaintKeywords['shipping delays'] = (complaintKeywords['shipping delays'] || 0) + 1;
+            }
+            if (body.includes('refund') || body.includes('return')) {
+              complaintKeywords['refund requests'] = (complaintKeywords['refund requests'] || 0) + 1;
+            }
+            if (body.includes('quality') || body.includes('damaged') || body.includes('defective')) {
+              complaintKeywords['product quality'] = (complaintKeywords['product quality'] || 0) + 1;
+            }
+          }
+
+          const sentimentScore = recentMessages.length > 0
+            ? (negativeSentimentCount / recentMessages.length) * -1
+            : 0;
+
+          const topComplaints = Object.entries(complaintKeywords)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([topic]) => topic);
+
+          // Calculate avg response time
+          const messagesWithResponses = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+              order: { actions: { some: {} } },
+            },
+            include: {
+              order: {
+                include: {
+                  actions: { orderBy: { createdAt: 'asc' }, take: 1 },
+                },
+              },
+            },
+            take: 50,
+          });
+
+          let totalResponseMinutes = 0;
+          let responseCount = 0;
+          
+          for (const msg of messagesWithResponses) {
+            const firstAction = msg.order?.actions[0];
+            if (firstAction) {
+              const diffMs = firstAction.createdAt.getTime() - msg.createdAt.getTime();
+              const diffMinutes = diffMs / (1000 * 60);
+              if (diffMinutes >= 0 && diffMinutes < 10000) {
+                totalResponseMinutes += diffMinutes;
+                responseCount++;
+              }
+            }
+          }
+
+          const avgResponseTime = responseCount > 0 
+            ? totalResponseMinutes / responseCount 
+            : 0;
+
+          emailMetrics = {
+            totalEmails: emailsThisWeek,
+            avgResponseTime,
+            sentimentScore,
+            topComplaints,
+            weekOverWeekChange: {
+              volume: volumeChange,
+              negativeSentiment: negativeSentimentCount > 0 ? 
+                (negativeSentimentCount / recentMessages.length) * 100 : 0,
+            },
+          };
+        }
+
+        return { shopifyMetrics, emailMetrics };
+      } catch (error) {
+        console.error('Error fetching aggregated insights:', error);
+        return { shopifyMetrics: null, emailMetrics: null };
+      }
+    }),
+
+  // Playbook Management
+  getPlaybooks: protectedProcedure
+    .input(z.object({ category: z.string().optional(), seedDefaults: z.boolean().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      try {
+        // Auto-seed default playbooks if user has none and seedDefaults is true
+        if (input?.seedDefaults) {
+          const existingCount = await prisma.playbook.count({
+            where: { userId: ctx.userId },
+          });
+
+          if (existingCount === 0) {
+            // Import and seed default playbooks
+            const { seedDefaultPlaybooks } = await import('@ai-ecom/db');
+            await seedDefaultPlaybooks(ctx.userId);
+          }
+        }
+
+        const where: any = { userId: ctx.userId };
+        if (input?.category) {
+          where.category = input.category;
+        }
+
+        const playbooks = await prisma.playbook.findMany({
+          where,
+          orderBy: [
+            { isDefault: 'desc' },
+            { enabled: 'desc' },
+            { createdAt: 'desc' },
+          ],
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            category: true,
+            trigger: true,
+            conditions: true,
+            actions: true,
+            confidenceThreshold: true,
+            requiresApproval: true,
+            enabled: true,
+            isDefault: true,
+            executionCount: true,
+            lastExecutedAt: true,
+            createdAt: true,
+          },
+        });
+
+        return { playbooks };
+      } catch (error) {
+        console.error('Error fetching playbooks:', error);
+        return { playbooks: [] };
+      }
+    }),
+
+  createPlaybook: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        category: z.enum(['REFUND_RETURN', 'MARKETING', 'FULFILLMENT', 'SUPPORT', 'INVENTORY', 'CUSTOM']),
+        trigger: z.any(),
+        conditions: z.any(),
+        actions: z.any(),
+        confidenceThreshold: z.number().min(0).max(1).default(0.8),
+        requiresApproval: z.boolean().default(false),
+        enabled: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: sanitizeLimited(input.name, 100),
+            description: input.description ? sanitizeLimited(input.description, 500) : null,
+            category: input.category,
+            trigger: input.trigger,
+            conditions: input.conditions,
+            actions: input.actions,
+            confidenceThreshold: input.confidenceThreshold,
+            requiresApproval: input.requiresApproval,
+            enabled: input.enabled,
+          },
+        });
+
+        await logEvent('playbook.created', { playbookId: playbook.id, category: input.category }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        console.error('Error creating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to create playbook',
+        });
+      }
+    }),
+
+  updatePlaybook: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        trigger: z.any().optional(),
+        conditions: z.any().optional(),
+        actions: z.any().optional(),
+        confidenceThreshold: z.number().min(0).max(1).optional(),
+        requiresApproval: z.boolean().optional(),
+        enabled: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow editing default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot edit default playbooks. Clone it to create your own version.',
+          });
+        }
+
+        const updateData: any = {};
+        if (input.name !== undefined) updateData.name = sanitizeLimited(input.name, 100);
+        if (input.description !== undefined) updateData.description = input.description ? sanitizeLimited(input.description, 500) : null;
+        if (input.trigger !== undefined) updateData.trigger = input.trigger;
+        if (input.conditions !== undefined) updateData.conditions = input.conditions;
+        if (input.actions !== undefined) updateData.actions = input.actions;
+        if (input.confidenceThreshold !== undefined) updateData.confidenceThreshold = input.confidenceThreshold;
+        if (input.requiresApproval !== undefined) updateData.requiresApproval = input.requiresApproval;
+        if (input.enabled !== undefined) updateData.enabled = input.enabled;
+
+        const playbook = await prisma.playbook.update({
+          where: { id: input.id },
+          data: updateData,
+        });
+
+        await logEvent('playbook.updated', { playbookId: playbook.id }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error updating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to update playbook',
+        });
+      }
+    }),
+
+  deletePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow deleting default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot delete default playbooks. Disable it instead.',
+          });
+        }
+
+        await prisma.playbook.delete({
+          where: { id: input.id },
+        });
+
+        await logEvent('playbook.deleted', { playbookId: input.id }, 'playbook', input.id);
+
+        return { ok: true };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error deleting playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to delete playbook',
+        });
+      }
+    }),
+
+  clonePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify access (can clone any playbook, including defaults)
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found',
+          });
+        }
+
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: `${existing.name} (Copy)`,
+            description: existing.description,
+            category: existing.category,
+            trigger: existing.trigger,
+            conditions: existing.conditions,
+            actions: existing.actions,
+            confidenceThreshold: existing.confidenceThreshold,
+            requiresApproval: existing.requiresApproval,
+            enabled: false, // Cloned playbooks start disabled
+            isDefault: false, // Clones are never defaults
+          },
+        });
+
+        await logEvent('playbook.cloned', { sourceId: input.id, newId: playbook.id }, 'playbook', playbook.id);
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error cloning playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to clone playbook',
+        });
+      }
+    }),
+
+  getPlaybookExecutions: protectedProcedure
+    .input(
+      z.object({
+        playbookId: z.string().optional(),
+        limit: z.number().min(1).max(100).default(20),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const where: any = {};
+        
+        if (input.playbookId) {
+          // Verify user owns the playbook
+          const playbook = await prisma.playbook.findFirst({
+            where: { id: input.playbookId, userId: ctx.userId },
+          });
+
+          if (!playbook) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Playbook not found or access denied',
+            });
+          }
+
+          where.playbookId = input.playbookId;
+        } else {
+          // Get all playbooks owned by user
+          const userPlaybooks = await prisma.playbook.findMany({
+            where: { userId: ctx.userId },
+            select: { id: true },
+          });
+
+          where.playbookId = { in: userPlaybooks.map(p => p.id) };
+        }
+
+        const executions = await prisma.playbookExecution.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input.limit,
+          include: {
+            playbook: {
+              select: {
+                name: true,
+                category: true,
+              },
+            },
+          },
+        });
+
+        return { executions };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error fetching playbook executions:', error);
+        return { executions: [] };
+      }
+    }),
 });
 
 export type AppRouter = typeof appRouter;

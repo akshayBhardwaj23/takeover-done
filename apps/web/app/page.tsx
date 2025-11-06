@@ -8,7 +8,7 @@ export default function HomePage() {
   const [annual, setAnnual] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pt-16">
       {/* Hero Section - Web3/NFT Style */}
       <section
         className="relative min-h-screen bg-gray-50 overflow-hidden"

@@ -3,6 +3,7 @@
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import AISuggestionBox from '../components/AISuggestionBox';
 import {
   TrendingUp,
   Mail,
@@ -24,7 +25,7 @@ export default function AnalyticsPage() {
 
   if (analytics.isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6">
+      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-20">
         <div className="mx-auto max-w-7xl space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
@@ -111,7 +112,7 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-20">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -128,6 +129,9 @@ export default function AnalyticsPage() {
             Live Data
           </Badge>
         </div>
+
+        {/* AI Suggestion Box */}
+        <AISuggestionBox />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

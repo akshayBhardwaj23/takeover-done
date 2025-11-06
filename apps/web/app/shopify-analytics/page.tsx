@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import AISuggestionBox from '../components/AISuggestionBox';
 import {
   DollarSign,
   ShoppingBag,
@@ -147,7 +148,7 @@ function ShopifyAnalyticsInner() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-20">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -179,6 +180,9 @@ function ShopifyAnalyticsInner() {
           <Store className="mr-1 h-4 w-4" />
           {selectedShop}
         </Badge>
+
+        {/* AI Suggestion Box */}
+        <AISuggestionBox shop={selectedShop} />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
