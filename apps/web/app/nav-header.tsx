@@ -40,6 +40,12 @@ export default function Header() {
               >
                 Business Analytics
               </a>
+              <a
+                href="/usage"
+                className="hover:text-gray-900 transition-colors"
+              >
+                Usage
+              </a>
             </>
           )}
           {isAuthed ? (
