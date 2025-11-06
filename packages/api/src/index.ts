@@ -802,6 +802,16 @@ Write responses that sound like they come from a real human support agent who ge
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
+        // Support both US and EU Mailgun endpoints
+        // EU keys typically have format: xxxxxxxx-xxxx-xxxx
+        // US keys typically start with: key-...
+        const mailgunRegion =
+          process.env.MAILGUN_REGION ||
+          (apiKey?.includes('-') && !apiKey.startsWith('key-') ? 'eu' : 'us');
+        const mailgunBaseUrl =
+          mailgunRegion === 'eu'
+            ? 'https://api.eu.mailgun.net/v3'
+            : 'https://api.mailgun.net/v3';
         const defaultFromEmail =
           process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
@@ -841,16 +851,13 @@ Write responses that sound like they come from a real human support agent who ge
           formData.append('h:Reply-To', replyToEmail);
         }
 
-        const response = await fetch(
-          `https://api.mailgun.net/v3/${domain}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-            },
-            body: formData,
+        const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
           },
-        );
+          body: formData,
+        });
 
         if (!response.ok) {
           const errorText = await response
@@ -860,7 +867,9 @@ Write responses that sound like they come from a real human support agent who ge
             status: response.status,
             statusText: response.statusText,
             domain,
-            apiKeyPrefix: apiKey.substring(0, 8) + '...',
+            region: mailgunRegion,
+            endpoint: mailgunBaseUrl,
+            apiKeyPrefix: apiKey.substring(0, 12) + '...',
             error: errorText,
           });
 
@@ -951,6 +960,16 @@ Write responses that sound like they come from a real human support agent who ge
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
+        // Support both US and EU Mailgun endpoints
+        // EU keys typically have format: xxxxxxxx-xxxx-xxxx
+        // US keys typically start with: key-...
+        const mailgunRegion =
+          process.env.MAILGUN_REGION ||
+          (apiKey?.includes('-') && !apiKey.startsWith('key-') ? 'eu' : 'us');
+        const mailgunBaseUrl =
+          mailgunRegion === 'eu'
+            ? 'https://api.eu.mailgun.net/v3'
+            : 'https://api.mailgun.net/v3';
         const defaultFromEmail =
           process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
@@ -993,16 +1012,13 @@ Write responses that sound like they come from a real human support agent who ge
           formData.append('h:Reply-To', replyToEmail);
         }
 
-        const response = await fetch(
-          `https://api.mailgun.net/v3/${domain}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-            },
-            body: formData,
+        const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
           },
-        );
+          body: formData,
+        });
 
         if (!response.ok) {
           const errorText = await response
@@ -1012,7 +1028,9 @@ Write responses that sound like they come from a real human support agent who ge
             status: response.status,
             statusText: response.statusText,
             domain,
-            apiKeyPrefix: apiKey.substring(0, 8) + '...',
+            region: mailgunRegion,
+            endpoint: mailgunBaseUrl,
+            apiKeyPrefix: apiKey.substring(0, 12) + '...',
             error: errorText,
           });
 
@@ -2048,9 +2066,9 @@ Write responses that sound like they come from a real human support agent who ge
           where: { userId: ctx.userId },
           select: { id: true, shopDomain: true, type: true },
         });
-        
-        const connectionIds = connections.map(c => c.id);
-        
+
+        const connectionIds = connections.map((c) => c.id);
+
         if (connectionIds.length === 0) {
           return { shopifyMetrics: null, emailMetrics: null };
         }
@@ -2062,11 +2080,11 @@ Write responses that sound like they come from a real human support agent who ge
 
         // Shopify metrics
         let shopifyMetrics: any = null;
-        const shopifyConn = connections.find(c => c.type === 'SHOPIFY');
-        
+        const shopifyConn = connections.find((c) => c.type === 'SHOPIFY');
+
         if (shopifyConn) {
           const shopDomain = input?.shop || shopifyConn.shopDomain;
-          
+
           // Current week orders
           const ordersThisWeek = await prisma.order.findMany({
             where: {
@@ -2085,28 +2103,40 @@ Write responses that sound like they come from a real human support agent who ge
             select: { totalAmount: true, status: true },
           });
 
-          const revenueThisWeek = ordersThisWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
-          const revenuePrevWeek = ordersPrevWeek.reduce((sum, o) => sum + (o.totalAmount / 100), 0);
-          
-          const revenueChange = revenuePrevWeek > 0 
-            ? ((revenueThisWeek - revenuePrevWeek) / revenuePrevWeek) * 100 
-            : 0;
+          const revenueThisWeek = ordersThisWeek.reduce(
+            (sum, o) => sum + o.totalAmount / 100,
+            0,
+          );
+          const revenuePrevWeek = ordersPrevWeek.reduce(
+            (sum, o) => sum + o.totalAmount / 100,
+            0,
+          );
 
-          const ordersChange = ordersPrevWeek.length > 0
-            ? ((ordersThisWeek.length - ordersPrevWeek.length) / ordersPrevWeek.length) * 100
-            : 0;
+          const revenueChange =
+            revenuePrevWeek > 0
+              ? ((revenueThisWeek - revenuePrevWeek) / revenuePrevWeek) * 100
+              : 0;
+
+          const ordersChange =
+            ordersPrevWeek.length > 0
+              ? ((ordersThisWeek.length - ordersPrevWeek.length) /
+                  ordersPrevWeek.length) *
+                100
+              : 0;
 
           // Count refunds (assuming REFUNDED status)
-          const refundsThisWeek = ordersThisWeek.filter(o => 
-            o.status?.toLowerCase().includes('refund')
+          const refundsThisWeek = ordersThisWeek.filter((o) =>
+            o.status?.toLowerCase().includes('refund'),
           ).length;
-          const refundRate = ordersThisWeek.length > 0 
-            ? (refundsThisWeek / ordersThisWeek.length) * 100 
-            : 0;
+          const refundRate =
+            ordersThisWeek.length > 0
+              ? (refundsThisWeek / ordersThisWeek.length) * 100
+              : 0;
 
-          const avgOrderValue = ordersThisWeek.length > 0
-            ? revenueThisWeek / ordersThisWeek.length
-            : 0;
+          const avgOrderValue =
+            ordersThisWeek.length > 0
+              ? revenueThisWeek / ordersThisWeek.length
+              : 0;
 
           shopifyMetrics = {
             totalRevenue: revenueThisWeek,
@@ -2124,8 +2154,8 @@ Write responses that sound like they come from a real human support agent who ge
 
         // Email metrics
         let emailMetrics: any = null;
-        const emailConns = connections.filter(c => c.type === 'CUSTOM_EMAIL');
-        
+        const emailConns = connections.filter((c) => c.type === 'CUSTOM_EMAIL');
+
         if (emailConns.length > 0) {
           // Current week emails
           const emailsThisWeek = await prisma.message.count({
@@ -2144,9 +2174,10 @@ Write responses that sound like they come from a real human support agent who ge
             },
           });
 
-          const volumeChange = emailsPrevWeek > 0
-            ? ((emailsThisWeek - emailsPrevWeek) / emailsPrevWeek) * 100
-            : 0;
+          const volumeChange =
+            emailsPrevWeek > 0
+              ? ((emailsThisWeek - emailsPrevWeek) / emailsPrevWeek) * 100
+              : 0;
 
           // Get recent messages for sentiment/complaint analysis
           const recentMessages = await prisma.message.findMany({
@@ -2162,33 +2193,46 @@ Write responses that sound like they come from a real human support agent who ge
           // Simple sentiment analysis based on keywords
           let negativeSentimentCount = 0;
           const complaintKeywords: { [key: string]: number } = {};
-          
+
           for (const msg of recentMessages) {
             const body = msg.body?.toLowerCase() || '';
-            
+
             // Negative sentiment keywords
-            if (body.match(/\b(angry|disappointed|frustrated|terrible|worst|horrible|awful)\b/)) {
+            if (
+              body.match(
+                /\b(angry|disappointed|frustrated|terrible|worst|horrible|awful)\b/,
+              )
+            ) {
               negativeSentimentCount++;
             }
-            
+
             // Track complaint topics
             if (body.includes('discount') || body.includes('coupon')) {
-              complaintKeywords['discount issues'] = (complaintKeywords['discount issues'] || 0) + 1;
+              complaintKeywords['discount issues'] =
+                (complaintKeywords['discount issues'] || 0) + 1;
             }
             if (body.includes('shipping') || body.includes('delivery')) {
-              complaintKeywords['shipping delays'] = (complaintKeywords['shipping delays'] || 0) + 1;
+              complaintKeywords['shipping delays'] =
+                (complaintKeywords['shipping delays'] || 0) + 1;
             }
             if (body.includes('refund') || body.includes('return')) {
-              complaintKeywords['refund requests'] = (complaintKeywords['refund requests'] || 0) + 1;
+              complaintKeywords['refund requests'] =
+                (complaintKeywords['refund requests'] || 0) + 1;
             }
-            if (body.includes('quality') || body.includes('damaged') || body.includes('defective')) {
-              complaintKeywords['product quality'] = (complaintKeywords['product quality'] || 0) + 1;
+            if (
+              body.includes('quality') ||
+              body.includes('damaged') ||
+              body.includes('defective')
+            ) {
+              complaintKeywords['product quality'] =
+                (complaintKeywords['product quality'] || 0) + 1;
             }
           }
 
-          const sentimentScore = recentMessages.length > 0
-            ? (negativeSentimentCount / recentMessages.length) * -1
-            : 0;
+          const sentimentScore =
+            recentMessages.length > 0
+              ? (negativeSentimentCount / recentMessages.length) * -1
+              : 0;
 
           const topComplaints = Object.entries(complaintKeywords)
             .sort((a, b) => b[1] - a[1])
@@ -2215,11 +2259,12 @@ Write responses that sound like they come from a real human support agent who ge
 
           let totalResponseMinutes = 0;
           let responseCount = 0;
-          
+
           for (const msg of messagesWithResponses) {
             const firstAction = msg.order?.actions[0];
             if (firstAction) {
-              const diffMs = firstAction.createdAt.getTime() - msg.createdAt.getTime();
+              const diffMs =
+                firstAction.createdAt.getTime() - msg.createdAt.getTime();
               const diffMinutes = diffMs / (1000 * 60);
               if (diffMinutes >= 0 && diffMinutes < 10000) {
                 totalResponseMinutes += diffMinutes;
@@ -2228,9 +2273,8 @@ Write responses that sound like they come from a real human support agent who ge
             }
           }
 
-          const avgResponseTime = responseCount > 0 
-            ? totalResponseMinutes / responseCount 
-            : 0;
+          const avgResponseTime =
+            responseCount > 0 ? totalResponseMinutes / responseCount : 0;
 
           emailMetrics = {
             totalEmails: emailsThisWeek,
@@ -2239,8 +2283,10 @@ Write responses that sound like they come from a real human support agent who ge
             topComplaints,
             weekOverWeekChange: {
               volume: volumeChange,
-              negativeSentiment: negativeSentimentCount > 0 ? 
-                (negativeSentimentCount / recentMessages.length) * 100 : 0,
+              negativeSentiment:
+                negativeSentimentCount > 0
+                  ? (negativeSentimentCount / recentMessages.length) * 100
+                  : 0,
             },
           };
         }
@@ -2254,7 +2300,14 @@ Write responses that sound like they come from a real human support agent who ge
 
   // Playbook Management
   getPlaybooks: protectedProcedure
-    .input(z.object({ category: z.string().optional(), seedDefaults: z.boolean().optional() }).optional())
+    .input(
+      z
+        .object({
+          category: z.string().optional(),
+          seedDefaults: z.boolean().optional(),
+        })
+        .optional(),
+    )
     .query(async ({ input, ctx }) => {
       try {
         // Auto-seed default playbooks if user has none and seedDefaults is true
@@ -2312,7 +2365,14 @@ Write responses that sound like they come from a real human support agent who ge
       z.object({
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
-        category: z.enum(['REFUND_RETURN', 'MARKETING', 'FULFILLMENT', 'SUPPORT', 'INVENTORY', 'CUSTOM']),
+        category: z.enum([
+          'REFUND_RETURN',
+          'MARKETING',
+          'FULFILLMENT',
+          'SUPPORT',
+          'INVENTORY',
+          'CUSTOM',
+        ]),
         trigger: z.any(),
         conditions: z.any(),
         actions: z.any(),
@@ -2327,7 +2387,9 @@ Write responses that sound like they come from a real human support agent who ge
           data: {
             userId: ctx.userId,
             name: sanitizeLimited(input.name, 100),
-            description: input.description ? sanitizeLimited(input.description, 500) : null,
+            description: input.description
+              ? sanitizeLimited(input.description, 500)
+              : null,
             category: input.category,
             trigger: input.trigger,
             conditions: input.conditions,
@@ -2338,7 +2400,12 @@ Write responses that sound like they come from a real human support agent who ge
           },
         });
 
-        await logEvent('playbook.created', { playbookId: playbook.id, category: input.category }, 'playbook', playbook.id);
+        await logEvent(
+          'playbook.created',
+          { playbookId: playbook.id, category: input.category },
+          'playbook',
+          playbook.id,
+        );
 
         return { playbook };
       } catch (error: any) {
@@ -2382,18 +2449,26 @@ Write responses that sound like they come from a real human support agent who ge
         if (existing.isDefault) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'Cannot edit default playbooks. Clone it to create your own version.',
+            message:
+              'Cannot edit default playbooks. Clone it to create your own version.',
           });
         }
 
         const updateData: any = {};
-        if (input.name !== undefined) updateData.name = sanitizeLimited(input.name, 100);
-        if (input.description !== undefined) updateData.description = input.description ? sanitizeLimited(input.description, 500) : null;
+        if (input.name !== undefined)
+          updateData.name = sanitizeLimited(input.name, 100);
+        if (input.description !== undefined)
+          updateData.description = input.description
+            ? sanitizeLimited(input.description, 500)
+            : null;
         if (input.trigger !== undefined) updateData.trigger = input.trigger;
-        if (input.conditions !== undefined) updateData.conditions = input.conditions;
+        if (input.conditions !== undefined)
+          updateData.conditions = input.conditions;
         if (input.actions !== undefined) updateData.actions = input.actions;
-        if (input.confidenceThreshold !== undefined) updateData.confidenceThreshold = input.confidenceThreshold;
-        if (input.requiresApproval !== undefined) updateData.requiresApproval = input.requiresApproval;
+        if (input.confidenceThreshold !== undefined)
+          updateData.confidenceThreshold = input.confidenceThreshold;
+        if (input.requiresApproval !== undefined)
+          updateData.requiresApproval = input.requiresApproval;
         if (input.enabled !== undefined) updateData.enabled = input.enabled;
 
         const playbook = await prisma.playbook.update({
@@ -2401,7 +2476,12 @@ Write responses that sound like they come from a real human support agent who ge
           data: updateData,
         });
 
-        await logEvent('playbook.updated', { playbookId: playbook.id }, 'playbook', playbook.id);
+        await logEvent(
+          'playbook.updated',
+          { playbookId: playbook.id },
+          'playbook',
+          playbook.id,
+        );
 
         return { playbook };
       } catch (error: any) {
@@ -2442,7 +2522,12 @@ Write responses that sound like they come from a real human support agent who ge
           where: { id: input.id },
         });
 
-        await logEvent('playbook.deleted', { playbookId: input.id }, 'playbook', input.id);
+        await logEvent(
+          'playbook.deleted',
+          { playbookId: input.id },
+          'playbook',
+          input.id,
+        );
 
         return { ok: true };
       } catch (error: any) {
@@ -2477,9 +2562,9 @@ Write responses that sound like they come from a real human support agent who ge
             name: `${existing.name} (Copy)`,
             description: existing.description,
             category: existing.category,
-            trigger: existing.trigger,
-            conditions: existing.conditions,
-            actions: existing.actions,
+            trigger: existing.trigger as any,
+            conditions: existing.conditions as any,
+            actions: existing.actions as any,
             confidenceThreshold: existing.confidenceThreshold,
             requiresApproval: existing.requiresApproval,
             enabled: false, // Cloned playbooks start disabled
@@ -2487,7 +2572,12 @@ Write responses that sound like they come from a real human support agent who ge
           },
         });
 
-        await logEvent('playbook.cloned', { sourceId: input.id, newId: playbook.id }, 'playbook', playbook.id);
+        await logEvent(
+          'playbook.cloned',
+          { sourceId: input.id, newId: playbook.id },
+          'playbook',
+          playbook.id,
+        );
 
         return { playbook };
       } catch (error: any) {
@@ -2510,7 +2600,7 @@ Write responses that sound like they come from a real human support agent who ge
     .query(async ({ input, ctx }) => {
       try {
         const where: any = {};
-        
+
         if (input.playbookId) {
           // Verify user owns the playbook
           const playbook = await prisma.playbook.findFirst({
@@ -2532,7 +2622,9 @@ Write responses that sound like they come from a real human support agent who ge
             select: { id: true },
           });
 
-          where.playbookId = { in: userPlaybooks.map(p => p.id) };
+          where.playbookId = {
+            in: userPlaybooks.map((p: { id: string }) => p.id),
+          };
         }
 
         const executions = await prisma.playbookExecution.findMany({
