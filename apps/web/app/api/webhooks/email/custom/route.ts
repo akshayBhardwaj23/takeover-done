@@ -119,17 +119,24 @@ function extractOrderCandidate(text: string): string | null {
   // - "order 1003" or "Order 1003"
   // - "order status 1003" or "Order status 1003"
   // - "order #1003"
+  // - "order 1009 status" (handles text after the number)
   // - Just standalone numbers in context (more lenient)
   const patterns = [
     /#\s?(\d{3,8})/i, // #1003 or # 1003
-    /order\s+#?\s?(\d{3,8})/i, // order #1003 or order 1003
+    /order\s+#?\s?(\d{3,8})(?:\s|$|[^\d])/i, // order #1003, order 1003, or "order 1009 status" (captures number before status)
     /order\s+status\s+(\d{3,8})/i, // order status 1003
     /order\s+number\s+(\d{3,8})/i, // order number 1003
     /\b(\d{4,5})\b/i, // Standalone 4-5 digit numbers (likely order numbers)
   ];
   for (const re of patterns) {
     const m = text.match(re);
-    if (m) return m[1];
+    if (m) {
+      const candidate = m[1];
+      console.log(
+        `[Email Webhook] 📝 Extracted order candidate "${candidate}" using pattern: ${re.source}`,
+      );
+      return candidate;
+    }
   }
   return null;
 }
@@ -321,57 +328,150 @@ export async function POST(req: NextRequest) {
       undefined;
 
     // First, try to extract and match order number from subject/body (more specific)
-    const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
+    const searchText = `${subject ?? ''} ${body}`;
+    const candidate = extractOrderCandidate(searchText);
     if (candidate) {
       console.error(
-        `[Email Webhook] 🔍 Extracted order candidate: ${candidate} from subject/body`,
+        `[Email Webhook] 🔍 Extracted order candidate: "${candidate}" from subject/body`,
+        { subject, bodyPreview: body.substring(0, 100) },
       );
 
       // Build where clause with shop domain scoping if available
-      const orderWhere: any = {
+      // Try multiple formats: "#1009", "1009", and also check shopifyId (which is numeric string)
+      // IMPORTANT: Prisma requires AND/OR to be at the top level, so we structure it properly
+      const baseWhere: any = {
         OR: [
-          { name: `#${candidate}` },
-          { name: candidate },
-          { shopifyId: candidate },
+          { name: `#${candidate}` }, // "#1009" - exact match
+          { name: candidate }, // "1009" - exact match (in case stored without #)
+          { name: { contains: candidate } }, // Contains "1009" (handles "ORDER-1009" format)
+          { shopifyId: candidate }, // Shopify numeric ID (though this is usually a long number)
         ],
       };
 
-      // Scope to same shop if we have shop domain from connection
+      // Add shop domain filter if available (AND condition)
       if (shopDomain) {
-        orderWhere.shopDomain = shopDomain;
+        baseWhere.shopDomain = shopDomain;
+        console.error(
+          `[Email Webhook] 🔎 Scoping order search to shop: ${shopDomain}`,
+        );
       }
 
-      // Also scope to same connection if we have connectionId
-      if (conn.id) {
-        // Orders belong to connections, so filter by connectionId
-        const byName = await prisma.order.findFirst({
+      // Find the associated Shopify connection if we have shopDomain
+      // Orders belong to Shopify connections, not CUSTOM_EMAIL connections
+      let shopifyConnectionId: string | undefined = undefined;
+      if (shopDomain && conn.userId) {
+        // Find the Shopify connection for the same user and shop
+        const shopifyConn = await prisma.connection.findFirst({
           where: {
-            ...orderWhere,
-            connectionId: conn.id,
+            type: 'SHOPIFY' as any,
+            shopDomain: shopDomain,
+            userId: conn.userId,
           },
+          select: { id: true },
         });
-        if (byName) {
-          orderId = byName.id;
+        if (shopifyConn) {
+          shopifyConnectionId = shopifyConn.id;
           console.error(
-            `[Email Webhook] ✅ Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+            `[Email Webhook] 🔎 Found Shopify connection: ${shopifyConnectionId} for shop: ${shopDomain}`,
+          );
+        } else {
+          console.warn(
+            `[Email Webhook] ⚠️ No Shopify connection found for shop: ${shopDomain}, userId: ${conn.userId}`,
           );
         }
-      } else {
-        // Fallback if no connectionId - just match by name/shopifyId and shopDomain
+      }
+
+      // Try to match order with Shopify connection first (most accurate)
+      if (shopifyConnectionId) {
+        const whereWithShopifyConnection = {
+          ...baseWhere,
+          connectionId: shopifyConnectionId,
+        };
+
         const byName = await prisma.order.findFirst({
-          where: orderWhere,
+          where: whereWithShopifyConnection,
         });
         if (byName) {
           orderId = byName.id;
           console.error(
-            `[Email Webhook] ✅ Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`,
+            `[Email Webhook] ✅ Matched order "${candidate}" using Shopify connection to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId})`,
+          );
+        }
+      }
+
+      // If not found, try with the email connection's connectionId (in case orders are linked to email connections)
+      if (!orderId && conn.id) {
+        console.error(
+          `[Email Webhook] 🔎 Trying to match order with email connectionId: ${conn.id}`,
+        );
+        const whereWithEmailConnection = {
+          ...baseWhere,
+          connectionId: conn.id,
+        };
+
+        const byName = await prisma.order.findFirst({
+          where: whereWithEmailConnection,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.error(
+            `[Email Webhook] ✅ Matched order "${candidate}" using email connection to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId})`,
+          );
+        }
+      }
+
+      // Final fallback: search without connectionId filter (match by name/shopDomain only)
+      if (!orderId) {
+        console.warn(
+          `[Email Webhook] ⚠️ Order "${candidate}" not found with connection filters, trying without connectionId...`,
+          {
+            shopifyConnectionId,
+            emailConnectionId: conn.id,
+            candidate,
+            shopDomain,
+          },
+        );
+        const byName = await prisma.order.findFirst({
+          where: baseWhere,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.error(
+            `[Email Webhook] ✅ Matched order "${candidate}" (without connectionId filter) to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId}, connectionId: ${byName.connectionId})`,
+          );
+        } else {
+          // Log what we're searching for to help debug
+          console.warn(
+            `[Email Webhook] ⚠️ Order "${candidate}" not found even without connectionId filter`,
+            {
+              searchCriteria: baseWhere,
+              shopifyConnectionId,
+              emailConnectionId: conn.id,
+            },
           );
         }
       }
 
       if (!orderId && candidate) {
+        // Log all orders for debugging (limited to recent orders)
+        const recentOrders = await prisma.order.findMany({
+          where: shopDomain ? { shopDomain } : {},
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          select: { name: true, shopifyId: true, shopDomain: true },
+        });
         console.warn(
-          `[Email Webhook] Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`,
+          `[Email Webhook] ❌ Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`,
+          {
+            candidate,
+            shopDomain,
+            connectionId: conn.id,
+            recentOrders: recentOrders.map((o) => ({
+              name: o.name,
+              shopifyId: o.shopifyId,
+              shopDomain: o.shopDomain,
+            })),
+          },
         );
       }
     }
