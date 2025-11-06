@@ -350,4 +350,4 @@ MICROSOFT_CLIENT_SECRET=xxx
 ## Related Documentation
 
 - [STAGING_SETUP_GUIDE.md](../deployment/STAGING_SETUP_GUIDE.md) - Mailgun setup for staging
-- [MAILGUN_SETUP.md](../../MAILGUN_SETUP.md) - Basic Mailgun configuration
+- [MAILGUN_SETUP.md](../integrations/MAILGUN_SETUP.md) - Basic Mailgun configuration

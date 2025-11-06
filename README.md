@@ -20,19 +20,20 @@ See [docs/operations/RUNBOOK.md](./docs/operations/RUNBOOK.md)
 
 - **[Development Setup](./docs/setup/DEVELOPMENT_SETUP.md)** - Team member setup guide
 - **[Architecture](./docs/architecture/ARCHITECTURE.md)** - Technical architecture
-- **[Deployment Guide](./docs/deployment/DEPLOYMENT_RECOMMENDATIONS.md)** - Production deployment
+- **[Deployment Guide](./docs/deployment/README.md)** - Production deployment
 - **[Runbook](./docs/operations/RUNBOOK.md)** - Operations and deployment guide
 - **[API Reference](./docs/architecture/API_REFERENCE.md)** - tRPC API documentation
 - **[Roadmap](./docs/planning/ROADMAP.md)** - Feature roadmap and todos
-- **[Mailgun Setup](./MAILGUN_SETUP.md)** - Mailgun email configuration guide
+- **[PRD](./docs/planning/PRD.md)** - Product Requirements Document
+- **[Mailgun Setup](./docs/integrations/MAILGUN_SETUP.md)** - Mailgun email configuration guide
 
 ## 🏗️ Architecture
 
 ```
 ai-ecom-tool/
 ├── apps/
-│   ├── web/          # Next.js frontend + API routes
-│   └── worker/       # Background job processor (BullMQ)
+│   ├── web/          # Next.js frontend + API routes + Inngest functions
+│   └── worker/       # Background worker (legacy placeholder, using Inngest now)
 ├── packages/
 │   ├── api/          # tRPC API definitions
 │   └── db/           # Prisma schema + migrations
@@ -46,7 +47,7 @@ ai-ecom-tool/
 - **Backend**: tRPC, Prisma ORM, PostgreSQL
 - **Auth**: NextAuth.js (Google OAuth)
 - **Integrations**: Shopify OAuth, Mailgun (email), OpenAI (AI suggestions)
-- **Infrastructure**: Cloudflare Tunnel, BullMQ (Redis)
+- **Infrastructure**: Cloudflare Tunnel, Inngest (background jobs), Upstash Redis (optional)
 - **Monitoring**: Sentry (error tracking)
 
 ## 🌟 Key Features
@@ -64,7 +65,9 @@ ai-ecom-tool/
   - AI Support Analytics (response time, ROI, customer satisfaction, volume trends)
   - Shopify Business Analytics (revenue, orders, customers, AOV, growth metrics)
 - ✅ Skeleton loaders for improved perceived performance
-- 🔄 Background job processing (Redis/BullMQ - planned for production)
+- ✅ Background job processing (Inngest - serverless, event-driven)
+- ✅ Per-store email aliases with rotation and disable features
+- ✅ Store support email configuration (per-store support email and store name)
 
 ## 🔐 Environment Setup
 
@@ -151,6 +154,7 @@ cd packages/db && pnpm prisma generate
 ### Common Issues
 
 See [docs/operations/TROUBLESHOOTING.md](./docs/operations/TROUBLESHOOTING.md) for detailed solutions to:
+
 - Webhook configuration and registration
 - tRPC/router import failures
 - Database migration issues

@@ -119,16 +119,16 @@
 
 ## 🧱 **7. Tech Stack**
 
-| Layer      | Tech                                                          |
-| ---------- | ------------------------------------------------------------- |
-| Frontend   | Next.js (App Router), TypeScript, Tailwind, Shadcn UI         |
-| Backend    | tRPC or NestJS, Node.js                                       |
-| Database   | PostgreSQL (Prisma ORM)                                       |
+| Layer      | Tech                                                  |
+| ---------- | ----------------------------------------------------- |
+| Frontend   | Next.js (App Router), TypeScript, Tailwind, Shadcn UI |
+| Backend    | tRPC or NestJS, Node.js                               |
+| Database   | PostgreSQL (Prisma ORM)                               |
 | Queue      | Inngest (serverless, event-driven) / Upstash Redis (optional) |
-| Auth       | Auth.js (Shopify + Google OAuth)                              |
-| AI         | OpenAI GPT-4o-mini (production)                               |
-| Deployment | Vercel + Supabase/Railway                                     |
-| Monitoring | Sentry, Pino logs                                             |
+| Auth       | Auth.js (Shopify + Google OAuth)                      |
+| AI         | OpenAI GPT-4o-mini (production)                     |
+| Deployment | Vercel + Supabase/Railway                             |
+| Monitoring | Sentry, Pino logs                                     |
 
 ---
 

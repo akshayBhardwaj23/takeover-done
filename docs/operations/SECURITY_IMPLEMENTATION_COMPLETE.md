@@ -77,7 +77,7 @@
 - ✅ Prevents unauthorized cross-tenant data access
 - ✅ All database queries filtered by user ownership
 
-⚠️ **IMPORTANT:** Requires database migration (see `DATABASE_MIGRATION_NEEDED.md`)
+⚠️ **IMPORTANT:** Requires database migration (see `docs/operations/DATABASE_MIGRATION_NEEDED.md`)
 
 ---
 
@@ -143,7 +143,7 @@ UPSTASH_REDIS_REST_TOKEN=your-token-here
 **Action Required:**
 
 1. Connect to database
-2. Follow steps in `DATABASE_MIGRATION_NEEDED.md`
+2. Follow steps in `docs/operations/DATABASE_MIGRATION_NEEDED.md`
 3. Run migration to add `connectionId` columns
 
 **Why Critical:**
@@ -316,7 +316,7 @@ export default {
 1. ✅ Authentication & Protected Procedures - **DONE**
 2. ✅ Multi-Tenant Scoping - **DONE** (needs migration)
 3. ✅ Rate Limiting - **DONE**
-4. ⚠️ **RUN DATABASE MIGRATION** - See `DATABASE_MIGRATION_NEEDED.md`
+4. ⚠️ **RUN DATABASE MIGRATION** - See `docs/operations/DATABASE_MIGRATION_NEEDED.md`
 
 ### High Priority (Do Before Launch):
 
@@ -389,10 +389,9 @@ export default {
 
 ## 📝 Documentation Created
 
-1. `SECURITY_FIXES.md` - Complete guide with code examples
-2. `SECURITY_PROGRESS.md` - Detailed progress tracker
-3. `DATABASE_MIGRATION_NEEDED.md` - Migration instructions
-4. `SECURITY_IMPLEMENTATION_COMPLETE.md` - This file
+1. `docs/operations/SECURITY_FIXES.md` - Complete guide with code examples
+2. `docs/operations/DATABASE_MIGRATION_NEEDED.md` - Migration instructions
+3. `docs/operations/SECURITY_IMPLEMENTATION_COMPLETE.md` - This file (current status)
 
 ---
 
@@ -400,7 +399,7 @@ export default {
 
 ### Database Migration Issue:
 
-- Check `DATABASE_MIGRATION_NEEDED.md`
+- Check `docs/operations/DATABASE_MIGRATION_NEEDED.md`
 - Verify database connection in `packages/db/.env`
 - Test with: `psql $DATABASE_URL`
 

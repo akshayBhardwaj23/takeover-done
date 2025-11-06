@@ -226,7 +226,7 @@ To complete the billing system:
 
 For questions or issues, refer to:
 
-- PRD: `PRD.md`
+- PRD: `docs/planning/PRD.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Data Model: `docs/DATA_MODEL.md`
 

@@ -2,11 +2,11 @@
 
 ### High-Level Components
 
-- Web (Next.js): UI, NextAuth, API routes (OAuth/webhooks), tRPC handler
+- Web (Next.js): UI, NextAuth, API routes (OAuth/webhooks), tRPC handler, Inngest functions
 - API (tRPC server): business logic, Shopify Admin API calls
 - DB (PostgreSQL via Prisma): multi-tenant data
-- Worker (BullMQ): async jobs (planned)
-- External: Shopify Admin API, Webhooks, Email providers
+- Background Jobs (Inngest): async email processing, AI suggestion generation (serverless, event-driven)
+- External: Shopify Admin API, Webhooks, Mailgun (email), OpenAI (AI)
 
 ### Component Diagram
 
@@ -19,8 +19,11 @@ flowchart LR
   W -->|Install| S[Shopify]
   S -->|Callback| W
   S -.->|Webhooks| W
-  W -.->|Queue Jobs| Q[Worker]
-  Q <--> R[(Redis)]
+  W -.->|Events| I[Inngest]
+  I -->|Process| AI[OpenAI]
+  I -->|Save| D[(PostgreSQL)]
+  W -.->|Email| M[Mailgun]
+  M -.->|Webhooks| W
 ```
 
 ### Shopify OAuth Sequence
@@ -56,8 +59,16 @@ sequenceDiagram
 - OAuth `state` cookie for CSRF protection
 - Host over HTTPS with a tunnel during development
 
+### Background Jobs (Inngest)
+
+- Email processing: Inbound emails trigger Inngest events
+- AI suggestion generation: Async processing to avoid webhook timeouts
+- Built-in retries: 3 attempts with exponential backoff
+- Serverless: No Redis polling required, scales automatically
+
 ### Scaling Notes
 
-- Move Shopify fetches to background worker for polling/sync
-- Cache hot reads (orders) with Redis
+- Inngest handles background job scaling automatically (serverless)
+- Cache hot reads (orders) with Redis (optional, Upstash)
 - Add per-tenant rate limiting and isolation
+- Inngest functions process async work without blocking webhooks
