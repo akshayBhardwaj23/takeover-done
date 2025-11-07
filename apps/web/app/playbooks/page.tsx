@@ -258,6 +258,7 @@ export default function PlaybooksPage() {
         }}
         onSave={handleSave}
         initialData={editingPlaybook}
+        toast={toast}
       />
     </>
   );
