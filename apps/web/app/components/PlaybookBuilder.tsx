@@ -775,7 +775,12 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden p-0">
+      <DialogContent
+        hideDefaultWrapper
+        className="max-h-[95vh] max-w-[min(100vw,96rem)] overflow-hidden border-0 bg-transparent p-0 sm:p-0"
+        closeButtonClassName="right-6 top-6 rounded-full bg-white/20 text-slate-900 shadow-lg backdrop-blur transition hover:bg-white/40 focus:outline-none"
+      >
+        <div className="pointer-events-auto flex h-[95vh] w-full flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle className="flex items-center justify-between text-2xl">
             <div className="flex items-center gap-3">
@@ -794,7 +799,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex h-[calc(95vh-80px)] flex-col overflow-hidden">
+        <div className="flex h-[calc(95vh-80px)] flex-col overflow-hidden border-t border-white/10">
           <div className="grid flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-[320px_minmax(0,1fr)_300px]">
             {/* Prompt + Meta */}
             <div className="space-y-4 overflow-y-auto pr-2">
@@ -1060,6 +1065,8 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
         </div>
 
         <DialogFooter className="hidden" />
+        </div>
+      </div>
       </DialogContent>
     </Dialog>
   );
