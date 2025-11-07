@@ -781,25 +781,25 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
         closeButtonClassName="right-6 top-6 rounded-full bg-white/20 text-slate-900 shadow-lg backdrop-blur transition hover:bg-white/40 focus:outline-none"
       >
         <div className="pointer-events-auto flex h-[95vh] w-full flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
-        <DialogHeader className="px-6 pt-6">
-          <DialogTitle className="flex items-center justify-between text-2xl">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg">
-                <Sparkles className="h-6 w-6 text-white" />
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="flex items-center justify-between text-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg">
+                  <Sparkles className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs uppercase tracking-wide">AI + Visual Builder</span>
+                  <p className="text-slate-900 font-bold">Design your playbook flow</p>
+                </div>
               </div>
-              <div>
-                <span className="text-slate-500 text-xs uppercase tracking-wide">AI + Visual Builder</span>
-                <p className="text-slate-900 font-bold">Design your playbook flow</p>
-              </div>
-            </div>
-            <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-200">
-              <Sparkles className="h-4 w-4 mr-1" />
-              Speak, visualize & refine
-            </Badge>
-          </DialogTitle>
-        </DialogHeader>
+              <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-200">
+                <Sparkles className="h-4 w-4 mr-1" />
+                Speak, visualize & refine
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
 
-        <div className="flex h-[calc(95vh-80px)] flex-col overflow-hidden border-t border-white/10">
+          <div className="flex h-[calc(95vh-80px)] flex-col overflow-hidden border-t border-white/10">
           <div className="grid flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-[320px_minmax(0,1fr)_300px]">
             {/* Prompt + Meta */}
             <div className="space-y-4 overflow-y-auto pr-2">
@@ -1062,11 +1062,10 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
               </div>
             )}
           </div>
-        </div>
+          </div>
 
-        <DialogFooter className="hidden" />
+          <DialogFooter className="hidden" />
         </div>
-      </div>
       </DialogContent>
     </Dialog>
   );
