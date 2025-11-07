@@ -26,7 +26,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from '../../../../@ai-ecom/api/components/ui/dialog';
-import { Label } from '../../../../@ai-ecom/api/components/ui/label';
 import {
   BookOpen,
   Calendar,
@@ -568,7 +567,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
       return (
         <div className="space-y-4">
           <div>
-            <Label className="text-xs uppercase text-slate-500">Trigger Type</Label>
+            <label className="text-xs uppercase text-slate-500">Trigger Type</label>
             <select
               value={structure.trigger.type}
               onChange={(e) => updateTrigger({ type: e.target.value as TriggerType })}
@@ -582,7 +581,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
 
           {structure.trigger.type === 'shopify_event' && (
             <div>
-              <Label className="text-xs uppercase text-slate-500">Event</Label>
+              <label className="text-xs uppercase text-slate-500">Event</label>
               <select
                 value={structure.trigger.config.event ?? ''}
                 onChange={(e) =>
@@ -601,7 +600,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
 
           {structure.trigger.type === 'email_intent' && (
             <div>
-              <Label className="text-xs uppercase text-slate-500">Intent</Label>
+              <label className="text-xs uppercase text-slate-500">Intent</label>
               <select
                 value={structure.trigger.config.intent ?? ''}
                 onChange={(e) =>
@@ -621,7 +620,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
           {structure.trigger.type === 'scheduled' && (
             <>
               <div>
-                <Label className="text-xs uppercase text-slate-500">Frequency</Label>
+                <label className="text-xs uppercase text-slate-500">Frequency</label>
                 <select
                   value={structure.trigger.config.frequency ?? 'daily'}
                   onChange={(e) =>
@@ -635,7 +634,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
                 </select>
               </div>
               <div>
-                <Label className="text-xs uppercase text-slate-500">Time</Label>
+                <label className="text-xs uppercase text-slate-500">Time</label>
                 <Input
                   type="time"
                   value={structure.trigger.config.time ?? '09:00'}
@@ -655,7 +654,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
       return (
         <div className="space-y-4">
           <div>
-            <Label className="text-xs uppercase text-slate-500">Field</Label>
+            <label className="text-xs uppercase text-slate-500">Field</label>
             <select
               value={condition.field}
               onChange={(e) => updateCondition(condition.id, { field: e.target.value })}
@@ -669,7 +668,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase text-slate-500">Operator</Label>
+            <label className="text-xs uppercase text-slate-500">Operator</label>
             <select
               value={condition.operator}
               onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
@@ -683,7 +682,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
             </select>
           </div>
           <div>
-            <Label className="text-xs uppercase text-slate-500">Value</Label>
+            <label className="text-xs uppercase text-slate-500">Value</label>
             <Input
               value={condition.value}
               onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
@@ -697,7 +696,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
     return (
       <div className="space-y-4">
         <div>
-          <Label className="text-xs uppercase text-slate-500">Action Type</Label>
+          <label className="text-xs uppercase text-slate-500">Action Type</label>
           <select
             value={action.type}
             onChange={(e) =>
@@ -716,7 +715,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
         {action.type === 'send_email' && (
           <>
             <div>
-              <Label className="text-xs uppercase text-slate-500">Email Subject</Label>
+              <label className="text-xs uppercase text-slate-500">Email Subject</label>
               <Input
                 value={action.config?.email_subject ?? ''}
                 onChange={(e) =>
@@ -725,7 +724,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
               />
             </div>
             <div>
-              <Label className="text-xs uppercase text-slate-500">Email Body</Label>
+              <label className="text-xs uppercase text-slate-500">Email Body</label>
               <div className="mt-1 rounded-xl border border-slate-200 bg-white">
                 <ReactQuill
                   theme="snow"
@@ -738,7 +737,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
               </div>
             </div>
             <div>
-              <Label className="text-xs uppercase text-slate-500">Discount Code (Optional)</Label>
+              <label className="text-xs uppercase text-slate-500">Discount Code (Optional)</label>
               <Input
                 placeholder="THANKYOU10"
                 value={action.config?.discount_code ?? ''}
@@ -748,7 +747,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
               />
             </div>
             <div>
-              <Label className="text-xs uppercase text-slate-500">Send Delay</Label>
+              <label className="text-xs uppercase text-slate-500">Send Delay</label>
               <select
                 value={action.config?.send_delay ?? 'immediate'}
                 onChange={(e) =>
@@ -839,7 +838,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
 
               <Card className="border border-slate-200 bg-white/80 p-4 shadow-sm space-y-3">
                 <div>
-                  <Label className="text-xs uppercase text-slate-500">Playbook Name</Label>
+                  <label className="text-xs uppercase text-slate-500">Playbook Name</label>
                   <Input
                     value={metadata.name}
                     onChange={(e) => setMetadata((prev) => ({ ...prev, name: e.target.value }))}
@@ -847,7 +846,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
                   />
                 </div>
                 <div>
-                  <Label className="text-xs uppercase text-slate-500">Category</Label>
+                  <label className="text-xs uppercase text-slate-500">Category</label>
                   <select
                     value={metadata.category}
                     onChange={(e) =>
@@ -863,7 +862,7 @@ export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, 
                   </select>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase text-slate-500">Description</Label>
+                  <label className="text-xs uppercase text-slate-500">Description</label>
                   <textarea
                     value={metadata.description}
                     onChange={(e) =>
