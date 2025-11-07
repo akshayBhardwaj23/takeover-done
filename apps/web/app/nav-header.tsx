@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
 
 export default function Header() {
@@ -8,65 +9,60 @@ export default function Header() {
   const user = session?.user;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200/50 bg-white/70 backdrop-blur-md">
-      <div className="container-max flex items-center justify-between py-4">
-        <a href="/" className="font-semibold tracking-tight text-gray-900">
-          AI E-Commerce
-        </a>
-        <nav className="flex items-center gap-4 text-sm text-gray-600">
-          <a
-            href="/integrations"
-            className="hover:text-gray-900 transition-colors"
+    <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4">
+      <div className="flex w-full max-w-6xl items-center justify-between gap-6 rounded-full border border-slate-900/10 bg-white/80 px-6 py-4 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="flex items-center gap-8">
+          <Link
+            href="/"
+            className="text-base font-black uppercase tracking-[0.35em] text-slate-900"
           >
-            Integrations
-          </a>
-          {isAuthed && (
-            <>
-              <a
-                href="/playbooks"
-                className="hover:text-gray-900 transition-colors"
-              >
-                Playbooks
-              </a>
-              <a
-                href="/analytics"
-                className="hover:text-gray-900 transition-colors"
-              >
-                Support Analytics
-              </a>
-              <a
-                href="/shopify-analytics"
-                className="hover:text-gray-900 transition-colors"
-              >
-                Business Analytics
-              </a>
-              <a
-                href="/usage"
-                className="hover:text-gray-900 transition-colors"
-              >
-                Usage
-              </a>
-            </>
-          )}
+            Zyyp
+          </Link>
+          <nav className="hidden items-center gap-5 md:flex">
+            <Link href="/integrations" className="transition hover:text-slate-900">
+              Integrations
+            </Link>
+            {isAuthed && (
+              <>
+                <Link href="/playbooks" className="transition hover:text-slate-900">
+                  Playbooks
+                </Link>
+                <Link href="/analytics" className="transition hover:text-slate-900">
+                  Support Analytics
+                </Link>
+                <Link
+                  href="/shopify-analytics"
+                  className="transition hover:text-slate-900"
+                >
+                  Business Analytics
+                </Link>
+                <Link href="/usage" className="transition hover:text-slate-900">
+                  Usage
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+        <div className="flex items-center gap-4">
           {isAuthed ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <div className="hidden items-center gap-2 md:flex">
                 {user?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={user.image}
                     alt="avatar"
-                    className="h-6 w-6 rounded-full"
+                    className="h-8 w-8 rounded-full border border-slate-900/10 object-cover"
                   />
                 ) : (
-                  <div className="h-6 w-6 rounded-full bg-gray-200" />
+                  <div className="h-8 w-8 rounded-full bg-slate-200" />
                 )}
-                <span className="text-gray-600">
+                <span className="text-slate-600">
                   {user?.name ?? user?.email}
                 </span>
               </div>
               <button
-                className="btn-secondary cursor-pointer"
+                className="rounded-full border border-slate-900/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-slate-900/40 hover:text-slate-900"
                 onClick={() => signOut({ callbackUrl: '/' })}
               >
                 Sign out
@@ -74,13 +70,13 @@ export default function Header() {
             </div>
           ) : (
             <button
-              className="btn-brand cursor-pointer"
+              className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-black"
               onClick={() => signIn('google')}
             >
               Sign in
             </button>
           )}
-        </nav>
+        </div>
       </div>
     </header>
   );
