@@ -91,8 +91,6 @@ git push origin staging
 
 ---
 
-zyypstagingdb
-
 ## Step 2: Set Up Staging Database (Supabase)
 
 ### 2.1 Create Supabase Project
