@@ -1801,6 +1801,14 @@ Write responses that sound like they come from a real human support agent who ge
         current: 0,
         limit: 0,
         percentage: 100,
+        remaining: 0,
+        planType: 'TRIAL',
+        trial: {
+          isTrial: false,
+          expired: false,
+          endsAt: null,
+          daysRemaining: null,
+        },
       };
     }
   }),

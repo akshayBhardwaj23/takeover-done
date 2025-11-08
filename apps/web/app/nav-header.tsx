@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
-import { trpc } from './lib/trpc';
+import { trpc } from '../lib/trpc';
 import { Mail } from 'lucide-react';
 
 export default function Header() {
@@ -36,12 +36,18 @@ export default function Header() {
             Zyyp
           </Link>
           <nav className="hidden items-center gap-5 md:flex">
-            <Link href="/integrations" className="transition hover:text-slate-900">
+            <Link
+              href="/integrations"
+              className="transition hover:text-slate-900"
+            >
               Integrations
             </Link>
             {isAuthed && (
               <>
-                <Link href="/analytics" className="transition hover:text-slate-900">
+                <Link
+                  href="/analytics"
+                  className="transition hover:text-slate-900"
+                >
                   Support Analytics
                 </Link>
                 <Link
@@ -64,9 +70,7 @@ export default function Header() {
                 <div className="hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium md:flex">
                   <span
                     className={`flex items-center gap-2 ${
-                      trialExpired
-                        ? 'text-rose-600'
-                        : 'text-slate-600'
+                      trialExpired ? 'text-rose-600' : 'text-slate-600'
                     }`}
                   >
                     <Mail className="h-3.5 w-3.5" />
