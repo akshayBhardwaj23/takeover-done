@@ -59,7 +59,7 @@
 - [ ] Build command configured
 - [ ] Production branch: `main`
 - [ ] Production environment variables added
-- [ ] Custom domain added: `your-app.com`
+- [ ] Custom domain added: `www.zyyp.ai`
 - [ ] DNS records added
 - [ ] First deployment successful
 - [ ] SSL certificate active
@@ -90,8 +90,8 @@
 #### Production App
 
 - [ ] Shopify app created in Partners Dashboard
-- [ ] App URL: `https://your-app.com`
-- [ ] Callback URL: `https://your-app.com/api/shopify/callback`
+- [ ] App URL: `https://www.zyyp.ai`
+- [ ] Callback URL: `https://www.zyyp.ai/api/shopify/callback`
 - [ ] API Key copied → `SHOPIFY_API_KEY`
 - [ ] API Secret copied → `SHOPIFY_API_SECRET`
 - [ ] Webhook secret generated → `SHOPIFY_WEBHOOK_SECRET`
@@ -110,13 +110,13 @@
 
 #### Production
 
-- [ ] Domain added to Mailgun: `your-domain.com`
+- [ ] Domain added to Mailgun: `zyyp.ai`
 - [ ] DNS records added (MX, TXT, CNAME)
 - [ ] Domain verified (24-48 hours)
 - [ ] API Key copied → `MAILGUN_API_KEY`
 - [ ] Signing Key copied → `MAILGUN_SIGNING_KEY`
-- [ ] From email set: `support@your-domain.com`
-- [ ] Route created: Forward to `https://your-app.com/api/webhooks/email/custom`
+- [ ] From email set: `support@zyyp.ai`
+- [ ] Route created: Forward to `https://www.zyyp.ai/api/webhooks/email/custom`
 - [ ] Test email sent and received
 
 #### Staging
@@ -131,7 +131,7 @@
 
 ### Production Testing
 
-- [ ] Web app loads: `https://your-app.com`
+- [ ] Web app loads: `https://www.zyyp.ai`
 - [ ] Authentication works
 - [ ] Shopify OAuth flow works
 - [ ] Test order created in Shopify

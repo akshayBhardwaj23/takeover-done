@@ -460,7 +460,7 @@ After deployment, you'll have your staging URL. Update these variables:
 
 2. **After deployment, sync Inngest:**
    - If connected to Vercel: Functions auto-sync on deploy ✅
-   - If not connected: Go to Inngest Dashboard → **Apps** → **Create App** → Enter your Vercel URL: `https://your-app.vercel.app/api/inngest` → **Sync**
+   - If not connected: Go to Inngest Dashboard → **Apps** → **Create App** → Enter your Vercel URL: `https://staging.zyyp.ai/api/inngest` → **Sync**
 
 3. **Verify sync:**
    - Inngest Dashboard → **Functions**
@@ -537,7 +537,7 @@ You can skip this initially and set it up later. Here's the quick setup:
 
 1. Go to [Mailgun Dashboard](https://app.mailgun.com/)
 2. **Sending** → **Domains** → **Add New Domain**
-3. Add your domain or subdomain: `staging.your-domain.com`
+3. Add your domain or subdomain: `staging.zyyp.ai`
 4. Follow DNS setup instructions (add DNS records)
 5. Wait for verification (24-48 hours)
 
@@ -968,7 +968,7 @@ This allows customers to reply directly to the store's support email while email
 
 - If connected to Vercel: Wait for auto-sync after deployment
 - If not connected: Manually sync in Inngest Dashboard → Apps → Create App → Enter Vercel URL
-- Verify endpoint: `https://your-app.vercel.app/api/inngest`
+- Verify endpoint: `https://staging.zyyp.ai/api/inngest`
 
 ### Issue: Database Connection Fails
 

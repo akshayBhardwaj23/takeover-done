@@ -39,7 +39,7 @@ echo $INNGEST_EVENT_KEY
 3. Check if your app is listed and shows **"Synced"** status
 4. If not synced:
    - Click **"Create App"** or **"Sync"**
-   - Enter your Vercel URL: `https://your-app.vercel.app/api/inngest`
+   - Enter your Vercel URL: `https://www.zyyp.ai/api/inngest`
    - Click **"Sync"**
 
 ### 1.3 Check Functions are Registered
@@ -57,7 +57,7 @@ echo $INNGEST_EVENT_KEY
 curl http://localhost:3000/api/inngest
 
 # Test staging/production
-curl https://your-app.vercel.app/api/inngest
+curl https://www.zyyp.ai/api/inngest
 ```
 
 **Expected response:**
@@ -345,7 +345,7 @@ Before going to production, verify:
 
 ```bash
 # Test Inngest endpoint
-curl https://your-app.vercel.app/api/inngest
+curl https://www.zyyp.ai/api/inngest
 
 # Check environment variable (local)
 echo $INNGEST_EVENT_KEY

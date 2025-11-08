@@ -45,14 +45,14 @@
 
 ```
 Production:
-├── Web App → Vercel (main branch) → https://your-app.com
+├── Web App → Vercel (main branch) → https://www.zyyp.ai
 ├── Background Jobs → Inngest (serverless, event-driven) → Zero Redis polling
 ├── Database → Supabase PostgreSQL
 ├── Redis → Upstash (optional, only for webhook idempotency)
 └── External: Shopify, Mailgun, OpenAI
 
 Staging:
-├── Web App → Vercel Preview (staging branch) → https://staging-your-app.vercel.app
+├── Web App → Vercel Preview (staging branch) → https://staging.zyyp.ai
 ├── Background Jobs → Inngest (serverless, event-driven) → Zero Redis polling
 ├── Database → Supabase (separate or same with different schema)
 ├── Redis → Upstash (optional, only for webhook idempotency)

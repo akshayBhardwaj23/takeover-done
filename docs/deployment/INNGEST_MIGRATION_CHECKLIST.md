@@ -58,7 +58,7 @@ This installs the `inngest` package.
 2. Click **"Apps"** in sidebar (or **"Sync"** button)
 3. Click **"Sync"** or **"Discover Functions"**
 4. Inngest will discover your functions at:
-   - `https://your-app.vercel.app/api/inngest`
+   - `https://www.zyyp.ai/api/inngest`
 
 5. You should see:
    - ✅ Function discovered: `process-inbound-email`

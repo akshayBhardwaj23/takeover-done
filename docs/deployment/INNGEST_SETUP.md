@@ -32,7 +32,7 @@ The code is already set up! Just deploy to Vercel.
 ### 5. Sync Inngest Functions
 
 After deploying, Inngest will automatically discover your functions at:
-- `https://your-app.vercel.app/api/inngest`
+- `https://www.zyyp.ai/api/inngest`
 
 Go to Inngest dashboard → **Apps** → Click "Sync" to register functions.
 
