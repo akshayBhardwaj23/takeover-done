@@ -31,14 +31,18 @@ export default function Header() {
 
   const [storesOpen, setStoresOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const storesHoverTimeout = useRef<NodeJS.Timeout | null>(null);
   const analyticsHoverTimeout = useRef<NodeJS.Timeout | null>(null);
+  const profileHoverTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     return () => {
       if (storesHoverTimeout.current) clearTimeout(storesHoverTimeout.current);
       if (analyticsHoverTimeout.current)
         clearTimeout(analyticsHoverTimeout.current);
+      if (profileHoverTimeout.current)
+        clearTimeout(profileHoverTimeout.current);
     };
   }, []);
 
@@ -279,20 +283,87 @@ export default function Header() {
                   )}
                 </div>
               )}
-              <div className="hidden items-center gap-2 md:flex">
-                {user?.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={user.image}
-                    alt="avatar"
-                    className="h-8 w-8 rounded-full border border-slate-900/10 object-cover"
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-slate-200" />
+              <div
+                className="relative hidden md:flex"
+                onMouseEnter={() => {
+                  if (profileHoverTimeout.current)
+                    clearTimeout(profileHoverTimeout.current);
+                  setProfileOpen(true);
+                }}
+                onMouseLeave={() => {
+                  profileHoverTimeout.current = setTimeout(
+                    () => setProfileOpen(false),
+                    150,
+                  );
+                }}
+                onFocusCapture={() => {
+                  if (profileHoverTimeout.current)
+                    clearTimeout(profileHoverTimeout.current);
+                  setProfileOpen(true);
+                }}
+                onBlurCapture={(event) => {
+                  if (
+                    !event.currentTarget.contains(
+                      event.relatedTarget as Node | null,
+                    )
+                  ) {
+                    profileHoverTimeout.current = setTimeout(
+                      () => setProfileOpen(false),
+                      150,
+                    );
+                  }
+                }}
+              >
+                <button
+                  type="button"
+                  className="group flex items-center gap-2 rounded-full border border-transparent px-2 py-1 text-slate-600 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                  aria-haspopup="menu"
+                  aria-expanded={profileOpen}
+                >
+                  {user?.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={user.image}
+                      alt="avatar"
+                      className="h-8 w-8 rounded-full border border-slate-900/10 object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-500">
+                      {(user?.name ?? user?.email ?? '?')
+                        ?.toString()
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
+                  <span className="max-w-[140px] truncate">
+                    {user?.name ?? user?.email}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-60 transition group-aria-expanded:rotate-180" />
+                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 top-full z-50 w-48 translate-y-2 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm text-slate-600 shadow-lg shadow-slate-900/10">
+                    <ul className="py-2">
+                      <li>
+                        <Link
+                          href="/profile"
+                          className="block px-4 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                          onClick={() => setProfileOpen(false)}
+                        >
+                          Profile
+                        </Link>
+                      </li>
+                      <li>
+                        <Link
+                          href="/account"
+                          className="block px-4 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                          onClick={() => setProfileOpen(false)}
+                        >
+                          Account
+                        </Link>
+                      </li>
+                    </ul>
+                  </div>
                 )}
-                <span className="text-slate-600">
-                  {user?.name ?? user?.email}
-                </span>
               </div>
               <button
                 className="rounded-full border border-slate-900/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-slate-900/40 hover:text-slate-900"

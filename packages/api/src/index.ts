@@ -226,6 +226,125 @@ export const appRouter = t.router({
       return { count: 0 };
     }
   }),
+  getUserProfile: protectedProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User profile not found',
+      });
+    }
+
+    const connections = await prisma.connection.findMany({
+      where: { userId: ctx.userId, type: 'SHOPIFY' },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        shopDomain: true,
+        createdAt: true,
+        metadata: true,
+      },
+    });
+
+    const stores = connections.map((connection) => {
+      const metadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+      const nameFromMetadata =
+        typeof (metadata as { storeName?: unknown }).storeName === 'string'
+          ? ((metadata as { storeName?: string }).storeName ?? '').trim()
+          : null;
+      const supportEmail =
+        typeof (metadata as { supportEmail?: unknown }).supportEmail ===
+        'string'
+          ? ((metadata as { supportEmail?: string }).supportEmail ?? '').trim()
+          : null;
+
+      const normalizedName = normalizeStoreNameFromDomain(
+        connection.shopDomain,
+      );
+
+      return {
+        id: connection.id,
+        shopDomain: connection.shopDomain ?? '',
+        createdAt: connection.createdAt,
+        name:
+          nameFromMetadata && nameFromMetadata.length > 0
+            ? nameFromMetadata
+            : (normalizedName ?? STORE_DEFAULT_NAME),
+        supportEmail,
+      };
+    });
+
+    return {
+      user,
+      stores,
+    };
+  }),
+  updateUserProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .min(2, 'Name must be at least 2 characters long')
+          .max(120, 'Name must be at most 120 characters long')
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const updates: { name?: string | null } = {};
+
+      if (input.name !== undefined) {
+        const sanitized = sanitizeLimited(input.name, 120).trim();
+        updates.name = sanitized.length > 0 ? sanitized : null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return {
+          user: await prisma.user.findUnique({
+            where: { id: ctx.userId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+        };
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: ctx.userId },
+        data: updates,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await logEvent(
+        'user.profile.updated',
+        { hasName: updated.name != null },
+        'user',
+        ctx.userId,
+      );
+
+      return { user: updated };
+    }),
   threadsList: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
@@ -1921,6 +2040,83 @@ ${signatureBlock}`,
       console.error('Usage history error:', error);
       return { history: [] };
     }
+  }),
+  getAccountDetails: protectedProcedure.query(async ({ ctx }) => {
+    const [user, subscription, usageSummary] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+        },
+      }),
+      prisma.subscription.findUnique({
+        where: { userId: ctx.userId },
+        include: {
+          usageRecords: {
+            orderBy: { periodStart: 'desc' },
+            take: 6,
+            select: {
+              id: true,
+              periodStart: true,
+              periodEnd: true,
+              emailsSent: true,
+              emailsReceived: true,
+              aiSuggestions: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+      getUsageSummary(ctx.userId),
+    ]);
+
+    if (!user) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User not found',
+      });
+    }
+
+    const billingCycle =
+      subscription?.currentPeriodStart && subscription?.currentPeriodEnd
+        ? {
+            start: subscription.currentPeriodStart,
+            end: subscription.currentPeriodEnd,
+          }
+        : null;
+
+    const billingHistory =
+      subscription?.usageRecords.map((record) => ({
+        id: record.id,
+        periodStart: record.periodStart,
+        periodEnd: record.periodEnd,
+        emailsSent: record.emailsSent,
+        emailsReceived: record.emailsReceived,
+        aiSuggestions: record.aiSuggestions,
+        createdAt: record.createdAt,
+      })) ?? [];
+
+    return {
+      user,
+      subscription: subscription
+        ? {
+            id: subscription.id,
+            planType: subscription.planType,
+            status: subscription.status,
+            paymentGateway: subscription.paymentGateway,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            canceledAt: subscription.canceledAt,
+            metadata: subscription.metadata,
+          }
+        : null,
+      billingCycle,
+      billingHistory,
+      usageSummary,
+    };
   }),
 
   checkEmailLimit: protectedProcedure.query(async ({ ctx }) => {

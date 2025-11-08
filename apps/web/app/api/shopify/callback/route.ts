@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
 
   // Try to fetch store metadata (best-effort)
   let storeName: string | undefined;
+  let supportEmail: string | undefined;
   try {
     const shopRes = await fetch(`https://${shop}/admin/api/2024-07/shop.json`, {
       headers: {
@@ -80,11 +81,26 @@ export async function GET(req: NextRequest) {
     });
     if (shopRes.ok) {
       const shopJson = (await shopRes.json()) as {
-        shop?: { name?: string | null };
+        shop?: {
+          name?: string | null;
+          email?: string | null;
+          support_email?: string | null;
+          customer_email?: string | null;
+        };
       };
       const rawName = shopJson?.shop?.name;
       if (typeof rawName === 'string' && rawName.trim().length > 0) {
         storeName = rawName.trim();
+      }
+      const candidateSupportEmail =
+        shopJson?.shop?.support_email ??
+        shopJson?.shop?.email ??
+        shopJson?.shop?.customer_email;
+      if (
+        typeof candidateSupportEmail === 'string' &&
+        candidateSupportEmail.trim().length > 0
+      ) {
+        supportEmail = candidateSupportEmail.trim().toLowerCase();
       }
     }
   } catch (error) {
@@ -99,8 +115,15 @@ export async function GET(req: NextRequest) {
       shopDomain: shop,
       userId: owner.id,
     };
+    const metadata: Record<string, unknown> = {};
     if (storeName) {
-      data.metadata = { storeName };
+      metadata.storeName = storeName;
+    }
+    if (supportEmail) {
+      metadata.supportEmail = supportEmail;
+    }
+    if (Object.keys(metadata).length > 0) {
+      data.metadata = metadata;
     }
     await prisma.connection.create({ data });
   } else {
@@ -108,13 +131,19 @@ export async function GET(req: NextRequest) {
     const updateData: any = {
       accessToken: encryptSecure(tokenJson.access_token),
     };
-    if (storeName) {
+    if (storeName || supportEmail) {
       const existingMetadata =
         (existing.metadata as Record<string, unknown> | null) ?? {};
-      updateData.metadata = {
+      const metadataUpdates: Record<string, unknown> = {
         ...existingMetadata,
-        storeName,
       };
+      if (storeName) {
+        metadataUpdates.storeName = storeName;
+      }
+      if (supportEmail) {
+        metadataUpdates.supportEmail = supportEmail;
+      }
+      updateData.metadata = metadataUpdates;
     }
     await prisma.connection.update({
       where: { id: existing.id },
