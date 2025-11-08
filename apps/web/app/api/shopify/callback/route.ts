@@ -69,23 +69,56 @@ export async function GET(req: NextRequest) {
 
   const isNewConnection = !existing;
 
-  if (isNewConnection) {
-    // Only create if it doesn't exist
-    await prisma.connection.create({
-      data: {
-        type: 'SHOPIFY',
-        accessToken: encryptSecure(tokenJson.access_token),
-        shopDomain: shop,
-        userId: owner.id,
+  // Try to fetch store metadata (best-effort)
+  let storeName: string | undefined;
+  try {
+    const shopRes = await fetch(`https://${shop}/admin/api/2024-07/shop.json`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': tokenJson.access_token,
       },
     });
+    if (shopRes.ok) {
+      const shopJson = (await shopRes.json()) as {
+        shop?: { name?: string | null };
+      };
+      const rawName = shopJson?.shop?.name;
+      if (typeof rawName === 'string' && rawName.trim().length > 0) {
+        storeName = rawName.trim();
+      }
+    }
+  } catch (error) {
+    console.warn('[Shopify Callback] Failed to fetch shop metadata', error);
+  }
+
+  if (isNewConnection) {
+    // Only create if it doesn't exist
+    const data: any = {
+      type: 'SHOPIFY',
+      accessToken: encryptSecure(tokenJson.access_token),
+      shopDomain: shop,
+      userId: owner.id,
+    };
+    if (storeName) {
+      data.metadata = { storeName };
+    }
+    await prisma.connection.create({ data });
   } else {
     // Update existing connection with new token
+    const updateData: any = {
+      accessToken: encryptSecure(tokenJson.access_token),
+    };
+    if (storeName) {
+      const existingMetadata =
+        (existing.metadata as Record<string, unknown> | null) ?? {};
+      updateData.metadata = {
+        ...existingMetadata,
+        storeName,
+      };
+    }
     await prisma.connection.update({
       where: { id: existing.id },
-      data: {
-        accessToken: encryptSecure(tokenJson.access_token),
-      },
+      data: updateData,
     });
   }
 

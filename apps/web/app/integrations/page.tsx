@@ -40,6 +40,24 @@ type ConnectionSummary = {
   metadata?: any;
 };
 
+function deriveStoreName(connection: ConnectionSummary): string {
+  const metadataName =
+    typeof connection.metadata?.storeName === 'string'
+      ? connection.metadata.storeName.trim()
+      : '';
+  if (metadataName) return metadataName;
+  const domain = connection.shopDomain ?? '';
+  if (!domain) return 'Store';
+  const withoutSuffix = domain.replace(/\.myshopify\.com$/i, '');
+  const cleaned = withoutSuffix.replace(/[-_]+/g, ' ').trim();
+  if (!cleaned) return domain || 'Store';
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function IntegrationsInner() {
   const toast = useToast();
   const { data: session } = useSession();
@@ -59,7 +77,12 @@ function IntegrationsInner() {
   const setAliasStatus = trpc.setAliasStatus.useMutation({
     onSuccess: () => utils.connections.invalidate(),
   });
+  const updateStoreName = trpc.updateStoreName.useMutation({
+    onSuccess: () => utils.connections.invalidate(),
+  });
   const [shopInput, setShopInput] = useState('');
+  const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
+  const [storeNameDraft, setStoreNameDraft] = useState('');
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
 
@@ -115,6 +138,36 @@ function IntegrationsInner() {
   const activeAliases = emailConnections.filter(
     (c) => !c.metadata?.disabled,
   ).length;
+  const isSavingStoreName = updateStoreName.isPending;
+
+  const beginEditStore = (connection: ConnectionSummary) => {
+    setEditingStoreId(connection.id);
+    setStoreNameDraft(deriveStoreName(connection));
+  };
+
+  const cancelEditStore = () => {
+    setEditingStoreId(null);
+    setStoreNameDraft('');
+  };
+
+  const handleStoreNameSave = async () => {
+    if (!editingStoreId) return;
+    const trimmedName = storeNameDraft.trim();
+    if (!trimmedName) {
+      toast.warning('Store name cannot be empty.');
+      return;
+    }
+    try {
+      await updateStoreName.mutateAsync({
+        connectionId: editingStoreId,
+        storeName: trimmedName,
+      });
+      toast.success('Store name updated.');
+      cancelEditStore();
+    } catch (error: any) {
+      toast.error(error.message ?? 'Failed to update store name');
+    }
+  };
 
   return (
     <>
@@ -238,22 +291,82 @@ function IntegrationsInner() {
                             key={c.id}
                             className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between"
                           >
-                            <div>
-                              <p className="text-sm font-semibold text-slate-800">
-                                {c.shopDomain ?? '(unknown)'}
-                              </p>
-                              {c.createdAt && (
-                                <p className="mt-1 text-xs text-slate-400">
-                                  Connected{' '}
-                                  {new Date(c.createdAt).toLocaleDateString()}
-                                </p>
+                            <div className="flex-1">
+                              {editingStoreId === c.id ? (
+                                <form
+                                  className="flex flex-col gap-3"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    handleStoreNameSave();
+                                  }}
+                                >
+                                  <div className="space-y-2">
+                                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                      Store Name
+                                    </label>
+                                    <Input
+                                      value={storeNameDraft}
+                                      onChange={(event) =>
+                                        setStoreNameDraft(event.target.value)
+                                      }
+                                      placeholder="Enter store name"
+                                      autoFocus
+                                      disabled={isSavingStoreName}
+                                    />
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button
+                                      type="submit"
+                                      className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-black"
+                                      disabled={isSavingStoreName}
+                                    >
+                                      {isSavingStoreName ? 'Saving…' : 'Save'}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                      onClick={cancelEditStore}
+                                      disabled={isSavingStoreName}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-semibold text-slate-800">
+                                    {deriveStoreName(c)}
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    {c.shopDomain ?? '(unknown)'}
+                                  </p>
+                                  {c.createdAt && (
+                                    <p className="mt-1 text-xs text-slate-400">
+                                      Connected{' '}
+                                      {new Date(
+                                        c.createdAt,
+                                      ).toLocaleDateString()}
+                                    </p>
+                                  )}
+                                </>
                               )}
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3 md:justify-end">
                               <Badge className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                                 Active
                               </Badge>
+                              {editingStoreId !== c.id && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                  onClick={() => beginEditStore(c)}
+                                >
+                                  Edit Name
+                                </Button>
+                              )}
                               <Button
                                 className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
                                 asChild

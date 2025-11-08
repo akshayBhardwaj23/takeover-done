@@ -120,6 +120,94 @@ const protectedProcedure = t.procedure.use(isAuthenticated).use(withRateLimit);
 // AI procedure (authentication + AI rate limiting)
 const aiProcedure = t.procedure.use(isAuthenticated).use(withAIRateLimit);
 
+const STORE_DEFAULT_NAME = 'Your Store';
+
+function normalizeStoreNameFromDomain(domain?: string | null): string | null {
+  if (!domain) return null;
+  const withoutSuffix = domain.replace(/\.myshopify\.com$/i, '');
+  const cleaned = withoutSuffix.replace(/[-_]+/g, ' ').trim();
+  if (!cleaned) return null;
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function extractStoreNameFromMetadata(metadata: unknown): string | null {
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    !Array.isArray(metadata) &&
+    'storeName' in metadata
+  ) {
+    const value = (metadata as { storeName?: unknown }).storeName;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+async function resolveStoreName(
+  userId: string | null,
+  orderId?: string | null,
+): Promise<string> {
+  if (!userId) return STORE_DEFAULT_NAME;
+
+  if (orderId) {
+    const order = await prisma.order.findUnique({
+      where: { shopifyId: orderId },
+      include: {
+        connection: {
+          select: { metadata: true, shopDomain: true, userId: true },
+        },
+      },
+    });
+    if (order?.connection && order.connection.userId === userId) {
+      const nameFromMetadata = extractStoreNameFromMetadata(
+        order.connection.metadata,
+      );
+      if (nameFromMetadata) return nameFromMetadata;
+      const normalized = normalizeStoreNameFromDomain(
+        order.connection.shopDomain,
+      );
+      if (normalized) return normalized;
+    }
+  }
+
+  const connection = await prisma.connection.findFirst({
+    where: { userId, type: 'SHOPIFY' },
+    orderBy: { createdAt: 'asc' },
+    select: { metadata: true, shopDomain: true },
+  });
+
+  if (connection) {
+    const nameFromMetadata = extractStoreNameFromMetadata(connection.metadata);
+    if (nameFromMetadata) return nameFromMetadata;
+    const normalized = normalizeStoreNameFromDomain(connection.shopDomain);
+    if (normalized) return normalized;
+  }
+
+  return STORE_DEFAULT_NAME;
+}
+
+function ensureSignature(text: string, signatureBlock: string): string {
+  const trimmedSignature = signatureBlock.trim();
+  if (!trimmedSignature) return text;
+  const normalizedText = text.toLowerCase().replace(/\s+/g, ' ');
+  const normalizedSignature = trimmedSignature
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  if (normalizedText.includes(normalizedSignature)) {
+    return text;
+  }
+  const requiredSignature = `Best regards,\n${trimmedSignature}`;
+  const trimmed = text.trimEnd();
+  const separator = trimmed.endsWith('\n') ? '' : '\n\n';
+  return `${trimmed}${separator}${requiredSignature}`;
+}
+
 export { encryptSecure, decryptSecure } from './crypto';
 
 export const appRouter = t.router({
@@ -200,6 +288,53 @@ export const appRouter = t.router({
       return { connections: [] };
     }
   }),
+  updateStoreName: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string().min(1),
+        storeName: z
+          .string()
+          .trim()
+          .min(2, 'Store name must be at least 2 characters long')
+          .max(120, 'Store name must be at most 120 characters long'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const trimmedName = input.storeName.trim();
+      const existingMetadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: {
+            ...existingMetadata,
+            storeName: trimmedName,
+          },
+        },
+      });
+
+      return { ok: true };
+    }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -548,7 +683,7 @@ export const appRouter = t.router({
         orderId: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // Sanitize inputs
       const message = sanitizeLimited(input.customerMessage, 5000);
       const orderSummary = sanitizeLimited(input.orderSummary, 500);
@@ -564,9 +699,11 @@ export const appRouter = t.router({
         : 'there';
 
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
+      const storeName = await resolveStoreName(ctx.userId, input.orderId);
+      const signatureBlock = `${storeName}\nCustomer Support Team`;
+      const requiredSignature = `Best regards,\n${signatureBlock}`;
 
-      if (!apiKey) {
-        // Enhanced fallback response
+      const buildFallback = () => {
         let body = `${greeting} ${customerName},\n\n`;
         body += `Thank you for reaching out to us! `;
 
@@ -580,9 +717,13 @@ export const appRouter = t.router({
         body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
         body += `I want to make sure I address all your concerns properly.\n\n`;
         body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        body += `Best regards,\nCustomer Support Team`;
+        body += `${requiredSignature}`;
+        return body;
+      };
 
-        return { suggestion: body };
+      if (!apiKey) {
+        // Enhanced fallback response
+        return { suggestion: buildFallback() };
       }
 
       // Enhanced OpenAI prompt for better replies
@@ -602,6 +743,9 @@ Guidelines:
 - Keep it conversational but professional
 - Address their specific request directly
 - Offer specific solutions
+- Sign off with:
+Best regards,
+${signatureBlock}
 
 ${orderContext}
 
@@ -632,7 +776,11 @@ Write a comprehensive reply that addresses their concern and provides clear next
 7. Use the customer's name when appropriate
 8. Address their specific request directly
 
-Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
+
+Always end your response with:
+Best regards,
+${signatureBlock}`,
               },
               {
                 role: 'user',
@@ -647,31 +795,16 @@ Write responses that sound like they come from a real human support agent who ge
         if (!resp.ok) throw new Error(`OpenAI API error: ${resp.status}`);
 
         const json: any = await resp.json();
+        const fallbackSuggestion = buildFallback();
         const suggestion =
-          json.choices?.[0]?.message?.content ??
-          `Hi ${customerName},\n\nThank you for reaching out! I'm here to help you with your inquiry. I'll review your message and get back to you with a detailed response shortly.\n\nBest regards,\nCustomer Support Team`;
+          json.choices?.[0]?.message?.content ?? fallbackSuggestion;
 
-        return { suggestion };
+        return { suggestion: ensureSignature(suggestion, signatureBlock) };
       } catch (error) {
         console.error('OpenAI API error:', error);
 
         // Fallback response
-        let body = `${greeting} ${customerName},\n\n`;
-        body += `Thank you for reaching out to us! `;
-
-        if (orderSummary) {
-          body += `I can see your order details (${orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
-        } else {
-          body += `I'd be happy to assist you with your inquiry. `;
-          body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
-        }
-
-        body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
-        body += `I want to make sure I address all your concerns properly.\n\n`;
-        body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        body += `Best regards,\nCustomer Support Team`;
-
-        return { suggestion: body };
+        return { suggestion: buildFallback() };
       }
     }),
   actionCreate: protectedProcedure
