@@ -1,6 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import ReactFlow, {
+  Background,
+  Controls,
+  Edge,
+  Node,
+  NodeProps,
+  ReactFlowProvider,
+  useEdgesState,
+  useNodesState,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import 'react-quill/dist/quill.snow.css';
+
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import { Input } from '../../../../@ai-ecom/api/components/ui/input';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
@@ -13,23 +27,77 @@ import {
   DialogFooter,
 } from '../../../../@ai-ecom/api/components/ui/dialog';
 import {
-  ChevronRight,
-  ChevronLeft,
-  Check,
-  Plus,
-  X,
-  Zap,
+  BookOpen,
   Calendar,
   Mail,
-  ShoppingCart,
+  Plus,
+  Save,
   Sparkles,
+  Wand2,
+  Zap,
 } from 'lucide-react';
+
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
+
+type TriggerType = 'shopify_event' | 'email_intent' | 'scheduled';
+type ActionType =
+  | 'send_email'
+  | 'auto_refund'
+  | 'auto_exchange'
+  | 'create_discount'
+  | 'add_tag'
+  | 'send_notification'
+  | 'restock_product';
+
+interface TriggerConfig {
+  event?: string;
+  intent?: string;
+  frequency?: string;
+  time?: string;
+}
+
+interface PlaybookTrigger {
+  type: TriggerType;
+  config: TriggerConfig;
+}
+
+interface PlaybookCondition {
+  id: string;
+  field: string;
+  operator: string;
+  value: string;
+}
+
+interface PlaybookAction {
+  id: string;
+  type: ActionType;
+  config: Record<string, any>;
+}
+
+interface PlaybookStructure {
+  trigger: PlaybookTrigger;
+  conditions: PlaybookCondition[];
+  actions: PlaybookAction[];
+}
 
 interface PlaybookBuilderProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (playbook: any) => void;
   initialData?: any;
+  toast?: {
+    success?: (message: string) => void;
+    error?: (message: string) => void;
+    warning?: (message: string) => void;
+    info?: (message: string) => void;
+  };
+}
+
+interface FlowNodeData {
+  title: string;
+  description: string;
+  emoji: string;
+  isSelected?: boolean;
 }
 
 const CATEGORIES = [
@@ -41,660 +109,963 @@ const CATEGORIES = [
   { value: 'CUSTOM', label: 'Custom Playbook', icon: '⚙️', color: 'from-slate-500 to-gray-500' },
 ];
 
-const TRIGGER_TYPES = [
-  { value: 'shopify_event', label: 'Shopify Event', icon: ShoppingCart, description: 'Trigger when orders are created, refunded, or updated' },
-  { value: 'email_intent', label: 'Email Intent', icon: Mail, description: 'Trigger when customer emails match specific patterns' },
-  { value: 'scheduled', label: 'Time-Based', icon: Calendar, description: 'Run on a schedule (daily, weekly, etc.)' },
-];
-
-const SHOPIFY_EVENTS = [
-  'order_created',
-  'order_updated',
-  'order_refunded',
-  'order_cancelled',
-  'cart_abandoned',
-  'product_out_of_stock',
-];
-
-const EMAIL_INTENTS = [
-  'refund_request',
-  'exchange_request',
-  'shipping_inquiry',
-  'product_complaint',
-  'discount_inquiry',
-  'general_question',
+const CONDITION_FIELDS = [
+  { value: 'days_delayed', label: 'Days Delayed' },
+  { value: 'order_total', label: 'Order Total' },
+  { value: 'refund_amount', label: 'Refund Amount' },
+  { value: 'customer_sentiment', label: 'Customer Sentiment Score' },
+  { value: 'customer_lifetime_value', label: 'Customer LTV' },
+  { value: 'items_in_order', label: 'Items in Order' },
 ];
 
 const CONDITION_OPERATORS = [
-  { value: '==', label: 'equals' },
-  { value: '!=', label: 'not equals' },
-  { value: '>', label: 'greater than' },
-  { value: '<', label: 'less than' },
+  { value: '>', label: 'greater than (>)' },
+  { value: '<', label: 'less than (<)' },
+  { value: '==', label: 'equals (==)' },
+  { value: '!=', label: 'not equals (!=)' },
   { value: 'contains', label: 'contains' },
-  { value: 'not_contains', label: 'does not contain' },
 ];
 
-const ACTION_TYPES = [
-  { value: 'auto_refund', label: 'Auto Refund', icon: '💰', description: 'Automatically process refund via Shopify' },
-  { value: 'auto_exchange', label: 'Auto Exchange', icon: '🔄', description: 'Create exchange order' },
-  { value: 'send_email', label: 'Send AI Email', icon: '✉️', description: 'Generate and send AI-powered email' },
-  { value: 'create_discount', label: 'Create Discount', icon: '🎟️', description: 'Generate unique discount code' },
-  { value: 'add_tag', label: 'Add Customer Tag', icon: '🏷️', description: 'Tag customer in Shopify' },
-  { value: 'send_notification', label: 'Send Notification', icon: '🔔', description: 'Notify team via Slack/Email' },
-  { value: 'restock_product', label: 'Restock Alert', icon: '📦', description: 'Alert for restocking' },
+const SHOPIFY_EVENTS = [
+  { value: 'order_created', label: 'Order Created' },
+  { value: 'order_delayed', label: 'Order Delayed' },
+  { value: 'order_refunded', label: 'Order Refunded' },
+  { value: 'order_cancelled', label: 'Order Cancelled' },
+  { value: 'cart_abandoned', label: 'Cart Abandoned' },
+  { value: 'product_out_of_stock', label: 'Product Out Of Stock' },
 ];
 
-export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData }: PlaybookBuilderProps) {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    name: initialData?.name || '',
-    description: initialData?.description || '',
-    category: initialData?.category || '',
-    triggerType: initialData?.trigger?.type || '',
-    triggerConfig: initialData?.trigger?.config || {},
-    conditions: initialData?.conditions || [],
-    actions: initialData?.actions || [],
-    confidenceThreshold: initialData?.confidenceThreshold || 80,
-    requiresApproval: initialData?.requiresApproval || false,
-    enabled: initialData?.enabled || false,
+const EMAIL_INTENTS = [
+  { value: 'refund_request', label: 'Refund Request Email' },
+  { value: 'exchange_request', label: 'Exchange Request Email' },
+  { value: 'shipping_inquiry', label: 'Shipping Delay Email' },
+  { value: 'negative_review', label: 'Negative Review Detected' },
+  { value: 'discount_request', label: 'Discount Inquiry' },
+];
+
+const ACTION_OPTIONS: { value: ActionType; label: string; emoji: string; description: string }[] = [
+  { value: 'send_email', label: 'Send Email', emoji: '✉️', description: 'Send customers an AI-crafted email response.' },
+  { value: 'auto_refund', label: 'Auto Refund', emoji: '💸', description: 'Automatically issue a refund for qualifying orders.' },
+  { value: 'auto_exchange', label: 'Auto Exchange', emoji: '🔄', description: 'Process an exchange and notify the fulfillment team.' },
+  { value: 'create_discount', label: 'Create Discount', emoji: '🎟️', description: 'Generate a discount code as part of the workflow.' },
+  { value: 'add_tag', label: 'Add Customer Tag', emoji: '🏷️', description: 'Tag the customer in Shopify for segmented follow-ups.' },
+  { value: 'send_notification', label: 'Send Notification', emoji: '🔔', description: 'Alert your team via Slack or email.' },
+  { value: 'restock_product', label: 'Restock Alert', emoji: '📦', description: 'Notify inventory managers about low stock.' },
+];
+
+const DEFAULT_STRUCTURE: PlaybookStructure = {
+  trigger: {
+    type: 'shopify_event',
+    config: { event: 'order_created', time: '09:00' },
+  },
+  conditions: [],
+  actions: [
+    {
+      id: 'action-0',
+      type: 'send_email',
+      config: {
+        email_subject: 'We are on it!',
+        email_body: 'Hi {{customer_name}}, we are processing your request.',
+        discount_code: '',
+        send_delay: 'immediate',
+      },
+    },
+  ],
+};
+
+function createId(prefix: string, index: number) {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}-${index}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeStructure(raw?: any): PlaybookStructure {
+  const structure: PlaybookStructure = {
+    trigger: {
+      type: raw?.trigger?.type ?? 'shopify_event',
+      config: raw?.trigger?.config ?? { event: 'order_created', time: '09:00' },
+    },
+    conditions: (raw?.conditions ?? []).map((condition: any, index: number) => ({
+      id: condition.id ?? createId('condition', index),
+      field: condition.field ?? 'order_total',
+      operator: condition.operator ?? '>',
+      value: condition.value ?? '0',
+    })),
+    actions: (raw?.actions ?? []).map((action: any, index: number) => ({
+      id: action.id ?? createId('action', index),
+      type: action.type ?? 'send_email',
+      config: {
+        email_subject: action.config?.email_subject ?? action.config?.subject ?? 'Follow up with your customer',
+        email_body: action.config?.email_body ?? action.config?.body ?? 'Hi {{customer_name}}, thanks for your patience.',
+        discount_code: action.config?.discount_code ?? action.config?.discountCode ?? '',
+        send_delay: action.config?.send_delay ?? 'immediate',
+        ...action.config,
+      },
+    })),
+  };
+
+  if (structure.actions.length === 0) {
+    structure.actions.push({
+      id: createId('action', 0),
+      type: 'send_email',
+      config: {
+        email_subject: 'We are on it!',
+        email_body: 'Hi {{customer_name}}, we are processing your request.',
+        discount_code: '',
+        send_delay: 'immediate',
+      },
+    });
+  }
+
+  return structure;
+}
+
+function describeTrigger(trigger: PlaybookTrigger) {
+  switch (trigger.type) {
+    case 'shopify_event':
+      return `Shopify event: ${trigger.config.event ?? 'order_created'}`.replace(/_/g, ' ');
+    case 'email_intent':
+      return `Email intent: ${trigger.config.intent ?? 'refund_request'}`.replace(/_/g, ' ');
+    case 'scheduled':
+      return `Scheduled ${trigger.config.frequency ?? 'daily'} @ ${trigger.config.time ?? '09:00'}`;
+    default:
+      return 'Trigger';
+  }
+}
+
+function describeCondition(condition: PlaybookCondition) {
+  const fieldLabel = CONDITION_FIELDS.find((field) => field.value === condition.field)?.label ?? condition.field;
+  const operatorLabel = CONDITION_OPERATORS.find((op) => op.value === condition.operator)?.label ?? condition.operator;
+  return `${fieldLabel} ${operatorLabel} ${condition.value}`;
+}
+
+function describeAction(action: PlaybookAction) {
+  const option = ACTION_OPTIONS.find((opt) => opt.value === action.type);
+  if (action.type === 'send_email') {
+    return `${option?.label ?? 'Send Email'} – ${action.config?.email_subject ?? 'Custom email'}`;
+  }
+  if (action.type === 'create_discount') {
+    return `${option?.label ?? 'Create Discount'} – ${action.config?.amount ?? 'Automatic code'}`;
+  }
+  return option?.label ?? 'Action';
+}
+
+function buildFlow(structure: PlaybookStructure, selectedId?: string) {
+  const nodes: Node<FlowNodeData>[] = [];
+  const edges: Edge[] = [];
+
+  nodes.push({
+    id: 'trigger',
+    type: 'playbookNode',
+    position: { x: 0, y: 0 },
+    data: {
+      emoji: '⚡',
+      title: 'Trigger',
+      description: describeTrigger(structure.trigger),
+      isSelected: selectedId === 'trigger',
+    },
   });
 
-  const [currentCondition, setCurrentCondition] = useState({ field: '', operator: '==', value: '' });
-  const [currentAction, setCurrentAction] = useState({ type: '', config: {} });
+  let currentY = 200;
+  let previousNodeId = 'trigger';
 
-  const totalSteps = 6;
-
-  const handleNext = () => {
-    if (step < totalSteps) setStep(step + 1);
-  };
-
-  const handlePrevious = () => {
-    if (step > 1) setStep(step - 1);
-  };
-
-  const handleSave = () => {
-    const playbook = {
-      name: formData.name,
-      description: formData.description,
-      category: formData.category,
-      trigger: {
-        type: formData.triggerType,
-        config: formData.triggerConfig,
+  structure.conditions.forEach((condition, index) => {
+    nodes.push({
+      id: condition.id,
+      type: 'playbookNode',
+      position: { x: 0, y: currentY },
+      data: {
+        emoji: '🔍',
+        title: `Condition ${index + 1}`,
+        description: describeCondition(condition),
+        isSelected: selectedId === condition.id,
       },
-      conditions: formData.conditions,
-      actions: formData.actions,
-      confidenceThreshold: formData.confidenceThreshold / 100,
-      requiresApproval: formData.requiresApproval,
-      enabled: formData.enabled,
-    };
-    
-    onSave(playbook);
+    });
+
+    edges.push({
+      id: `${previousNodeId}-${condition.id}`,
+      source: previousNodeId,
+      target: condition.id,
+      type: 'smoothstep',
+    });
+
+    previousNodeId = condition.id;
+    currentY += 200;
+  });
+
+  structure.actions.forEach((action, index) => {
+    nodes.push({
+      id: action.id,
+      type: 'playbookNode',
+      position: { x: 0, y: currentY },
+      data: {
+        emoji: ACTION_OPTIONS.find((opt) => opt.value === action.type)?.emoji ?? '🧩',
+        title: `Action ${index + 1}`,
+        description: describeAction(action),
+        isSelected: selectedId === action.id,
+      },
+    });
+
+    edges.push({
+      id: `${previousNodeId}-${action.id}`,
+      source: previousNodeId,
+      target: action.id,
+      type: 'smoothstep',
+    });
+
+    previousNodeId = action.id;
+    currentY += 200;
+  });
+
+  return { nodes, edges };
+}
+
+function PlaybookNodeComponent({ data }: NodeProps<FlowNodeData>) {
+  return (
+    <div
+      className={`rounded-2xl border backdrop-blur bg-white/70 px-4 py-3 shadow-lg transition-all ${
+        data.isSelected ? 'border-purple-500 ring-4 ring-purple-200' : 'border-slate-200 hover:border-purple-300'
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{data.emoji}</span>
+        <div>
+          <p className="text-sm font-bold text-slate-900">{data.title}</p>
+          <p className="text-xs text-slate-600">{data.description}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const nodeTypes = { playbookNode: PlaybookNodeComponent };
+
+export default function PlaybookBuilder({ isOpen, onClose, onSave, initialData, toast }: PlaybookBuilderProps) {
+  const notify = useMemo(
+    () => ({
+      success: (message: string) =>
+        toast?.success?.(message) ?? console.log('[PlaybookBuilder] success:', message),
+      error: (message: string) =>
+        toast?.error?.(message) ?? console.error('[PlaybookBuilder] error:', message),
+      warning: (message: string) =>
+        toast?.warning?.(message) ?? console.warn('[PlaybookBuilder] warning:', message),
+      info: (message: string) =>
+        toast?.info?.(message) ?? console.info('[PlaybookBuilder] info:', message),
+    }),
+    [toast]
+  );
+  const [prompt, setPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('trigger');
+
+  const [metadata, setMetadata] = useState({
+    name: initialData?.name ?? '',
+    description: initialData?.description ?? '',
+    category: initialData?.category ?? 'CUSTOM',
+    confidenceThreshold: Math.round((initialData?.confidenceThreshold ?? 0.8) * 100),
+    requiresApproval: initialData?.requiresApproval ?? false,
+    enabled: initialData?.enabled ?? false,
+  });
+
+  const [structure, setStructure] = useState<PlaybookStructure>(
+    normalizeStructure(initialData)
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  useEffect(() => {
+    setStructure(normalizeStructure(initialData));
+    setMetadata({
+      name: initialData?.name ?? '',
+      description: initialData?.description ?? '',
+      category: initialData?.category ?? 'CUSTOM',
+      confidenceThreshold: Math.round((initialData?.confidenceThreshold ?? 0.8) * 100),
+      requiresApproval: initialData?.requiresApproval ?? false,
+      enabled: initialData?.enabled ?? false,
+    });
+  }, [initialData, isOpen]);
+
+  useEffect(() => {
+    const { nodes: nextNodes, edges: nextEdges } = buildFlow(structure, selectedNodeId);
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+  }, [structure, selectedNodeId, setNodes, setEdges]);
+
+  const handleGenerateFromPrompt = useCallback(async () => {
+    if (!prompt.trim()) {
+      notify.warning('Please describe the automation you want to build.');
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      const response = await fetch('/api/playbooks/parse-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error?.error ?? 'Failed to parse automation intent');
+      }
+
+      const parsed = await response.json();
+      setStructure(normalizeStructure(parsed.structure ?? parsed));
+      setMetadata((prev) => ({
+        ...prev,
+        name: parsed.name ?? prev.name,
+        description: parsed.description ?? parsed.summary ?? prev.description,
+        category: parsed.category ?? prev.category,
+      }));
+
+      notify.success('Automation mapped into the builder. Click nodes to edit details.');
+    } catch (error: any) {
+      notify.error(error.message ?? 'Something went wrong while generating the playbook.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [prompt, notify]);
+
+  const handleAddCondition = () => {
+    const newConditionId = createId('condition', structure.conditions.length);
+    setStructure((prev) => ({
+      ...prev,
+      conditions: [
+        ...prev.conditions,
+        {
+          id: newConditionId,
+          field: 'days_delayed',
+          operator: '>',
+          value: '5',
+        },
+      ],
+    }));
+    setSelectedNodeId(newConditionId);
+  };
+
+  const handleAddAction = () => {
+    const newActionId = createId('action', structure.actions.length);
+    setStructure((prev) => ({
+      ...prev,
+      actions: [
+        ...prev.actions,
+        {
+          id: newActionId,
+          type: 'send_email',
+          config: {
+            email_subject: 'Quick update from the team',
+            email_body: 'Hi {{customer_name}}, thank you for your patience while we sort this out.',
+            discount_code: '',
+            send_delay: 'immediate',
+          },
+        },
+      ],
+    }));
+    setSelectedNodeId(newActionId);
+  };
+
+  const selectedNode = useMemo(() => {
+    if (selectedNodeId === 'trigger') {
+      return { type: 'trigger', data: structure.trigger };
+    }
+    const condition = structure.conditions.find((condition) => condition.id === selectedNodeId);
+    if (condition) return { type: 'condition', data: condition };
+    const action = structure.actions.find((action) => action.id === selectedNodeId);
+    if (action) return { type: 'action', data: action };
+    return { type: 'trigger', data: structure.trigger };
+  }, [selectedNodeId, structure]);
+
+  const updateTrigger = (updates: Partial<PlaybookTrigger>) => {
+    setStructure((prev) => ({
+      ...prev,
+      trigger: {
+        ...prev.trigger,
+        ...updates,
+        config: { ...prev.trigger.config, ...(updates.config ?? {}) },
+      },
+    }));
+  };
+
+  const updateCondition = (id: string, updates: Partial<PlaybookCondition>) => {
+    setStructure((prev) => ({
+      ...prev,
+      conditions: prev.conditions.map((condition) =>
+        condition.id === id ? { ...condition, ...updates } : condition
+      ),
+    }));
+  };
+
+  const updateAction = (id: string, updates: Partial<PlaybookAction>) => {
+    setStructure((prev) => ({
+      ...prev,
+      actions: prev.actions.map((action) =>
+        action.id === id
+          ? {
+              ...action,
+              ...updates,
+              config: { ...action.config, ...(updates.config ?? {}) },
+            }
+          : action
+      ),
+    }));
+  };
+
+  const handleSavePlaybook = () => {
+    if (!metadata.name.trim()) {
+      toast.error('Please give your playbook a name before saving.');
+      return;
+    }
+
+    onSave({
+      name: metadata.name,
+      description: metadata.description,
+      category: metadata.category,
+      trigger: structure.trigger,
+      conditions: structure.conditions,
+      actions: structure.actions,
+      confidenceThreshold: metadata.confidenceThreshold / 100,
+      requiresApproval: metadata.requiresApproval,
+      enabled: metadata.enabled,
+    });
     onClose();
   };
 
-  const addCondition = () => {
-    if (currentCondition.field && currentCondition.value) {
-      setFormData({
-        ...formData,
-        conditions: [...formData.conditions, { ...currentCondition }],
+  const previewData = useMemo(() => {
+    const sample = {
+      customer_name: 'Alex Rivera',
+      order_id: '#ZYYP-4582',
+      product_name: 'Aurora Hoodie',
+    };
+
+    const emailPreviews = structure.actions
+      .filter((action) => action.type === 'send_email')
+      .map((action) => {
+        const body =
+          action.config?.email_body
+            ?.replace(/{{customer_name}}/gi, sample.customer_name)
+            ?.replace(/{{order_id}}/gi, sample.order_id)
+            ?.replace(/{{product_name}}/gi, sample.product_name) ?? '';
+
+        const subject =
+          action.config?.email_subject
+            ?.replace(/{{customer_name}}/gi, sample.customer_name)
+            ?.replace(/{{order_id}}/gi, sample.order_id)
+            ?.replace(/{{product_name}}/gi, sample.product_name) ?? '';
+
+        return { subject, body, discount: action.config?.discount_code ?? '' };
       });
-      setCurrentCondition({ field: '', operator: '==', value: '' });
+
+    return { emailPreviews };
+  }, [structure.actions]);
+
+  const nodeEditor = () => {
+    if (selectedNode.type === 'trigger') {
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs uppercase text-slate-500">Trigger Type</label>
+            <select
+              value={structure.trigger.type}
+              onChange={(e) => updateTrigger({ type: e.target.value as TriggerType })}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="shopify_event">Shopify event</option>
+              <option value="email_intent">Email intent</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+          </div>
+
+          {structure.trigger.type === 'shopify_event' && (
+            <div>
+              <label className="text-xs uppercase text-slate-500">Event</label>
+              <select
+                value={structure.trigger.config.event ?? ''}
+                onChange={(e) =>
+                  updateTrigger({ config: { ...structure.trigger.config, event: e.target.value } })
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                {SHOPIFY_EVENTS.map((event) => (
+                  <option key={event.value} value={event.value}>
+                    {event.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {structure.trigger.type === 'email_intent' && (
+            <div>
+              <label className="text-xs uppercase text-slate-500">Intent</label>
+              <select
+                value={structure.trigger.config.intent ?? ''}
+                onChange={(e) =>
+                  updateTrigger({ config: { ...structure.trigger.config, intent: e.target.value } })
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                {EMAIL_INTENTS.map((intent) => (
+                  <option key={intent.value} value={intent.value}>
+                    {intent.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {structure.trigger.type === 'scheduled' && (
+            <>
+              <div>
+                <label className="text-xs uppercase text-slate-500">Frequency</label>
+                <select
+                  value={structure.trigger.config.frequency ?? 'daily'}
+                  onChange={(e) =>
+                    updateTrigger({ config: { ...structure.trigger.config, frequency: e.target.value } })
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs uppercase text-slate-500">Time</label>
+                <Input
+                  type="time"
+                  value={structure.trigger.config.time ?? '09:00'}
+                  onChange={(e) =>
+                    updateTrigger({ config: { ...structure.trigger.config, time: e.target.value } })
+                  }
+                />
+              </div>
+            </>
+          )}
+        </div>
+      );
     }
-  };
 
-  const removeCondition = (index: number) => {
-    setFormData({
-      ...formData,
-      conditions: formData.conditions.filter((_: any, i: number) => i !== index),
-    });
-  };
-
-  const addAction = () => {
-    if (currentAction.type) {
-      setFormData({
-        ...formData,
-        actions: [...formData.actions, { ...currentAction }],
-      });
-      setCurrentAction({ type: '', config: {} });
+    if (selectedNode.type === 'condition') {
+      const condition = selectedNode.data as PlaybookCondition;
+      return (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs uppercase text-slate-500">Field</label>
+            <select
+              value={condition.field}
+              onChange={(e) => updateCondition(condition.id, { field: e.target.value })}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              {CONDITION_FIELDS.map((field) => (
+                <option key={field.value} value={field.value}>
+                  {field.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs uppercase text-slate-500">Operator</label>
+            <select
+              value={condition.operator}
+              onChange={(e) => updateCondition(condition.id, { operator: e.target.value })}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+            >
+              {CONDITION_OPERATORS.map((operator) => (
+                <option key={operator.value} value={operator.value}>
+                  {operator.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs uppercase text-slate-500">Value</label>
+            <Input
+              value={condition.value}
+              onChange={(e) => updateCondition(condition.id, { value: e.target.value })}
+            />
+          </div>
+        </div>
+      );
     }
-  };
 
-  const removeAction = (index: number) => {
-    setFormData({
-      ...formData,
-      actions: formData.actions.filter((_: any, i: number) => i !== index),
-    });
-  };
+    const action = selectedNode.data as PlaybookAction;
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="text-xs uppercase text-slate-500">Action Type</label>
+          <select
+            value={action.type}
+            onChange={(e) =>
+              updateAction(action.id, { type: e.target.value as ActionType })
+            }
+            className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          >
+            {ACTION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.emoji} {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
-  const canProceed = () => {
-    switch (step) {
-      case 1: return formData.category !== '';
-      case 2: return formData.triggerType !== '';
-      case 3: return true; // Conditions are optional
-      case 4: return formData.actions.length > 0;
-      case 5: return true;
-      case 6: return formData.name !== '';
-      default: return false;
-    }
+        {action.type === 'send_email' && (
+          <>
+            <div>
+              <label className="text-xs uppercase text-slate-500">Email Subject</label>
+              <Input
+                value={action.config?.email_subject ?? ''}
+                onChange={(e) =>
+                  updateAction(action.id, { config: { ...action.config, email_subject: e.target.value } })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase text-slate-500">Email Body</label>
+              <div className="mt-1 rounded-xl border border-slate-200 bg-white">
+                <ReactQuill
+                  theme="snow"
+                  value={action.config?.email_body ?? ''}
+                  onChange={(value) =>
+                    updateAction(action.id, { config: { ...action.config, email_body: value } })
+                  }
+                  className="min-h-[160px]"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase text-slate-500">Discount Code (Optional)</label>
+              <Input
+                placeholder="THANKYOU10"
+                value={action.config?.discount_code ?? ''}
+                onChange={(e) =>
+                  updateAction(action.id, { config: { ...action.config, discount_code: e.target.value } })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase text-slate-500">Send Delay</label>
+              <select
+                value={action.config?.send_delay ?? 'immediate'}
+                onChange={(e) =>
+                  updateAction(action.id, { config: { ...action.config, send_delay: e.target.value } })
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="immediate">Send immediately</option>
+                <option value="after_1_hour">Send after 1 hour</option>
+                <option value="after_2_hours">Send after 2 hours</option>
+                <option value="after_24_hours">Send after 24 hours</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {action.type !== 'send_email' && (
+          <p className="text-xs text-slate-500">
+            Additional configuration for this action will be available soon. For now, the workflow will record this action with default settings.
+          </p>
+        )}
+      </div>
+    );
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3 text-2xl">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600">
-              <Sparkles className="h-5 w-5 text-white" />
-            </div>
-            Create New Playbook
-          </DialogTitle>
-          
-          {/* Progress Indicator */}
-          <div className="flex items-center gap-2 pt-4">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
-              <div key={s} className="flex items-center">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all ${
-                    s < step
-                      ? 'bg-green-500 text-white'
-                      : s === step
-                      ? 'bg-indigo-600 text-white ring-4 ring-indigo-200'
-                      : 'bg-slate-200 text-slate-400'
-                  }`}
-                >
-                  {s < step ? <Check className="h-4 w-4" /> : s}
+      <DialogContent
+        hideDefaultWrapper
+        className="max-h-[95vh] max-w-[min(100vw,96rem)] overflow-hidden border-0 bg-transparent p-0 sm:p-0"
+        closeButtonClassName="right-6 top-6 rounded-full bg-white/20 text-slate-900 shadow-lg backdrop-blur transition hover:bg-white/40 focus:outline-none"
+      >
+        <div className="pointer-events-auto flex h-[95vh] w-full flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="flex items-center justify-between text-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg">
+                  <Sparkles className="h-6 w-6 text-white" />
                 </div>
-                {s < 6 && (
-                  <div
-                    className={`h-1 w-12 ${s < step ? 'bg-green-500' : 'bg-slate-200'}`}
+                <div>
+                  <span className="text-slate-500 text-xs uppercase tracking-wide">AI + Visual Builder</span>
+                  <p className="text-slate-900 font-bold">Design your playbook flow</p>
+                </div>
+              </div>
+              <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-200">
+                <Sparkles className="h-4 w-4 mr-1" />
+                Speak, visualize & refine
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex h-[calc(95vh-80px)] flex-col overflow-hidden border-t border-white/10">
+          <div className="grid flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-[320px_minmax(0,1fr)_300px]">
+            {/* Prompt + Meta */}
+            <div className="space-y-4 overflow-y-auto pr-2">
+              <Card className="border border-purple-100 bg-white/80 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase text-slate-500">Describe automation</p>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      What should this playbook do?
+                    </h3>
+                  </div>
+                  <Wand2 className="h-5 w-5 text-purple-500" />
+                </div>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="If an order is delayed more than 5 days, send an apology email with 10% discount."
+                  className="mt-3 min-h-[140px] w-full rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-sm shadow-inner focus:border-purple-400 focus:outline-none"
+                />
+                <div className="mt-3 flex items-center justify-between">
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateFromPrompt}
+                    disabled={isGenerating}
+                    className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md hover:from-indigo-600 hover:to-purple-700"
+                  >
+                    {isGenerating ? 'Generating...' : 'Generate Flow'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setStructure(DEFAULT_STRUCTURE);
+                      notify.info('Reset to base template. Describe an automation to generate a flow.');
+                    }}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </Card>
+
+              <Card className="border border-slate-200 bg-white/80 p-4 shadow-sm space-y-3">
+                <div>
+                  <label className="text-xs uppercase text-slate-500">Playbook Name</label>
+                  <Input
+                    value={metadata.name}
+                    onChange={(e) => setMetadata((prev) => ({ ...prev, name: e.target.value }))}
+                    placeholder="Delayed Order Apology + Discount"
                   />
-                )}
-              </div>
-            ))}
-          </div>
-        </DialogHeader>
-
-        <div className="py-6">
-          {/* Step 1: Category */}
-          {step === 1 && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Select Category</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  Choose the type of automation you want to create
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {CATEGORIES.map((cat) => (
-                  <Card
-                    key={cat.value}
-                    onClick={() => setFormData({ ...formData, category: cat.value })}
-                    className={`cursor-pointer p-6 transition-all hover:scale-105 ${
-                      formData.category === cat.value
-                        ? `bg-gradient-to-br ${cat.color} text-white border-2 border-white shadow-xl`
-                        : 'border-2 border-slate-200 hover:border-indigo-300'
-                    }`}
-                  >
-                    <div className="text-3xl mb-2">{cat.icon}</div>
-                    <h4 className={`font-bold ${formData.category === cat.value ? 'text-white' : 'text-slate-900'}`}>
-                      {cat.label}
-                    </h4>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Trigger */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Define Trigger</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  What should start this automation?
-                </p>
-              </div>
-              <div className="space-y-3">
-                {TRIGGER_TYPES.map((trigger) => {
-                  const Icon = trigger.icon;
-                  return (
-                    <Card
-                      key={trigger.value}
-                      onClick={() => setFormData({ ...formData, triggerType: trigger.value })}
-                      className={`cursor-pointer p-4 flex items-start gap-4 transition-all hover:scale-[1.02] ${
-                        formData.triggerType === trigger.value
-                          ? 'border-2 border-indigo-600 bg-indigo-50'
-                          : 'border-2 border-slate-200 hover:border-indigo-300'
-                      }`}
-                    >
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                        formData.triggerType === trigger.value
-                          ? 'bg-indigo-600'
-                          : 'bg-slate-200'
-                      }`}>
-                        <Icon className={`h-5 w-5 ${formData.triggerType === trigger.value ? 'text-white' : 'text-slate-600'}`} />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-slate-900">{trigger.label}</h4>
-                        <p className="text-sm text-slate-600">{trigger.description}</p>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-
-              {/* Trigger Configuration */}
-              {formData.triggerType === 'shopify_event' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Select Event
-                  </label>
+                </div>
+                <div>
+                  <label className="text-xs uppercase text-slate-500">Category</label>
                   <select
-                    value={formData.triggerConfig.event || ''}
+                    value={metadata.category}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        triggerConfig: { ...formData.triggerConfig, event: e.target.value },
-                      })
+                      setMetadata((prev) => ({ ...prev, category: e.target.value }))
                     }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
                   >
-                    <option value="">Choose an event...</option>
-                    {SHOPIFY_EVENTS.map((event) => (
-                      <option key={event} value={event}>
-                        {event.replace(/_/g, ' ')}
+                    {CATEGORIES.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.icon} {category.label}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
-
-              {formData.triggerType === 'email_intent' && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Customer Intent
-                  </label>
-                  <select
-                    value={formData.triggerConfig.intent || ''}
+                <div>
+                  <label className="text-xs uppercase text-slate-500">Description</label>
+                  <textarea
+                    value={metadata.description}
                     onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        triggerConfig: { ...formData.triggerConfig, intent: e.target.value },
-                      })
+                      setMetadata((prev) => ({ ...prev, description: e.target.value }))
                     }
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm"
-                  >
-                    <option value="">Choose intent...</option>
-                    {EMAIL_INTENTS.map((intent) => (
-                      <option key={intent} value={intent}>
-                        {intent.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="Explain the purpose of this playbook..."
+                    className="mt-1 min-h-[80px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                  />
                 </div>
-              )}
+              </Card>
 
-              {formData.triggerType === 'scheduled' && (
-                <div className="mt-4 space-y-3">
+              <Card className="border border-slate-200 bg-white/80 p-4 shadow-sm space-y-4">
+                <div className="flex items-center gap-3">
+                  <Zap className="h-5 w-5 text-emerald-500" />
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Schedule Type
-                    </label>
-                    <select
-                      value={formData.triggerConfig.frequency || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          triggerConfig: { ...formData.triggerConfig, frequency: e.target.value },
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm"
-                    >
-                      <option value="">Choose frequency...</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Time
-                    </label>
-                    <Input
-                      type="time"
-                      value={formData.triggerConfig.time || '10:00'}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          triggerConfig: { ...formData.triggerConfig, time: e.target.value },
-                        })
-                      }
-                    />
+                    <p className="text-xs uppercase text-slate-500">AI confidence</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {metadata.confidenceThreshold}% Threshold
+                    </p>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+                <input
+                  type="range"
+                  min={50}
+                  max={100}
+                  value={metadata.confidenceThreshold}
+                  onChange={(e) =>
+                    setMetadata((prev) => ({
+                      ...prev,
+                      confidenceThreshold: parseInt(e.target.value, 10),
+                    }))
+                  }
+                  className="w-full accent-purple-500"
+                />
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={metadata.requiresApproval}
+                    onChange={(e) =>
+                      setMetadata((prev) => ({ ...prev, requiresApproval: e.target.checked }))
+                    }
+                    className="rounded border-slate-300 text-purple-500 focus:ring-purple-400"
+                  />
+                  Require manual approval before execution
+                </label>
+                <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={metadata.enabled}
+                    onChange={(e) =>
+                      setMetadata((prev) => ({ ...prev, enabled: e.target.checked }))
+                    }
+                    className="rounded border-slate-300 text-purple-500 focus:ring-purple-400"
+                  />
+                  Enable immediately after saving
+                </label>
+              </Card>
 
-          {/* Step 3: Conditions */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Add Conditions (Optional)</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  Define rules for when this automation should run
-                </p>
-              </div>
-
-              {/* Existing Conditions */}
-              {formData.conditions.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {formData.conditions.map((condition: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200">
-                      <Badge className="bg-indigo-100 text-indigo-700 font-mono text-xs">
-                        {condition.field}
-                      </Badge>
-                      <span className="text-sm text-slate-600">{condition.operator}</span>
-                      <Badge className="bg-green-100 text-green-700 font-mono text-xs">
-                        {condition.value}
-                      </Badge>
-                      <button
-                        onClick={() => removeCondition(index)}
-                        className="ml-auto text-red-500 hover:text-red-700"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add New Condition */}
-              <Card className="p-4 bg-white border-2 border-dashed border-slate-300">
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Field</label>
-                    <Input
-                      placeholder="e.g., order_total"
-                      value={currentCondition.field}
-                      onChange={(e) =>
-                        setCurrentCondition({ ...currentCondition, field: e.target.value })
-                      }
-                      className="text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Operator</label>
-                    <select
-                      value={currentCondition.operator}
-                      onChange={(e) =>
-                        setCurrentCondition({ ...currentCondition, operator: e.target.value })
-                      }
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    >
-                      {CONDITION_OPERATORS.map((op) => (
-                        <option key={op.value} value={op.value}>
-                          {op.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Value</label>
-                    <Input
-                      placeholder="e.g., 100"
-                      value={currentCondition.value}
-                      onChange={(e) =>
-                        setCurrentCondition({ ...currentCondition, value: e.target.value })
-                      }
-                      className="text-sm"
-                    />
-                  </div>
-                </div>
+              <Card className="border border-dashed border-slate-300 bg-white/70 p-4 shadow-inner space-y-3">
+                <p className="text-sm font-semibold text-slate-900">Add more nodes</p>
                 <Button
-                  onClick={addCondition}
-                  disabled={!currentCondition.field || !currentCondition.value}
-                  className="mt-3 w-full bg-indigo-600 hover:bg-indigo-700"
+                  onClick={handleAddCondition}
+                  variant="outline"
                   size="sm"
+                  className="w-full border-slate-200"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Condition
+                  <Plus className="h-4 w-4 mr-2" /> Add Condition
+                </Button>
+                <Button
+                  onClick={handleAddAction}
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-slate-200"
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add Action
                 </Button>
               </Card>
             </div>
-          )}
 
-          {/* Step 4: Actions */}
-          {step === 4 && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Define Actions</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  What should happen when this playbook triggers?
-                </p>
-              </div>
-
-              {/* Existing Actions */}
-              {formData.actions.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  {formData.actions.map((action: any, index: number) => {
-                    const actionType = ACTION_TYPES.find((a) => a.value === action.type);
-                    return (
-                      <div key={index} className="flex items-center gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
-                        <span className="text-2xl">{actionType?.icon}</span>
-                        <div className="flex-1">
-                          <h5 className="font-bold text-slate-900">{actionType?.label}</h5>
-                          <p className="text-xs text-slate-600">{actionType?.description}</p>
-                        </div>
-                        <button
-                          onClick={() => removeAction(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Add New Action */}
-              <div className="grid grid-cols-2 gap-3">
-                {ACTION_TYPES.map((action) => (
-                  <Card
-                    key={action.value}
-                    onClick={() => {
-                      setFormData({
-                        ...formData,
-                        actions: [...formData.actions, { type: action.value, config: {} }],
-                      });
-                    }}
-                    className="cursor-pointer p-4 border-2 border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 transition-all"
-                  >
-                    <div className="text-2xl mb-2">{action.icon}</div>
-                    <h5 className="font-bold text-sm text-slate-900">{action.label}</h5>
-                    <p className="text-xs text-slate-600 mt-1">{action.description}</p>
-                  </Card>
-                ))}
+            {/* Flow Canvas */}
+            <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white via-purple-50/40 to-indigo-50/40 shadow-inner">
+              <ReactFlowProvider>
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+                  fitView
+                  proOptions={{ hideAttribution: true }}
+                  nodesDraggable={false}
+                  panOnScroll
+                >
+                  <Background color="#d4d4d8" gap={24} />
+                  <Controls showInteractive={false} />
+                </ReactFlow>
+              </ReactFlowProvider>
+              <div className="pointer-events-none absolute inset-x-12 top-4 rounded-3xl border border-purple-200/50 bg-white/60 px-4 py-2 text-center text-xs font-semibold uppercase text-purple-500">
+                Click any node to edit its details
               </div>
             </div>
-          )}
 
-          {/* Step 5: Confidence & Approval */}
-          {step === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Set Confidence & Approval</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  Configure AI confidence threshold and approval settings
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-3">
-                  AI Confidence Threshold: {formData.confidenceThreshold}%
-                </label>
-                <input
-                  type="range"
-                  min="50"
-                  max="100"
-                  value={formData.confidenceThreshold}
-                  onChange={(e) =>
-                    setFormData({ ...formData, confidenceThreshold: parseInt(e.target.value) })
-                  }
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>50% (Low)</span>
-                  <span>75% (Medium)</span>
-                  <span>100% (High)</span>
+            {/* Side Panel */}
+            <div className="space-y-4 overflow-y-auto pl-2">
+              <Card className="border border-purple-200 bg-white/80 p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase text-slate-500">Node editor</p>
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {selectedNode.type === 'trigger'
+                        ? '⚡ Trigger'
+                        : selectedNode.type === 'condition'
+                        ? '🔍 Condition'
+                        : '✉️ Action'}
+                    </h3>
+                  </div>
+                  <BookOpen className="h-5 w-5 text-purple-500" />
                 </div>
-                <p className="text-xs text-slate-600 mt-2">
-                  Playbook will only auto-execute if AI confidence is above this threshold
-                </p>
-              </div>
+                <div className="mt-4 space-y-5">{nodeEditor()}</div>
+              </Card>
 
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-slate-50 border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="requiresApproval"
-                  checked={formData.requiresApproval}
-                  onChange={(e) =>
-                    setFormData({ ...formData, requiresApproval: e.target.checked })
-                  }
-                  className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <div className="flex-1">
-                  <label htmlFor="requiresApproval" className="font-medium text-slate-900 cursor-pointer">
-                    Always require human approval
-                  </label>
-                  <p className="text-xs text-slate-600 mt-1">
-                    If enabled, all executions will wait for manual approval, regardless of confidence level
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Name & Enable */}
-          {step === 6 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Name & Enable</h3>
-                <p className="text-sm text-slate-600 mb-4">
-                  Give your playbook a name and choose whether to enable it now
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Playbook Name *
-                </label>
-                <Input
-                  placeholder="e.g., Auto-Refund Damaged Products Under $100"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Description (Optional)
-                </label>
-                <textarea
-                  placeholder="Describe what this playbook does..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm min-h-[80px]"
-                />
-              </div>
-
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
-                <input
-                  type="checkbox"
-                  id="enabled"
-                  checked={formData.enabled}
-                  onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
-                  className="mt-1 h-4 w-4 rounded border-green-300 text-green-600 focus:ring-green-500"
-                />
-                <div className="flex-1">
-                  <label htmlFor="enabled" className="font-medium text-green-900 cursor-pointer flex items-center gap-2">
-                    <Zap className="h-4 w-4" />
-                    Enable playbook immediately
-                  </label>
-                  <p className="text-xs text-green-700 mt-1">
-                    Start running this automation right away. You can disable it later.
-                  </p>
-                </div>
-              </div>
-
-              {/* Summary */}
-              <Card className="p-4 bg-indigo-50 border border-indigo-200">
-                <h4 className="font-bold text-indigo-900 mb-3">Playbook Summary</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Category:</span>
-                    <span className="font-semibold text-slate-900">
-                      {CATEGORIES.find((c) => c.value === formData.category)?.label}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Trigger:</span>
-                    <span className="font-semibold text-slate-900">
-                      {TRIGGER_TYPES.find((t) => t.value === formData.triggerType)?.label}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Conditions:</span>
-                    <span className="font-semibold text-slate-900">{formData.conditions.length} rules</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Actions:</span>
-                    <span className="font-semibold text-slate-900">{formData.actions.length} steps</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">AI Threshold:</span>
-                    <span className="font-semibold text-slate-900">{formData.confidenceThreshold}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">Approval:</span>
-                    <span className="font-semibold text-slate-900">
-                      {formData.requiresApproval ? 'Required' : 'Auto-run'}
-                    </span>
-                  </div>
-                </div>
+              <Card className="border border-slate-200 bg-white/70 p-4 shadow-sm space-y-3">
+                <p className="text-sm font-semibold text-slate-900">Quick Tips</p>
+                <ul className="space-y-2 text-xs text-slate-600">
+                  <li>• Use <code className="rounded bg-slate-100 px-1">{"{{customer_name}}"}</code> to personalise emails.</li>
+                  <li>• Configure delays to pace communications after a trigger.</li>
+                  <li>• Add multiple actions to build multi-step automations.</li>
+                </ul>
               </Card>
             </div>
-          )}
-        </div>
+          </div>
 
-        <DialogFooter className="flex items-center justify-between">
-          <div>
-            {step > 1 && (
-              <Button onClick={handlePrevious} variant="outline">
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
+          {/* Preview */}
+          <div className="border-t border-slate-200 bg-white/90 px-6 py-4 shadow-inner">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 text-sm text-slate-600">
+                <Sparkles className="h-4 w-4 text-purple-500" />
+                Preview your automation before saving.
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setShowPreview((prev) => !prev)}>
+                  {showPreview ? 'Hide Preview' : 'Preview Playbook'}
+                </Button>
+                <Button
+                  onClick={handleSavePlaybook}
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg hover:from-emerald-600 hover:to-teal-600"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Playbook
+                </Button>
+              </div>
+            </div>
+            {showPreview && (
+              <div className="mt-4 grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-2">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900">Flow Summary</h4>
+                  <ul className="mt-2 space-y-2 text-sm text-slate-600">
+                    <li>⚡ Trigger: {describeTrigger(structure.trigger)}</li>
+                    {structure.conditions.map((condition, index) => (
+                      <li key={condition.id}>
+                        🔍 Condition {index + 1}: {describeCondition(condition)}
+                      </li>
+                    ))}
+                    {structure.actions.map((action, index) => (
+                      <li key={action.id}>
+                        {ACTION_OPTIONS.find((opt) => opt.value === action.type)?.emoji ?? '🧩'} Action {index + 1}:{' '}
+                        {describeAction(action)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {previewData.emailPreviews.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900">Email Preview</h4>
+                    {previewData.emailPreviews.map((email, index) => (
+                      <Card key={index} className="mt-2 border border-purple-200 bg-white/80 p-3 text-sm text-slate-700">
+                        <p className="font-semibold text-purple-700">{email.subject}</p>
+                        {email.discount && (
+                          <p className="mt-1 text-xs font-medium text-emerald-600">
+                            Discount code: {email.discount}
+                          </p>
+                        )}
+                        <div
+                          className="mt-2 space-y-2 text-xs leading-relaxed text-slate-600"
+                          dangerouslySetInnerHTML={{ __html: email.body }}
+                        />
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button onClick={onClose} variant="outline">
-              Cancel
-            </Button>
-            {step < totalSteps ? (
-              <Button onClick={handleNext} disabled={!canProceed()} className="bg-indigo-600 hover:bg-indigo-700">
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            ) : (
-              <Button onClick={handleSave} disabled={!canProceed()} className="bg-green-600 hover:bg-green-700">
-                <Check className="h-4 w-4 mr-1" />
-                Save Playbook
-              </Button>
-            )}
           </div>
-        </DialogFooter>
+
+          <DialogFooter className="hidden" />
+        </div>
       </DialogContent>
     </Dialog>
   );

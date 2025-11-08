@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 const trustedLogos = [
   'First',
@@ -170,6 +170,53 @@ const faqs = [
   },
 ];
 
+const heroFlares: Array<{ style: CSSProperties; className: string }> = [
+  {
+    style: { top: '-14%', left: '-12%', width: '30rem', height: '30rem', animationDuration: '24s' },
+    className:
+      'rounded-full bg-gradient-to-br from-cyan-500/25 via-sky-500/10 to-transparent blur-3xl opacity-80 animate-drift mix-blend-screen',
+  },
+  {
+    style: { top: '6%', right: '-10%', width: '34rem', height: '34rem', animationDuration: '28s' },
+    className:
+      'rounded-full bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent blur-[160px] opacity-80 animate-drift mix-blend-screen',
+  },
+  {
+    style: { bottom: '-16%', left: '22%', width: '40rem', height: '40rem', animationDuration: '26s' },
+    className:
+      'rounded-full bg-gradient-to-tr from-blue-400/15 via-teal-400/10 to-transparent blur-[140px] opacity-70 animate-drift mix-blend-screen',
+  },
+];
+
+const heroSparkles: Array<{ style: CSSProperties; delay: string }> = [
+  { style: { top: '18%', left: '18%' }, delay: '0s' },
+  { style: { top: '32%', right: '22%' }, delay: '0.6s' },
+  { style: { top: '58%', left: '28%' }, delay: '1.2s' },
+  { style: { top: '48%', right: '30%' }, delay: '1.5s' },
+  { style: { top: '68%', left: '52%' }, delay: '0.9s' },
+  { style: { top: '26%', right: '45%' }, delay: '0.3s' },
+];
+
+const heroStreams: Array<{ style: CSSProperties; gradient: string; duration: string; delay?: string }> = [
+  {
+    style: { top: '15%', left: '10%', width: '22rem', height: '22rem', transform: 'rotate(12deg)' },
+    gradient: 'from-cyan-400/20 via-blue-500/10 to-transparent',
+    duration: '32s',
+    delay: '-4s',
+  },
+  {
+    style: { bottom: '10%', right: '12%', width: '26rem', height: '26rem', transform: 'rotate(-18deg)' },
+    gradient: 'from-indigo-400/18 via-purple-500/12 to-transparent',
+    duration: '36s',
+    delay: '-10s',
+  },
+  {
+    style: { top: '28%', right: '40%', width: '18rem', height: '18rem', transform: 'rotate(35deg)' },
+    gradient: 'from-sky-300/18 via-cyan-400/10 to-transparent',
+    duration: '28s',
+  },
+];
+
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
 
@@ -178,11 +225,42 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(94,234,212,0.18)_0,rgba(15,23,42,0)_45%)]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {heroFlares.map((flare, index) => (
+            <div key={`hero-flare-${index}`} className={flare.className} style={flare.style} />
+          ))}
+          {heroStreams.map((stream, index) => (
+            <div
+              key={`hero-stream-${index}`}
+              className={`absolute rounded-full bg-gradient-to-r ${stream.gradient} blur-[120px] opacity-70`}
+              style={{
+                ...stream.style,
+                animation: `drift ${stream.duration} ease-in-out infinite`,
+                animationDelay: stream.delay ?? '0s',
+              }}
+            />
+          ))}
+          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/10 bg-white/5 blur-3xl opacity-40 mix-blend-screen" />
+          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full border border-white/10 opacity-60 mix-blend-overlay animate-orbit-slow" />
+          <div className="absolute left-1/2 top-[18%] h-[24rem] w-[24rem] -translate-x-1/2 rounded-full border border-white/5 opacity-30 mix-blend-overlay animate-orbit-reverse" />
+          {heroSparkles.map((sparkle, index) => (
+            <span
+              key={`hero-sparkle-${index}`}
+              className="absolute h-2 w-2 rounded-full bg-cyan-100/70 shadow-[0_0_12px_rgba(165,243,252,0.8)]"
+              style={{
+                ...sparkle.style,
+                animation: `drift 14s ease-in-out infinite`,
+                animationDelay: sparkle.delay,
+              }}
+            />
+          ))}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(147,197,253,0.08)_0,rgba(15,23,42,0)_55%)]" />
+        </div>
         <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
           <div className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
             Zyyp Zyyp
           </div>
-          <h1 className="text-4xl font-black leading-tight md:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-black leading-[1.1] md:text-6xl lg:text-7xl md:leading-[1.08]">
             Manage and simulate
             <span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-indigo-400 bg-clip-text text-transparent">
               agentic workflows
