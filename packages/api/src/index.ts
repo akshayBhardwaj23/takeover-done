@@ -793,9 +793,13 @@ Write responses that sound like they come from a real human support agent who ge
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
         if (!limitCheck.allowed) {
+          const upgradeMessage =
+            limitCheck.trial?.isTrial && limitCheck.trial.expired
+              ? 'Your free trial has ended. Please upgrade to continue sending emails.'
+              : `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`;
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
+            message: upgradeMessage,
           });
         }
 
@@ -951,9 +955,13 @@ Write responses that sound like they come from a real human support agent who ge
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
         if (!limitCheck.allowed) {
+          const upgradeMessage =
+            limitCheck.trial?.isTrial && limitCheck.trial.expired
+              ? 'Your free trial has ended. Please upgrade to continue sending emails.'
+              : `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`;
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
+            message: upgradeMessage,
           });
         }
 

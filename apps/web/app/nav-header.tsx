@@ -2,11 +2,28 @@
 
 import Link from 'next/link';
 import { useSession, signIn, signOut } from 'next-auth/react';
+import { trpc } from './lib/trpc';
+import { Mail } from 'lucide-react';
 
 export default function Header() {
   const { data: session, status } = useSession();
   const isAuthed = status === 'authenticated';
   const user = session?.user;
+  const { data: emailUsage } = trpc.checkEmailLimit.useQuery(undefined, {
+    enabled: isAuthed,
+    refetchInterval: 60000,
+  });
+
+  const isTrial = emailUsage?.trial?.isTrial;
+  const trialExpired = emailUsage?.trial?.expired;
+  const emailLimit = emailUsage?.limit ?? 0;
+  const rawRemaining = emailUsage?.remaining ?? 0;
+  const emailsRemainingCount =
+    emailLimit === -1 ? -1 : Math.max(0, rawRemaining);
+  const emailsRemainingLabel =
+    emailLimit === -1
+      ? 'Unlimited emails'
+      : `${emailsRemainingCount} emails left`;
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4">
@@ -24,9 +41,6 @@ export default function Header() {
             </Link>
             {isAuthed && (
               <>
-                <Link href="/playbooks" className="transition hover:text-slate-900">
-                  Playbooks
-                </Link>
                 <Link href="/analytics" className="transition hover:text-slate-900">
                   Support Analytics
                 </Link>
@@ -46,6 +60,42 @@ export default function Header() {
         <div className="flex items-center gap-4">
           {isAuthed ? (
             <div className="flex items-center gap-4">
+              {emailUsage && (
+                <div className="hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium md:flex">
+                  <span
+                    className={`flex items-center gap-2 ${
+                      trialExpired
+                        ? 'text-rose-600'
+                        : 'text-slate-600'
+                    }`}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    {emailsRemainingLabel}
+                  </span>
+                  {isTrial && (
+                    <span
+                      className={`ml-2 rounded-full px-2 py-0.5 text-[11px] ${
+                        trialExpired
+                          ? 'bg-rose-100 text-rose-600'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {trialExpired
+                        ? 'Trial ended'
+                        : `${emailUsage.trial?.daysRemaining ?? 0}d left`}
+                    </span>
+                  )}
+                  {(trialExpired ||
+                    (emailLimit !== -1 && emailsRemainingCount === 0)) && (
+                    <Link
+                      href="/usage"
+                      className="ml-3 rounded-full bg-rose-600 px-3 py-1 text-white transition hover:bg-rose-700"
+                    >
+                      Upgrade
+                    </Link>
+                  )}
+                </div>
+              )}
               <div className="hidden items-center gap-2 md:flex">
                 {user?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element

@@ -16,7 +16,7 @@ This document describes the usage limits and billing system that has been implem
 
 | Plan       | Price/Month | Emails/Month | Stores    | Target Audience                      |
 | ---------- | ----------- | ------------ | --------- | ------------------------------------ |
-| TRIAL      | Free        | 100          | 1         | New users (14 days)                  |
+| TRIAL      | Free        | 100          | 1         | New users (7 days)                   |
 | STARTER    | $29         | 500          | 1         | Small stores (<50 orders/month)      |
 | GROWTH     | $99         | 2,500        | 3         | Growing stores (50-200 orders/month) |
 | PRO        | $299        | 10,000       | 10        | Agencies & large stores              |
@@ -121,7 +121,7 @@ This will create:
 
 ## Default Behavior
 
-- **New Users**: Automatically get a TRIAL subscription (14 days, 100 emails)
+- **New Users**: Automatically get a TRIAL subscription (7 days, 100 emails)
 - **Trial Expiry**: After trial, subscription status becomes inactive (limits enforced)
 - **Billing Periods**: Monthly billing cycles, usage resets at period end
 - **Usage Tracking**: Happens automatically when emails are sent

@@ -147,7 +147,7 @@
 
 ## Conversion Funnel Optimization
 
-1. **Free Trial**: 14 days, 100 emails
+1. **Free Trial**: 7 days, 100 emails
    - Low commitment
    - Show value quickly
 2. **First Upgrade Prompt**: At 80% usage
@@ -189,4 +189,3 @@
 4. ⏸️ Payment integration (Stripe) - Phase 2
 5. ⏸️ Automated billing - Phase 2
 6. ⏸️ Trial management - Phase 2
-

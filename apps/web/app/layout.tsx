@@ -3,6 +3,7 @@ import { Providers } from './providers';
 import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
 import Header from './nav-header';
+import Footer from './components/Footer';
 
 export const metadata = {
   title: 'ZYYP Support Assistant',
@@ -23,6 +24,7 @@ export default function RootLayout({
         <Providers>
           <Header />
           <PageFade>{children}</PageFade>
+          <Footer />
         </Providers>
       </body>
     </html>

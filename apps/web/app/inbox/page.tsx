@@ -189,7 +189,7 @@ export default function InboxPage() {
       { title: 'Active orders', value: openTickets.toString(), icon: <Inbox className="h-4 w-4 text-slate-400" />, change: '+8%' },
       { title: 'Task success rate', value: `${Math.max(0, 100 - (emailLimit.data?.percentage ?? 0)).toFixed(1)}%`, icon: <CheckCircle className="h-4 w-4 text-emerald-400" />, change: '+4%' },
       { title: 'Avg execution time', value: avgExecution, icon: <Clock className="h-4 w-4 text-sky-400" />, change: '-12%' },
-      { title: 'Unlinked emails', value: (unassigned.data?.messages?.length ?? 0).toString(), icon: <Mail className="h-4 w-4 text-rose-400" />, change: '+2%' },
+      { title: 'Unmatched emails', value: (unassigned.data?.messages?.length ?? 0).toString(), icon: <Mail className="h-4 w-4 text-rose-400" />, change: '+2%' },
     ];
   }, [orders.length, recentOrders.data?.orders, emailLimit.data?.percentage, unassigned.data?.messages?.length]);
 
@@ -328,7 +328,7 @@ export default function InboxPage() {
 
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6 inline-flex rounded-2xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
-            {(['orders', 'unlinked'] as const).map((tab) => (
+            {(['orders', 'unmatched'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -340,7 +340,7 @@ export default function InboxPage() {
                   view === tab ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                {tab === 'orders' ? 'Orders' : 'Unlinked emails'}
+                {tab === 'orders' ? 'Orders' : 'Unmatched emails'}
               </button>
             ))}
           </div>
@@ -361,13 +361,13 @@ export default function InboxPage() {
           {view === 'orders' ? (
             <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
               <Card className="border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <div className="text-sm font-semibold text-slate-900">Orders</div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <ListChecks className="h-4 w-4" />
-                    synced {recentOrders.isLoading ? 'loading…' : `${recentOrders.data?.orders?.length ?? 0}`} records
-                  </div>
-                </div>
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div className="text-sm font-semibold text-slate-900">Orders</div>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <ListChecks className="h-4 w-4" />
+                synced {recentOrders.isLoading ? 'loading…' : `${recentOrders.data?.orders?.length ?? 0}`} records
+              </div>
+            </div>
                 <div className="divide-y divide-slate-200">
                   {dbOrders.isLoading ? (
                     <div className="space-y-2 p-4">
@@ -440,7 +440,7 @@ export default function InboxPage() {
                   <p className="text-xs text-slate-500">Orders available</p>
                 </Card>
                 <Card className="border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Unlinked emails</div>
+                <div className="text-sm text-slate-500">Unmatched emails</div>
                   <p className="mt-4 text-3xl font-semibold text-slate-900">
                     {unassigned.data?.messages?.length ?? 0}
                   </p>
@@ -464,8 +464,15 @@ export default function InboxPage() {
                       usagePercentage={emailLimit.data.percentage}
                       currentUsage={emailLimit.data.current}
                       limit={emailLimit.data.limit}
-                      planName="Current"
+                      planName={
+                        emailLimit.data.planType
+                          ? emailLimit.data.planType.toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+                          : 'Current'
+                      }
                       variant="inline"
+                      isTrial={emailLimit.data.trial?.isTrial ?? false}
+                      trialExpired={emailLimit.data.trial?.expired ?? false}
+                      trialDaysRemaining={emailLimit.data.trial?.daysRemaining ?? null}
                     />
                   )}
                 </Card>
@@ -474,7 +481,7 @@ export default function InboxPage() {
           ) : (
             <Card className="border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div className="text-sm font-semibold text-slate-900">Unlinked emails</div>
+                <div className="text-sm font_semibold text-slate-900">Unmatched emails</div>
                 <div className="text-xs text-slate-500">{unassigned.data?.messages?.length ?? 0} awaiting mapping</div>
               </div>
               <div className="divide-y divide-slate-200">

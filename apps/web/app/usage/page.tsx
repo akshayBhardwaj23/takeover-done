@@ -1,6 +1,7 @@
 'use client';
 import { trpc } from '../../lib/trpc';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
@@ -57,9 +58,15 @@ export default function UsagePage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="text-center space-y-4">
-          <div className="text-red-400 text-lg font-semibold">Error loading usage data</div>
-          <div className="text-slate-400 text-sm">{usage.error.message || 'Unknown error'}</div>
-          <div className="text-slate-500 text-xs">Code: {usage.error.data?.code || 'N/A'}</div>
+          <div className="text-red-400 text-lg font-semibold">
+            Error loading usage data
+          </div>
+          <div className="text-slate-400 text-sm">
+            {usage.error.message || 'Unknown error'}
+          </div>
+          <div className="text-slate-500 text-xs">
+            Code: {usage.error.data?.code || 'N/A'}
+          </div>
         </div>
       </div>
     );
@@ -71,7 +78,9 @@ export default function UsagePage() {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="text-center space-y-4">
           <div className="text-white">No usage data available</div>
-          <div className="text-slate-400 text-sm">Make sure you're signed in</div>
+          <div className="text-slate-400 text-sm">
+            Make sure you're signed in
+          </div>
         </div>
       </div>
     );
@@ -80,6 +89,11 @@ export default function UsagePage() {
   const usagePercentage = data.emailUsagePercentage;
   const isNearLimit = usagePercentage >= 80;
   const isAtLimit = !data.canSendEmail;
+  const trialInfo = data.trial;
+  const trialExpired = trialInfo?.expired ?? false;
+  const trialDaysRemaining = trialInfo?.daysRemaining ?? null;
+  const trialEndsAt = trialInfo?.endsAt ? new Date(trialInfo.endsAt) : null;
+  const emailsRemaining = data.emailsRemaining ?? 0;
 
   // Get next plan recommendation
   const currentPlanIndex = plans.data?.plans.findIndex(
@@ -102,6 +116,63 @@ export default function UsagePage() {
               Monitor your email usage and manage your subscription
             </p>
           </div>
+
+          {trialInfo?.isTrial && (
+            <Card
+              className={`mb-8 border ${
+                trialExpired
+                  ? 'border-rose-500/40 bg-rose-600/10'
+                  : 'border-amber-500/40 bg-amber-600/10'
+              } p-5 text-sm text-white`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`rounded-full p-2 ${
+                      trialExpired
+                        ? 'bg-rose-500/30 text-rose-200'
+                        : 'bg-amber-500/30 text-amber-100'
+                    }`}
+                  >
+                    <AlertCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-base font-semibold">
+                      {trialExpired
+                        ? 'Free trial ended'
+                        : `Free trial: ${trialDaysRemaining ?? 0} day${
+                            trialDaysRemaining === 1 ? '' : 's'
+                          } remaining`}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-200">
+                      {trialExpired
+                        ? 'Upgrade to keep sending customer replies and unlock higher limits.'
+                        : trialEndsAt
+                          ? `Trial ends on ${trialEndsAt.toLocaleDateString()}`
+                          : 'Upgrade any time to unlock higher limits.'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    className={`${
+                      trialExpired
+                        ? 'bg-rose-500/30 text-rose-100 border-rose-300/40'
+                        : 'bg-amber-500/30 text-amber-100 border-amber-300/40'
+                    }`}
+                  >
+                    Trial
+                  </Badge>
+                  <Link href="#available-plans">
+                    <Button className="bg-white/20 text-white hover:bg-white/30">
+                      {trialExpired ? 'Upgrade Now' : 'View Plans'}
+                      <ArrowUpRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Upgrade Banner (if near/at limit) */}
           {(isNearLimit || isAtLimit) && (
@@ -177,6 +248,14 @@ export default function UsagePage() {
                       {data.emailLimit === -1
                         ? 'Unlimited'
                         : `${data.emailLimit.toLocaleString()}/month`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Emails Remaining:</span>
+                    <span className="font-semibold text-white">
+                      {data.emailLimit === -1
+                        ? 'Unlimited'
+                        : `${emailsRemaining.toLocaleString()}`}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -281,52 +360,63 @@ export default function UsagePage() {
             </div>
             {history.data?.history && history.data.history.length > 0 ? (
               <div className="space-y-4">
-                {history.data.history.map((record: { periodStart: string; periodEnd: string; emailsSent: number; emailsReceived: number; aiSuggestions: number }, idx) => {
-                  const periodStart = new Date(record.periodStart);
-                  const periodEnd = new Date(record.periodEnd);
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-lg border border-slate-800/50 bg-slate-800/30 p-4"
-                    >
-                      <div className="flex items-center gap-4">
-                        <Calendar className="h-5 w-5 text-slate-400" />
-                        <div>
-                          <div className="font-semibold text-white">
-                            {periodStart.toLocaleDateString('en-US', {
-                              month: 'long',
-                              year: 'numeric',
-                            })}
+                {history.data.history.map(
+                  (
+                    record: {
+                      periodStart: string;
+                      periodEnd: string;
+                      emailsSent: number;
+                      emailsReceived: number;
+                      aiSuggestions: number;
+                    },
+                    idx,
+                  ) => {
+                    const periodStart = new Date(record.periodStart);
+                    const periodEnd = new Date(record.periodEnd);
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between rounded-lg border border-slate-800/50 bg-slate-800/30 p-4"
+                      >
+                        <div className="flex items-center gap-4">
+                          <Calendar className="h-5 w-5 text-slate-400" />
+                          <div>
+                            <div className="font-semibold text-white">
+                              {periodStart.toLocaleDateString('en-US', {
+                                month: 'long',
+                                year: 'numeric',
+                              })}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {periodStart.toLocaleDateString()} -{' '}
+                              {periodEnd.toLocaleDateString()}
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {periodStart.toLocaleDateString()} -{' '}
-                            {periodEnd.toLocaleDateString()}
+                        </div>
+                        <div className="flex gap-6 text-sm">
+                          <div>
+                            <div className="text-slate-400">Sent</div>
+                            <div className="font-semibold text-white">
+                              {record.emailsSent.toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400">Received</div>
+                            <div className="font-semibold text-white">
+                              {record.emailsReceived.toLocaleString()}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-slate-400">AI Suggestions</div>
+                            <div className="font-semibold text-white">
+                              {record.aiSuggestions.toLocaleString()}
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex gap-6 text-sm">
-                        <div>
-                          <div className="text-slate-400">Sent</div>
-                          <div className="font-semibold text-white">
-                            {record.emailsSent.toLocaleString()}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-slate-400">Received</div>
-                          <div className="font-semibold text-white">
-                            {record.emailsReceived.toLocaleString()}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-slate-400">AI Suggestions</div>
-                          <div className="font-semibold text-white">
-                            {record.aiSuggestions.toLocaleString()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  },
+                )}
               </div>
             ) : (
               <div className="py-8 text-center text-slate-400">
@@ -337,7 +427,10 @@ export default function UsagePage() {
 
           {/* Available Plans */}
           {plans.data && (
-            <Card className="mt-6 border-slate-800/50 bg-slate-900/30 p-6">
+            <Card
+              id="available-plans"
+              className="mt-6 border-slate-800/50 bg-slate-900/30 p-6"
+            >
               <h3 className="mb-6 text-lg font-bold text-white">
                 Available Plans
               </h3>
