@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, Fragment } from 'react';
+import { useEffect, useMemo, useState, Fragment, useRef } from 'react';
 import { trpc } from '../../lib/trpc';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
@@ -111,6 +111,15 @@ export default function InboxPage() {
   >({});
   const [draft, setDraft] = useState('');
   const [unlinkedSuggestion, setUnlinkedSuggestion] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const refreshTimer = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    return () => {
+      if (refreshTimer.current) {
+        clearTimeout(refreshTimer.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -307,6 +316,38 @@ export default function InboxPage() {
     }
   };
 
+  const handleRefreshAll = async () => {
+    if (refreshTimer.current) {
+      clearTimeout(refreshTimer.current);
+      refreshTimer.current = null;
+    }
+    setIsRefreshing(true);
+    try {
+      const tasks: Array<Promise<unknown>> = [
+        dbOrders.refetch(),
+        unassigned.refetch(),
+        emailLimit.refetch(),
+      ];
+      if (shop) {
+        tasks.push(recentOrders.refetch());
+      }
+      if (selectedOrderId) {
+        tasks.push(messages.refetch());
+        if (shop) {
+          tasks.push(orderDetail.refetch());
+        }
+      }
+      await Promise.all(tasks);
+      toast.success('Inbox data refreshed');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Failed to refresh data');
+    } finally {
+      refreshTimer.current = setTimeout(() => {
+        setIsRefreshing(false);
+      }, 400);
+    }
+  };
+
   const handleSendReply = async () => {
     if (!selectedEmail || !selectedOrder) return;
     if (emailLimit.data && !emailLimit.data.allowed) {
@@ -388,14 +429,15 @@ export default function InboxPage() {
               <Button
                 variant="outline"
                 className="rounded-full border-slate-200 text-xs text-slate-600"
+                onClick={handleRefreshAll}
+                disabled={isRefreshing}
               >
-                Refresh
-              </Button>
-              <Button
-                variant="outline"
-                className="rounded-full border-slate-200 text-xs text-slate-600"
-              >
-                Settings
+                <span className="flex items-center gap-2">
+                  <RefreshCw
+                    className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                  />
+                  {isRefreshing ? 'Refreshing…' : 'Refresh'}
+                </span>
               </Button>
             </div>
           </div>
