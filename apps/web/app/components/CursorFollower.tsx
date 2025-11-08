@@ -8,10 +8,14 @@ export default function CursorFollower() {
     const el = ref.current;
     if (!el) return;
     if (window.matchMedia('(pointer: coarse)').matches) return; // skip on touch
+
+    // Store el in a const so TypeScript knows it's non-null in closures
+    const element: HTMLDivElement = el;
+
     function onMove(e: MouseEvent) {
       const x = e.clientX;
       const y = e.clientY;
-      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      element.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     }
     window.addEventListener('mousemove', onMove, { passive: true });
     return () => window.removeEventListener('mousemove', onMove as any);
@@ -24,5 +28,3 @@ export default function CursorFollower() {
     />
   );
 }
-
-

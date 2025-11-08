@@ -2,9 +2,8 @@ import './globals.css';
 import { Providers } from './providers';
 import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
-import SmoothScroll from './components/SmoothScroll';
-import CursorFollower from './components/CursorFollower';
 import Header from './nav-header';
+import Footer from './components/Footer';
 
 export const metadata = {
   title: 'ZYYP Support Assistant',
@@ -25,8 +24,7 @@ export default function RootLayout({
         <Providers>
           <Header />
           <PageFade>{children}</PageFade>
-          <SmoothScroll />
-          <CursorFollower />
+          <Footer />
         </Providers>
       </body>
     </html>

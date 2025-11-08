@@ -12,6 +12,10 @@ export default function CreativeBackground() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Store canvas and ctx in consts so TypeScript knows they're non-null in closures
+    const canvasElement: HTMLCanvasElement = canvas;
+    const ctx2d: CanvasRenderingContext2D = ctx;
+
     let animationId: number;
     let particles: Particle[] = [];
 
@@ -25,8 +29,8 @@ export default function CreativeBackground() {
       color: string;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvasElement.width;
+        this.y = Math.random() * canvasElement.height;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
         this.size = Math.random() * 3 + 1;
@@ -38,29 +42,29 @@ export default function CreativeBackground() {
         this.x += this.vx;
         this.y += this.vy;
 
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        if (this.x < 0 || this.x > canvasElement.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvasElement.height) this.vy *= -1;
       }
 
       draw() {
-        ctx.save();
-        ctx.globalAlpha = this.opacity;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        ctx2d.save();
+        ctx2d.globalAlpha = this.opacity;
+        ctx2d.fillStyle = this.color;
+        ctx2d.beginPath();
+        ctx2d.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx2d.fill();
+        ctx2d.restore();
       }
     }
 
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      canvasElement.width = window.innerWidth;
+      canvasElement.height = window.innerHeight;
       particles = Array.from({ length: 50 }, () => new Particle());
     };
 
     const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
       particles.forEach((particle, i) => {
         particle.update();
@@ -73,15 +77,15 @@ export default function CreativeBackground() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < 100) {
-            ctx.save();
-            ctx.globalAlpha = (100 - distance) / 100 * 0.2;
-            ctx.strokeStyle = '#FF6B35';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(particle.x, particle.y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.stroke();
-            ctx.restore();
+            ctx2d.save();
+            ctx2d.globalAlpha = ((100 - distance) / 100) * 0.2;
+            ctx2d.strokeStyle = '#FF6B35';
+            ctx2d.lineWidth = 1;
+            ctx2d.beginPath();
+            ctx2d.moveTo(particle.x, particle.y);
+            ctx2d.lineTo(particles[j].x, particles[j].y);
+            ctx2d.stroke();
+            ctx2d.restore();
           }
         }
       });
@@ -105,7 +109,9 @@ export default function CreativeBackground() {
       <canvas
         ref={canvasRef}
         className="w-full h-full"
-        style={{ background: 'linear-gradient(135deg, #FFF8F0 0%, #F5F1ED 100%)' }}
+        style={{
+          background: 'linear-gradient(135deg, #FFF8F0 0%, #F5F1ED 100%)',
+        }}
       />
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-50/20 via-transparent to-blue-50/20" />

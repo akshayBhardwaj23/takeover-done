@@ -17,18 +17,18 @@ export async function registerWebhooks(shop: string, accessToken: string) {
     'refunds/create',
     'app/uninstalled',
   ];
-  const additionalTopics: WebhookTopic[] = [
-    'shop/update',
-    'products/create',
-  ];
+  const additionalTopics: WebhookTopic[] = ['shop/update', 'products/create'];
   const topics: WebhookTopic[] =
     process.env.PROTECTED_WEBHOOKS === 'true'
       ? [...essentialTopics, ...additionalTopics]
       : essentialTopics;
+  const results: Array<{ topic: string; success: boolean; error?: string }> =
+    [];
+
   for (const topic of topics) {
     try {
       const resp = await fetch(
-        `https://${shop}/admin/api/2024-07/webhooks.json`,
+        `https://${shop}/admin/api/2025-10/webhooks.json`,
         {
           method: 'POST',
           headers: {
@@ -42,22 +42,37 @@ export async function registerWebhooks(shop: string, accessToken: string) {
         const text = await resp.text().catch(() => '');
         // Treat duplicate address (already registered) as success
         if (resp.status === 422 && /address\".*already been taken/.test(text)) {
+          console.log(`[Webhook Registration] ✅ ${topic} already registered`);
+          results.push({ topic, success: true });
           continue;
         }
-        console.warn('shopify webhook register failed', {
-          topic,
-          status: resp.status,
-          text,
-        });
+        const errorMsg = `Status ${resp.status}: ${text}`;
+        console.error(
+          `[Webhook Registration] ❌ Failed to register ${topic}:`,
+          errorMsg,
+        );
+        results.push({ topic, success: false, error: errorMsg });
+      } else {
+        console.log(
+          `[Webhook Registration] ✅ Successfully registered ${topic}`,
+        );
+        results.push({ topic, success: true });
       }
     } catch (err) {
-      // swallow errors; webhook may already exist or merchant lacks perms
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[Webhook Registration] ❌ Exception registering ${topic}:`,
+        errorMsg,
+      );
+      results.push({ topic, success: false, error: errorMsg });
     }
   }
+
+  return results;
 }
 
 export async function listWebhooks(shop: string, accessToken: string) {
-  const resp = await fetch(`https://${shop}/admin/api/2024-07/webhooks.json`, {
+  const resp = await fetch(`https://${shop}/admin/api/2025-10/webhooks.json`, {
     headers: { 'X-Shopify-Access-Token': accessToken },
   });
   const json = await resp.json().catch(() => ({}));

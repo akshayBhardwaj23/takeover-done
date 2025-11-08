@@ -72,6 +72,22 @@
   html, body {
     @apply bg-white text-gray-900 antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+  }
+  
+  /* Fix text clipping - ensure descenders (g, y, p, q, j) are not cut off */
+  p, span, div, button, a {
+    line-height: inherit;
+  }
+  
+  /* Ensure card content doesn't clip text */
+  [class*="Card"], [class*="card"] {
+    overflow: visible !important;
+  }
+  
+  /* Specific fix for gradient cards with overflow */
+  .group.relative.overflow-hidden {
+    padding-bottom: 2px; /* Extra space for descenders */
   }
 
   ::selection {
@@ -221,6 +237,50 @@
 .animate-gradientShift {
   animation: gradientShift 8s ease infinite;
   background-size: 200% 200%;
+}
+
+.animate-drift {
+  animation: drift 16s ease-in-out infinite;
+}
+
+.animate-orbit-slow {
+  animation: orbit-slow 45s linear infinite;
+}
+
+.animate-orbit-reverse {
+  animation: orbit-slow 35s linear infinite reverse;
+}
+
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  25% {
+    transform: translate3d(18px, -12px, 0) scale(1.05);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate3d(-24px, -18px, 0) scale(0.97);
+    opacity: 0.65;
+  }
+  75% {
+    transform: translate3d(12px, -6px, 0) scale(1.02);
+    opacity: 0.75;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+}
+
+@keyframes orbit-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Web3/NFT Card Hover Effects */

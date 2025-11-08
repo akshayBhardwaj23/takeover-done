@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
 import crypto from 'crypto';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
+
 /**
  * Razorpay Webhook Handler
  * Handles subscription events from Razorpay

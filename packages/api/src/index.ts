@@ -120,6 +120,94 @@ const protectedProcedure = t.procedure.use(isAuthenticated).use(withRateLimit);
 // AI procedure (authentication + AI rate limiting)
 const aiProcedure = t.procedure.use(isAuthenticated).use(withAIRateLimit);
 
+const STORE_DEFAULT_NAME = 'Your Store';
+
+function normalizeStoreNameFromDomain(domain?: string | null): string | null {
+  if (!domain) return null;
+  const withoutSuffix = domain.replace(/\.myshopify\.com$/i, '');
+  const cleaned = withoutSuffix.replace(/[-_]+/g, ' ').trim();
+  if (!cleaned) return null;
+  return cleaned
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function extractStoreNameFromMetadata(metadata: unknown): string | null {
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    !Array.isArray(metadata) &&
+    'storeName' in metadata
+  ) {
+    const value = (metadata as { storeName?: unknown }).storeName;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+async function resolveStoreName(
+  userId: string | null,
+  orderId?: string | null,
+): Promise<string> {
+  if (!userId) return STORE_DEFAULT_NAME;
+
+  if (orderId) {
+    const order = await prisma.order.findUnique({
+      where: { shopifyId: orderId },
+      include: {
+        connection: {
+          select: { metadata: true, shopDomain: true, userId: true },
+        },
+      },
+    });
+    if (order?.connection && order.connection.userId === userId) {
+      const nameFromMetadata = extractStoreNameFromMetadata(
+        order.connection.metadata,
+      );
+      if (nameFromMetadata) return nameFromMetadata;
+      const normalized = normalizeStoreNameFromDomain(
+        order.connection.shopDomain,
+      );
+      if (normalized) return normalized;
+    }
+  }
+
+  const connection = await prisma.connection.findFirst({
+    where: { userId, type: 'SHOPIFY' },
+    orderBy: { createdAt: 'asc' },
+    select: { metadata: true, shopDomain: true },
+  });
+
+  if (connection) {
+    const nameFromMetadata = extractStoreNameFromMetadata(connection.metadata);
+    if (nameFromMetadata) return nameFromMetadata;
+    const normalized = normalizeStoreNameFromDomain(connection.shopDomain);
+    if (normalized) return normalized;
+  }
+
+  return STORE_DEFAULT_NAME;
+}
+
+function ensureSignature(text: string, signatureBlock: string): string {
+  const trimmedSignature = signatureBlock.trim();
+  if (!trimmedSignature) return text;
+  const normalizedText = text.toLowerCase().replace(/\s+/g, ' ');
+  const normalizedSignature = trimmedSignature
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  if (normalizedText.includes(normalizedSignature)) {
+    return text;
+  }
+  const requiredSignature = `Best regards,\n${trimmedSignature}`;
+  const trimmed = text.trimEnd();
+  const separator = trimmed.endsWith('\n') ? '' : '\n\n';
+  return `${trimmed}${separator}${requiredSignature}`;
+}
+
 export { encryptSecure, decryptSecure } from './crypto';
 
 export const appRouter = t.router({
@@ -138,6 +226,125 @@ export const appRouter = t.router({
       return { count: 0 };
     }
   }),
+  getUserProfile: protectedProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User profile not found',
+      });
+    }
+
+    const connections = await prisma.connection.findMany({
+      where: { userId: ctx.userId, type: 'SHOPIFY' },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        shopDomain: true,
+        createdAt: true,
+        metadata: true,
+      },
+    });
+
+    const stores = connections.map((connection) => {
+      const metadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+      const nameFromMetadata =
+        typeof (metadata as { storeName?: unknown }).storeName === 'string'
+          ? ((metadata as { storeName?: string }).storeName ?? '').trim()
+          : null;
+      const supportEmail =
+        typeof (metadata as { supportEmail?: unknown }).supportEmail ===
+        'string'
+          ? ((metadata as { supportEmail?: string }).supportEmail ?? '').trim()
+          : null;
+
+      const normalizedName = normalizeStoreNameFromDomain(
+        connection.shopDomain,
+      );
+
+      return {
+        id: connection.id,
+        shopDomain: connection.shopDomain ?? '',
+        createdAt: connection.createdAt,
+        name:
+          nameFromMetadata && nameFromMetadata.length > 0
+            ? nameFromMetadata
+            : (normalizedName ?? STORE_DEFAULT_NAME),
+        supportEmail,
+      };
+    });
+
+    return {
+      user,
+      stores,
+    };
+  }),
+  updateUserProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .min(2, 'Name must be at least 2 characters long')
+          .max(120, 'Name must be at most 120 characters long')
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const updates: { name?: string | null } = {};
+
+      if (input.name !== undefined) {
+        const sanitized = sanitizeLimited(input.name, 120).trim();
+        updates.name = sanitized.length > 0 ? sanitized : null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return {
+          user: await prisma.user.findUnique({
+            where: { id: ctx.userId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+        };
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: ctx.userId },
+        data: updates,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await logEvent(
+        'user.profile.updated',
+        { hasName: updated.name != null },
+        'user',
+        ctx.userId,
+      );
+
+      return { user: updated };
+    }),
   threadsList: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
@@ -200,6 +407,53 @@ export const appRouter = t.router({
       return { connections: [] };
     }
   }),
+  updateStoreName: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string().min(1),
+        storeName: z
+          .string()
+          .trim()
+          .min(2, 'Store name must be at least 2 characters long')
+          .max(120, 'Store name must be at most 120 characters long'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const trimmedName = input.storeName.trim();
+      const existingMetadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: {
+            ...existingMetadata,
+            storeName: trimmedName,
+          },
+        },
+      });
+
+      return { ok: true };
+    }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -217,8 +471,29 @@ export const appRouter = t.router({
       }
       const domain = (existing.metadata as any)?.domain as string | undefined;
       if (!domain) return { ok: false } as any;
-      const short = Math.random().toString(36).slice(2, 8);
-      const alias = `in+${existing.userId.slice(0, 6)}-${short}@${domain}`;
+
+      // Get shop domain from metadata to generate consistent shop slug
+      const shopDomain = (existing.metadata as any)?.shopDomain as
+        | string
+        | undefined;
+      if (!shopDomain) return { ok: false } as any;
+
+      // Generate new alias with same format as createEmailAlias
+      const short = Math.random().toString(36).slice(2, 6);
+      const shopSlug = shopDomain
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 8)
+        .toLowerCase();
+
+      // Add environment suffix to alias for routing (local/staging/production)
+      const envSuffix =
+        process.env.NODE_ENV === 'development'
+          ? '-local'
+          : process.env.ENVIRONMENT === 'staging'
+            ? '-staging'
+            : ''; // Production has no suffix
+
+      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -270,7 +545,63 @@ export const appRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
-  emailHealth: protectedProcedure.query(async () => {
+  updateConnectionSettings: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string(),
+        supportEmail: z.string().email().optional(),
+        storeName: z.string().min(1).max(100).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Verify user owns the connection
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
+      });
+
+      if (!existing) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      // Update metadata with support email and/or store name
+      const currentMetadata = (existing.metadata as any) ?? {};
+      const updatedMetadata: any = { ...currentMetadata };
+
+      if (input.supportEmail !== undefined) {
+        updatedMetadata.supportEmail = input.supportEmail;
+      }
+
+      if (input.storeName !== undefined) {
+        updatedMetadata.storeName = input.storeName;
+      }
+
+      const updated = await prisma.connection.update({
+        where: { id: input.connectionId },
+        data: {
+          metadata: updatedMetadata,
+        },
+        select: { id: true, metadata: true },
+      });
+
+      await logEvent(
+        'connection.settings.updated',
+        {
+          supportEmail: input.supportEmail,
+          storeName: input.storeName,
+        },
+        'connection',
+        input.connectionId,
+      );
+
+      return { ok: true, connection: updated };
+    }),
+  emailHealth: publicProcedure.query(async () => {
     try {
       const last = await prisma.message.findFirst({
         where: { direction: 'INBOUND' as any },
@@ -342,7 +673,17 @@ export const appRouter = t.router({
         .replace(/[^a-zA-Z0-9]/g, '')
         .slice(0, 8)
         .toLowerCase();
-      const alias = `in+${shopSlug}-${short}@${domain}`;
+
+      // Add environment suffix to alias for routing (local/staging/production)
+      // This allows using a single Mailgun domain with multiple routes
+      const envSuffix =
+        process.env.NODE_ENV === 'development'
+          ? '-local'
+          : process.env.ENVIRONMENT === 'staging'
+            ? '-staging'
+            : ''; // Production has no suffix
+
+      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -378,7 +719,7 @@ export const appRouter = t.router({
           where: { userId: ctx.userId },
           select: { id: true },
         });
-        const connectionIds = connections.map((c) => c.id);
+        const connectionIds = connections.map((c: { id: string }) => c.id);
 
         if (connectionIds.length === 0) {
           return { orders: [] };
@@ -461,7 +802,7 @@ export const appRouter = t.router({
         orderId: z.string().optional(),
       }),
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // Sanitize inputs
       const message = sanitizeLimited(input.customerMessage, 5000);
       const orderSummary = sanitizeLimited(input.orderSummary, 500);
@@ -477,9 +818,11 @@ export const appRouter = t.router({
         : 'there';
 
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
+      const storeName = await resolveStoreName(ctx.userId, input.orderId);
+      const signatureBlock = `${storeName}\nCustomer Support Team`;
+      const requiredSignature = `Best regards,\n${signatureBlock}`;
 
-      if (!apiKey) {
-        // Enhanced fallback response
+      const buildFallback = () => {
         let body = `${greeting} ${customerName},\n\n`;
         body += `Thank you for reaching out to us! `;
 
@@ -493,9 +836,13 @@ export const appRouter = t.router({
         body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
         body += `I want to make sure I address all your concerns properly.\n\n`;
         body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        body += `Best regards,\nCustomer Support Team`;
+        body += `${requiredSignature}`;
+        return body;
+      };
 
-        return { suggestion: body };
+      if (!apiKey) {
+        // Enhanced fallback response
+        return { suggestion: buildFallback() };
       }
 
       // Enhanced OpenAI prompt for better replies
@@ -515,6 +862,9 @@ Guidelines:
 - Keep it conversational but professional
 - Address their specific request directly
 - Offer specific solutions
+- Sign off with:
+Best regards,
+${signatureBlock}
 
 ${orderContext}
 
@@ -545,7 +895,11 @@ Write a comprehensive reply that addresses their concern and provides clear next
 7. Use the customer's name when appropriate
 8. Address their specific request directly
 
-Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
+
+Always end your response with:
+Best regards,
+${signatureBlock}`,
               },
               {
                 role: 'user',
@@ -560,31 +914,16 @@ Write responses that sound like they come from a real human support agent who ge
         if (!resp.ok) throw new Error(`OpenAI API error: ${resp.status}`);
 
         const json: any = await resp.json();
+        const fallbackSuggestion = buildFallback();
         const suggestion =
-          json.choices?.[0]?.message?.content ??
-          `Hi ${customerName},\n\nThank you for reaching out! I'm here to help you with your inquiry. I'll review your message and get back to you with a detailed response shortly.\n\nBest regards,\nCustomer Support Team`;
+          json.choices?.[0]?.message?.content ?? fallbackSuggestion;
 
-        return { suggestion };
+        return { suggestion: ensureSignature(suggestion, signatureBlock) };
       } catch (error) {
         console.error('OpenAI API error:', error);
 
         // Fallback response
-        let body = `${greeting} ${customerName},\n\n`;
-        body += `Thank you for reaching out to us! `;
-
-        if (orderSummary) {
-          body += `I can see your order details (${orderSummary}) and I'm here to help you with any questions or concerns you may have.\n\n`;
-        } else {
-          body += `I'd be happy to assist you with your inquiry. `;
-          body += `If you have an order number, please share it so I can look up your specific order details.\n\n`;
-        }
-
-        body += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
-        body += `I want to make sure I address all your concerns properly.\n\n`;
-        body += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        body += `Best regards,\nCustomer Support Team`;
-
-        return { suggestion: body };
+        return { suggestion: buildFallback() };
       }
     }),
   actionCreate: protectedProcedure
@@ -706,85 +1045,125 @@ Write responses that sound like they come from a real human support agent who ge
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
         if (!limitCheck.allowed) {
+          const upgradeMessage =
+            limitCheck.trial?.isTrial && limitCheck.trial.expired
+              ? 'Your free trial has ended. Please upgrade to continue sending emails.'
+              : `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`;
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
+            message: upgradeMessage,
           });
         }
 
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
-        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+        // Support both US and EU Mailgun endpoints
+        // EU keys typically have format: xxxxxxxx-xxxx-xxxx
+        // US keys typically start with: key-...
+        const mailgunRegion =
+          process.env.MAILGUN_REGION ||
+          (apiKey?.includes('-') && !apiKey.startsWith('key-') ? 'eu' : 'us');
+        const mailgunBaseUrl =
+          mailgunRegion === 'eu'
+            ? 'https://api.eu.mailgun.net/v3'
+            : 'https://api.mailgun.net/v3';
+        const defaultFromEmail =
+          process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-        if (apiKey && domain) {
-          const formData = new FormData();
-          formData.append('from', fromEmail);
-          formData.append('to', toEmail);
-          formData.append('subject', subject);
-          formData.append('text', body);
+        // Get store's support email from connection metadata
+        const connection = action.order.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeSupportEmail = metadata.supportEmail as string | undefined;
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
 
-          const response = await fetch(
-            `https://api.mailgun.net/v3/${domain}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-              },
-              body: formData,
-            },
-          );
+        // Build FROM email with store name for better branding
+        // Format: "Store Name <support@mail.zyyp.ai>"
+        // Reply-To will be set to store's actual support email
+        const fromEmail = storeSupportEmail
+          ? `${storeName} <${defaultFromEmail}>`
+          : defaultFromEmail;
+        const replyToEmail = storeSupportEmail || defaultFromEmail;
 
-          if (!response.ok) {
-            throw new Error(`Mailgun API error: ${response.status}`);
+        if (!apiKey || !domain) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              'Mailgun API key or domain not configured. Please check environment variables.',
+          });
+        }
+
+        const formData = new FormData();
+        formData.append('from', fromEmail);
+        formData.append('to', toEmail);
+        formData.append('subject', subject);
+        formData.append('text', body);
+
+        // Set Reply-To to store's support email so replies go to the store
+        if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+          formData.append('h:Reply-To', replyToEmail);
+        }
+
+        const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response
+            .text()
+            .catch(() => 'Unable to read error');
+          console.error('[Mailgun API Error]', {
+            status: response.status,
+            statusText: response.statusText,
+            domain,
+            region: mailgunRegion,
+            endpoint: mailgunBaseUrl,
+            apiKeyPrefix: apiKey.substring(0, 12) + '...',
+            error: errorText,
+          });
+
+          if (response.status === 401) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                'Mailgun API authentication failed. Please verify MAILGUN_API_KEY and MAILGUN_DOMAIN are set correctly in Vercel environment variables.',
+            });
           }
 
-          const result = await response.json();
-
-          // Mark action as executed
-          const updated = await prisma.action.update({
-            where: { id: input.actionId },
-            data: { status: 'EXECUTED', executedAt: new Date() },
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Mailgun API error: ${response.status} ${response.statusText}. ${errorText.substring(0, 200)}`,
           });
-
-          await logEvent(
-            'email.sent',
-            { to: toEmail, subject, messageId: result.id },
-            'action',
-            input.actionId,
-          );
-
-          // Increment usage tracking
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, status: updated.status, messageId: result.id };
-        } else {
-          // Fallback to stub if Mailgun not configured
-          const updated = await prisma.action.update({
-            where: { id: input.actionId },
-            data: { status: 'APPROVED' },
-          });
-
-          await logEvent(
-            'email.sent.stub',
-            {
-              to: input.to,
-              subject: input.subject,
-              reason: 'mailgun_not_configured',
-            },
-            'action',
-            input.actionId,
-          );
-
-          // Increment usage tracking even for stubs (they still count)
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, status: updated.status, stub: true };
         }
+
+        const result = await response.json();
+
+        // Mark action as executed
+        const updated = await prisma.action.update({
+          where: { id: input.actionId },
+          data: { status: 'EXECUTED', executedAt: new Date() },
+        });
+
+        await logEvent(
+          'email.sent',
+          { to: toEmail, subject, messageId: result.id },
+          'action',
+          input.actionId,
+        );
+
+        // Increment usage tracking
+        await incrementEmailSent(ctx.userId).catch((err) => {
+          console.error('Failed to increment email usage:', err);
+        });
+
+        return { ok: true, status: updated.status, messageId: result.id };
       } catch (error: any) {
         // Mark action as failed
         await prisma.action.update({
@@ -828,83 +1207,133 @@ Write responses that sound like they come from a real human support agent who ge
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
         if (!limitCheck.allowed) {
+          const upgradeMessage =
+            limitCheck.trial?.isTrial && limitCheck.trial.expired
+              ? 'Your free trial has ended. Please upgrade to continue sending emails.'
+              : `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`;
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: `Email limit reached (${limitCheck.current}/${limitCheck.limit}). Please upgrade your plan to send more emails.`,
+            message: upgradeMessage,
           });
         }
 
         // Send email via Mailgun
         const apiKey = process.env.MAILGUN_API_KEY;
         const domain = process.env.MAILGUN_DOMAIN;
-        const fromEmail = process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
+        // Support both US and EU Mailgun endpoints
+        // EU keys typically have format: xxxxxxxx-xxxx-xxxx
+        // US keys typically start with: key-...
+        const mailgunRegion =
+          process.env.MAILGUN_REGION ||
+          (apiKey?.includes('-') && !apiKey.startsWith('key-') ? 'eu' : 'us');
+        const mailgunBaseUrl =
+          mailgunRegion === 'eu'
+            ? 'https://api.eu.mailgun.net/v3'
+            : 'https://api.mailgun.net/v3';
+        const defaultFromEmail =
+          process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-        if (apiKey && domain) {
-          const formData = new FormData();
-          formData.append('from', fromEmail);
-          formData.append('to', message.from);
-          formData.append(
-            'subject',
-            `Re: ${message.thread.subject || 'Your inquiry'}`,
-          );
-          formData.append('text', safeBody);
+        // Get store's support email from connection metadata
+        const connection = message.thread.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeSupportEmail = metadata.supportEmail as string | undefined;
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
 
-          const response = await fetch(
-            `https://api.mailgun.net/v3/${domain}/messages`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-              },
-              body: formData,
-            },
-          );
+        // Build FROM email with store name for better branding
+        // Format: "Store Name <support@mail.zyyp.ai>"
+        // Reply-To will be set to store's actual support email
+        const fromEmail = storeSupportEmail
+          ? `${storeName} <${defaultFromEmail}>`
+          : defaultFromEmail;
+        const replyToEmail = storeSupportEmail || defaultFromEmail;
 
-          if (!response.ok) {
-            throw new Error(`Mailgun API error: ${response.status}`);
+        if (!apiKey || !domain) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message:
+              'Mailgun API key or domain not configured. Please check environment variables.',
+          });
+        }
+
+        const formData = new FormData();
+        formData.append('from', fromEmail);
+        formData.append('to', message.from);
+        formData.append(
+          'subject',
+          `Re: ${message.thread.subject || 'Your inquiry'}`,
+        );
+        formData.append('text', safeBody);
+
+        // Set Reply-To to store's support email so replies go to the store
+        if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+          formData.append('h:Reply-To', replyToEmail);
+        }
+
+        const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorText = await response
+            .text()
+            .catch(() => 'Unable to read error');
+          console.error('[Mailgun API Error]', {
+            status: response.status,
+            statusText: response.statusText,
+            domain,
+            region: mailgunRegion,
+            endpoint: mailgunBaseUrl,
+            apiKeyPrefix: apiKey.substring(0, 12) + '...',
+            error: errorText,
+          });
+
+          if (response.status === 401) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                'Mailgun API authentication failed. Please verify MAILGUN_API_KEY and MAILGUN_DOMAIN are set correctly in Vercel environment variables.',
+            });
           }
 
-          const result = await response.json();
-
-          // Create outbound message record
-          await prisma.message.create({
-            data: {
-              threadId: message.threadId,
-              from: fromEmail,
-              to: message.from,
-              body: safeBody,
-              direction: 'OUTBOUND',
-            },
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: `Mailgun API error: ${response.status} ${response.statusText}. ${errorText.substring(0, 200)}`,
           });
-
-          await logEvent(
-            'email.sent.unassigned',
-            { to: message.from, messageId: result.id },
-            'message',
-            input.messageId,
-          );
-
-          // Increment usage tracking
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, messageId: result.id };
-        } else {
-          await logEvent(
-            'email.sent.stub',
-            { to: message.from, reason: 'mailgun_not_configured' },
-            'message',
-            input.messageId,
-          );
-
-          // Increment usage tracking even for stubs (they still count)
-          await incrementEmailSent(ctx.userId).catch((err) => {
-            console.error('Failed to increment email usage:', err);
-          });
-
-          return { ok: true, stub: true };
         }
+
+        const result = await response.json();
+
+        // Create outbound message record
+        await prisma.message.create({
+          data: {
+            threadId: message.threadId,
+            from: fromEmail,
+            to: message.from,
+            body: safeBody,
+            direction: 'OUTBOUND',
+          },
+        });
+
+        await logEvent(
+          'email.sent.unassigned',
+          { to: message.from, messageId: result.id },
+          'message',
+          input.messageId,
+        );
+
+        // Increment usage tracking
+        await incrementEmailSent(ctx.userId).catch((err) => {
+          console.error('Failed to increment email usage:', err);
+        });
+
+        return { ok: true, messageId: result.id };
       } catch (error: any) {
         await logEvent(
           'email.sent.error',
@@ -973,7 +1402,7 @@ Write responses that sound like they come from a real human support agent who ge
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
           select: { id: true },
         });
-        const connectionIds = connections.map((c) => c.id);
+        const connectionIds = connections.map((c: { id: string }) => c.id);
 
         if (connectionIds.length === 0) {
           return { messages: [] };
@@ -1153,7 +1582,7 @@ Write responses that sound like they come from a real human support agent who ge
         where: { userId: ctx.userId },
         select: { id: true },
       });
-      const connectionIds = connections.map((c) => c.id);
+      const connectionIds = connections.map((c: { id: string }) => c.id);
 
       if (connectionIds.length === 0) {
         // Return empty analytics if no connections
@@ -1489,12 +1918,12 @@ Write responses that sound like they come from a real human support agent who ge
         });
 
         const fulfilled = ordersGrouped.filter(
-          (o) =>
+          (o: { status: string }) =>
             o.status.toLowerCase().includes('fulfilled') ||
             o.status === 'completed',
         ).length;
         const pending = ordersGrouped.filter(
-          (o) =>
+          (o: { status: string }) =>
             o.status.toLowerCase().includes('pending') ||
             o.status.toLowerCase().includes('processing') ||
             o.status === 'open',
@@ -1612,6 +2041,83 @@ Write responses that sound like they come from a real human support agent who ge
       return { history: [] };
     }
   }),
+  getAccountDetails: protectedProcedure.query(async ({ ctx }) => {
+    const [user, subscription, usageSummary] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: ctx.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          createdAt: true,
+        },
+      }),
+      prisma.subscription.findUnique({
+        where: { userId: ctx.userId },
+        include: {
+          usageRecords: {
+            orderBy: { periodStart: 'desc' },
+            take: 6,
+            select: {
+              id: true,
+              periodStart: true,
+              periodEnd: true,
+              emailsSent: true,
+              emailsReceived: true,
+              aiSuggestions: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+      getUsageSummary(ctx.userId),
+    ]);
+
+    if (!user) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User not found',
+      });
+    }
+
+    const billingCycle =
+      subscription?.currentPeriodStart && subscription?.currentPeriodEnd
+        ? {
+            start: subscription.currentPeriodStart,
+            end: subscription.currentPeriodEnd,
+          }
+        : null;
+
+    const billingHistory =
+      subscription?.usageRecords.map((record) => ({
+        id: record.id,
+        periodStart: record.periodStart,
+        periodEnd: record.periodEnd,
+        emailsSent: record.emailsSent,
+        emailsReceived: record.emailsReceived,
+        aiSuggestions: record.aiSuggestions,
+        createdAt: record.createdAt,
+      })) ?? [];
+
+    return {
+      user,
+      subscription: subscription
+        ? {
+            id: subscription.id,
+            planType: subscription.planType,
+            status: subscription.status,
+            paymentGateway: subscription.paymentGateway,
+            currentPeriodStart: subscription.currentPeriodStart,
+            currentPeriodEnd: subscription.currentPeriodEnd,
+            canceledAt: subscription.canceledAt,
+            metadata: subscription.metadata,
+          }
+        : null,
+      billingCycle,
+      billingHistory,
+      usageSummary,
+    };
+  }),
 
   checkEmailLimit: protectedProcedure.query(async ({ ctx }) => {
     try {
@@ -1624,6 +2130,14 @@ Write responses that sound like they come from a real human support agent who ge
         current: 0,
         limit: 0,
         percentage: 100,
+        remaining: 0,
+        planType: 'TRIAL',
+        trial: {
+          isTrial: false,
+          expired: false,
+          endsAt: null,
+          daysRemaining: null,
+        },
       };
     }
   }),
@@ -1885,6 +2399,598 @@ Write responses that sound like they come from a real human support agent who ge
           code: 'INTERNAL_SERVER_ERROR',
           message: error.message || 'Failed to cancel subscription',
         });
+      }
+    }),
+
+  // AI Insights - aggregate data and generate suggestions
+  getAggregatedInsights: aiProcedure
+    .input(z.object({ shop: z.string().optional() }).optional())
+    .query(async ({ input, ctx }) => {
+      try {
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true, shopDomain: true, type: true },
+        });
+
+        const connectionIds = connections.map((c) => c.id);
+
+        if (connectionIds.length === 0) {
+          return { shopifyMetrics: null, emailMetrics: null };
+        }
+
+        // Time ranges
+        const now = new Date();
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        // Shopify metrics
+        let shopifyMetrics: any = null;
+        const shopifyConn = connections.find((c) => c.type === 'SHOPIFY');
+
+        if (shopifyConn) {
+          const shopDomain = input?.shop || shopifyConn.shopDomain;
+
+          // Current week orders
+          const ordersThisWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          // Previous week orders for comparison
+          const ordersPrevWeek = await prisma.order.findMany({
+            where: {
+              connectionId: shopifyConn.id,
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+            },
+            select: { totalAmount: true, status: true },
+          });
+
+          const revenueThisWeek = ordersThisWeek.reduce(
+            (sum, o) => sum + o.totalAmount / 100,
+            0,
+          );
+          const revenuePrevWeek = ordersPrevWeek.reduce(
+            (sum, o) => sum + o.totalAmount / 100,
+            0,
+          );
+
+          const revenueChange =
+            revenuePrevWeek > 0
+              ? ((revenueThisWeek - revenuePrevWeek) / revenuePrevWeek) * 100
+              : 0;
+
+          const ordersChange =
+            ordersPrevWeek.length > 0
+              ? ((ordersThisWeek.length - ordersPrevWeek.length) /
+                  ordersPrevWeek.length) *
+                100
+              : 0;
+
+          // Count refunds (assuming REFUNDED status)
+          const refundsThisWeek = ordersThisWeek.filter((o) =>
+            o.status?.toLowerCase().includes('refund'),
+          ).length;
+          const refundRate =
+            ordersThisWeek.length > 0
+              ? (refundsThisWeek / ordersThisWeek.length) * 100
+              : 0;
+
+          const avgOrderValue =
+            ordersThisWeek.length > 0
+              ? revenueThisWeek / ordersThisWeek.length
+              : 0;
+
+          shopifyMetrics = {
+            totalRevenue: revenueThisWeek,
+            totalOrders: ordersThisWeek.length,
+            avgOrderValue,
+            refundRate,
+            fulfillmentTime: 2.5, // Placeholder - would need fulfillment data
+            weekOverWeekChange: {
+              revenue: revenueChange,
+              orders: ordersChange,
+              refunds: refundRate,
+            },
+          };
+        }
+
+        // Email metrics
+        let emailMetrics: any = null;
+        const emailConns = connections.filter((c) => c.type === 'CUSTOM_EMAIL');
+
+        if (emailConns.length > 0) {
+          // Current week emails
+          const emailsThisWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const emailsPrevWeek = await prisma.message.count({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: twoWeeksAgo, lt: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+          });
+
+          const volumeChange =
+            emailsPrevWeek > 0
+              ? ((emailsThisWeek - emailsPrevWeek) / emailsPrevWeek) * 100
+              : 0;
+
+          // Get recent messages for sentiment/complaint analysis
+          const recentMessages = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+            },
+            select: { body: true },
+            take: 50,
+          });
+
+          // Simple sentiment analysis based on keywords
+          let negativeSentimentCount = 0;
+          const complaintKeywords: { [key: string]: number } = {};
+
+          for (const msg of recentMessages) {
+            const body = msg.body?.toLowerCase() || '';
+
+            // Negative sentiment keywords
+            if (
+              body.match(
+                /\b(angry|disappointed|frustrated|terrible|worst|horrible|awful)\b/,
+              )
+            ) {
+              negativeSentimentCount++;
+            }
+
+            // Track complaint topics
+            if (body.includes('discount') || body.includes('coupon')) {
+              complaintKeywords['discount issues'] =
+                (complaintKeywords['discount issues'] || 0) + 1;
+            }
+            if (body.includes('shipping') || body.includes('delivery')) {
+              complaintKeywords['shipping delays'] =
+                (complaintKeywords['shipping delays'] || 0) + 1;
+            }
+            if (body.includes('refund') || body.includes('return')) {
+              complaintKeywords['refund requests'] =
+                (complaintKeywords['refund requests'] || 0) + 1;
+            }
+            if (
+              body.includes('quality') ||
+              body.includes('damaged') ||
+              body.includes('defective')
+            ) {
+              complaintKeywords['product quality'] =
+                (complaintKeywords['product quality'] || 0) + 1;
+            }
+          }
+
+          const sentimentScore =
+            recentMessages.length > 0
+              ? (negativeSentimentCount / recentMessages.length) * -1
+              : 0;
+
+          const topComplaints = Object.entries(complaintKeywords)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([topic]) => topic);
+
+          // Calculate avg response time
+          const messagesWithResponses = await prisma.message.findMany({
+            where: {
+              direction: 'INBOUND',
+              createdAt: { gte: weekAgo },
+              thread: { connectionId: { in: connectionIds } },
+              order: { actions: { some: {} } },
+            },
+            include: {
+              order: {
+                include: {
+                  actions: { orderBy: { createdAt: 'asc' }, take: 1 },
+                },
+              },
+            },
+            take: 50,
+          });
+
+          let totalResponseMinutes = 0;
+          let responseCount = 0;
+
+          for (const msg of messagesWithResponses) {
+            const firstAction = msg.order?.actions[0];
+            if (firstAction) {
+              const diffMs =
+                firstAction.createdAt.getTime() - msg.createdAt.getTime();
+              const diffMinutes = diffMs / (1000 * 60);
+              if (diffMinutes >= 0 && diffMinutes < 10000) {
+                totalResponseMinutes += diffMinutes;
+                responseCount++;
+              }
+            }
+          }
+
+          const avgResponseTime =
+            responseCount > 0 ? totalResponseMinutes / responseCount : 0;
+
+          emailMetrics = {
+            totalEmails: emailsThisWeek,
+            avgResponseTime,
+            sentimentScore,
+            topComplaints,
+            weekOverWeekChange: {
+              volume: volumeChange,
+              negativeSentiment:
+                negativeSentimentCount > 0
+                  ? (negativeSentimentCount / recentMessages.length) * 100
+                  : 0,
+            },
+          };
+        }
+
+        return { shopifyMetrics, emailMetrics };
+      } catch (error) {
+        console.error('Error fetching aggregated insights:', error);
+        return { shopifyMetrics: null, emailMetrics: null };
+      }
+    }),
+
+  // Playbook Management
+  getPlaybooks: protectedProcedure
+    .input(
+      z
+        .object({
+          category: z.string().optional(),
+          seedDefaults: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Auto-seed default playbooks if user has none and seedDefaults is true
+        if (input?.seedDefaults) {
+          const existingCount = await prisma.playbook.count({
+            where: { userId: ctx.userId },
+          });
+
+          if (existingCount === 0) {
+            // Import and seed default playbooks
+            const { seedDefaultPlaybooks } = await import('@ai-ecom/db');
+            await seedDefaultPlaybooks(ctx.userId);
+          }
+        }
+
+        const where: any = { userId: ctx.userId };
+        if (input?.category) {
+          where.category = input.category;
+        }
+
+        const playbooks = await prisma.playbook.findMany({
+          where,
+          orderBy: [
+            { isDefault: 'desc' },
+            { enabled: 'desc' },
+            { createdAt: 'desc' },
+          ],
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            category: true,
+            trigger: true,
+            conditions: true,
+            actions: true,
+            confidenceThreshold: true,
+            requiresApproval: true,
+            enabled: true,
+            isDefault: true,
+            executionCount: true,
+            lastExecutedAt: true,
+            createdAt: true,
+          },
+        });
+
+        return { playbooks };
+      } catch (error) {
+        console.error('Error fetching playbooks:', error);
+        return { playbooks: [] };
+      }
+    }),
+
+  createPlaybook: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        category: z.enum([
+          'REFUND_RETURN',
+          'MARKETING',
+          'FULFILLMENT',
+          'SUPPORT',
+          'INVENTORY',
+          'CUSTOM',
+        ]),
+        trigger: z.any(),
+        conditions: z.any(),
+        actions: z.any(),
+        confidenceThreshold: z.number().min(0).max(1).default(0.8),
+        requiresApproval: z.boolean().default(false),
+        enabled: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: sanitizeLimited(input.name, 100),
+            description: input.description
+              ? sanitizeLimited(input.description, 500)
+              : null,
+            category: input.category,
+            trigger: input.trigger,
+            conditions: input.conditions,
+            actions: input.actions,
+            confidenceThreshold: input.confidenceThreshold,
+            requiresApproval: input.requiresApproval,
+            enabled: input.enabled,
+          },
+        });
+
+        await logEvent(
+          'playbook.created',
+          { playbookId: playbook.id, category: input.category },
+          'playbook',
+          playbook.id,
+        );
+
+        return { playbook };
+      } catch (error: any) {
+        console.error('Error creating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to create playbook',
+        });
+      }
+    }),
+
+  updatePlaybook: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        trigger: z.any().optional(),
+        conditions: z.any().optional(),
+        actions: z.any().optional(),
+        confidenceThreshold: z.number().min(0).max(1).optional(),
+        requiresApproval: z.boolean().optional(),
+        enabled: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow editing default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message:
+              'Cannot edit default playbooks. Clone it to create your own version.',
+          });
+        }
+
+        const updateData: any = {};
+        if (input.name !== undefined)
+          updateData.name = sanitizeLimited(input.name, 100);
+        if (input.description !== undefined)
+          updateData.description = input.description
+            ? sanitizeLimited(input.description, 500)
+            : null;
+        if (input.trigger !== undefined) updateData.trigger = input.trigger;
+        if (input.conditions !== undefined)
+          updateData.conditions = input.conditions;
+        if (input.actions !== undefined) updateData.actions = input.actions;
+        if (input.confidenceThreshold !== undefined)
+          updateData.confidenceThreshold = input.confidenceThreshold;
+        if (input.requiresApproval !== undefined)
+          updateData.requiresApproval = input.requiresApproval;
+        if (input.enabled !== undefined) updateData.enabled = input.enabled;
+
+        const playbook = await prisma.playbook.update({
+          where: { id: input.id },
+          data: updateData,
+        });
+
+        await logEvent(
+          'playbook.updated',
+          { playbookId: playbook.id },
+          'playbook',
+          playbook.id,
+        );
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error updating playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to update playbook',
+        });
+      }
+    }),
+
+  deletePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify ownership
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id, userId: ctx.userId },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found or access denied',
+          });
+        }
+
+        // Don't allow deleting default playbooks
+        if (existing.isDefault) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Cannot delete default playbooks. Disable it instead.',
+          });
+        }
+
+        await prisma.playbook.delete({
+          where: { id: input.id },
+        });
+
+        await logEvent(
+          'playbook.deleted',
+          { playbookId: input.id },
+          'playbook',
+          input.id,
+        );
+
+        return { ok: true };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error deleting playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to delete playbook',
+        });
+      }
+    }),
+
+  clonePlaybook: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify access (can clone any playbook, including defaults)
+        const existing = await prisma.playbook.findFirst({
+          where: { id: input.id },
+        });
+
+        if (!existing) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Playbook not found',
+          });
+        }
+
+        const playbook = await prisma.playbook.create({
+          data: {
+            userId: ctx.userId,
+            name: `${existing.name} (Copy)`,
+            description: existing.description,
+            category: existing.category,
+            trigger: existing.trigger as any,
+            conditions: existing.conditions as any,
+            actions: existing.actions as any,
+            confidenceThreshold: existing.confidenceThreshold,
+            requiresApproval: existing.requiresApproval,
+            enabled: false, // Cloned playbooks start disabled
+            isDefault: false, // Clones are never defaults
+          },
+        });
+
+        await logEvent(
+          'playbook.cloned',
+          { sourceId: input.id, newId: playbook.id },
+          'playbook',
+          playbook.id,
+        );
+
+        return { playbook };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error cloning playbook:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to clone playbook',
+        });
+      }
+    }),
+
+  getPlaybookExecutions: protectedProcedure
+    .input(
+      z.object({
+        playbookId: z.string().optional(),
+        limit: z.number().min(1).max(100).default(20),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const where: any = {};
+
+        if (input.playbookId) {
+          // Verify user owns the playbook
+          const playbook = await prisma.playbook.findFirst({
+            where: { id: input.playbookId, userId: ctx.userId },
+          });
+
+          if (!playbook) {
+            throw new TRPCError({
+              code: 'NOT_FOUND',
+              message: 'Playbook not found or access denied',
+            });
+          }
+
+          where.playbookId = input.playbookId;
+        } else {
+          // Get all playbooks owned by user
+          const userPlaybooks = await prisma.playbook.findMany({
+            where: { userId: ctx.userId },
+            select: { id: true },
+          });
+
+          where.playbookId = {
+            in: userPlaybooks.map((p: { id: string }) => p.id),
+          };
+        }
+
+        const executions = await prisma.playbookExecution.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input.limit,
+          include: {
+            playbook: {
+              select: {
+                name: true,
+                category: true,
+              },
+            },
+          },
+        });
+
+        return { executions };
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error fetching playbook executions:', error);
+        return { executions: [] };
       }
     }),
 });

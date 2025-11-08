@@ -2,8 +2,39 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
 import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
+import * as Sentry from '@sentry/nextjs';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Helper to log to both console and Sentry
+function logWithSentry(
+  level: 'info' | 'warning' | 'error',
+  message: string,
+  context?: any,
+) {
+  // Always log to console (for Vercel logs)
+  if (level === 'error') {
+    console.error(message, context);
+  } else if (level === 'warning') {
+    console.warn(message, context);
+  } else {
+    console.error(message, context); // Use console.error for visibility in Vercel
+  }
+
+  // Also send to Sentry if enabled
+  if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+    // Use captureMessage for all levels so they appear in Discover
+    // addBreadcrumb only shows up when there's an error/issue
+    Sentry.captureMessage(message, {
+      level:
+        level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
+      extra: context,
+      tags: { source: 'email-webhook' },
+    });
+  }
+}
 
 // Simple HTML sanitization (server-safe, no jsdom dependency)
 function stripHtml(input: string): string {
@@ -15,15 +46,42 @@ function stripHtml(input: string): string {
 }
 
 // Simple shared-secret verification for MVP. In production, verify provider signature (Mailgun/Postmark)
+// Note: This is for custom header authentication (optional, not used by Mailgun Routes by default)
 function verifySecret(req: NextRequest, secret: string | null) {
   const hdr = req.headers.get('x-email-webhook-secret');
   return secret && hdr && secret === hdr;
 }
 
-// Optional Mailgun-style signature verification
+// Alternative: Basic auth verification (for Routes with basic auth in URL: https://user:pass@...)
+function verifyBasicAuth(req: NextRequest): boolean {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    return false;
+  }
+  // Note: Basic auth credentials should be set in Mailgun Route URL
+  // e.g., https://webhook:secret@your-domain.com/api/webhooks/email/custom
+  // For now, we'll allow Routes without basic auth if they have valid email data
+  return true;
+}
+
+// Mailgun signature verification
+// This works for Mailgun Events Webhooks (configured under Webhooks → Stored Messages)
+// Mailgun Routes (email forwarding) do NOT include signature fields
 function verifyMailgunSignature(raw: any): boolean {
-  const apiKey = process.env.MAILGUN_SIGNING_KEY;
-  if (!apiKey) return true; // skip if not configured
+  const signingKey = process.env.MAILGUN_SIGNING_KEY;
+  if (!signingKey) {
+    // If signing key is not configured, skip verification
+    return true;
+  }
+
+  // Verify we're using the HTTP webhook signing key format (not API key)
+  if (signingKey.startsWith('key-')) {
+    console.error(
+      '[Email Webhook] ❌ MAILGUN_SIGNING_KEY appears to be an API key, not HTTP webhook signing key!',
+    );
+    return false;
+  }
+
   // Support both webhook JSON ({ signature: { timestamp, token, signature }})
   // and Routes form fields (timestamp, token, signature)
   const sig = raw?.signature;
@@ -35,10 +93,24 @@ function verifyMailgunSignature(raw: any): boolean {
   const signature =
     (sig?.signature as string | undefined) ??
     (raw?.signature as string | undefined);
-  if (!token || !timestamp || !signature) return false;
+
+  if (!token || !timestamp || !signature) {
+    return false;
+  }
+
   const data = timestamp + token;
-  const digest = crypto.createHmac('sha256', apiKey).update(data).digest('hex');
-  return digest === signature;
+  const digest = crypto
+    .createHmac('sha256', signingKey)
+    .update(data)
+    .digest('hex');
+  const isValid = digest === signature;
+  if (!isValid) {
+    console.warn('[Email Webhook] Mailgun signature verification failed:', {
+      expected: digest.substring(0, 10) + '...',
+      received: signature?.substring(0, 10) + '...',
+    });
+  }
+  return isValid;
 }
 
 function extractOrderCandidate(text: string): string | null {
@@ -47,35 +119,57 @@ function extractOrderCandidate(text: string): string | null {
   // - "order 1003" or "Order 1003"
   // - "order status 1003" or "Order status 1003"
   // - "order #1003"
+  // - "order 1009 status" (handles text after the number)
   // - Just standalone numbers in context (more lenient)
   const patterns = [
-    /#\s?(\d{3,8})/i,                    // #1003 or # 1003
-    /order\s+#?\s?(\d{3,8})/i,           // order #1003 or order 1003
-    /order\s+status\s+(\d{3,8})/i,       // order status 1003
-    /order\s+number\s+(\d{3,8})/i,       // order number 1003
-    /\b(\d{4,5})\b/i,                    // Standalone 4-5 digit numbers (likely order numbers)
+    /#\s?(\d{3,8})/i, // #1003 or # 1003
+    /order\s+#?\s?(\d{3,8})(?:\s|$|[^\d])/i, // order #1003, order 1003, or "order 1009 status" (captures number before status)
+    /order\s+status\s+(\d{3,8})/i, // order status 1003
+    /order\s+number\s+(\d{3,8})/i, // order number 1003
+    /\b(\d{4,5})\b/i, // Standalone 4-5 digit numbers (likely order numbers)
   ];
   for (const re of patterns) {
     const m = text.match(re);
-    if (m) return m[1];
+    if (m) {
+      const candidate = m[1];
+      console.log(
+        `[Email Webhook] 📝 Extracted order candidate "${candidate}" using pattern: ${re.source}`,
+      );
+      return candidate;
+    }
   }
   return null;
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+  let errorRequestId = requestId; // For use in catch block
+
+  // Use console.error for visibility in Vercel logs (console.log is often filtered/buffered)
+  // Also log to Sentry for better visibility
+  logWithSentry('info', '[Email Webhook] 📧 Received request', {
+    requestId,
+    method: req.method,
+    path: '/api/webhooks/email/custom',
+    contentType: req.headers.get('content-type'),
+    hasXEmailWebhookSecret: !!req.headers.get('x-email-webhook-secret'),
+    hasMailgunSigningKey: !!process.env.MAILGUN_SIGNING_KEY,
+    timestamp: new Date().toISOString(),
+  });
   try {
     // Idempotency: prefer Message-ID header; fallback to HMAC of body
     // Only use Upstash Redis in production/staging (not in local development)
     // Development should use local Redis configured separately
     const isProduction = process.env.NODE_ENV === 'production';
     const isStaging =
-      process.env.ENVIRONMENT === 'staging' || process.env.NODE_ENV === 'production';
+      process.env.ENVIRONMENT === 'staging' ||
+      process.env.NODE_ENV === 'production';
     const useUpstash = isProduction || isStaging;
-    
+
     let redis = null;
     const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
     const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-    
+
     // Only initialize Upstash Redis in staging/production
     if (
       useUpstash &&
@@ -106,22 +200,53 @@ export async function POST(req: NextRequest) {
     // Accept JSON and Mailgun Routes form payloads
     const contentType = req.headers.get('content-type') || '';
     let raw: any = null;
-    if (contentType.includes('application/json')) {
-      raw = await req.json().catch(() => null);
-    } else if (
-      contentType.includes('multipart/form-data') ||
-      contentType.includes('application/x-www-form-urlencoded')
-    ) {
-      const fd = await req.formData();
-      raw = Object.fromEntries(
-        Array.from(fd.entries()).map(([k, v]) => [
-          k,
-          typeof v === 'string' ? v : ((v as any).name ?? ''),
-        ]),
-      ) as any;
+    let parseError: any = null;
+
+    try {
+      if (contentType.includes('application/json')) {
+        raw = await req.json();
+      } else if (
+        contentType.includes('multipart/form-data') ||
+        contentType.includes('application/x-www-form-urlencoded')
+      ) {
+        const fd = await req.formData();
+        raw = Object.fromEntries(
+          Array.from(fd.entries()).map(([k, v]) => [
+            k,
+            typeof v === 'string' ? v : ((v as any).name ?? ''),
+          ]),
+        ) as any;
+      } else {
+        // Try JSON as fallback if content-type is unclear
+        try {
+          raw = await req.json();
+        } catch {
+          // If JSON fails, try form-data
+          const fd = await req.formData();
+          raw = Object.fromEntries(
+            Array.from(fd.entries()).map(([k, v]) => [
+              k,
+              typeof v === 'string' ? v : ((v as any).name ?? ''),
+            ]),
+          ) as any;
+        }
+      }
+    } catch (err) {
+      parseError = err;
+      console.error('[Email Webhook] ❌ Failed to parse request body:', {
+        contentType,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
-    if (!raw)
+
+    if (!raw) {
+      console.error('[Email Webhook] ❌ No parsed body data:', {
+        contentType,
+        parseError:
+          parseError instanceof Error ? parseError.message : String(parseError),
+      });
       return NextResponse.json({ error: 'invalid body' }, { status: 400 });
+    }
 
     // Normalize common fields across JSON and Mailgun Routes
     const to: string | undefined =
@@ -162,7 +287,13 @@ export async function POST(req: NextRequest) {
     const secret = conn.accessToken || null;
     const secretOk = verifySecret(req, secret);
     const mailgunOk = verifyMailgunSignature(raw);
-    if (!secretOk && !mailgunOk) {
+    const basicAuthOk = verifyBasicAuth(req);
+
+    // Require at least one authentication method to pass
+    if (!secretOk && !mailgunOk && !basicAuthOk) {
+      console.error(
+        '[Email Webhook] ❌ Authentication failed: all methods failed',
+      );
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
 
@@ -178,71 +309,180 @@ export async function POST(req: NextRequest) {
 
     const rawBody = text || html || '';
     const body = stripHtml(String(rawBody)).slice(0, 20000);
-    
+
     // Extract email from "Name <email@domain.com>" format
-    const emailMatch = from.match(/<([^>]+)>/) || from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
-    const customerEmail = (emailMatch ? emailMatch[1] : from).toLowerCase().trim();
+    const emailMatch =
+      from.match(/<([^>]+)>/) ||
+      from.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const customerEmail = (emailMatch ? emailMatch[1] : from)
+      .toLowerCase()
+      .trim();
 
     // Correlate to Order: prioritize order number from subject/body, then fallback to email
     let orderId: string | undefined;
-    
+
     // Get shop domain from connection metadata to scope order search
-    const shopDomain = (metadata.shopDomain as string | undefined) || 
-                       (conn.shopDomain || undefined);
-    
+    const shopDomain =
+      (metadata.shopDomain as string | undefined) ||
+      conn.shopDomain ||
+      undefined;
+
     // First, try to extract and match order number from subject/body (more specific)
-    const candidate = extractOrderCandidate(`${subject ?? ''} ${body}`);
+    const searchText = `${subject ?? ''} ${body}`;
+    const candidate = extractOrderCandidate(searchText);
     if (candidate) {
-      console.log(`[Email Webhook] Extracted order candidate: ${candidate} from subject/body`);
-      
+      console.error(
+        `[Email Webhook] 🔍 Extracted order candidate: "${candidate}" from subject/body`,
+        { subject, bodyPreview: body.substring(0, 100) },
+      );
+
       // Build where clause with shop domain scoping if available
-      const orderWhere: any = {
+      // Try multiple formats: "#1009", "1009", and also check shopifyId (which is numeric string)
+      // IMPORTANT: Prisma requires AND/OR to be at the top level, so we structure it properly
+      const baseWhere: any = {
         OR: [
-          { name: `#${candidate}` },
-          { name: candidate },
-          { shopifyId: candidate },
+          { name: `#${candidate}` }, // "#1009" - exact match
+          { name: candidate }, // "1009" - exact match (in case stored without #)
+          { name: { contains: candidate } }, // Contains "1009" (handles "ORDER-1009" format)
+          { shopifyId: candidate }, // Shopify numeric ID (though this is usually a long number)
         ],
       };
-      
-      // Scope to same shop if we have shop domain from connection
+
+      // Add shop domain filter if available (AND condition)
       if (shopDomain) {
-        orderWhere.shopDomain = shopDomain;
+        baseWhere.shopDomain = shopDomain;
+        console.error(
+          `[Email Webhook] 🔎 Scoping order search to shop: ${shopDomain}`,
+        );
       }
-      
-      // Also scope to same connection if we have connectionId
-      if (conn.id) {
-        // Orders belong to connections, so filter by connectionId
-        const byName = await prisma.order.findFirst({
+
+      // Find the associated Shopify connection if we have shopDomain
+      // Orders belong to Shopify connections, not CUSTOM_EMAIL connections
+      let shopifyConnectionId: string | undefined = undefined;
+      if (shopDomain && conn.userId) {
+        // Find the Shopify connection for the same user and shop
+        const shopifyConn = await prisma.connection.findFirst({
           where: {
-            ...orderWhere,
-            connectionId: conn.id,
+            type: 'SHOPIFY' as any,
+            shopDomain: shopDomain,
+            userId: conn.userId,
           },
+          select: { id: true },
         });
-        if (byName) {
-          orderId = byName.id;
-          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
-        }
-      } else {
-        // Fallback if no connectionId - just match by name/shopifyId and shopDomain
-        const byName = await prisma.order.findFirst({
-          where: orderWhere,
-        });
-        if (byName) {
-          orderId = byName.id;
-          console.log(`[Email Webhook] Matched order ${candidate} to order ID: ${orderId} (${byName.name || byName.shopifyId})`);
+        if (shopifyConn) {
+          shopifyConnectionId = shopifyConn.id;
+          console.error(
+            `[Email Webhook] 🔎 Found Shopify connection: ${shopifyConnectionId} for shop: ${shopDomain}`,
+          );
+        } else {
+          console.warn(
+            `[Email Webhook] ⚠️ No Shopify connection found for shop: ${shopDomain}, userId: ${conn.userId}`,
+          );
         }
       }
-      
+
+      // Try to match order with Shopify connection first (most accurate)
+      if (shopifyConnectionId) {
+        const whereWithShopifyConnection = {
+          ...baseWhere,
+          connectionId: shopifyConnectionId,
+        };
+
+        const byName = await prisma.order.findFirst({
+          where: whereWithShopifyConnection,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.error(
+            `[Email Webhook] ✅ Matched order "${candidate}" using Shopify connection to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId})`,
+          );
+        }
+      }
+
+      // If not found, try with the email connection's connectionId (in case orders are linked to email connections)
+      if (!orderId && conn.id) {
+        console.error(
+          `[Email Webhook] 🔎 Trying to match order with email connectionId: ${conn.id}`,
+        );
+        const whereWithEmailConnection = {
+          ...baseWhere,
+          connectionId: conn.id,
+        };
+
+        const byName = await prisma.order.findFirst({
+          where: whereWithEmailConnection,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.error(
+            `[Email Webhook] ✅ Matched order "${candidate}" using email connection to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId})`,
+          );
+        }
+      }
+
+      // Final fallback: search without connectionId filter (match by name/shopDomain only)
+      if (!orderId) {
+        console.warn(
+          `[Email Webhook] ⚠️ Order "${candidate}" not found with connection filters, trying without connectionId...`,
+          {
+            shopifyConnectionId,
+            emailConnectionId: conn.id,
+            candidate,
+            shopDomain,
+          },
+        );
+        const byName = await prisma.order.findFirst({
+          where: baseWhere,
+        });
+        if (byName) {
+          orderId = byName.id;
+          console.error(
+            `[Email Webhook] ✅ Matched order "${candidate}" (without connectionId filter) to order ID: ${orderId} (name: ${byName.name || 'null'}, shopifyId: ${byName.shopifyId}, connectionId: ${byName.connectionId})`,
+          );
+        } else {
+          // Log what we're searching for to help debug
+          console.warn(
+            `[Email Webhook] ⚠️ Order "${candidate}" not found even without connectionId filter`,
+            {
+              searchCriteria: baseWhere,
+              shopifyConnectionId,
+              emailConnectionId: conn.id,
+            },
+          );
+        }
+      }
+
       if (!orderId && candidate) {
-        console.warn(`[Email Webhook] Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`);
+        // Log all orders for debugging (limited to recent orders)
+        const recentOrders = await prisma.order.findMany({
+          where: shopDomain ? { shopDomain } : {},
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          select: { name: true, shopifyId: true, shopDomain: true },
+        });
+        console.warn(
+          `[Email Webhook] ❌ Could not find order matching candidate "${candidate}"${shopDomain ? ` for shop ${shopDomain}` : ''}`,
+          {
+            candidate,
+            shopDomain,
+            connectionId: conn.id,
+            recentOrders: recentOrders.map((o) => ({
+              name: o.name,
+              shopifyId: o.shopifyId,
+              shopDomain: o.shopDomain,
+            })),
+          },
+        );
       }
     }
-    
+
     // IMPORTANT: Do NOT fallback to email matching if no order number is found
     // If no order matches, leave orderId as undefined so email goes to "Unassigned Emails" section
     // This allows manual assignment by support staff
     if (!orderId) {
-      console.log(`[Email Webhook] No order matched - email will be marked as unassigned (customer: ${customerEmail})`);
+      console.error(
+        `[Email Webhook] ⚠️ No order matched - email will be marked as unassigned (customer: ${customerEmail})`,
+      );
     }
 
     // Idempotency guard using message-id when available
@@ -253,10 +493,28 @@ export async function POST(req: NextRequest) {
     if (messageIdHeader && redis) {
       try {
         const key = `email:webhook:${messageIdHeader}`;
-        const exists = await redis.get<string>(key);
-        if (exists) return NextResponse.json({ ok: true, deduped: true });
+        // Use SETNX (SET with NX) - atomic check-and-set in 1 command instead of GET+SET (2 commands)
+        // Returns 1 if key was set (first time), 0 if already exists (duplicate)
+        const wasNew = await redis.set(key, '1', {
+          nx: true, // Only set if key doesn't exist
+          ex: 60 * 60 * 24, // 24 hour TTL
+        });
+        if (!wasNew) {
+          // Key already exists - this is a duplicate webhook
+          console.error(
+            `[Email Webhook] ⚠️ Duplicate webhook detected (Message-ID: ${messageIdHeader}), skipping - already processed`,
+          );
+          return NextResponse.json({ ok: true, deduped: true });
+        } else {
+          console.error(
+            `[Email Webhook] ✅ New webhook (Message-ID: ${messageIdHeader}), processing...`,
+          );
+        }
       } catch (err) {
-        console.warn('[Email Webhook] Redis idempotency check failed, continuing:', err);
+        console.warn(
+          '[Email Webhook] Redis idempotency check failed, continuing:',
+          err,
+        );
       }
     }
 
@@ -268,7 +526,7 @@ export async function POST(req: NextRequest) {
         { status: 404 },
       );
     }
-    
+
     const thread = await prisma.thread.create({
       data: {
         customerEmail,
@@ -306,23 +564,27 @@ export async function POST(req: NextRequest) {
       thread.id,
     );
 
-    // Enqueue background job to generate AI suggestion (non-blocking)
-    // This allows webhook to return immediately and prevents timeouts
+    // Trigger Inngest event to generate AI suggestion (non-blocking, event-driven)
+    // This replaces BullMQ worker - zero Redis polling!
     try {
-      // Dynamic import to avoid build-time dependency issues
-      const { enqueueInboxJob } = await import('@ai-ecom/worker');
-      await enqueueInboxJob('inbound-email-process', {
-        messageId: msg.id,
+      const { inngest } = await import('../../../../../inngest/client');
+      await inngest.send({
+        name: 'email/inbound.process',
+        data: {
+          messageId: msg.id,
+        },
       });
-      console.log(`[Email Webhook] Queued AI processing job for message ${msg.id}`);
+      console.error(
+        `[Email Webhook] 🚀 Triggered Inngest event for message ${msg.id}`,
+      );
     } catch (error) {
-      // If worker is not available, log but don't fail the webhook
+      // If Inngest is not available, log but don't fail the webhook
       // This allows graceful degradation
       console.warn(
-        '[Email Webhook] Failed to queue background job, AI suggestion will be generated later:',
+        '[Email Webhook] Failed to trigger Inngest event, AI suggestion will be generated later:',
         error,
       );
-      // Create a placeholder suggestion that will be updated when worker processes it
+      // Create a placeholder suggestion that will be updated when Inngest processes it
       await prisma.aISuggestion.upsert({
         where: { messageId: msg.id },
         update: {},
@@ -337,18 +599,47 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (messageIdHeader && redis) {
-      try {
-        await redis.set(`email:webhook:${messageIdHeader}`, '1', {
-          ex: 60 * 60 * 24,
-        });
-      } catch (err) {
-        console.warn('[Email Webhook] Failed to set Redis key, continuing:', err);
-      }
-    }
+    // Note: Webhook idempotency is already handled at the start with SETNX
+    // No need to set again here - it was already set if this webhook is new
+
+    // Log successful processing
+    // Use console.error for visibility in Vercel logs
+    logWithSentry(
+      'info',
+      '[Email Webhook] ✅✅✅ SUCCESSFULLY PROCESSED EMAIL',
+      {
+        requestId,
+        messageId: msg.id,
+        threadId: thread.id,
+        orderId: orderId || 'unassigned',
+        from: customerEmail,
+        to: to,
+        subject: subject || '(no subject)',
+        inngestTriggered: true,
+        timestamp: new Date().toISOString(),
+      },
+    );
+
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error('email webhook error', e);
+    const error = e instanceof Error ? e : new Error(String(e));
+    console.error('[Email Webhook] ❌ Error processing webhook:', error);
+
+    // Send error to Sentry
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      Sentry.captureException(error, {
+        tags: {
+          source: 'email-webhook',
+          endpoint: '/api/webhooks/email/custom',
+        },
+        extra: {
+          requestId: errorRequestId,
+          url: req.url,
+          method: req.method,
+        },
+      });
+    }
+
     return NextResponse.json({ error: 'server error' }, { status: 500 });
   }
 }

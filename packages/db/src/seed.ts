@@ -1,9 +1,23 @@
-import { prisma } from './index';
+import { prisma } from './index.js';
 
 async function main() {
   const user = await prisma.user.upsert({
     where: { email: 'founder@example.com' },
     create: { email: 'founder@example.com', name: 'Founder' },
+    update: {},
+  });
+
+  const connection = await prisma.connection.upsert({
+    where: {
+      id: 'test-connection-1',
+    },
+    create: {
+      id: 'test-connection-1',
+      type: 'SHOPIFY',
+      accessToken: 'test-token',
+      userId: user.id,
+      shopDomain: 'test-shop.myshopify.com',
+    },
     update: {},
   });
 
@@ -14,6 +28,7 @@ async function main() {
       status: 'UNFULFILLED',
       email: 'customer@example.com',
       totalAmount: 1999,
+      connectionId: connection.id,
     },
     update: {},
   });
@@ -30,5 +45,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-
-

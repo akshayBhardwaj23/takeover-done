@@ -3,6 +3,10 @@ node_modules
 .turbo
 .next
 dist
+.pnpm-store
+
+# TypeScript
+*.tsbuildinfo
 
 # Env
 .env

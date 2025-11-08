@@ -7,14 +7,14 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
 - **Framework**: Next.js App Router (TypeScript), Tailwind CSS, Shadcn UI
 - **API**: tRPC
 - **DB**: PostgreSQL via Prisma
-- **Queues**: BullMQ / Upstash Redis (scaffolded)
+- **Background Jobs**: Inngest (serverless, event-driven) / Upstash Redis (optional)
 - **Auth**: NextAuth (Google OAuth), Shopify OAuth
 - **External**: Shopify Admin API, Cloudflare Tunnel for HTTPS dev
 
 ### Monorepo layout
 
-- `apps/web`: Next.js app (UI + API routes for OAuth/webhooks)
-- `apps/worker`: Worker/queue placeholder
+- `apps/web`: Next.js app (UI + API routes for OAuth/webhooks + Inngest functions)
+- `apps/worker`: Worker placeholder (legacy, using Inngest now)
 - `packages/api`: tRPC router (server)
 - `packages/db`: Prisma schema, client, and event logger
 
@@ -28,7 +28,8 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
   - `app/api/shopify/install` — Starts Shopify OAuth
   - `app/api/shopify/callback` — Verifies HMAC, exchanges token, stores `Connection`, registers webhooks (feature-flagged), redirects to `/integrations`
   - `app/api/webhooks/shopify` — Shopify webhook receiver (HMAC verified)
-  - `app/api/webhooks/gmail` — Placeholder for email ingestion
+  - `app/api/webhooks/email/custom/route.ts` — Mailgun email webhook receiver
+  - `app/api/inngest/route.ts` — Inngest webhook endpoint
   - `app/api/trpc/[trpc]` — tRPC handler
 
 ### tRPC procedures (packages/api)
@@ -42,9 +43,11 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
   - `ordersRecent({ shop, limit })` — Shopify Admin API (non‑protected)
   - `orderGet({ shop, orderId })` — Shopify Admin API (non‑protected)
 - Write
-  - `aiSuggestReply({ customerMessage, orderSummary, tone })` — AI draft stub
+  - `aiSuggestReply({ customerMessage, orderSummary, tone })` — AI draft (OpenAI-powered)
   - `actionCreate({ shop, shopifyOrderId, email?, type, note?, draft? })`
-  - `actionApproveAndSend({ actionId, to, subject, body })` — stub “send” + event
+  - `actionApproveAndSend({ actionId, to, subject, body })` — Real email send via Mailgun + event logging
+  - `getAnalytics()` — AI Support Analytics (response time, ROI, CSAT, volume trends)
+  - `getShopifyAnalytics({ shop })` — Shopify Business Analytics (revenue, orders, customers, AOV)
 
 ### Prisma models (packages/db/prisma/schema.prisma)
 

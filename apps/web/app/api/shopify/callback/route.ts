@@ -6,6 +6,9 @@ import { authOptions } from '../../../../lib/auth';
 import { registerWebhooks, listWebhooks } from '../../../../lib/shopify';
 import { encryptSecure } from '@ai-ecom/api';
 
+// Prisma requires Node.js runtime (cannot run on Edge)
+export const runtime = 'nodejs';
+
 export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const secret = process.env.SHOPIFY_API_SECRET ?? '';
@@ -59,14 +62,94 @@ export async function GET(req: NextRequest) {
       })
     : await ensureDefaultUser();
 
-  await prisma.connection.create({
-    data: {
+  // Check if store already exists BEFORE creating
+  const existing = await prisma.connection.findFirst({
+    where: { shopDomain: shop },
+  });
+
+  const isNewConnection = !existing;
+
+  // Try to fetch store metadata (best-effort)
+  let storeName: string | undefined;
+  let supportEmail: string | undefined;
+  try {
+    const shopRes = await fetch(`https://${shop}/admin/api/2024-07/shop.json`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': tokenJson.access_token,
+      },
+    });
+    if (shopRes.ok) {
+      const shopJson = (await shopRes.json()) as {
+        shop?: {
+          name?: string | null;
+          email?: string | null;
+          support_email?: string | null;
+          customer_email?: string | null;
+        };
+      };
+      const rawName = shopJson?.shop?.name;
+      if (typeof rawName === 'string' && rawName.trim().length > 0) {
+        storeName = rawName.trim();
+      }
+      const candidateSupportEmail =
+        shopJson?.shop?.support_email ??
+        shopJson?.shop?.email ??
+        shopJson?.shop?.customer_email;
+      if (
+        typeof candidateSupportEmail === 'string' &&
+        candidateSupportEmail.trim().length > 0
+      ) {
+        supportEmail = candidateSupportEmail.trim().toLowerCase();
+      }
+    }
+  } catch (error) {
+    console.warn('[Shopify Callback] Failed to fetch shop metadata', error);
+  }
+
+  if (isNewConnection) {
+    // Only create if it doesn't exist
+    const data: any = {
       type: 'SHOPIFY',
       accessToken: encryptSecure(tokenJson.access_token),
       shopDomain: shop,
       userId: owner.id,
-    },
-  });
+    };
+    const metadata: Record<string, unknown> = {};
+    if (storeName) {
+      metadata.storeName = storeName;
+    }
+    if (supportEmail) {
+      metadata.supportEmail = supportEmail;
+    }
+    if (Object.keys(metadata).length > 0) {
+      data.metadata = metadata;
+    }
+    await prisma.connection.create({ data });
+  } else {
+    // Update existing connection with new token
+    const updateData: any = {
+      accessToken: encryptSecure(tokenJson.access_token),
+    };
+    if (storeName || supportEmail) {
+      const existingMetadata =
+        (existing.metadata as Record<string, unknown> | null) ?? {};
+      const metadataUpdates: Record<string, unknown> = {
+        ...existingMetadata,
+      };
+      if (storeName) {
+        metadataUpdates.storeName = storeName;
+      }
+      if (supportEmail) {
+        metadataUpdates.supportEmail = supportEmail;
+      }
+      updateData.metadata = metadataUpdates;
+    }
+    await prisma.connection.update({
+      where: { id: existing.id },
+      data: updateData,
+    });
+  }
 
   // Best-effort register webhooks for this shop
   await registerWebhooks(shop, tokenJson.access_token).catch(() => {});
@@ -94,14 +177,12 @@ export async function GET(req: NextRequest) {
 
   const base = process.env.SHOPIFY_APP_URL || new URL(req.url).origin;
   const url = new URL('/integrations', base);
-  // if store already existed, surface a toast via query param
-  try {
-    const existing = await prisma.connection.findFirst({
-      where: { shopDomain: shop },
-    });
-    if (existing) url.searchParams.set('already', '1');
-  } catch {}
-  url.searchParams.set('connected', '1');
+  // Set query params based on whether connection was new or existing
+  if (!isNewConnection) {
+    url.searchParams.set('already', '1');
+  } else {
+    url.searchParams.set('connected', '1');
+  }
   url.searchParams.set('shop', shop);
   const res = NextResponse.redirect(url);
   res.cookies.set('shopify_oauth_state', '', { maxAge: -1, path: '/' });

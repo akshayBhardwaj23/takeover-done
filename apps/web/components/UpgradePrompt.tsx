@@ -15,6 +15,9 @@ interface UpgradePromptProps {
   nextPlanName?: string;
   onDismiss?: () => void;
   variant?: 'banner' | 'modal' | 'inline';
+  isTrial?: boolean;
+  trialExpired?: boolean;
+  trialDaysRemaining?: number | null;
 }
 
 export function UpgradePrompt({
@@ -25,6 +28,9 @@ export function UpgradePrompt({
   nextPlanName = 'Growth',
   onDismiss,
   variant = 'banner',
+  isTrial = false,
+  trialExpired = false,
+  trialDaysRemaining = null,
 }: UpgradePromptProps) {
   const [dismissed, setDismissed] = useState(false);
   const createCheckout = trpc.createCheckoutSession.useMutation({
@@ -51,7 +57,22 @@ export function UpgradePrompt({
   if (dismissed) return null;
 
   const isAtLimit = usagePercentage >= 100;
-  const isNearLimit = usagePercentage >= 80;
+  const primaryTitle = trialExpired
+    ? 'Trial Ended'
+    : isAtLimit
+      ? 'Email Limit Reached'
+      : 'Approaching Email Limit';
+  const primaryDescription = trialExpired
+    ? 'Your free trial has ended. Upgrade to continue sending support emails without interruption.'
+    : isAtLimit
+      ? `You've reached your ${planName} plan limit of ${limit.toLocaleString()} emails. Upgrade to continue sending.`
+      : `You've used ${currentUsage.toLocaleString()} of ${limit.toLocaleString()} emails this month. Consider upgrading to avoid interruption.`;
+  const secondaryDescription =
+    isTrial && !trialExpired && trialDaysRemaining !== null
+      ? `Free trial: ${trialDaysRemaining} day${
+          trialDaysRemaining === 1 ? '' : 's'
+        } remaining.`
+      : null;
 
   const handleDismiss = () => {
     setDismissed(true);
@@ -69,14 +90,10 @@ export function UpgradePrompt({
             </div>
             <div className="flex-1">
               <div className="mb-1 flex items-center gap-2">
-                <h4 className="font-semibold text-white">
-                  {isAtLimit
-                    ? 'Email Limit Reached'
-                    : 'Approaching Email Limit'}
-                </h4>
+                <h4 className="font-semibold text-white">{primaryTitle}</h4>
                 <Badge
                   className={`${
-                    isAtLimit
+                    trialExpired || isAtLimit
                       ? 'bg-red-500/20 text-red-300 border-red-500/30'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                   }`}
@@ -84,11 +101,12 @@ export function UpgradePrompt({
                   {usagePercentage.toFixed(0)}% used
                 </Badge>
               </div>
-              <p className="text-sm text-slate-300">
-                {isAtLimit
-                  ? `You've reached your ${planName} plan limit of ${limit.toLocaleString()} emails. Upgrade to continue sending.`
-                  : `You've used ${currentUsage.toLocaleString()} of ${limit.toLocaleString()} emails this month. Consider upgrading to avoid interruption.`}
-              </p>
+              <p className="text-sm text-slate-300">{primaryDescription}</p>
+              {secondaryDescription && (
+                <p className="mt-1 text-xs text-slate-400">
+                  {secondaryDescription}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -125,14 +143,24 @@ export function UpgradePrompt({
                 <AlertCircle className="h-6 w-6 text-amber-400" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-white">
-                  {isAtLimit ? 'Email Limit Reached' : 'Upgrade Recommended'}
-                </h3>
+                <h3 className="text-xl font-bold text-white">{primaryTitle}</h3>
                 <p className="mt-2 text-sm text-slate-300">
-                  {isAtLimit
-                    ? `You've reached your ${planName} plan limit of ${limit.toLocaleString()} emails this month. Upgrade to continue sending emails.`
-                    : `You've used ${usagePercentage.toFixed(0)}% of your monthly email limit. Upgrade now to avoid interruption.`}
+                  {trialExpired
+                    ? 'Your free trial period has ended.'
+                    : `You've used ${usagePercentage.toFixed(
+                        0,
+                      )}% of your monthly email limit.`}
                 </p>
+                <p className="mt-1 text-sm text-slate-300">
+                  {trialExpired
+                    ? 'Upgrade now to unlock unlimited support workflows.'
+                    : primaryDescription}
+                </p>
+                {secondaryDescription && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    {secondaryDescription}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -198,9 +226,11 @@ export function UpgradePrompt({
       <div className="flex items-center gap-2">
         <AlertCircle className="h-4 w-4 text-amber-400" />
         <p className="text-sm text-amber-200">
-          {isAtLimit
-            ? `Email limit reached (${currentUsage}/${limit}). `
-            : `Approaching limit (${usagePercentage.toFixed(0)}% used). `}
+          {trialExpired
+            ? 'Free trial ended. Upgrade to continue sending emails. '
+            : isAtLimit
+              ? `Email limit reached (${currentUsage}/${limit}). `
+              : `Approaching limit (${usagePercentage.toFixed(0)}% used). `}
           <button
             onClick={handleUpgrade}
             className="font-semibold underline hover:text-amber-100"

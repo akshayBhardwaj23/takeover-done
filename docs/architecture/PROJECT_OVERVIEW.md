@@ -23,13 +23,13 @@ An AI-powered E‑Commerce Support Assistant for Shopify store owners. It centra
 - tRPC for typed API; React Query client
 - Prisma (PostgreSQL)
 - Auth: NextAuth (Google), custom Shopify OAuth
-- Queues: BullMQ/Upstash Redis (scaffolded)
+- Background Jobs: Inngest (serverless, event-driven) / Upstash Redis (optional)
 - Tunneling: Cloudflare Tunnel for HTTPS during development
 
 ### Repository Layout
 
-- `apps/web`: UI, NextAuth, OAuth routes, webhook routes, tRPC handler
-- `apps/worker`: Background worker (placeholder)
+- `apps/web`: UI, NextAuth, OAuth routes, webhook routes, tRPC handler, Inngest functions
+- `apps/worker`: Background worker (legacy placeholder, using Inngest now)
 - `packages/api`: tRPC router and server-side logic
 - `packages/db`: Prisma schema/client and event logger
 - Root utilities: Turborepo, pnpm workspace, shared tsconfig and tooling
@@ -69,8 +69,8 @@ ai-ecom-tool/
 │     ├─ prisma/schema.prisma    # Models: User, Connection, Order, Thread, Message, AISuggestion, Action, Event
 │     └─ src/{index.ts,logger.ts}# Prisma client singleton + logEvent helper
 ├─ docs/                         # Documentation (overview, architecture, design, runbook, integrations, roadmap, API, data model)
+│  └─ planning/PRD.md           # Product requirements (source of truth for features)
 ├─ cursor-context.md             # Quick repo context for assistants
-├─ PRD.md                        # Product requirements (source of truth for features)
 ├─ turbo.json                    # Turborepo tasks
 ├─ pnpm-workspace.yaml           # Monorepo workspaces
 ├─ tsconfig.base.json            # Shared TS config
@@ -81,7 +81,8 @@ Basics of implementations by area:
 
 - `apps/web/app/api/shopify/*`: Implements OAuth start/callback, HMAC/state verification, access token exchange, `Connection` persistence, and conditional webhook registration + mock seeding.
 - `apps/web/app/api/webhooks/shopify/route.ts`: Verifies HMAC, logs event, and persists/updates `Order` rows on `orders/create`, `orders/fulfilled`, `refunds/create`.
-- `apps/web/app/inbox/page.tsx`: Fetches recent orders via Admin API and DB (`ordersListDb`), shows details, drafts AI reply with `aiSuggestReply` stub, creates `Action` and logs send (stub).
+- `apps/web/app/inbox/page.tsx`: Unified inbox UI with email threads, order details, and AI suggestions. Real email sending via Mailgun API.
+- `apps/web/inngest/functions.ts`: Inngest functions for async email processing and AI suggestion generation.
 - `packages/api/src/index.ts`: tRPC router with read queries (health, orders, connections) and write mutations (AI draft stub, action create/approve-send stub).
 - `packages/db`: Prisma schema and `logEvent` utility to persist `Event` rows for auditing.
 
@@ -110,8 +111,12 @@ Basics of implementations by area:
 2. Browse `/inbox?shop=your-shop.myshopify.com`
 3. Select an order, generate AI suggestion (stub), Approve & Send (stub)
 
-### Non-Goals (MVP)
+### Current Status (MVP Complete)
 
-- No real email delivery yet (stub only)
-- No protected webhooks without partner approval
-- No full multi-channel inbox yet (email ingestion planned)
+- ✅ Real email delivery via Mailgun API
+- ✅ Email ingestion via Mailgun webhooks
+- ✅ Unified inbox with email threads and order matching
+- ✅ AI-powered reply generation (OpenAI GPT-4o-mini)
+- ✅ Background job processing (Inngest)
+- ✅ Analytics dashboards (AI Support + Shopify Business)
+- ✅ Per-store email aliases and support email configuration
