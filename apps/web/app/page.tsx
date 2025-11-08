@@ -4,169 +4,174 @@ import Link from 'next/link';
 import { useState, type CSSProperties } from 'react';
 
 const trustedLogos = [
-  'First',
-  'Second',
-  'Third',
-  'Fourth',
-  'Fifth',
-  'Sixth',
-  'Seventh',
-  'Eighth',
+  'Aurora Threads',
+  'BrightCart',
+  'Luna Skincare',
+  'Fable Furnishings',
+  'Peak Gear',
+  'Nectar Living',
+  'Sora Coffee',
+  'Vista Outdoors',
 ];
 
-const deployments = [
-  { id: 'deploy-dev-eu-324', time: '2h ago', branch: 'master' },
-  { id: 'deploy-prod-eu-128', time: '10m ago', branch: 'main' },
-  { id: 'deploy-dev-us-445', time: '45m ago', branch: 'feature/auth' },
-  { id: 'deploy-prod-ap-223', time: '1h ago', branch: 'main' },
-  { id: 'deploy-dev-eu-891', time: '2h ago', branch: 'fix/cache' },
-  { id: 'deploy-prod-us-337', time: '3h ago', branch: 'main' },
-  { id: 'deploy-dev-ap-556', time: '4h ago', branch: 'feat/api' },
-  { id: 'deploy-dev-eu-672', time: '5h ago', branch: 'feat/search' },
-  { id: 'deploy-prod-ap-445', time: '6h ago', branch: 'main' },
-  { id: 'deploy-dev-us-891', time: '7h ago', branch: 'fix/perf' },
-  { id: 'deploy-prod-eu-223', time: '8h ago', branch: 'main' },
-  { id: 'deploy-dev-ap-337', time: '9h ago', branch: 'feat/analytics' },
+const supportEvents = [
+  { id: 'Order #48219', time: '2m ago', intent: 'Refund approved' },
+  { id: 'Order #48102', time: '4m ago', intent: 'Shipping update sent' },
+  { id: 'Order #48011', time: '9m ago', intent: 'Exchange initiated' },
+  { id: 'Order #48240', time: '14m ago', intent: 'Address corrected' },
+  { id: 'Order #47988', time: '18m ago', intent: 'Return instructions sent' },
+  { id: 'Order #47972', time: '24m ago', intent: 'Partial refund queued' },
+  { id: 'Order #47891', time: '31m ago', intent: 'Backorder ETA shared' },
+  { id: 'Order #47860', time: '37m ago', intent: 'Warranty info delivered' },
+  { id: 'Order #47744', time: '44m ago', intent: 'Order reshipped' },
+  { id: 'Order #47611', time: '55m ago', intent: 'Product recommendation' },
+  { id: 'Order #47583', time: '1h ago', intent: 'Subscription paused' },
+  { id: 'Order #47492', time: '1h ago', intent: 'Invoice resent' },
 ];
 
-const modelCards = [
+const channelCards = [
   {
-    name: 'OpenAI',
-    model: 'GPT 5',
+    name: 'Gmail',
+    model: 'Support Inbox',
     status: 'Connected',
-    badge: 'All Models 69,420',
+    badge: 'Primary',
     accent: 'from-blue-500 to-indigo-500',
   },
   {
-    name: 'Claude 4 Opus',
-    model: 'Unavailable',
-    status: 'Standby',
-    badge: 'Premium',
-    accent: 'from-slate-500 to-gray-700',
-  },
-  {
-    name: 'ChatGPT',
-    model: 'Connected',
-    status: 'Active',
-    badge: 'Auto',
+    name: 'Shopify',
+    model: 'Orders & Customers',
+    status: 'Synced',
+    badge: 'Realtime',
     accent: 'from-emerald-500 to-teal-500',
   },
   {
-    name: 'Llama 3.2',
-    model: 'Waiting',
-    status: 'Queue',
-    badge: 'Beta',
+    name: 'Slack',
+    model: 'Escalations',
+    status: 'Standby',
+    badge: 'Optional',
+    accent: 'from-purple-500 to-fuchsia-500',
+  },
+  {
+    name: 'Mailgun',
+    model: 'Outbound Replies',
+    status: 'Active',
+    badge: 'Automated',
     accent: 'from-sky-500 to-cyan-500',
   },
 ];
 
 const useCases = [
-  'DevOps',
-  'SalesOps',
-  'Supply Chain',
-  'Customer Support',
-  'DataOps',
-  'FinOps',
+  {
+    title: 'Scaling DTC brands',
+    description:
+      'Automate repetitive order status, refund, and exchange requests while keeping human approval for sensitive cases.',
+  },
+  {
+    title: 'Support agencies',
+    description:
+      'Manage multiple Shopify stores from one inbox, triage messages by intent, and keep every client in the loop.',
+  },
+  {
+    title: 'Ops and CX teams',
+    description:
+      'Give operators the context they need—order history, shipping status, and recommended action—alongside every thread.',
+  },
 ];
 
 const benefits = [
   {
-    title: 'Launch Faster',
+    title: 'Resolve tickets in minutes',
     description:
-      'Visually orchestrate autonomous agents without writing boilerplate code.',
+      'AI drafts the perfect response and proposed Shopify action so your team only approves and ships.',
   },
   {
-    title: 'Iterate Rapidly',
+    title: 'Eliminate tab switching',
     description:
-      'Preview and debug workflow logic in a safe sandbox before deploying.',
+      'Inbox, order history, AI suggestions, and macros live together, reducing handle time by 60%+. ',
   },
   {
-    title: 'Scale Smarter',
+    title: 'See ROI instantly',
     description:
-      'Automate complex operations with observable and governed agentic systems.',
+      'Track savings, response times, and CSAT improvements with a support analytics dashboard built for ecommerce.',
   },
 ];
 
 const pricingPlans = [
   {
-    name: 'Growth',
+    name: 'Launch',
     price: 49,
-    description: 'Early stage teams',
+    description: 'Solo founders and new stores',
     features: [
-      'Up to 5 active agents',
-      '50 simulation runs',
-      'Visual builder access',
-      'GitHub + Zapier integration',
-      'Basic support',
-      '1 team workspace',
-      'Workflow APIs',
-      'Community Slack access',
+      'Up to 3 connected inboxes',
+      '1 Shopify storefront',
+      '200 AI-assisted replies / month',
+      'AI draft + order summary panel',
+      'Manual approval workflow',
+      'Shared macros & templates',
+      'Email support',
     ],
   },
   {
-    name: 'Scale',
+    name: 'Growth',
     price: 129,
-    description: 'Fast moving startups',
+    description: 'Growing CX teams',
     features: [
-      'Up to 25 active agents',
-      '150 simulation runs',
-      'Visual builder access',
-      'GitHub + Zapier integration',
+      'Unlimited inboxes',
+      '3 Shopify storefronts',
+      '1,000 AI-assisted replies / month',
+      'Auto-approve rules & thresholds',
+      'Slack escalations',
+      'Support analytics dashboard',
       'Priority support',
-      '3 team workspaces',
-      'Workflow APIs',
-      'Priority Slack access',
     ],
     featured: true,
   },
   {
     name: 'Enterprise',
     price: 249,
-    description: 'Large enterprises',
+    description: 'High-volume brands & agencies',
     features: [
-      'Unlimited active agents',
-      'Unlimited simulation runs',
-      'Visual builder access',
-      'GitHub + Zapier integration',
-      'Priority support',
-      'Unlimited team workspaces',
-      'Workflow APIs',
-      'Priority Slack access',
-      'Access to Fight Club',
+      'Unlimited storefronts',
+      'Unlimited AI-assisted replies',
+      'Custom tone & brand voice',
+      'Role-based access controls',
+      'Dedicated success manager',
+      'Private data retention policies',
+      'SLA-backed support',
     ],
   },
 ];
 
 const faqs = [
   {
-    question: 'What exactly does this platform do?',
+    question: 'What problem does the AI E-Commerce Support Assistant solve?',
     answer:
-      'Zyyp lets technical teams design, simulate, and deploy agentic workflows with zero boilerplate. Drag, drop, and orchestrate complex automations visually.',
+      'We centralize customer emails, Shopify order data, and AI replies in one workspace so your team resolves issues without juggling tools or copy-pasting order details.',
   },
   {
-    question: 'How do I get started with creating my first workflow?',
+    question: 'How quickly can we get set up?',
     answer:
-      'Sign up, choose a starter template, and launch the drag-and-drop builder. You can connect data sources and deploy to your sandbox in minutes.',
+      'Connect Shopify and your support inbox, choose recommended automation rules, and you can start approving AI drafts within 15 minutes. No developers required.',
   },
   {
-    question: 'What tools and services can I integrate?',
+    question: 'Will the AI send messages without approval?',
     answer:
-      'Connect Slack, GitHub, Zapier, popular LLMs, and any custom stack using our connector SDK and workflow APIs.',
+      'You control who approves what. Start with human-in-the-loop for every message, then enable auto-approve when confidence scores meet your thresholds.',
   },
   {
-    question: 'Is my data secure when using AI agents?',
+    question: 'What channels do you support out of the box?',
     answer:
-      'We follow enterprise-grade security practices, maintain SOC 2 controls, and support private deployments so your data never leaves your environment.',
+      'Shopify, Gmail, Outlook, Slack, and Mailgun are supported today. More channels like Zendesk and Gorgias are on our roadmap.',
   },
   {
-    question: 'Can I test workflows before they go live?',
+    question: 'How is my customer data protected?',
     answer:
-      'Simulate every path inside a dedicated sandbox, get granular logs, and promote when you are confident with coverage.',
+      'We encrypt data in transit and at rest, offer regional data residency, and provide granular role permissions to ensure your support workflows stay compliant.',
   },
   {
-    question: "What's the difference between automated and manual steps?",
+    question: 'Can I measure the impact on my support team?',
     answer:
-      'Automated steps run autonomously using configured triggers and tools. Manual steps prompt human teammates when approvals or oversight is required.',
+      'Yes. Our analytics track response time, AI adoption, refunds issued, escalations, and customer satisfaction so you always know the ROI.',
   },
 ];
 
@@ -303,37 +308,39 @@ export default function HomePage() {
         </div>
         <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
           <div className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
-            Zyyp AI
+            AI Support Desk
           </div>
           <h1 className="text-4xl font-black leading-[1.1] md:text-6xl lg:text-7xl md:leading-[1.08]">
-            Manage and simulate
+            Give your Shopify customers answers
             <span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-indigo-400 bg-clip-text text-transparent">
-              agentic workflows
+              in seconds, not hours
             </span>
           </h1>
           <p className="max-w-3xl text-lg text-white/70 md:text-xl">
-            We empower developers and technical teams to create, simulate, and
-            manage AI-driven workflows visually. Build faster, iterate smarter,
-            and launch confidently with an end-to-end agent operations platform.
+            The AI E-Commerce Support Assistant reads every email, pulls the
+            right Shopify order, and drafts the perfect reply with the action
+            ready to approve. Resolve tickets 60% faster, cut refunds from
+            slipping through the cracks, and delight your customers without
+            burning out your team.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/integrations"
               className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-100"
             >
-              Start building
+              Connect Shopify store
             </Link>
             <a
-              href="#pricing"
+              href="#how-it-works"
               className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white transition hover:border-white hover:text-white"
             >
-              View pricing
+              See how it works
             </a>
           </div>
           <div className="mt-12 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50">
-            <span>Innovative AI solution 2025</span>
+            <span>Purpose-built for ecommerce support</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
-            <span>Trusted by fast moving engineering teams</span>
+            <span>Trusted by fast-moving DTC CX teams</span>
           </div>
         </div>
       </section>
@@ -347,39 +354,39 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Integrations overview */}
-      <section id="pricing" className="bg-slate-50 py-20">
+      {/* How it works */}
+      <section id="how-it-works" className="bg-slate-50 py-20">
         <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
-              Integrates easily
+              How the assistant works end-to-end
             </h2>
             <p className="text-lg text-slate-600 md:text-xl">
-              Design your workflow, connect your tools, and deploy in minutes.
-              Autonomous agents coordinate everything end-to-end so you can ship
-              faster.
+              Centralize conversations, Shopify order data, and AI suggestions
+              in one place. Keep a human in the loop while automation clears the
+              busywork.
             </p>
             <div className="grid gap-6 md:grid-cols-2">
               {[
                 {
-                  title: 'Design your Workflow',
+                  title: 'Centralize conversations',
                   description:
-                    'Drag-and-drop interface to create, connect, and configure agents into logical workflows.',
+                    'Ingest every support email automatically, detect intent, and prioritize high-impact tickets.',
                 },
                 {
-                  title: 'Connect your Tools',
+                  title: 'Match every order',
                   description:
-                    'Agents operate independently and coordinate tasks to complete complex goals together.',
+                    'Surface customer, order, fulfillment, and payment data beside the thread—no extra tabs.',
                 },
                 {
-                  title: 'Deploy & Scale',
+                  title: 'Approve the AI draft',
                   description:
-                    'Run agent workflows in a sandbox to preview behavior, debug logic, and test interactions.',
+                    'Review the AI reply and proposed Shopify action, tweak tone, or add macros before sending.',
                 },
                 {
-                  title: 'Realtime Insights',
+                  title: 'Measure performance',
                   description:
-                    'Monitor triggers, tool usage, and outcomes with timestamped audit logs across every workflow.',
+                    'Track response times, automations approved, refunds issued, and customer sentiment trends.',
                 },
               ].map((card) => (
                 <div
@@ -400,7 +407,7 @@ export default function HomePage() {
                 href="/usage"
                 className="rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-black"
               >
-                Explore workflows
+                Explore the inbox
               </Link>
               <a
                 href="mailto:hello@notus.ai"
@@ -412,59 +419,61 @@ export default function HomePage() {
           </div>
           <div className="space-y-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-slate-900/5">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
-              <span>Slack</span>
-              <span>#standups · Connected</span>
+              <span>Inbox Overview</span>
+              <span>AI + Human · In sync</span>
             </div>
             <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    Anthropic
+                    Customer email parsed
                   </p>
                   <p className="text-xs text-slate-500">
-                    Claude 4 · UI Generator
+                    Intent: Refund request · Confidence 0.92
                   </p>
                 </div>
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
-                  Active
+                  AI draft ready
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Meta</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Shopify order matched
+                  </p>
                   <p className="text-xs text-slate-500">
-                    Llama 2 · Text Generator
+                    Order #48219 · Delivered · 2 items
                   </p>
                 </div>
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-600">
-                  Queued
+                  Needs approval
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">OpenAI</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Suggested action
+                  </p>
                   <p className="text-xs text-slate-500">
-                    GPT-5 · Code Generator
+                    Partial refund · $38.40
                   </p>
                 </div>
                 <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">
-                  Connected
+                  Ready to send
                 </span>
               </div>
             </div>
             <div className="grid gap-3">
-              {deployments.slice(0, 6).map((deploy) => (
+              {supportEvents.slice(0, 6).map((event) => (
                 <div
-                  key={deploy.id}
+                  key={event.id}
                   className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm"
                 >
-                  <div className="font-semibold text-slate-700">
-                    {deploy.id}
-                  </div>
+                  <div className="font-semibold text-slate-700">{event.id}</div>
                   <div className="text-xs text-slate-500">
-                    {deploy.time}
+                    {event.time}
                     <span className="mx-2 text-slate-400">·</span>
-                    {deploy.branch}
+                    {event.intent}
                   </div>
                 </div>
               ))}
@@ -473,20 +482,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Model selector */}
+      {/* Support stack */}
       <section id="features" className="bg-white py-20">
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-3xl text-center">
             <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
-              Built for Agentic Intelligence
+              Connect the tools you already use
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Track real-time activity of agents with detailed records of
-              triggers, tools used, outcomes, and timestamps.
+              Bring Shopify orders, support inboxes, outbound email, and
+              internal chat into one unified workflow.
             </p>
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-2">
-            {modelCards.map((card) => (
+            {channelCards.map((card) => (
               <div
                 key={card.name}
                 className="flex flex-col justify-between rounded-3xl border border-slate-100 bg-slate-50/70 p-6 shadow-lg shadow-slate-900/5 transition hover:-translate-y-1 hover:border-slate-200"
@@ -516,19 +525,19 @@ export default function HomePage() {
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {[
               {
-                title: 'Text-to-Workflow Builder',
+                title: 'Unified support inbox',
                 description:
-                  'Preview and debug workflow logic in a safe sandbox before deploying, helping you iterate with confidence.',
+                  'Every customer message, order, timeline, and AI recommendation in one panel built for ecommerce.',
               },
               {
-                title: 'Native Tools Integration',
+                title: 'Approve & automate actions',
                 description:
-                  'Track real-time activity of agents with detailed records of triggers, tools, outcomes, and timestamps.',
+                  'Set confidence thresholds, create macros, and allow auto-approve when the AI meets your standards.',
               },
               {
-                title: 'Realtime Sync',
+                title: 'Analytics your CFO loves',
                 description:
-                  'Agents operate independently and coordinate tasks to complete complex goals with live collaboration.',
+                  'Quantify savings, measure CSAT changes, and capture revenue saved from faster resolutions.',
               },
             ].map((feature) => (
               <div
@@ -550,23 +559,23 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-3xl text-center">
             <h2 className="text-3xl font-black md:text-4xl">
-              Across various industries
+              Built for modern ecommerce support teams
             </h2>
             <p className="mt-4 text-lg text-white/70">
-              We empower developers and technical teams to create, simulate, and
-              manage AI-driven workflows visually.
+              Whether you are a solo founder or a CX org supporting multiple
+              brands, the assistant adapts to your workflow and approval
+              process.
             </p>
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-3">
             {useCases.map((useCase) => (
               <div
-                key={useCase}
+                key={useCase.title}
                 className="rounded-3xl border border-white/10 bg-white/5 p-8 shadow-inner shadow-black/20 transition hover:-translate-y-1 hover:border-white/20"
               >
-                <h3 className="text-xl font-semibold">{useCase}</h3>
+                <h3 className="text-xl font-semibold">{useCase.title}</h3>
                 <p className="mt-3 text-sm text-white/70">
-                  Visually orchestrate autonomous agents without writing
-                  boilerplate code.
+                  {useCase.description}
                 </p>
               </div>
             ))}
@@ -582,11 +591,11 @@ export default function HomePage() {
               Benefits
             </p>
             <h2 className="mt-4 text-3xl font-black text-slate-900 md:text-4xl">
-              Making engineers 10x faster
+              Why fast-growing stores switch to us
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Empower teams to ship intelligent workflows faster with an
-              opinionated toolchain that keeps humans in control.
+              Replace spreadsheets, manual inbox triage, and scattered order
+              lookups with a single AI-powered workspace built for ecommerce.
             </p>
             <div className="mt-10 rounded-3xl border border-slate-100 bg-slate-50 p-8 shadow-lg shadow-slate-200/50">
               <div className="flex items-center gap-4">
@@ -598,15 +607,15 @@ export default function HomePage() {
                     Dashboard
                   </p>
                   <p className="text-2xl font-black text-slate-900">
-                    Realtime intelligence
+                    Support intelligence
                   </p>
                 </div>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 {[
-                  { label: 'API Calls', value: '68,421' },
-                  { label: 'Success Rate', value: '99.1%' },
-                  { label: 'Workflows', value: '312 active' },
+                  { label: 'Tickets triaged', value: '2,483 / wk' },
+                  { label: 'Avg handle time', value: '4m 12s' },
+                  { label: 'Revenue saved', value: '$18.7k / mo' },
                 ].map((item) => (
                   <div
                     key={item.label}
@@ -639,42 +648,45 @@ export default function HomePage() {
             ))}
             <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
               <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
-                Trusted by fast growing startups
+                Trusted by customer-obsessed brands
               </p>
               <p className="mt-4 text-2xl font-black text-slate-900">
-                “Aceternity changed how we build internal tools. It’s like
-                having a second engineering team that never sleeps.”
+                “We resolve 3x more tickets per agent and finally have
+                confidence that every refund and exchange is handled the right
+                way.”
               </p>
               <div className="mt-6 text-sm font-semibold text-slate-600">
-                <p>James Fincher</p>
-                <p>CEO, Aceternity · 10x hours saved</p>
+                <p>Priya Bose</p>
+                <p>Head of CX, Luma Living · 68% faster responses</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Deployments ticker */}
+      {/* Live feed */}
       <section className="bg-slate-950 py-16 text-white">
         <div className="mx-auto max-w-6xl px-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-2xl font-black md:text-3xl">Deploy & Scale</h2>
+            <h2 className="text-2xl font-black md:text-3xl">
+              Live support activity feed
+            </h2>
             <p className="text-sm text-white/60">
-              Run agent workflows in a sandbox to preview behavior, debug logic,
-              and test interactions.
+              Track resolutions in real time—see which actions the AI is
+              recommending and what your team approves.
             </p>
           </div>
           <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {deployments.map((deploy) => (
+            {supportEvents.map((event) => (
               <div
-                key={deploy.id}
+                key={event.id}
                 className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm shadow-inner shadow-black/40"
               >
                 <div className="font-semibold tracking-wide text-white/90">
-                  {deploy.id}
+                  {event.id}
                 </div>
                 <div className="text-xs uppercase tracking-[0.3em] text-white/50">
-                  {deploy.time} · {deploy.branch}
+                  {event.time} · {event.intent}
                 </div>
               </div>
             ))}
@@ -690,11 +702,11 @@ export default function HomePage() {
               Pricing
             </p>
             <h2 className="mt-4 text-3xl font-black text-slate-900 md:text-4xl">
-              Simple and feasible pricing
+              Choose a plan that scales with your support volume
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Switch between monthly and yearly billing to save more with annual
-              plans.
+              All plans include Shopify + inbox integrations, AI reply drafts,
+              and analytics. Switch to annual billing and save 20%.
             </p>
           </div>
           <div className="mt-10 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600">
@@ -768,7 +780,11 @@ export default function HomePage() {
                       : 'bg-slate-900 text-white hover:bg-black'
                   }`}
                 >
-                  {plan.featured ? 'Start for free' : 'Start building'}
+                  {plan.name === 'Enterprise'
+                    ? 'Talk to sales'
+                    : plan.featured
+                      ? 'Start free trial'
+                      : 'Get started'}
                 </Link>
               </div>
             ))}
@@ -784,11 +800,11 @@ export default function HomePage() {
               For security first teams
             </p>
             <h2 className="mt-4 text-3xl font-black md:text-4xl">
-              Scale securely with confidence
+              Keep customer data secure and compliant
             </h2>
             <p className="mt-4 text-lg text-white/70">
-              Our AI assistant is designed with enterprise-grade security
-              practices and compliant with global data protection standards.
+              Protect customer PII, payment details, and support history with
+              enterprise-grade encryption, fine-grained roles, and audit trails.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4 text-xs font-semibold uppercase tracking-[0.3em] text-white/50">
               <span className="rounded-full border border-white/20 px-4 py-2">
@@ -808,23 +824,23 @@ export default function HomePage() {
                 Zero data retention sandbox
               </h3>
               <p className="mt-3 text-sm text-white/70">
-                Configure regional isolation, private VPC deployment, and
-                role-based access so workflows stay compliant from day one.
+                Keep sensitive conversations inside your boundary with regional
+                isolation, private deployments, and custom data retention
+                policies.
               </p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <h3 className="text-lg font-semibold">Granular governance</h3>
               <p className="mt-3 text-sm text-white/70">
-                Attribute every action to a human or agent identity. Export
-                audit logs, monitor permissions, and enable approvals where
-                needed.
+                Attribute every action to a teammate or AI, monitor approvals,
+                export audit logs, and integrate with your compliance workflows.
               </p>
             </div>
             <Link
               href="/integrations"
               className="inline-flex items-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
             >
-              Start for free
+              View security overview
             </Link>
           </div>
         </div>
@@ -885,19 +901,19 @@ export default function HomePage() {
       <section className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 py-20 text-white">
         <div className="mx-auto flex max-w-5xl flex-col items-center gap-8 px-6 text-center">
           <h2 className="text-3xl font-black md:text-4xl">
-            Connect your current stack and start automating
+            Deliver five-star support without adding headcount
           </h2>
           <p className="max-w-3xl text-lg text-white/70">
-            Launch AI-driven workflows with confidence. Preview every run,
-            simulate complex scenarios, and deploy to production without manual
-            toil.
+            Connect Shopify, sync your inbox, and let the AI E-Commerce Support
+            Assistant handle the repetitive work. Your team approves,
+            personalizes, and delivers delight.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/integrations"
               className="rounded-full bg-white px-10 py-3 text-sm font-semibold text-slate-900 transition hover:-translate-y-0.5 hover:bg-slate-100"
             >
-              Start building for free
+              Launch your inbox
             </Link>
             <a
               href="https://cal.com/notus/demo"
@@ -905,7 +921,7 @@ export default function HomePage() {
               target="_blank"
               rel="noreferrer"
             >
-              Contact sales
+              Book a walkthrough
             </a>
           </div>
         </div>
