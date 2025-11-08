@@ -1,29 +1,30 @@
-"use client"
+'use client';
 
-import Link from "next/link"
-import { useSession, signIn } from "next-auth/react"
-import { ArrowRight } from "lucide-react"
+import Link from 'next/link';
+import type { Route } from 'next';
+import { useSession, signIn } from 'next-auth/react';
+import { ArrowRight } from 'lucide-react';
 
 const socialLinks = [
-  { href: "https://www.linkedin.com", label: "LinkedIn", external: true },
-  { href: "https://twitter.com", label: "Twitter", external: true },
-  { href: "https://www.facebook.com", label: "Facebook", external: true },
-]
+  { href: 'https://www.linkedin.com', label: 'LinkedIn', external: true },
+  { href: 'https://twitter.com', label: 'Twitter', external: true },
+  { href: 'https://www.facebook.com', label: 'Facebook', external: true },
+];
 
 const policyLinks = [
-  { href: "/privacy-policy", label: "Privacy Policy" },
-  { href: "/terms", label: "Terms & Conditions" },
-]
+  { href: '/privacy-policy', label: 'Privacy Policy' },
+  { href: '/terms', label: 'Terms & Conditions' },
+] satisfies Array<{ href: Route; label: string }>;
 
 export default function Footer() {
-  const { status } = useSession()
-  const isAuthed = status === "authenticated"
+  const { status } = useSession();
+  const isAuthed = status === 'authenticated';
 
   const pageLinks = [
-    { href: "/", label: "Home" },
-    { href: "/about", label: "About Us" },
-    { href: "/pricing", label: "Pricing" },
-  ]
+    { href: '/', label: 'Home' },
+    { href: '/about', label: 'About Us' },
+    { href: '/pricing', label: 'Pricing' },
+  ] satisfies Array<{ href: Route; label: string }>;
 
   return (
     <footer className="relative overflow-hidden bg-[#050505] text-white">
@@ -32,16 +33,16 @@ export default function Footer() {
           <div className="space-y-12">
             <div className="space-y-6">
               <h2 className="text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-                Unlock 800+ blocks now
+                Unlock the power of AI for your Shopify store
               </h2>
               <div className="space-y-3 text-sm uppercase text-white/60">
                 <span>Get Support :</span>
-                <Link
-                  href="mailto:hi@shadcnblocks.com"
+                <a
+                  href="mailto:hi@zyyp.ai"
                   className="block text-base font-medium leading-6 uppercase text-white hover:text-white/80"
                 >
-                  hi@shadcnblocks.com
-                </Link>
+                  hi@zyyp.ai
+                </a>
               </div>
             </div>
 
@@ -49,11 +50,9 @@ export default function Footer() {
               <p className="text-sm uppercase tracking-widest text-white/60">
                 Sign up for newsletter :
               </p>
-              <form
-                className="flex max-w-lg items-center gap-4 border-b border-white/20 pb-4 transition focus-within:border-white/60"
-              >
+              <form className="flex max-w-lg items-center gap-4 border-b border-white/20 pb-4 transition focus-within:border-white/60">
                 <label htmlFor="newsletter-name" className="sr-only">
-                  Name
+                  Email
                 </label>
                 <input
                   id="newsletter-name"
@@ -93,7 +92,7 @@ export default function Footer() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => signIn("google")}
+                      onClick={() => signIn('google')}
                       className="tracking-tight text-white transition hover:text-white/70"
                     >
                       Login
@@ -110,17 +109,17 @@ export default function Footer() {
               <ul className="space-y-3">
                 {socialLinks.map((link) => (
                   <li key={link.label}>
-                    <Link
+                    <a
                       href={link.href}
-                      target={link.external ? "_blank" : undefined}
-                      rel={link.external ? "noreferrer" : undefined}
+                      target={link.external ? '_blank' : undefined}
+                      rel={link.external ? 'noreferrer' : undefined}
                       className="flex items-center gap-2 text-white transition hover:text-white/70"
                     >
                       {link.label}
                       <span aria-hidden className="text-white/40">
                         ↗
                       </span>
-                    </Link>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -132,7 +131,7 @@ export default function Footer() {
               </p>
               <div className="space-y-3">
                 <div className="space-y-1 text-white/70">
-                  <p>Punjab, 141421</p>
+                  <p>Gurugram, 122001</p>
                   <p>India, Asia</p>
                 </div>
                 <ul className="space-y-3">
@@ -154,11 +153,10 @@ export default function Footer() {
 
         <div className="pointer-events-none select-none text-right">
           <p className="text-[18vw] font-semibold uppercase leading-none tracking-tight text-white/5 sm:text-[16vw]">
-            blocks
+            zyyp
           </p>
         </div>
       </div>
     </footer>
-  )
+  );
 }
-

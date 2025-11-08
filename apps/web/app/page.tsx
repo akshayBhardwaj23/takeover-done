@@ -172,17 +172,35 @@ const faqs = [
 
 const heroFlares: Array<{ style: CSSProperties; className: string }> = [
   {
-    style: { top: '-14%', left: '-12%', width: '30rem', height: '30rem', animationDuration: '24s' },
+    style: {
+      top: '-14%',
+      left: '-12%',
+      width: '30rem',
+      height: '30rem',
+      animationDuration: '24s',
+    },
     className:
       'rounded-full bg-gradient-to-br from-cyan-500/25 via-sky-500/10 to-transparent blur-3xl opacity-80 animate-drift mix-blend-screen',
   },
   {
-    style: { top: '6%', right: '-10%', width: '34rem', height: '34rem', animationDuration: '28s' },
+    style: {
+      top: '6%',
+      right: '-10%',
+      width: '34rem',
+      height: '34rem',
+      animationDuration: '28s',
+    },
     className:
       'rounded-full bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent blur-[160px] opacity-80 animate-drift mix-blend-screen',
   },
   {
-    style: { bottom: '-16%', left: '22%', width: '40rem', height: '40rem', animationDuration: '26s' },
+    style: {
+      bottom: '-16%',
+      left: '22%',
+      width: '40rem',
+      height: '40rem',
+      animationDuration: '26s',
+    },
     className:
       'rounded-full bg-gradient-to-tr from-blue-400/15 via-teal-400/10 to-transparent blur-[140px] opacity-70 animate-drift mix-blend-screen',
   },
@@ -197,21 +215,44 @@ const heroSparkles: Array<{ style: CSSProperties; delay: string }> = [
   { style: { top: '26%', right: '45%' }, delay: '0.3s' },
 ];
 
-const heroStreams: Array<{ style: CSSProperties; gradient: string; duration: string; delay?: string }> = [
+const heroStreams: Array<{
+  style: CSSProperties;
+  gradient: string;
+  duration: string;
+  delay?: string;
+}> = [
   {
-    style: { top: '15%', left: '10%', width: '22rem', height: '22rem', transform: 'rotate(12deg)' },
+    style: {
+      top: '15%',
+      left: '10%',
+      width: '22rem',
+      height: '22rem',
+      transform: 'rotate(12deg)',
+    },
     gradient: 'from-cyan-400/20 via-blue-500/10 to-transparent',
     duration: '32s',
     delay: '-4s',
   },
   {
-    style: { bottom: '10%', right: '12%', width: '26rem', height: '26rem', transform: 'rotate(-18deg)' },
+    style: {
+      bottom: '10%',
+      right: '12%',
+      width: '26rem',
+      height: '26rem',
+      transform: 'rotate(-18deg)',
+    },
     gradient: 'from-indigo-400/18 via-purple-500/12 to-transparent',
     duration: '36s',
     delay: '-10s',
   },
   {
-    style: { top: '28%', right: '40%', width: '18rem', height: '18rem', transform: 'rotate(35deg)' },
+    style: {
+      top: '28%',
+      right: '40%',
+      width: '18rem',
+      height: '18rem',
+      transform: 'rotate(35deg)',
+    },
     gradient: 'from-sky-300/18 via-cyan-400/10 to-transparent',
     duration: '28s',
   },
@@ -227,7 +268,11 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(94,234,212,0.18)_0,rgba(15,23,42,0)_45%)]" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {heroFlares.map((flare, index) => (
-            <div key={`hero-flare-${index}`} className={flare.className} style={flare.style} />
+            <div
+              key={`hero-flare-${index}`}
+              className={flare.className}
+              style={flare.style}
+            />
           ))}
           {heroStreams.map((stream, index) => (
             <div
@@ -258,7 +303,7 @@ export default function HomePage() {
         </div>
         <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
           <div className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
-            Zyyp Zyyp
+            Zyyp AI
           </div>
           <h1 className="text-4xl font-black leading-[1.1] md:text-6xl lg:text-7xl md:leading-[1.08]">
             Manage and simulate
