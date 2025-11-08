@@ -58,6 +58,27 @@ type MessagePreview = {
   direction?: string;
 };
 
+type UnassignedMessage = {
+  id: string;
+  from: string;
+  to: string;
+  body: string;
+  createdAt: string;
+  direction?: string;
+  subject?: string;
+  snippet?: string;
+  thread?: {
+    subject?: string;
+  } | null;
+  aiSuggestion?: {
+    reply?: string;
+    proposedAction?: string;
+    confidence?: number;
+    rationale?: string;
+    draftReply?: string;
+  } | null;
+};
+
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -82,8 +103,12 @@ export default function InboxPage() {
   const [shop, setShop] = useState('');
   const [view, setView] = useState<'orders' | 'unlinked'>('orders');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [selectedUnlinkedId, setSelectedUnlinkedId] = useState<string | null>(null);
-  const [messagePreviewByOrder, setMessagePreviewByOrder] = useState<Record<string, MessagePreview>>({});
+  const [selectedUnlinkedId, setSelectedUnlinkedId] = useState<string | null>(
+    null,
+  );
+  const [messagePreviewByOrder, setMessagePreviewByOrder] = useState<
+    Record<string, MessagePreview>
+  >({});
   const [draft, setDraft] = useState('');
   const [unlinkedSuggestion, setUnlinkedSuggestion] = useState<any>(null);
 
@@ -128,7 +153,10 @@ export default function InboxPage() {
       toast.success('Reply sent successfully');
     },
     onError: (error) => {
-      if (error.data?.code === 'FORBIDDEN' && error.message?.includes('Email limit')) {
+      if (
+        error.data?.code === 'FORBIDDEN' &&
+        error.message?.includes('Email limit')
+      ) {
         toast.error(error.message || 'Email limit reached.');
         emailLimit.refetch();
       } else {
@@ -163,7 +191,10 @@ export default function InboxPage() {
     if (aiSuggestion?.reply && !draft) setDraft(aiSuggestion.reply);
   }, [aiSuggestion, draft]);
 
-  const orders = useMemo(() => (dbOrders.data?.orders ?? []) as DbOrder[], [dbOrders.data?.orders]);
+  const orders = useMemo(
+    () => (dbOrders.data?.orders ?? []) as DbOrder[],
+    [dbOrders.data?.orders],
+  );
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.shopifyId === selectedOrderId) ?? null,
@@ -172,13 +203,17 @@ export default function InboxPage() {
 
   const selectedEmail = useMemo(() => {
     if (!messages.data?.messages?.length) return null;
-    const inbound = (messages.data.messages as any[]).find((msg) => msg.direction === 'INBOUND');
-    return (inbound ?? (messages.data.messages as any[])[0]) ?? null;
+    const inbound = (messages.data.messages as any[]).find(
+      (msg) => msg.direction === 'INBOUND',
+    );
+    return inbound ?? (messages.data.messages as any[])[0] ?? null;
   }, [messages.data]);
 
-  const selectedUnlinkedEmail = useMemo(() => {
+  const selectedUnlinkedEmail = useMemo<UnassignedMessage | null>(() => {
     if (!selectedUnlinkedId) return null;
-    return (unassigned.data?.messages ?? []).find((msg: any) => msg.id === selectedUnlinkedId) ?? null;
+    const messages =
+      (unassigned.data?.messages as UnassignedMessage[] | undefined) ?? [];
+    return messages.find((msg) => msg.id === selectedUnlinkedId) ?? null;
   }, [selectedUnlinkedId, unassigned.data?.messages]);
 
   const metrics = useMemo(() => {
@@ -186,15 +221,41 @@ export default function InboxPage() {
     const refundRate = `${Math.max(0, Math.round(((recentOrders.data?.orders?.length ?? 0) / 50) * 1000) / 10)}%`;
     const avgExecution = recentOrders.data?.orders?.length ? '12.4s' : '—';
     return [
-      { title: 'Active orders', value: openTickets.toString(), icon: <Inbox className="h-4 w-4 text-slate-400" />, change: '+8%' },
-      { title: 'Task success rate', value: `${Math.max(0, 100 - (emailLimit.data?.percentage ?? 0)).toFixed(1)}%`, icon: <CheckCircle className="h-4 w-4 text-emerald-400" />, change: '+4%' },
-      { title: 'Avg execution time', value: avgExecution, icon: <Clock className="h-4 w-4 text-sky-400" />, change: '-12%' },
-      { title: 'Unmatched emails', value: (unassigned.data?.messages?.length ?? 0).toString(), icon: <Mail className="h-4 w-4 text-rose-400" />, change: '+2%' },
+      {
+        title: 'Active orders',
+        value: openTickets.toString(),
+        icon: <Inbox className="h-4 w-4 text-slate-400" />,
+        change: '+8%',
+      },
+      {
+        title: 'Task success rate',
+        value: `${Math.max(0, 100 - (emailLimit.data?.percentage ?? 0)).toFixed(1)}%`,
+        icon: <CheckCircle className="h-4 w-4 text-emerald-400" />,
+        change: '+4%',
+      },
+      {
+        title: 'Avg execution time',
+        value: avgExecution,
+        icon: <Clock className="h-4 w-4 text-sky-400" />,
+        change: '-12%',
+      },
+      {
+        title: 'Unmatched emails',
+        value: (unassigned.data?.messages?.length ?? 0).toString(),
+        icon: <Mail className="h-4 w-4 text-rose-400" />,
+        change: '+2%',
+      },
     ];
-  }, [orders.length, recentOrders.data?.orders, emailLimit.data?.percentage, unassigned.data?.messages?.length]);
+  }, [
+    orders.length,
+    recentOrders.data?.orders,
+    emailLimit.data?.percentage,
+    unassigned.data?.messages?.length,
+  ]);
 
   const linkedPreviews = useMemo(() => {
-    if (!orders.length) return [] as Array<{ order: DbOrder; preview: MessagePreview | null }>;
+    if (!orders.length)
+      return [] as Array<{ order: DbOrder; preview: MessagePreview | null }>;
     return orders.map((order) => ({
       order,
       preview: messagePreviewByOrder[order.shopifyId] ?? null,
@@ -210,14 +271,21 @@ export default function InboxPage() {
   };
 
   const handleGenerateAi = async (message: any, order?: DbOrder) => {
-    const inboundCandidate = message?.direction === 'INBOUND' ? message : message ?? selectedEmail;
+    const inboundCandidate =
+      message?.direction === 'INBOUND' ? message : (message ?? selectedEmail);
     if (!inboundCandidate) {
       toast.info('No inbound email to analyse.');
       return;
     }
-    const fallbackSummary = message?.subject || message?.snippet || message?.body || 'Customer inquiry';
+    const fallbackSummary =
+      message?.subject ||
+      message?.snippet ||
+      message?.body ||
+      'Customer inquiry';
     const orderSummary = order
-      ? orderDetail.data?.order?.name || order.name || `Order ${order.shopifyId}`
+      ? orderDetail.data?.order?.name ||
+        order.name ||
+        `Order ${order.shopifyId}`
       : fallbackSummary;
     const customerEmail = order?.email ?? inboundCandidate.from;
     try {
@@ -263,7 +331,8 @@ export default function InboxPage() {
         body: draft,
       });
       if (result.ok) {
-        if ((result as any).stub) toast.warning('Reply logged (Mailgun not configured)');
+        if ((result as any).stub)
+          toast.warning('Reply logged (Mailgun not configured)');
         else toast.success('Reply sent successfully');
         setDraft('');
         emailLimit.refetch();
@@ -316,10 +385,16 @@ export default function InboxPage() {
                   className="w-36 bg-transparent text-sm outline-none"
                 />
               </div>
-              <Button variant="outline" className="rounded-full border-slate-200 text-xs text-slate-600">
+              <Button
+                variant="outline"
+                className="rounded-full border-slate-200 text-xs text-slate-600"
+              >
                 Refresh
               </Button>
-              <Button variant="outline" className="rounded-full border-slate-200 text-xs text-slate-600">
+              <Button
+                variant="outline"
+                className="rounded-full border-slate-200 text-xs text-slate-600"
+              >
                 Settings
               </Button>
             </div>
@@ -328,7 +403,7 @@ export default function InboxPage() {
 
         <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
           <div className="mb-6 inline-flex rounded-2xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
-            {(['orders', 'unmatched'] as const).map((tab) => (
+            {(['orders', 'unlinked'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -337,7 +412,9 @@ export default function InboxPage() {
                   if (tab === 'unlinked') setSelectedOrderId(null);
                 }}
                 className={`rounded-xl px-4 py-2 font-semibold transition ${
-                  view === tab ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:text-slate-900'
+                  view === tab
+                    ? 'bg-slate-900 text-white shadow'
+                    : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 {tab === 'orders' ? 'Orders' : 'Unmatched emails'}
@@ -347,13 +424,20 @@ export default function InboxPage() {
 
           <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {metrics.map((metric) => (
-              <Card key={metric.title} className="flex flex-col gap-2 border border-slate-200 bg-white p-4 shadow-sm">
+              <Card
+                key={metric.title}
+                className="flex flex-col gap-2 border border-slate-200 bg-white p-4 shadow-sm"
+              >
                 <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
                   <span>{metric.title}</span>
                   {metric.icon}
                 </div>
-                <p className="text-2xl font-semibold text-slate-900">{metric.value}</p>
-                <span className="text-xs text-emerald-500">{metric.change}</span>
+                <p className="text-2xl font-semibold text-slate-900">
+                  {metric.value}
+                </p>
+                <span className="text-xs text-emerald-500">
+                  {metric.change}
+                </span>
               </Card>
             ))}
           </section>
@@ -361,13 +445,19 @@ export default function InboxPage() {
           {view === 'orders' ? (
             <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
               <Card className="border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <div className="text-sm font-semibold text-slate-900">Orders</div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <ListChecks className="h-4 w-4" />
-                synced {recentOrders.isLoading ? 'loading…' : `${recentOrders.data?.orders?.length ?? 0}`} records
-              </div>
-            </div>
+                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                  <div className="text-sm font-semibold text-slate-900">
+                    Orders
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <ListChecks className="h-4 w-4" />
+                    synced{' '}
+                    {recentOrders.isLoading
+                      ? 'loading…'
+                      : `${recentOrders.data?.orders?.length ?? 0}`}{' '}
+                    records
+                  </div>
+                </div>
                 <div className="divide-y divide-slate-200">
                   {dbOrders.isLoading ? (
                     <div className="space-y-2 p-4">
@@ -382,7 +472,9 @@ export default function InboxPage() {
                         type="button"
                         onClick={() => handleSelectOrder(order)}
                         className={`grid w-full grid-cols-[1.2fr,1.4fr,1fr,1fr] items-center gap-3 px-4 py-4 text-left transition ${
-                          selectedOrderId === order.shopifyId ? 'bg-slate-50' : 'hover:bg-slate-50/60'
+                          selectedOrderId === order.shopifyId
+                            ? 'bg-slate-50'
+                            : 'hover:bg-slate-50/60'
                         }`}
                       >
                         <div>
@@ -394,7 +486,9 @@ export default function InboxPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="text-sm text-slate-600">{order.email ?? 'No email'}</p>
+                          <p className="text-sm text-slate-600">
+                            {order.email ?? 'No email'}
+                          </p>
                           <p className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500">
                             <DollarSign className="h-3 w-3" />
                             {formatCurrency(order.totalAmount)}
@@ -403,12 +497,18 @@ export default function InboxPage() {
                         <div>
                           <Badge
                             className={`text-xs font-semibold ${
-                              STATUS_COLORS[order.status as keyof typeof STATUS_COLORS] ?? STATUS_COLORS.default
+                              STATUS_COLORS[
+                                order.status as keyof typeof STATUS_COLORS
+                              ] ?? STATUS_COLORS.default
                             }`}
                           >
                             {order.status || 'PENDING'}
                           </Badge>
-                          <p className="mt-1 text-xs text-slate-500">{recentOrders.data?.orders?.find((o: any) => o.id === order.shopifyId)?.fulfillmentStatus ?? '—'}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {recentOrders.data?.orders?.find(
+                              (o: any) => o.id === order.shopifyId,
+                            )?.fulfillmentStatus ?? '—'}
+                          </p>
                         </div>
                         <div>
                           <p className="line-clamp-1 text-sm text-slate-600">
@@ -436,11 +536,13 @@ export default function InboxPage() {
                       Active
                     </span>
                   </div>
-                  <p className="mt-4 text-3xl font-semibold text-slate-900">{orders.length}</p>
+                  <p className="mt-4 text-3xl font-semibold text-slate-900">
+                    {orders.length}
+                  </p>
                   <p className="text-xs text-slate-500">Orders available</p>
                 </Card>
                 <Card className="border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="text-sm text-slate-500">Unmatched emails</div>
+                  <div className="text-sm text-slate-500">Unmatched emails</div>
                   <p className="mt-4 text-3xl font-semibold text-slate-900">
                     {unassigned.data?.messages?.length ?? 0}
                   </p>
@@ -456,9 +558,13 @@ export default function InboxPage() {
                 <Card className="border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="text-sm text-slate-500">Email usage</div>
                   <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {emailLimit.data ? `${emailLimit.data.current}/${emailLimit.data.limit}` : '—'}
+                    {emailLimit.data
+                      ? `${emailLimit.data.current}/${emailLimit.data.limit}`
+                      : '—'}
                   </p>
-                  <p className="text-xs text-slate-500">Messages sent this period</p>
+                  <p className="text-xs text-slate-500">
+                    Messages sent this period
+                  </p>
                   {emailLimit.data && !emailLimit.data.allowed && (
                     <UpgradePrompt
                       usagePercentage={emailLimit.data.percentage}
@@ -466,13 +572,17 @@ export default function InboxPage() {
                       limit={emailLimit.data.limit}
                       planName={
                         emailLimit.data.planType
-                          ? emailLimit.data.planType.toLowerCase().replace(/^\w/, (c) => c.toUpperCase())
+                          ? emailLimit.data.planType
+                              .toLowerCase()
+                              .replace(/^\w/, (c) => c.toUpperCase())
                           : 'Current'
                       }
                       variant="inline"
                       isTrial={emailLimit.data.trial?.isTrial ?? false}
                       trialExpired={emailLimit.data.trial?.expired ?? false}
-                      trialDaysRemaining={emailLimit.data.trial?.daysRemaining ?? null}
+                      trialDaysRemaining={
+                        emailLimit.data.trial?.daysRemaining ?? null
+                      }
                     />
                   )}
                 </Card>
@@ -481,8 +591,12 @@ export default function InboxPage() {
           ) : (
             <Card className="border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div className="text-sm font_semibold text-slate-900">Unmatched emails</div>
-                <div className="text-xs text-slate-500">{unassigned.data?.messages?.length ?? 0} awaiting mapping</div>
+                <div className="text-sm font_semibold text-slate-900">
+                  Unmatched emails
+                </div>
+                <div className="text-xs text-slate-500">
+                  {unassigned.data?.messages?.length ?? 0} awaiting mapping
+                </div>
               </div>
               <div className="divide-y divide-slate-200">
                 {unassigned.isLoading ? (
@@ -492,12 +606,23 @@ export default function InboxPage() {
                     ))}
                   </div>
                 ) : (unassigned.data?.messages ?? []).length ? (
-                  (unassigned.data?.messages ?? []).map((message: any) => (
-                    <div key={message.id} className="grid grid-cols-[2fr,1fr,1fr] items-center gap-3 px-4 py-4">
+                  (
+                    (unassigned.data?.messages ?? []) as UnassignedMessage[]
+                  ).map((message) => (
+                    <div
+                      key={message.id}
+                      className="grid grid-cols-[2fr,1fr,1fr] items-center gap-3 px-4 py-4"
+                    >
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">{message.subject ?? 'No subject'}</p>
-                        <p className="text-xs text-slate-500">From: {message.from}</p>
-                        <p className="mt-2 line-clamp-2 text-xs text-slate-500">{message.body}</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {message.subject ?? 'No subject'}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          From: {message.from}
+                        </p>
+                        <p className="mt-2 line-clamp-2 text-xs text-slate-500">
+                          {message.body}
+                        </p>
                       </div>
                       <div className="text-xs text-slate-500">
                         {new Date(message.createdAt).toLocaleString()}
@@ -522,7 +647,9 @@ export default function InboxPage() {
                           disabled={sendUnassignedReply.isPending}
                           onClick={() => handleSendUnlinkedReply(message)}
                         >
-                          {sendUnassignedReply.isPending ? 'Sending…' : 'Send AI reply'}
+                          {sendUnassignedReply.isPending
+                            ? 'Sending…'
+                            : 'Send AI reply'}
                         </Button>
                       </div>
                     </div>
@@ -554,7 +681,11 @@ export default function InboxPage() {
               <div>
                 <p className="text-xs text-slate-500">Inspector</p>
                 <p className="text-sm font-semibold text-slate-900">
-                  {selectedOrder ? selectedOrder.name ?? `#${selectedOrder.shopifyId}` : selectedUnlinkedEmail?.subject}
+                  {selectedOrder
+                    ? (selectedOrder.name ?? `#${selectedOrder.shopifyId}`)
+                    : (selectedUnlinkedEmail?.subject ??
+                      selectedUnlinkedEmail?.thread?.subject ??
+                      'Unmatched email')}
                 </p>
               </div>
               <Button
@@ -578,7 +709,9 @@ export default function InboxPage() {
                     <span>Order details</span>
                     <Badge
                       className={`text-xs font-semibold ${
-                        STATUS_COLORS[selectedOrder.status as keyof typeof STATUS_COLORS] ?? STATUS_COLORS.default
+                        STATUS_COLORS[
+                          selectedOrder.status as keyof typeof STATUS_COLORS
+                        ] ?? STATUS_COLORS.default
                       }`}
                     >
                       {selectedOrder.status}
@@ -597,24 +730,34 @@ export default function InboxPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Placed</span>
-                      <span>{new Date(selectedOrder.createdAt).toLocaleString()}</span>
+                      <span>
+                        {new Date(selectedOrder.createdAt).toLocaleString()}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span>Total</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(selectedOrder.totalAmount)}</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatCurrency(selectedOrder.totalAmount)}
+                      </span>
                     </div>
                   </div>
                   <Button
                     size="sm"
                     className="mt-4 w-full rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                    onClick={() => refreshOrder.mutate({
-                      shop,
-                      orderId: selectedOrderId ?? '',
-                    })}
+                    onClick={() =>
+                      refreshOrder.mutate({
+                        shop,
+                        orderId: selectedOrderId ?? '',
+                      })
+                    }
                     disabled={refreshOrder.isPending}
                   >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${refreshOrder.isPending ? 'animate-spin' : ''}`} />
-                    {refreshOrder.isPending ? 'Syncing…' : 'Refresh from Shopify'}
+                    <RefreshCw
+                      className={`mr-2 h-4 w-4 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                    />
+                    {refreshOrder.isPending
+                      ? 'Syncing…'
+                      : 'Refresh from Shopify'}
                   </Button>
                 </Card>
 
@@ -622,38 +765,55 @@ export default function InboxPage() {
 
                 {orderDetail.data?.order && (
                   <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="text-sm font-semibold text-slate-900">Items</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      Items
+                    </div>
                     <div className="mt-3 space-y-3">
-                      {(orderDetail.data.order.lineItems ?? []).map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between text-sm text-slate-600">
-                          <div>
-                            <p className="font-semibold text-slate-900">{item.title}</p>
-                            <p className="text-xs text-slate-500">Qty {item.quantity}</p>
+                      {(orderDetail.data.order.lineItems ?? []).map(
+                        (item: any) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between text-sm text-slate-600"
+                          >
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {item.title}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                Qty {item.quantity}
+                              </p>
+                            </div>
+                            <span>{item.price}</span>
                           </div>
-                          <span>{item.price}</span>
-                        </div>
-                      ))}
+                        ),
+                      )}
                     </div>
                   </Card>
                 )}
 
                 <Card className="border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-900">AI suggestion</div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      AI suggestion
+                    </div>
                     {aiSuggestion && (
                       <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
-                        {Math.round((aiSuggestion.confidence ?? 0) * 100)}% confidence
+                        {Math.round((aiSuggestion.confidence ?? 0) * 100)}%
+                        confidence
                       </Badge>
                     )}
                   </div>
                   <p className="mt-3 text-sm text-slate-600">
-                    {aiSuggestion?.rationale ?? 'Select "Generate AI reply" to analyse the latest customer email.'}
+                    {aiSuggestion?.rationale ??
+                      'Select "Generate AI reply" to analyse the latest customer email.'}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs">
                     <Button
                       size="sm"
                       className="rounded-full bg-slate-900 text-white"
-                      onClick={() => handleGenerateAi(selectedEmail, selectedOrder)}
+                      onClick={() =>
+                        handleGenerateAi(selectedEmail, selectedOrder)
+                      }
                       disabled={suggest.isPending}
                     >
                       <Sparkles className="mr-2 h-4 w-4" />
@@ -671,7 +831,9 @@ export default function InboxPage() {
                 </Card>
 
                 <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="mb-2 text-sm font-semibold text-slate-900">Reply draft</div>
+                  <div className="mb-2 text-sm font-semibold text-slate-900">
+                    Reply draft
+                  </div>
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
@@ -683,12 +845,21 @@ export default function InboxPage() {
                     <Button
                       className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
                       onClick={handleSendReply}
-                      disabled={!draft || createAction.isPending || approveSend.isPending}
+                      disabled={
+                        !draft ||
+                        createAction.isPending ||
+                        approveSend.isPending
+                      }
                     >
-                      {createAction.isPending || approveSend.isPending ? 'Sending…' : 'Send email'}
+                      {createAction.isPending || approveSend.isPending
+                        ? 'Sending…'
+                        : 'Send email'}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
-                    <Button variant="outline" className="rounded-full border-slate-200 text-sm text-slate-600">
+                    <Button
+                      variant="outline"
+                      className="rounded-full border-slate-200 text-sm text-slate-600"
+                    >
                       Copy
                     </Button>
                   </div>
@@ -713,7 +884,9 @@ export default function InboxPage() {
                               >
                                 {message.direction}
                               </Badge>
-                              <span>{new Date(message.createdAt).toLocaleString()}</span>
+                              <span>
+                                {new Date(message.createdAt).toLocaleString()}
+                              </span>
                             </div>
                             <Separator className="my-2 bg-slate-200" />
                             <p className="text-sm text-slate-600 whitespace-pre-wrap">
@@ -735,7 +908,9 @@ export default function InboxPage() {
             {selectedUnlinkedEmail && (
               <div className="space-y-5">
                 <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-sm font-semibold text-slate-900">Email preview</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Email preview
+                  </div>
                   <p className="mt-2 text-xs text-slate-500">
                     From: {selectedUnlinkedEmail.from} ·{' '}
                     {new Date(selectedUnlinkedEmail.createdAt).toLocaleString()}
@@ -761,21 +936,24 @@ export default function InboxPage() {
 
                 <Card className="border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-900">AI suggestion</div>
-                    {(
-                      (unlinkedSuggestion as any)?.confidence ??
-                      selectedUnlinkedEmail.aiSuggestion?.confidence
-                    ) && (
+                    <div className="text-sm font-semibold text-slate-900">
+                      AI suggestion
+                    </div>
+                    {((unlinkedSuggestion as any)?.confidence ??
+                      selectedUnlinkedEmail.aiSuggestion?.confidence) && (
                       <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
                         {Math.round(
-                          ((unlinkedSuggestion as any)?.confidence ?? selectedUnlinkedEmail.aiSuggestion?.confidence) * 100,
+                          ((unlinkedSuggestion as any)?.confidence ??
+                            selectedUnlinkedEmail.aiSuggestion?.confidence) *
+                            100,
                         )}
                         % confidence
                       </Badge>
                     )}
                   </div>
                   <p className="mt-3 text-sm text-slate-600">
-                    {(unlinkedSuggestion as any)?.rationale ?? selectedUnlinkedEmail.aiSuggestion?.rationale ??
+                    {(unlinkedSuggestion as any)?.rationale ??
+                      selectedUnlinkedEmail.aiSuggestion?.rationale ??
                       'Generate a reply to analyse this email.'}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -787,14 +965,17 @@ export default function InboxPage() {
                     >
                       {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
                     </Button>
-                    {(unlinkedSuggestion as any)?.draftReply || selectedUnlinkedEmail.aiSuggestion?.reply ? (
+                    {(unlinkedSuggestion as any)?.draftReply ||
+                    selectedUnlinkedEmail.aiSuggestion?.reply ? (
                       <Button
                         variant="outline"
                         size="sm"
                         className="rounded-full border-slate-200 text-slate-600"
                         onClick={() =>
                           setDraft(
-                            (unlinkedSuggestion as any)?.draftReply ?? selectedUnlinkedEmail.aiSuggestion?.reply ?? '',
+                            (unlinkedSuggestion as any)?.draftReply ??
+                              selectedUnlinkedEmail.aiSuggestion?.reply ??
+                              '',
                           )
                         }
                       >
@@ -805,7 +986,9 @@ export default function InboxPage() {
                 </Card>
 
                 <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-sm font-semibold text-slate-900">Reply draft</div>
+                  <div className="text-sm font-semibold text-slate-900">
+                    Reply draft
+                  </div>
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
@@ -816,10 +999,17 @@ export default function InboxPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
                       className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                      onClick={() => handleSendUnlinkedReply(selectedUnlinkedEmail)}
-                      disabled={sendUnassignedReply.isPending || (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)}
+                      onClick={() =>
+                        handleSendUnlinkedReply(selectedUnlinkedEmail)
+                      }
+                      disabled={
+                        sendUnassignedReply.isPending ||
+                        (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)
+                      }
                     >
-                      {sendUnassignedReply.isPending ? 'Sending…' : 'Send AI reply'}
+                      {sendUnassignedReply.isPending
+                        ? 'Sending…'
+                        : 'Send AI reply'}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                     <Button
