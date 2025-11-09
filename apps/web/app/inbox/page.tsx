@@ -356,9 +356,9 @@ export default function InboxPage() {
 
   const handleSendReply = async () => {
     if (!selectedEmail || !selectedOrder) return;
-    const recipientEmail = extractEmailAddress(
-      selectedOrder.email ?? selectedEmail.from,
-    );
+    const inboundEmail = extractEmailAddress(selectedEmail.from);
+    const orderEmail = extractEmailAddress(selectedOrder.email);
+    const recipientEmail = inboundEmail ?? orderEmail;
     if (!recipientEmail) {
       toast.error('No valid recipient email found for this order.');
       return;
