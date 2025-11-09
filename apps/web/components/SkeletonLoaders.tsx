@@ -16,48 +16,39 @@ export function OrderCardSkeleton() {
 
 export function OrderDetailSkeleton() {
   return (
-    <div className="flex flex-1 flex-col">
-      {/* Header Skeleton */}
-      <div className="animate-pulse border-b border-slate-200 bg-gradient-to-r from-indigo-600 to-blue-600 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="h-8 w-32 rounded bg-white/20"></div>
-            <div className="mt-2 h-4 w-48 rounded bg-white/20"></div>
-          </div>
-          <div className="text-right">
-            <div className="h-8 w-24 rounded bg-white/20"></div>
-            <div className="mt-3 h-9 w-40 rounded bg-white/20"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Items Skeleton */}
-      <div className="animate-pulse border-b border-slate-200 p-6">
-        <div className="mb-3 h-4 w-24 rounded bg-slate-200"></div>
-        <div className="space-y-2">
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-lg bg-slate-50 p-3"
-            >
-              <div className="flex-1">
-                <div className="mb-2 h-4 w-40 rounded bg-slate-200"></div>
-                <div className="h-3 w-16 rounded bg-slate-200"></div>
-              </div>
-              <div className="h-4 w-16 rounded bg-slate-200"></div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Reply Section Skeleton */}
-      <div className="flex-1 animate-pulse p-6">
-        <div className="mb-3 h-4 w-32 rounded bg-slate-200"></div>
+    <div className="flex flex-1 flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-center justify-between gap-6">
         <div className="space-y-3">
-          <div className="h-10 w-full rounded-lg bg-slate-200"></div>
-          <div className="h-40 w-full rounded-lg bg-slate-200"></div>
-          <div className="h-10 w-full rounded-lg bg-slate-200"></div>
+          <div className="h-3 w-24 rounded-full bg-slate-200/70" />
+          <div className="h-5 w-36 rounded-full bg-slate-200/70" />
+          <div className="h-3 w-28 rounded-full bg-slate-200/70" />
         </div>
+        <div className="flex flex-col items-end gap-3">
+          <div className="h-7 w-20 rounded-full bg-slate-200/70" />
+          <div className="h-8 w-32 rounded-full bg-slate-200/70" />
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+        <div className="h-3 w-28 rounded-full bg-slate-200/70" />
+        {[0, 1].map((entry) => (
+          <div
+            key={entry}
+            className="flex items-center justify-between rounded-xl bg-white/70 px-4 py-3 shadow-inner"
+          >
+            <div className="space-y-2">
+              <div className="h-4 w-32 rounded-full bg-slate-200/70" />
+              <div className="h-3 w-16 rounded-full bg-slate-200/70" />
+            </div>
+            <div className="h-4 w-14 rounded-full bg-slate-200/70" />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+        <div className="h-3 w-24 rounded-full bg-slate-200/70" />
+        <div className="h-32 w-full rounded-2xl bg-slate-200/60" />
+        <div className="h-9 w-36 rounded-full bg-slate-200/70" />
       </div>
     </div>
   );
