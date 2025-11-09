@@ -98,6 +98,12 @@ function relativeTime(date: string | undefined) {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+const extractEmailAddress = (value?: string | null): string | null => {
+  if (!value) return null;
+  const match = value.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  return match ? match[1].toLowerCase() : null;
+};
+
 export default function InboxPage() {
   const toast = useToast();
   const [shop, setShop] = useState('');
@@ -350,6 +356,13 @@ export default function InboxPage() {
 
   const handleSendReply = async () => {
     if (!selectedEmail || !selectedOrder) return;
+    const recipientEmail = extractEmailAddress(
+      selectedOrder.email ?? selectedEmail.from,
+    );
+    if (!recipientEmail) {
+      toast.error('No valid recipient email found for this order.');
+      return;
+    }
     if (emailLimit.data && !emailLimit.data.allowed) {
       toast.error(
         `Email limit reached (${emailLimit.data.current}/${emailLimit.data.limit}). Please upgrade to continue.`,
@@ -360,14 +373,14 @@ export default function InboxPage() {
       const action = await createAction.mutateAsync({
         shop,
         shopifyOrderId: selectedOrder.shopifyId,
-        email: selectedOrder.email ?? selectedEmail.from,
+        email: recipientEmail,
         type: 'INFO_REQUEST',
         note: 'Manual approval',
         draft,
       });
       const result = await approveSend.mutateAsync({
         actionId: action.actionId,
-        to: selectedOrder.email ?? selectedEmail.from,
+        to: recipientEmail,
         subject: selectedEmail.subject ?? `Re: ${selectedOrder.name}`,
         body: draft,
       });
