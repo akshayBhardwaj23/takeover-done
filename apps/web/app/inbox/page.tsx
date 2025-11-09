@@ -710,7 +710,7 @@ export default function InboxPage() {
       {(selectedOrder || selectedUnlinkedEmail) && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-10">
           <div
-            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            className="modal-overlay absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
             onClick={() => {
               setSelectedOrderId(null);
               setSelectedUnlinkedId(null);
@@ -718,7 +718,7 @@ export default function InboxPage() {
               setUnlinkedSuggestion(null);
             }}
           />
-          <div className="relative z-10 flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+          <div className="modal-container relative z-10 flex h-full w-full max-w-6xl min-h-[70vh] flex-col overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
