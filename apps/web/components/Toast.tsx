@@ -68,7 +68,7 @@ interface ToastContainerProps {
 
 export function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-50 flex flex-col gap-2">
+    <div className="pointer-events-none fixed right-4 top-4 z-[70] flex flex-col gap-2">
       {toasts.map((toast) => (
         <Toast
           key={toast.id}
