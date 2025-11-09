@@ -708,9 +708,9 @@ export default function InboxPage() {
       </div>
 
       {(selectedOrder || selectedUnlinkedEmail) && (
-        <div className="fixed inset-0 z-[80] flex">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-10">
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
             onClick={() => {
               setSelectedOrderId(null);
               setSelectedUnlinkedId(null);
@@ -718,354 +718,381 @@ export default function InboxPage() {
               setUnlinkedSuggestion(null);
             }}
           />
-          <aside className="relative ml-auto flex h-full w-full max-w-2xl flex-col overflow-y-auto border-l border-slate-200 bg-white p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
+          <div className="relative z-10 flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <p className="text-xs text-slate-500">Inspector</p>
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  Inspector
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
                   {selectedOrder
                     ? (selectedOrder.name ?? `#${selectedOrder.shopifyId}`)
                     : (selectedUnlinkedEmail?.subject ??
                       selectedUnlinkedEmail?.thread?.subject ??
                       'Unmatched email')}
                 </p>
+                <p className="text-xs text-slate-500">
+                  {new Date(
+                    selectedOrder
+                      ? selectedOrder.createdAt
+                      : (selectedUnlinkedEmail?.createdAt ?? Date.now()),
+                  ).toLocaleString()}
+                </p>
               </div>
-              <Button
-                variant="outline"
-                className="rounded-full border-slate-200 text-xs text-slate-600"
-                onClick={() => {
-                  setSelectedOrderId(null);
-                  setSelectedUnlinkedId(null);
-                  setDraft('');
-                  setUnlinkedSuggestion(null);
-                }}
-              >
-                Close
-              </Button>
-            </div>
-
-            {selectedOrder && (
-              <div className="space-y-5">
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between text-sm text-slate-500">
-                    <span>Order details</span>
-                    <Badge
-                      className={`text-xs font-semibold ${
-                        STATUS_COLORS[
-                          selectedOrder.status as keyof typeof STATUS_COLORS
-                        ] ?? STATUS_COLORS.default
-                      }`}
-                    >
-                      {selectedOrder.status}
-                    </Badge>
-                  </div>
-                  <div className="mt-4 space-y-2 text-sm text-slate-600">
-                    <div className="flex items-center justify-between">
-                      <span>Order ID</span>
-                      <span className="font-semibold text-slate-900">
-                        {selectedOrder.name ?? `#${selectedOrder.shopifyId}`}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Email</span>
-                      <span>{selectedOrder.email ?? 'Unavailable'}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Placed</span>
-                      <span>
-                        {new Date(selectedOrder.createdAt).toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Total</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatCurrency(selectedOrder.totalAmount)}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="mt-4 w-full rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                    onClick={() =>
-                      refreshOrder.mutate({
-                        shop,
-                        orderId: selectedOrderId ?? '',
-                      })
-                    }
-                    disabled={refreshOrder.isPending}
+              <div className="flex items-center gap-3">
+                {selectedOrder && (
+                  <Badge
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      STATUS_COLORS[
+                        selectedOrder.status as keyof typeof STATUS_COLORS
+                      ] ?? STATUS_COLORS.default
+                    }`}
                   >
-                    <RefreshCw
-                      className={`mr-2 h-4 w-4 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
-                    />
-                    {refreshOrder.isPending
-                      ? 'Syncing…'
-                      : 'Refresh from Shopify'}
-                  </Button>
-                </Card>
-
-                {orderDetail.isLoading && <OrderDetailSkeleton />}
-
-                {orderDetail.data?.order && (
+                    {selectedOrder.status}
+                  </Badge>
+                )}
+                <Button
+                  variant="outline"
+                  className="rounded-full border-slate-200 text-xs font-semibold text-slate-600"
+                  onClick={() => {
+                    setSelectedOrderId(null);
+                    setSelectedUnlinkedId(null);
+                    setDraft('');
+                    setUnlinkedSuggestion(null);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {selectedOrder && (
+                <div className="space-y-5">
                   <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="text-sm font-semibold text-slate-900">
-                      Items
+                    <div className="flex items-center justify-between text-sm text-slate-500">
+                      <span>Order details</span>
+                      <Badge
+                        className={`text-xs font-semibold ${
+                          STATUS_COLORS[
+                            selectedOrder.status as keyof typeof STATUS_COLORS
+                          ] ?? STATUS_COLORS.default
+                        }`}
+                      >
+                        {selectedOrder.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span>Order ID</span>
+                        <span className="font-semibold text-slate-900">
+                          {selectedOrder.name ?? `#${selectedOrder.shopifyId}`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Email</span>
+                        <span>{selectedOrder.email ?? 'Unavailable'}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Placed</span>
+                        <span>
+                          {new Date(selectedOrder.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>Total</span>
+                        <span className="font-semibold text-slate-900">
+                          {formatCurrency(selectedOrder.totalAmount)}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="mt-4 w-full rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
+                      onClick={() =>
+                        refreshOrder.mutate({
+                          shop,
+                          orderId: selectedOrderId ?? '',
+                        })
+                      }
+                      disabled={refreshOrder.isPending}
+                    >
+                      <RefreshCw
+                        className={`mr-2 h-4 w-4 ${
+                          refreshOrder.isPending ? 'animate-spin' : ''
+                        }`}
+                      />
+                      {refreshOrder.isPending
+                        ? 'Syncing…'
+                        : 'Refresh from Shopify'}
+                    </Button>
+                  </Card>
+
+                  {orderDetail.isLoading && <OrderDetailSkeleton />}
+
+                  {orderDetail.data?.order && (
+                    <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="text-sm font-semibold text-slate-900">
+                        Items
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {(orderDetail.data.order.lineItems ?? []).map(
+                          (item: any) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between text-sm text-slate-600"
+                            >
+                              <div>
+                                <p className="font-semibold text-slate-900">
+                                  {item.title}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  Qty {item.quantity}
+                                </p>
+                              </div>
+                              <span>{item.price}</span>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </Card>
+                  )}
+
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-slate-900">
+                        AI suggestion
+                      </div>
+                      {aiSuggestion && (
+                        <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
+                          {Math.round((aiSuggestion.confidence ?? 0) * 100)}%
+                          confidence
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600">
+                      {aiSuggestion?.rationale ??
+                        'Select "Generate AI reply" to analyse the latest customer email.'}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      <Button
+                        size="sm"
+                        className="rounded-full bg-slate-900 text-white"
+                        onClick={() =>
+                          handleGenerateAi(selectedEmail, selectedOrder)
+                        }
+                        disabled={suggest.isPending}
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full border-slate-200 text-slate-600"
+                        onClick={() => setDraft(aiSuggestion?.reply ?? draft)}
+                      >
+                        Use suggestion
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-2 text-sm font-semibold text-slate-900">
+                      Reply draft
+                    </div>
+                    <textarea
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      rows={10}
+                      placeholder="AI generated reply will appear here."
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
+                        onClick={handleSendReply}
+                        disabled={
+                          !draft ||
+                          createAction.isPending ||
+                          approveSend.isPending
+                        }
+                      >
+                        {createAction.isPending || approveSend.isPending
+                          ? 'Sending…'
+                          : 'Send email'}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-slate-200 text-sm text-slate-600"
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <MessageSquare className="h-4 w-4" /> Thread
                     </div>
                     <div className="mt-3 space-y-3">
-                      {(orderDetail.data.order.lineItems ?? []).map(
-                        (item: any) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between text-sm text-slate-600"
-                          >
-                            <div>
-                              <p className="font-semibold text-slate-900">
-                                {item.title}
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                Qty {item.quantity}
+                      {(messages.data?.messages ?? []).length ? (
+                        (messages.data?.messages as any[]).map((message) => (
+                          <Fragment key={message.id}>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                              <div className="flex items-center justify-between text-xs text-slate-500">
+                                <Badge
+                                  className={`border ${
+                                    message.direction === 'INBOUND'
+                                      ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
+                                      : 'border-sky-100 bg-sky-50 text-sky-600'
+                                  }`}
+                                >
+                                  {message.direction}
+                                </Badge>
+                                <span>
+                                  {new Date(message.createdAt).toLocaleString()}
+                                </span>
+                              </div>
+                              <Separator className="my-2 bg-slate-200" />
+                              <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                                {message.body}
                               </p>
                             </div>
-                            <span>{item.price}</span>
-                          </div>
-                        ),
+                          </Fragment>
+                        ))
+                      ) : (
+                        <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                          No emails linked yet. Generate a reply to get started.
+                        </p>
                       )}
                     </div>
                   </Card>
-                )}
+                </div>
+              )}
 
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between">
+              {selectedUnlinkedEmail && (
+                <div className="space-y-5">
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="text-sm font-semibold text-slate-900">
-                      AI suggestion
+                      Email preview
                     </div>
-                    {aiSuggestion && (
-                      <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
-                        {Math.round((aiSuggestion.confidence ?? 0) * 100)}%
-                        confidence
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    {aiSuggestion?.rationale ??
-                      'Select "Generate AI reply" to analyse the latest customer email.'}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    <Button
-                      size="sm"
-                      className="rounded-full bg-slate-900 text-white"
-                      onClick={() =>
-                        handleGenerateAi(selectedEmail, selectedOrder)
-                      }
-                      disabled={suggest.isPending}
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="rounded-full border-slate-200 text-slate-600"
-                      onClick={() => setDraft(aiSuggestion?.reply ?? draft)}
-                    >
-                      Use suggestion
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="mb-2 text-sm font-semibold text-slate-900">
-                    Reply draft
-                  </div>
-                  <textarea
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    rows={10}
-                    placeholder="AI generated reply will appear here."
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                  />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                      onClick={handleSendReply}
-                      disabled={
-                        !draft ||
-                        createAction.isPending ||
-                        approveSend.isPending
-                      }
-                    >
-                      {createAction.isPending || approveSend.isPending
-                        ? 'Sending…'
-                        : 'Send email'}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-full border-slate-200 text-sm text-slate-600"
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <MessageSquare className="h-4 w-4" /> Thread
-                  </div>
-                  <div className="mt-3 space-y-3">
-                    {(messages.data?.messages ?? []).length ? (
-                      (messages.data?.messages as any[]).map((message) => (
-                        <Fragment key={message.id}>
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="flex items-center justify-between text-xs text-slate-500">
-                              <Badge
-                                className={`border ${
-                                  message.direction === 'INBOUND'
-                                    ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
-                                    : 'border-sky-100 bg-sky-50 text-sky-600'
-                                }`}
-                              >
-                                {message.direction}
-                              </Badge>
-                              <span>
-                                {new Date(message.createdAt).toLocaleString()}
-                              </span>
-                            </div>
-                            <Separator className="my-2 bg-slate-200" />
-                            <p className="text-sm text-slate-600 whitespace-pre-wrap">
-                              {message.body}
-                            </p>
-                          </div>
-                        </Fragment>
-                      ))
-                    ) : (
-                      <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                        No emails linked yet. Generate a reply to get started.
-                      </p>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {selectedUnlinkedEmail && (
-              <div className="space-y-5">
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Email preview
-                  </div>
-                  <p className="mt-2 text-xs text-slate-500">
-                    From: {selectedUnlinkedEmail.from} ·{' '}
-                    {new Date(selectedUnlinkedEmail.createdAt).toLocaleString()}
-                  </p>
-                  <p className="mt-3 text-sm text-slate-600 whitespace-pre-wrap">
-                    {selectedUnlinkedEmail.body}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full border-slate-200 text-slate-600"
-                      onClick={() => {
-                        setSelectedUnlinkedId(null);
-                        setUnlinkedSuggestion(null);
-                        setDraft('');
-                      }}
-                    >
-                      Close preview
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-slate-900">
-                      AI suggestion
-                    </div>
-                    {((unlinkedSuggestion as any)?.confidence ??
-                      selectedUnlinkedEmail.aiSuggestion?.confidence) && (
-                      <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
-                        {Math.round(
-                          ((unlinkedSuggestion as any)?.confidence ??
-                            selectedUnlinkedEmail.aiSuggestion?.confidence) *
-                            100,
-                        )}
-                        % confidence
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    {(unlinkedSuggestion as any)?.rationale ??
-                      selectedUnlinkedEmail.aiSuggestion?.rationale ??
-                      'Generate a reply to analyse this email.'}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    <Button
-                      size="sm"
-                      className="rounded-full bg-slate-900 text-white"
-                      onClick={() => handleGenerateAi(selectedUnlinkedEmail)}
-                      disabled={suggest.isPending}
-                    >
-                      {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
-                    </Button>
-                    {(unlinkedSuggestion as any)?.draftReply ||
-                    selectedUnlinkedEmail.aiSuggestion?.reply ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      From: {selectedUnlinkedEmail.from} ·{' '}
+                      {new Date(
+                        selectedUnlinkedEmail.createdAt,
+                      ).toLocaleString()}
+                    </p>
+                    <p className="mt-3 text-sm text-slate-600 whitespace-pre-wrap">
+                      {selectedUnlinkedEmail.body}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
                       <Button
                         variant="outline"
                         size="sm"
                         className="rounded-full border-slate-200 text-slate-600"
+                        onClick={() => {
+                          setSelectedUnlinkedId(null);
+                          setUnlinkedSuggestion(null);
+                          setDraft('');
+                        }}
+                      >
+                        Close preview
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-slate-900">
+                        AI suggestion
+                      </div>
+                      {((unlinkedSuggestion as any)?.confidence ??
+                        selectedUnlinkedEmail.aiSuggestion?.confidence) && (
+                        <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
+                          {Math.round(
+                            ((unlinkedSuggestion as any)?.confidence ??
+                              selectedUnlinkedEmail.aiSuggestion?.confidence) *
+                              100,
+                          )}
+                          % confidence
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600">
+                      {(unlinkedSuggestion as any)?.rationale ??
+                        selectedUnlinkedEmail.aiSuggestion?.rationale ??
+                        'Generate a reply to analyse this email.'}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      <Button
+                        size="sm"
+                        className="rounded-full bg-slate-900 text-white"
+                        onClick={() => handleGenerateAi(selectedUnlinkedEmail)}
+                        disabled={suggest.isPending}
+                      >
+                        {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
+                      </Button>
+                      {(unlinkedSuggestion as any)?.draftReply ||
+                      selectedUnlinkedEmail.aiSuggestion?.reply ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-full border-slate-200 text-slate-600"
+                          onClick={() =>
+                            setDraft(
+                              (unlinkedSuggestion as any)?.draftReply ??
+                                selectedUnlinkedEmail.aiSuggestion?.reply ??
+                                '',
+                            )
+                          }
+                        >
+                          Use suggestion
+                        </Button>
+                      ) : null}
+                    </div>
+                  </Card>
+
+                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-slate-900">
+                      Reply draft
+                    </div>
+                    <textarea
+                      value={draft}
+                      onChange={(event) => setDraft(event.target.value)}
+                      rows={10}
+                      placeholder="AI generated reply will appear here."
+                      className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                    />
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
                         onClick={() =>
-                          setDraft(
-                            (unlinkedSuggestion as any)?.draftReply ??
-                              selectedUnlinkedEmail.aiSuggestion?.reply ??
-                              '',
-                          )
+                          handleSendUnlinkedReply(selectedUnlinkedEmail)
+                        }
+                        disabled={
+                          sendUnassignedReply.isPending ||
+                          (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)
                         }
                       >
-                        Use suggestion
+                        {sendUnassignedReply.isPending
+                          ? 'Sending…'
+                          : 'Send AI reply'}
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
-                    ) : null}
-                  </div>
-                </Card>
-
-                <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Reply draft
-                  </div>
-                  <textarea
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    rows={10}
-                    placeholder="AI generated reply will appear here."
-                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                  />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                      onClick={() =>
-                        handleSendUnlinkedReply(selectedUnlinkedEmail)
-                      }
-                      disabled={
-                        sendUnassignedReply.isPending ||
-                        (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)
-                      }
-                    >
-                      {sendUnassignedReply.isPending
-                        ? 'Sending…'
-                        : 'Send AI reply'}
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="rounded-full border-slate-200 text-sm text-slate-600"
-                      onClick={() => navigator.clipboard.writeText(draft)}
-                    >
-                      Copy
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-            )}
-          </aside>
+                      <Button
+                        variant="outline"
+                        className="rounded-full border-slate-200 text-sm text-slate-600"
+                        onClick={() => navigator.clipboard.writeText(draft)}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>
