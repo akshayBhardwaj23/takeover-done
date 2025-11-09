@@ -20,11 +20,13 @@
 ### 1.1 Check Environment Variable
 
 **Vercel (Staging/Production):**
+
 1. Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment Variables**
 2. Verify `INNGEST_EVENT_KEY` is set
 3. Value should start with `signkey-`
 
 **Local:**
+
 ```bash
 # Check if env var is set
 echo $INNGEST_EVENT_KEY
@@ -52,6 +54,7 @@ echo $INNGEST_EVENT_KEY
 ### 1.4 Verify API Endpoint is Accessible
 
 **Test the endpoint:**
+
 ```bash
 # Test locally (if running dev server)
 curl http://localhost:3000/api/inngest
@@ -61,6 +64,7 @@ curl https://www.zyyp.ai/api/inngest
 ```
 
 **Expected response:**
+
 - Should return `200 OK` (or a valid response)
 - No errors in the response
 
@@ -85,7 +89,7 @@ import { inngest } from './inngest/client';
 
 async function testInngest() {
   console.log('Testing Inngest event trigger...');
-  
+
   try {
     // Send a test event
     const result = await inngest.send({
@@ -94,7 +98,7 @@ async function testInngest() {
         messageId: 'test-message-id-123', // Replace with actual message ID from your DB
       },
     });
-    
+
     console.log('✅ Event sent successfully:', result);
   } catch (error) {
     console.error('❌ Error sending event:', error);
@@ -150,11 +154,13 @@ npx tsx test-inngest.ts
 ### 3.4 Verify Results
 
 1. **Check Database:**
+
    ```bash
    # Using Prisma Studio
    cd packages/db
    pnpm prisma studio
    ```
+
    - Navigate to `AISuggestion` table
    - Should see a new record with the `messageId`
    - `reply` field should contain AI-generated response
@@ -195,11 +201,13 @@ npx tsx test-inngest.ts
 ### 5.1 Check Function Logs
 
 **In Inngest Dashboard:**
+
 1. Go to **Runs** → Click on a specific run
 2. Expand **Steps** to see execution details
 3. Check **Logs** tab for console output
 
 **Expected logs:**
+
 ```
 [Inngest] Processing message: [message-id]
 [Inngest] AI suggestion generated for message [message-id]
@@ -209,13 +217,14 @@ npx tsx test-inngest.ts
 
 ```sql
 -- Check if AI suggestion was created
-SELECT * FROM "AISuggestion" 
+SELECT * FROM "AISuggestion"
 WHERE "messageId" = 'your-test-message-id'
 ORDER BY "createdAt" DESC
 LIMIT 1;
 ```
 
 **Expected:**
+
 - `reply` field contains AI-generated response
 - `proposedAction` is set (REFUND, CANCEL, etc.)
 - `confidence` is between 0 and 1
@@ -227,10 +236,12 @@ LIMIT 1;
 ### Issue 1: Functions Not Synced
 
 **Symptoms:**
+
 - Functions tab shows no functions
 - Runs tab shows no executions
 
 **Solutions:**
+
 1. Check `INNGEST_EVENT_KEY` is set in environment variables
 2. Re-sync app: **Inngest Dashboard** → **Apps** → **Sync**
 3. Verify `/api/inngest` endpoint is accessible
@@ -239,17 +250,21 @@ LIMIT 1;
 ### Issue 2: Events Not Triggering
 
 **Symptoms:**
+
 - No runs appear in Inngest Dashboard
 - Vercel logs don't show "Triggered Inngest event"
 
 **Solutions:**
+
 1. Check Vercel logs for errors:
+
    ```bash
    # In Vercel Dashboard → Logs
    # Look for errors related to Inngest
    ```
 
 2. Verify import path is correct:
+
    ```typescript
    // Should be: ../../../inngest/client
    import { inngest } from '../../../inngest/client';
@@ -266,10 +281,12 @@ LIMIT 1;
 ### Issue 3: Function Fails with Database Error
 
 **Symptoms:**
+
 - Runs show "Failed" status
 - Error mentions Prisma or database
 
 **Solutions:**
+
 1. Check `DATABASE_URL` is set correctly
 2. Verify database connection is working
 3. Check Prisma Client is generated:
@@ -281,9 +298,11 @@ LIMIT 1;
 ### Issue 4: Function Runs But No AI Suggestion
 
 **Symptoms:**
+
 - Run shows "Success" but no database record
 
 **Solutions:**
+
 1. Check function logs in Inngest Dashboard
 2. Verify `messageId` exists in database:
    ```sql
@@ -294,9 +313,11 @@ LIMIT 1;
 ### Issue 5: OpenAI API Errors
 
 **Symptoms:**
+
 - Function succeeds but AI reply is generic/fallback
 
 **Solutions:**
+
 1. Check `OPENAI_API_KEY` is set
 2. Verify API key is valid
 3. Check OpenAI API quota/limits
@@ -309,6 +330,7 @@ LIMIT 1;
 ### 7.1 Set Up Monitoring
 
 **Inngest Dashboard:**
+
 1. Go to **Insights** (left sidebar)
 2. Monitor:
    - Function execution rate
@@ -364,6 +386,7 @@ pnpm prisma studio
 ## Success Indicators
 
 ✅ **Inngest is working correctly if:**
+
 - Functions appear in Inngest Dashboard → Functions
 - Events trigger and create runs in Runs tab
 - Function executions complete successfully
@@ -378,4 +401,3 @@ pnpm prisma studio
 - **Inngest Discord:** https://www.inngest.com/discord
 - **Check Vercel Logs:** Dashboard → Your Project → Logs
 - **Check Inngest Logs:** Dashboard → Runs → Click run → Logs
-
