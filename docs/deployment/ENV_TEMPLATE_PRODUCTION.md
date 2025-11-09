@@ -12,7 +12,7 @@
 # ============================================
 NODE_ENV=production
 ENVIRONMENT=production
-NEXTAUTH_URL=https://your-app.com
+NEXTAUTH_URL=https://www.zyyp.ai
 
 # ============================================
 # Database (Supabase Production)
@@ -38,7 +38,7 @@ GOOGLE_CLIENT_SECRET=[FROM_GOOGLE_CLOUD_CONSOLE]
 # ============================================
 SHOPIFY_API_KEY=[FROM_SHOPIFY_PARTNERS_DASHBOARD]
 SHOPIFY_API_SECRET=[FROM_SHOPIFY_PARTNERS_DASHBOARD]
-SHOPIFY_APP_URL=https://your-app.com
+SHOPIFY_APP_URL=https://www.zyyp.ai
 SHOPIFY_SCOPES=read_orders,write_orders,read_products
 SHOPIFY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
 
@@ -46,8 +46,8 @@ SHOPIFY_WEBHOOK_SECRET=[GENERATE: openssl rand -hex 32]
 # Mailgun (Production)
 # ============================================
 MAILGUN_API_KEY=key-[FROM_MAILGUN_DASHBOARD]
-MAILGUN_DOMAIN=your-domain.com
-MAILGUN_FROM_EMAIL=support@your-domain.com
+MAILGUN_DOMAIN=zyyp.ai
+MAILGUN_FROM_EMAIL=support@zyyp.ai
 MAILGUN_SIGNING_KEY=[FROM_MAILGUN_SETTINGS_API_SECURITY]
 
 # ============================================
@@ -79,7 +79,7 @@ MOCK_WEBHOOKS=false
 # ============================================
 NODE_ENV=production
 ENVIRONMENT=staging
-NEXTAUTH_URL=https://staging-your-app.vercel.app
+NEXTAUTH_URL=https://staging.zyyp.ai
 
 # ============================================
 # Database (Supabase Staging)
@@ -105,7 +105,7 @@ GOOGLE_CLIENT_SECRET=[SAME_OR_DIFFERENT]
 # ============================================
 SHOPIFY_API_KEY=[FROM_STAGING_SHOPIFY_APP]
 SHOPIFY_API_SECRET=[FROM_STAGING_SHOPIFY_APP]
-SHOPIFY_APP_URL=https://staging-your-app.vercel.app
+SHOPIFY_APP_URL=https://staging.zyyp.ai
 SHOPIFY_SCOPES=read_orders,write_orders,read_products
 SHOPIFY_WEBHOOK_SECRET=[DIFFERENT_FROM_PRODUCTION: openssl rand -hex 32]
 
@@ -113,8 +113,8 @@ SHOPIFY_WEBHOOK_SECRET=[DIFFERENT_FROM_PRODUCTION: openssl rand -hex 32]
 # Mailgun (Staging - Can Use Same Domain or Separate)
 # ============================================
 MAILGUN_API_KEY=key-[FROM_MAILGUN]
-MAILGUN_DOMAIN=your-domain.com
-MAILGUN_FROM_EMAIL=staging@your-domain.com
+MAILGUN_DOMAIN=zyyp.ai
+MAILGUN_FROM_EMAIL=support@zyyp.ai
 MAILGUN_SIGNING_KEY=[FROM_MAILGUN]
 
 # ============================================

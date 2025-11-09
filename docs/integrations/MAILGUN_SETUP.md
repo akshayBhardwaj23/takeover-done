@@ -7,8 +7,8 @@ To enable real email sending through Mailgun, add these environment variables to
 ```bash
 # Mailgun API Configuration (for sending emails)
 MAILGUN_API_KEY=your-mailgun-api-key-here
-MAILGUN_DOMAIN=your-domain.com
-MAILGUN_FROM_EMAIL=support@your-domain.com  # Optional, defaults to support@{MAILGUN_DOMAIN}
+MAILGUN_DOMAIN=zyyp.ai
+MAILGUN_FROM_EMAIL=support@zyyp.ai  # Optional, defaults to support@{MAILGUN_DOMAIN}
 
 # Mailgun Signing Key (for receiving/verifying inbound emails)
 MAILGUN_SIGNING_KEY=your-mailgun-signing-key-here

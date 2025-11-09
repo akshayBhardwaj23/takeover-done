@@ -61,14 +61,14 @@ Before starting deployment, ensure you have:
 
 ```
 Production:
-├── Web App: Vercel (main branch) → https://your-app.com
+├── Web App: Vercel (main branch) → https://www.zyyp.ai
 ├── Worker: Railway (main branch) → Background jobs
 ├── Database: Supabase PostgreSQL
 ├── Redis: Upstash
 └── External: Shopify, Mailgun, OpenAI
 
 Staging:
-├── Web App: Vercel Preview (staging branch) → https://staging-your-app.vercel.app
+├── Web App: Vercel Preview (staging branch) → https://staging.zyyp.ai
 ├── Worker: Railway (staging branch, optional) → Background jobs
 ├── Database: Separate Supabase database OR same DB with different schema
 ├── Redis: Same Upstash (with different queue prefixes)
@@ -240,7 +240,7 @@ redis-cli -u "rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379" ping
 
 3. **Custom Domain:**
    - Go to **Settings** → **Domains**
-   - Add your domain: `your-app.com`
+   - Add your domain: `www.zyyp.ai`
    - Follow DNS instructions (we'll cover this later)
    - Vercel auto-provisions SSL certificate
 
@@ -270,8 +270,8 @@ redis-cli -u "rediss://default:[TOKEN]@[ENDPOINT].upstash.io:6379" ping
    - Use staging values (different database, different Shopify app, etc.)
 
 4. **Staging URL:**
-   - Preview URL: `staging-your-app.vercel.app` (auto-generated)
-   - Or add custom domain: `staging.your-app.com`
+   - Preview URL: `https://staging.zyyp.ai`
+   - Ensure DNS points staging subdomain to Vercel
 
 ### Step 4: Build Configuration
 
@@ -387,7 +387,7 @@ Create `railway.json` in `apps/worker/`:
 # ============================================
 NODE_ENV=production
 ENVIRONMENT=production
-NEXTAUTH_URL=https://your-app.com
+NEXTAUTH_URL=https://www.zyyp.ai
 
 # ============================================
 # Database
@@ -413,7 +413,7 @@ GOOGLE_CLIENT_SECRET=[YOUR_GOOGLE_CLIENT_SECRET]
 # ============================================
 SHOPIFY_API_KEY=[PRODUCTION_SHOPIFY_APP_API_KEY]
 SHOPIFY_API_SECRET=[PRODUCTION_SHOPIFY_APP_SECRET]
-SHOPIFY_APP_URL=https://your-app.com
+SHOPIFY_APP_URL=https://www.zyyp.ai
 SHOPIFY_SCOPES=read_orders,write_orders,read_products
 SHOPIFY_WEBHOOK_SECRET=[GENERATE_NEW_SECRET]
 
@@ -421,8 +421,8 @@ SHOPIFY_WEBHOOK_SECRET=[GENERATE_NEW_SECRET]
 # Mailgun (Production)
 # ============================================
 MAILGUN_API_KEY=[PRODUCTION_MAILGUN_KEY]
-MAILGUN_DOMAIN=[YOUR_VERIFIED_DOMAIN]
-MAILGUN_FROM_EMAIL=support@your-domain.com
+MAILGUN_DOMAIN=zyyp.ai
+MAILGUN_FROM_EMAIL=support@zyyp.ai
 MAILGUN_SIGNING_KEY=[MAILGUN_WEBHOOK_SIGNING_KEY]
 
 # ============================================
@@ -449,10 +449,10 @@ MOCK_WEBHOOKS=false
 
 Same structure, but use staging values:
 - `ENVIRONMENT=staging`
-- `NEXTAUTH_URL=https://staging-your-app.vercel.app`
+- `NEXTAUTH_URL=https://staging.zyyp.ai`
 - `DATABASE_URL` → staging database
 - `SHOPIFY_API_KEY` → staging/test Shopify app
-- `SHOPIFY_APP_URL=https://staging-your-app.vercel.app`
+- `SHOPIFY_APP_URL=https://staging.zyyp.ai`
 - Use same `REDIS_URL` but different queue prefixes
 
 ### Production Worker (Railway)
@@ -506,10 +506,10 @@ Same as production worker, but:
 2. **Apps** → **Create app**
 3. Choose **Custom app**
 4. **App name:** Your App Name (Production)
-5. **App URL:** `https://your-app.com`
+5. **App URL:** `https://www.zyyp.ai`
 6. **Allowed redirection URL(s):**
    ```
-   https://your-app.com/api/shopify/callback
+   https://www.zyyp.ai/api/shopify/callback
    ```
 
 7. **API Credentials:**
@@ -528,10 +528,10 @@ Same as production worker, but:
 9. **Webhooks:**
    - Click **Webhooks** tab
    - Add webhooks (or let app register them automatically):
-     - `orders/create` → `https://your-app.com/api/webhooks/shopify`
-     - `orders/fulfilled` → `https://your-app.com/api/webhooks/shopify`
-     - `refunds/create` → `https://your-app.com/api/webhooks/shopify`
-     - `app/uninstalled` → `https://your-app.com/api/webhooks/shopify`
+     - `orders/create` → `https://www.zyyp.ai/api/webhooks/shopify`
+     - `orders/fulfilled` → `https://www.zyyp.ai/api/webhooks/shopify`
+     - `refunds/create` → `https://www.zyyp.ai/api/webhooks/shopify`
+     - `app/uninstalled` → `https://www.zyyp.ai/api/webhooks/shopify`
 
 10. **Webhook Secret:**
     - Generate a secret: `openssl rand -hex 32`
@@ -542,8 +542,8 @@ Same as production worker, but:
 
 1. Create **another app** in Partners Dashboard
 2. **App name:** Your App Name (Staging)
-3. **App URL:** `https://staging-your-app.vercel.app`
-4. **Redirect URL:** `https://staging-your-app.vercel.app/api/shopify/callback`
+3. **App URL:** `https://staging.zyyp.ai`
+4. **Redirect URL:** `https://staging.zyyp.ai/api/shopify/callback`
 5. Same scopes
 6. Different webhook URLs pointing to staging
 7. Different `SHOPIFY_WEBHOOK_SECRET`
@@ -551,7 +551,7 @@ Same as production worker, but:
 ### Step 3: Test Installation
 
 **For Production:**
-1. Go to `https://your-app.com/integrations`
+1. Go to `https://www.zyyp.ai/integrations`
 2. Click "Connect Shopify"
 3. Enter test shop domain: `your-test-shop.myshopify.com`
 4. Complete OAuth flow
@@ -559,7 +559,7 @@ Same as production worker, but:
 6. Verify webhooks registered
 
 **For Staging:**
-1. Use staging URL: `https://staging-your-app.vercel.app/integrations`
+1. Use staging URL: `https://staging.zyyp.ai/integrations`
 2. Use different test shop or same shop
 3. Test OAuth flow
 
@@ -582,7 +582,7 @@ Same as production worker, but:
 
 1. Go to [Mailgun Dashboard](https://app.mailgun.com/)
 2. **Sending** → **Domains**
-3. **Add New Domain** → Enter your domain: `your-domain.com`
+3. **Add New Domain** → Enter your domain: `zyyp.ai`
 4. Follow DNS setup instructions:
    - Add MX records
    - Add TXT records (SPF, DKIM)
@@ -598,13 +598,13 @@ Same as production worker, but:
    - Copy **HTTP webhook signing key** → `MAILGUN_SIGNING_KEY`
 
 7. **From Email:**
-   - Use any address from verified domain: `support@your-domain.com`
+   - Use any address from verified domain: `support@zyyp.ai`
    - Set as `MAILGUN_FROM_EMAIL`
 
 ### Step 2: Staging Domain Setup
 
 **Option 1: Separate Domain**
-- Create subdomain: `staging.your-domain.com`
+- Create subdomain: `staging.zyyp.ai`
 - Verify in Mailgun
 - Use for staging
 
@@ -617,7 +617,7 @@ Same as production worker, but:
 
 1. **Receiving** → **Routes**
 2. Create route:
-   - **Route expression:** `match_recipient("support@your-domain.com")`
+   - **Route expression:** `match_recipient("support@zyyp.ai")`
    - **Action:** Forward to webhook
    - **Webhook URL:** `https://your-app.com/api/webhooks/email/custom`
    - **Secret:** Generate secret, add as header `x-email-webhook-secret`
@@ -631,8 +631,8 @@ Same as production worker, but:
 Add to Vercel (both production and staging):
 ```bash
 MAILGUN_API_KEY=[YOUR_KEY]
-MAILGUN_DOMAIN=your-domain.com
-MAILGUN_FROM_EMAIL=support@your-domain.com
+MAILGUN_DOMAIN=zyyp.ai
+MAILGUN_FROM_EMAIL=support@zyyp.ai
 MAILGUN_SIGNING_KEY=[YOUR_SIGNING_KEY]
 ```
 
@@ -715,7 +715,7 @@ pnpm prisma studio
 - Verify worker processed job
 
 **5. Email Webhook:**
-- Send test email to `support@your-domain.com`
+- Send test email to `support@zyyp.ai`
 - Check Mailgun logs for delivery
 - Check Vercel logs for webhook received
 - Check database for thread/message

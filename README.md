@@ -106,7 +106,8 @@ cloudflared tunnel run yourname-dev
 Your app will be available at:
 
 - Local: http://localhost:3000
-- Public: https://yourname.zyyp.ai
+- Staging: https://staging.zyyp.ai
+- Production: https://www.zyyp.ai
 
 ## 🤝 Team Development
 

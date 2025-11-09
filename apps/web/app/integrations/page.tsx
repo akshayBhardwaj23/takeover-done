@@ -386,7 +386,7 @@ function IntegrationsInner() {
                   </div>
                 </section>
 
-                <DialogContent className="sm:max-w-md">
+                <DialogContent containerClassName="max-w-md sm:rounded-3xl">
                   <DialogHeader>
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">

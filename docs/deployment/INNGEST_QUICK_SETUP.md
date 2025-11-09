@@ -35,7 +35,7 @@ You don't need the Dev Server for Vercel deployment. Instead:
 5. **After deployment, sync functions**:
    - Inngest Dashboard → **Apps** → **Create App** or **Add App**
    - Or wait for auto-discovery after deployment
-   - Your endpoint will be: `https://your-app.vercel.app/api/inngest`
+   - Your endpoint will be: `https://www.zyyp.ai/api/inngest`
 
 ## Alternative: Complete Onboarding Later
 

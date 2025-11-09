@@ -7,20 +7,24 @@
 
 ## ✅ Completed Today (Critical Code)
 
-### Background Job Processing
-- [x] Worker calls OpenAI with full logic
-- [x] Webhook queues jobs instead of blocking
-- [x] Retry logic: 3 attempts, exponential backoff (2s → 4s → 8s)
-- [x] Error handling and logging in worker
-- [x] Job retention configured
+### Background Job Processing (Inngest)
+
+- [x] `processInboundEmail` Inngest function calls OpenAI with full logic
+- [x] Email webhook triggers Inngest events instead of blocking the request
+- [x] Built-in retries: 3 attempts, exponential backoff (2s → 4s → 8s)
+- [x] Error handling and logging observable in Inngest dashboard
+- [x] Event retention configured via Inngest (no queue polling)
 
 ### Order Matching
+
 - [x] Improved regex patterns (catches "order status 1003")
 - [x] Shop/connection scoping to prevent wrong matches
 - [x] Unassigned emails properly handled
 
 ### Infrastructure
-- [x] Redis setup (Upstash)
+
+- [x] Inngest app configured and synced
+- [x] Upstash Redis (REST API) ready for rate limiting & idempotency
 - [x] Rate limiting working
 - [x] Webhook idempotency working
 
@@ -31,30 +35,34 @@
 ### Day 1-2: Production Environment Setup
 
 #### 1. Production Environment Variables
+
 - [ ] Set up production `.env` files
 - [ ] Verify all required variables:
+
   ```bash
   # Database
   DATABASE_URL=...
-  
-  # Redis
+
+  # Rate Limiting (Upstash)
   UPSTASH_REDIS_REST_URL=...
   UPSTASH_REDIS_REST_TOKEN=...
-  REDIS_URL=...
-  
+
   # OpenAI
   OPENAI_API_KEY=...
-  
+
+  # Inngest
+  INNGEST_EVENT_KEY=...
+
   # Shopify
   SHOPIFY_CLIENT_ID=...
   SHOPIFY_CLIENT_SECRET=...
   SHOPIFY_WEBHOOK_SECRET=...
-  
+
   # Mailgun
   MAILGUN_API_KEY=...
   MAILGUN_DOMAIN=...
   MAILGUN_SIGNING_KEY=...
-  
+
   # Auth
   NEXTAUTH_URL=... (production domain)
   NEXTAUTH_SECRET=...
@@ -63,24 +71,24 @@
   ```
 
 #### 2. Database Setup
+
 - [ ] Run migrations in production: `pnpm db:migrate`
 - [ ] Verify Prisma client generated
 - [ ] Test database connection
 - [ ] Set up database backups (if not automatic)
 
-#### 3. Worker Deployment
-- [ ] Ensure worker has production `.env` with:
-  - `REDIS_URL`
-  - `DATABASE_URL`
-  - `OPENAI_API_KEY`
-- [ ] Test worker starts: `cd apps/worker && pnpm start`
-- [ ] Verify worker connects to Redis
-- [ ] Verify worker connects to database
-- [ ] Set up worker to run continuously (PM2, systemd, or platform-specific)
+#### 3. Inngest Setup
+
+- [ ] Create Inngest app (https://app.inngest.com)
+- [ ] Copy Event Key → set `INNGEST_EVENT_KEY` in Vercel (Preview + Production)
+- [ ] Deploy web app so `/api/inngest` route is live
+- [ ] In Inngest dashboard, open app → **Functions** → click **Sync**
+- [ ] Verify `processInboundEmail` function appears
+- [ ] Send test event → confirm successful run in Inngest dashboard
 
 #### 4. Deployment Platform Setup
+
 - [ ] Deploy web app (Vercel/Railway/etc.)
-- [ ] Deploy worker (separate process or platform)
 - [ ] Configure environment variables in platform
 - [ ] Set up domain/SSL certificates
 - [ ] Verify HTTPS is working
@@ -92,40 +100,46 @@
 #### 5. End-to-End Testing
 
 **Email Flow:**
+
 - [ ] Send test email via Mailgun webhook
 - [ ] Verify email saved to database
 - [ ] Verify order matching works correctly
-- [ ] Check worker processes job
+- [ ] Check Inngest function processes event
 - [ ] Verify AI suggestion appears in inbox
 - [ ] Test "Approve & Send" flow
 
 **Shopify Flow:**
+
 - [ ] Test Shopify OAuth install
 - [ ] Verify connection saved
 - [ ] Test Shopify webhook (create test order)
 - [ ] Verify order appears in inbox
 
 **Edge Cases:**
+
 - [ ] Email without order number → Goes to unassigned
 - [ ] Email with order number that doesn't exist → Goes to unassigned
-- [ ] OpenAI API failure → Worker retries automatically
+- [ ] OpenAI API failure → Inngest retries automatically
 - [ ] Multiple emails at once → All processed in parallel
 
 #### 6. Monitoring Setup
 
 **Sentry:**
+
 - [ ] Verify Sentry DSN is set in production
 - [ ] Send test error → Verify appears in Sentry
 - [ ] Set up alerts for critical errors
 - [ ] Test error tracking in production
 
 **Logging:**
+
 - [ ] Verify logs are accessible
-- [ ] Check worker logs for job processing
+- [ ] Check Inngest dashboard (Runs & Logs) for event processing
 - [ ] Check webhook logs for incoming emails
 - [ ] Set up log aggregation (if applicable)
 
 **Health Checks:**
+
 - [ ] Create health check endpoint (optional)
 - [ ] Set up uptime monitoring (UptimeRobot, etc.)
 - [ ] Monitor Redis connection
@@ -136,20 +150,23 @@
 ### Day 5-7: Launch Preparation
 
 #### 7. Documentation
+
 - [ ] Document known limitations for beta users
 - [ ] Create user onboarding guide
 - [ ] Document how to assign unassigned emails
 - [ ] Create troubleshooting guide
 
 #### 8. Beta User Preparation
+
 - [ ] Create feedback collection mechanism (Google Form, etc.)
 - [ ] Prepare onboarding email/message
 - [ ] List of beta users ready
 - [ ] Support channel ready (Slack, email, etc.)
 
 #### 9. Final Verification
+
 - [ ] All environment variables verified
-- [ ] Worker running and processing jobs
+- [ ] Inngest functions processing events
 - [ ] Database migrations complete
 - [ ] Test end-to-end flow works
 - [ ] Monitoring is active
@@ -160,7 +177,8 @@
 ## 🚀 Launch Day
 
 ### Checklist:
-- [ ] Worker is running and healthy
+
+- [ ] Inngest dashboard shows successful runs
 - [ ] Web app is deployed and accessible
 - [ ] Send test email to verify everything works
 - [ ] Invite first beta user
@@ -172,15 +190,17 @@
 ## 📊 Post-Launch (First Week)
 
 ### Monitor:
+
 - [ ] Error rates (Sentry)
-- [ ] Worker job success/failure rates
+- [ ] Inngest run success/failure rates
 - [ ] Webhook response times
 - [ ] OpenAI API usage/costs
 - [ ] Database performance
 - [ ] User feedback
 
 ### Common Issues to Watch:
-- Worker not processing jobs (check Redis connection)
+
+- Inngest not processing events (check Event Key & sync status)
 - OpenAI API failures (check retries are working)
 - Order matching issues (check logs)
 - Webhook timeouts (shouldn't happen now!)
@@ -191,7 +211,7 @@
 
 **You're ready to launch when:**
 
-1. ✅ Worker processes jobs successfully
+1. ✅ Inngest processes events successfully
 2. ✅ Webhooks respond in <500ms
 3. ✅ AI suggestions appear within 5 seconds
 4. ✅ No critical errors in Sentry
@@ -219,15 +239,12 @@ pnpm build
 # Deploy to your platform
 ```
 
-### 3. Start Worker
+### 3. Sync Inngest
 
 ```bash
-# Make sure worker runs continuously
-cd apps/worker
-pnpm start
-
-# Or use PM2:
-pm2 start "pnpm start" --name worker
+# After deploying web app, sync functions in Inngest dashboard
+# In dashboard: Apps → (your app) → Sync
+# Optionally trigger test event to verify runs
 ```
 
 ### 4. Test
@@ -243,7 +260,8 @@ pm2 start "pnpm start" --name worker
 ## 📞 Support
 
 If issues arise:
-1. Check worker logs
+
+1. Check Inngest dashboard (Runs & Logs)
 2. Check Sentry for errors
 3. Verify Redis connection
 4. Verify database connection
@@ -258,4 +276,3 @@ If issues arise:
 **Timeline:** 3-7 days to launch
 
 The hard work is done! Just deploy and test. 🚀
-

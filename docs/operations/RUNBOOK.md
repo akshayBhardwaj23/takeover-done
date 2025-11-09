@@ -26,7 +26,7 @@ Suggested `apps/web/.env.local` keys:
 - Mailgun settings (for outbound email):
   - `MAILGUN_API_KEY` — from Mailgun dashboard
   - `MAILGUN_DOMAIN` — your verified sending domain
-  - `MAILGUN_FROM_EMAIL` — sender email (e.g., support@your-domain.com)
+  - `MAILGUN_FROM_EMAIL` — sender email (e.g., support@zyyp.ai)
 - Feature flags:
   - `PROTECTED_WEBHOOKS=true|false`
   - `MOCK_WEBHOOKS=true|false`
@@ -80,7 +80,7 @@ The web app will be available at `http://localhost:3000` and via your HTTPS tunn
 
 ### Inbound Email (Custom)
 
-1. Configure your provider (e.g., Mailgun) to route all messages to `mail.<your-domain>` and forward to webhook `POST /api/webhooks/email/custom`.
+1. Configure your provider (e.g., Mailgun) to route all messages to `mail.zyyp.ai` and forward to webhook `POST /api/webhooks/email/custom`.
 2. Set `NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN` in `apps/web/.env.local`.
 3. (Optional) Set `MAILGUN_SIGNING_KEY` to enable signature verification.
 4. In the app, go to `/integrations` → Custom Email → Create alias.
