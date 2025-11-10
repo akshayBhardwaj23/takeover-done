@@ -1,37 +1,37 @@
 export const metadata = {
-  title: "Privacy Policy - Zyyp",
+  title: 'Privacy Policy',
   description:
-    "Understand how Zyyp collects, uses, and protects customer information.",
-}
+    'Understand how Zyyp collects, uses, and protects customer information.',
+};
 
 const sections = [
   {
-    title: "1. Data we collect",
+    title: '1. Data we collect',
     body: `We collect account details, contact information, billing details, and usage
 telemetry that helps us improve reliability. When connected to Shopify or other
 platforms, we sync order metadata required to provide support responses.`,
   },
   {
-    title: "2. How we use data",
+    title: '2. How we use data',
     body: `Data powers our AI workflows, analytics dashboards, and customer support automation.
 We never sell data to third parties. Access is limited to authorized personnel with strict role-based controls.`,
   },
   {
-    title: "3. Storage & security",
+    title: '3. Storage & security',
     body: `Your data is encrypted in transit (TLS 1.2+) and at rest. We operate on SOC2-ready infrastructure with
 regular penetration testing. Backups are performed daily and retained for a rolling 30-day window.`,
   },
   {
-    title: "4. Data retention",
+    title: '4. Data retention',
     body: `We retain customer data for the duration of your contract plus 90 days.
 You can request deletion at any time by emailing privacy@zyyp.ai.`,
   },
   {
-    title: "5. Your rights",
+    title: '5. Your rights',
     body: `You have the right to access, update, export, or delete your data.
 We comply with GDPR, CCPA, and applicable Indian data regulations.`,
   },
-]
+];
 
 export default function PrivacyPolicyPage() {
   return (
@@ -55,7 +55,9 @@ export default function PrivacyPolicyPage() {
           {sections.map((section) => (
             <article key={section.title} className="space-y-3">
               <h2 className="text-2xl font-semibold">{section.title}</h2>
-              <p className="text-slate-600 whitespace-pre-line">{section.body}</p>
+              <p className="text-slate-600 whitespace-pre-line">
+                {section.body}
+              </p>
             </article>
           ))}
         </div>
@@ -63,12 +65,11 @@ export default function PrivacyPolicyPage() {
         <footer className="rounded-3xl border border-slate-200 bg-slate-900 px-8 py-10 text-white shadow-lg shadow-slate-900/20">
           <h2 className="text-xl font-semibold">Questions?</h2>
           <p className="mt-3 text-white/80">
-            Reach out to privacy@zyyp.ai or our Data Protection Officer at
-            221B, Sector 71, Mohali, Punjab 160071, India.
+            Reach out to privacy@zyyp.ai or our Data Protection Officer at 221B,
+            Sector 71, Mohali, Punjab 160071, India.
           </p>
         </footer>
       </section>
     </main>
-  )
+  );
 }
-
