@@ -9,7 +9,8 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "postinstall": "prisma generate --schema=../../packages/db/prisma/schema.prisma"
+    "postinstall": "prisma generate --schema=../../packages/db/prisma/schema.prisma",
+    "postbuild": "next-sitemap --config next-sitemap.config.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@types/react": "^18.3.5",
     "eslint": "^8.57.0",
-    "eslint-config-next": "^14.2.7"
+    "eslint-config-next": "^14.2.7",
+    "next-sitemap": "^4.1.9"
   }
 }
