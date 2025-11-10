@@ -1,24 +1,29 @@
 import './globals.css';
+import type { Metadata } from 'next';
 import { Providers } from './providers';
 import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
 import Header from './nav-header';
 import Footer from './components/Footer';
 
-export const metadata = {
-  title:
-    'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience - Zyyp AI',
+export const metadata: Metadata = {
+  title: {
+    default:
+      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
+    template: '%s - Zyyp AI',
+  },
   description:
     'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
   openGraph: {
     title:
-      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience - Zyyp AI',
+      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
     description:
       'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
+    siteName: 'Zyyp AI',
   },
   twitter: {
     title:
-      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience - Zyyp AI',
+      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
     description:
       'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
   },

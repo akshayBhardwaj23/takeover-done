@@ -1,8 +1,8 @@
 export const metadata = {
-  title: "About Us - Zyyp",
+  title: 'About Us',
   description:
-    "Learn how Zyyp empowers Shopify teams with AI-driven customer support automation.",
-}
+    'Learn how Zyyp empowers Shopify teams with AI-driven customer support automation.',
+};
 
 export default function AboutPage() {
   return (
@@ -62,6 +62,5 @@ export default function AboutPage() {
         </section>
       </section>
     </main>
-  )
+  );
 }
-
