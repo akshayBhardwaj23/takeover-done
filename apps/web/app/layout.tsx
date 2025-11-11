@@ -5,27 +5,31 @@ import { fontSans } from './fonts';
 import PageFade from './components/PageFade';
 import Header from './nav-header';
 import Footer from './components/Footer';
+import Script from 'next/script';
+import Analytics from './components/Analytics';
+
+const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 export const metadata: Metadata = {
   title: {
     default:
-      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
+      'Zyyp AI — Shopify support inbox with AI replies (Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom)',
     template: '%s - Zyyp AI',
   },
   description:
-    'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
+    'Zyyp.ai is the AI-powered support inbox for Shopify teams. Plans start at $29/mo (Starter), $99/mo (Growth), $299/mo (Pro), with Enterprise custom contracts for higher volumes.',
   openGraph: {
     title:
-      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
+      'Zyyp AI — Shopify support inbox with AI replies (Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom)',
     description:
-      'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
+      'Connect Shopify and email to send AI-crafted replies, manage orders, and automate customer communication. Pricing tiers: Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom.',
     siteName: 'Zyyp AI',
   },
   twitter: {
     title:
-      'Artificial Intelligence (AI) support assistance for fast paced businesses - Send Replies, Manage Orders and Customer Experience',
+      'Zyyp AI — Shopify support inbox with AI replies (Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom)',
     description:
-      'Zyyp.ai is an AI-powered support assistant built for fast-paced ecommerce businesses. Connect Shopify and email to send smart replies, manage orders, and automate customer communication — all from one dashboard.',
+      'AI-powered customer support for Shopify merchants. Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom with volume pricing.',
   },
 };
 
@@ -40,7 +44,24 @@ export default function RootLayout({
         className="bg-white text-gray-900"
         style={{ fontFamily: 'var(--font-sans), ui-sans-serif, system-ui' }}
       >
+        {GA_ID ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_ID}');
+              `}
+            </Script>
+          </>
+        ) : null}
         <Providers>
+          {GA_ID ? <Analytics /> : null}
           <Header />
           <PageFade>{children}</PageFade>
           <Footer />
