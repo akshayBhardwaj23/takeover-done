@@ -1,6 +1,7 @@
 /** @type {import('next-sitemap').IConfig} */
 const isBlocked = process.env.BLOCK_INDEXING === 'true';
-module.exports = {
+
+const config = {
   siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://www.zyyp.ai',
   generateRobotsTxt: true,
   sourceDir: '.next',
@@ -38,3 +39,5 @@ module.exports = {
         ],
   },
 };
+
+export default config;
