@@ -9,6 +9,7 @@ import Script from 'next/script';
 import Analytics from './components/Analytics';
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+const OG_IMAGE = 'https://www.zyyp.ai/og-image.png';
 
 export const metadata: Metadata = {
   title: {
@@ -24,12 +25,22 @@ export const metadata: Metadata = {
     description:
       'Connect Shopify and email to send AI-crafted replies, manage orders, and automate customer communication. Pricing tiers: Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom.',
     siteName: 'Zyyp AI',
+    images: [
+      {
+        url: OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: 'Zyyp AI Support Inbox',
+      },
+    ],
   },
   twitter: {
     title:
       'Zyyp AI — Shopify support inbox with AI replies (Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom)',
     description:
       'AI-powered customer support for Shopify merchants. Starter $29/mo, Growth $99/mo, Pro $299/mo, Enterprise custom with volume pricing.',
+    card: 'summary_large_image',
+    images: [OG_IMAGE],
   },
 };
 
