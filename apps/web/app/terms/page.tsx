@@ -1,45 +1,45 @@
 export const metadata = {
-  title: "Terms & Conditions - Zyyp",
+  title: 'Terms & Conditions',
   description: "Review the terms for using Zyyp's AI-powered support platform.",
-}
+};
 
 const sections = [
   {
-    title: "1. Agreement to terms",
+    title: '1. Agreement to terms',
     body: `By accessing or using Zyyp, you agree to these Terms & Conditions.
 If you do not agree, you may not access the platform.`,
   },
   {
-    title: "2. Accounts & security",
+    title: '2. Accounts & security',
     body: `You are responsible for maintaining the security of your account and passwords.
 Notify us immediately of any unauthorized use. Zyyp is not liable for losses caused by your failure to safeguard credentials.`,
   },
   {
-    title: "3. Acceptable use",
+    title: '3. Acceptable use',
     body: `You agree not to misuse the service, reverse engineer components, or send spam through connected channels.
 We reserve the right to suspend accounts that violate policies.`,
   },
   {
-    title: "4. Subscription & billing",
+    title: '4. Subscription & billing',
     body: `Plans renew automatically unless canceled. Fees are non-refundable except as required by law.
 Taxes and payment processing charges may apply.`,
   },
   {
-    title: "5. Intellectual property",
+    title: '5. Intellectual property',
     body: `Zyyp retains all rights, titles, and interest in the platform.
 Customer data remains yours. Grant us a limited license to process data for providing the service.`,
   },
   {
-    title: "6. Liability",
+    title: '6. Liability',
     body: `To the fullest extent permitted by law, Zyyp's liability is limited to the fees paid in the 12 months preceding the claim.
 We provide the service “as is” without warranties.`,
   },
   {
-    title: "7. Governing law",
+    title: '7. Governing law',
     body: `These terms are governed by the laws of India.
 Disputes will be resolved in the courts of Chandigarh, India.`,
   },
-]
+];
 
 export default function TermsPage() {
   return (
@@ -62,7 +62,9 @@ export default function TermsPage() {
           {sections.map((section) => (
             <article key={section.title} className="space-y-3">
               <h2 className="text-2xl font-semibold">{section.title}</h2>
-              <p className="whitespace-pre-line text-slate-600">{section.body}</p>
+              <p className="whitespace-pre-line text-slate-600">
+                {section.body}
+              </p>
             </article>
           ))}
         </div>
@@ -76,6 +78,5 @@ export default function TermsPage() {
         </footer>
       </section>
     </main>
-  )
+  );
 }
-

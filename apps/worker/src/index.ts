@@ -319,12 +319,9 @@ Write responses that sound like they come from a real human support agent who ge
         duration: 10000, // 10 second interval (reduces polling from ~1s to 10s = 90% reduction)
       },
       concurrency: 2, // Process max 2 jobs concurrently (reduces overhead)
-      // Reduce Redis commands by increasing polling delay
-      settings: {
-        lockDuration: 30000, // 30 seconds (default is 30000)
-        stalledInterval: 30000, // Check for stalled jobs every 30s (default is 30000)
-        maxStalledCount: 1, // Fail after 1 stall (default is 1)
-      },
+      lockDuration: 30000, // 30 seconds (default is 30000)
+      stalledInterval: 30000, // Check for stalled jobs every 30s (default is 30000)
+      maxStalledCount: 1, // Fail after 1 stall (default is 1)
     },
   );
 
@@ -341,11 +338,9 @@ Write responses that sound like they come from a real human support agent who ge
         duration: 10000, // 10 second interval (reduces polling significantly)
       },
       concurrency: 2, // Process max 2 jobs concurrently
-      settings: {
-        lockDuration: 30000,
-        stalledInterval: 30000,
-        maxStalledCount: 1,
-      },
+      lockDuration: 30000,
+      stalledInterval: 30000,
+      maxStalledCount: 1,
     },
   );
 

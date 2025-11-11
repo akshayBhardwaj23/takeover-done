@@ -27,4 +27,9 @@ packages/db/node_modules
 # OS
 .DS_Store
 
+# Generated SEO artifacts
+apps/web/public/sitemap.xml
+apps/web/public/sitemap-0.xml
+apps/web/public/robots.txt
+
 
