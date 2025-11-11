@@ -7,6 +7,7 @@ import Header from './nav-header';
 import Footer from './components/Footer';
 import Script from 'next/script';
 import Analytics from './components/Analytics';
+import { Suspense } from 'react';
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 const OG_IMAGE = 'https://www.zyyp.ai/og-image.png';
@@ -72,7 +73,7 @@ export default function RootLayout({
           </>
         ) : null}
         <Providers>
-          {GA_ID ? <Analytics /> : null}
+          <Suspense fallback={null}>{GA_ID ? <Analytics /> : null}</Suspense>
           <Header />
           <PageFade>{children}</PageFade>
           <Footer />
