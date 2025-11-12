@@ -1,8 +1,10 @@
-const plans = [
-  {
+'use client';
+
+import { trpc } from '../../lib/trpc';
+
+const PLAN_META = {
+  STARTER: {
     name: 'Starter',
-    price: '$29',
-    cadence: 'per month',
     badge: 'For emerging brands',
     features: [
       '500 emails/month (outbound)',
@@ -12,10 +14,8 @@ const plans = [
       'Order matching & email threading',
     ],
   },
-  {
+  GROWTH: {
     name: 'Growth',
-    price: '$99',
-    cadence: 'per month',
     badge: 'Most popular',
     highlight: true,
     features: [
@@ -26,10 +26,8 @@ const plans = [
       'Reusable email templates',
     ],
   },
-  {
+  PRO: {
     name: 'Pro',
-    price: '$299',
-    cadence: 'per month',
     badge: 'For high-volume teams',
     features: [
       '10,000 emails/month',
@@ -39,19 +37,31 @@ const plans = [
       'White-label & advanced reporting',
     ],
   },
-  {
+  ENTERPRISE: {
     name: 'Enterprise',
-    price: 'Custom',
-    cadence: 'tailored plan',
     badge: 'Designed with you',
     features: [
       'Unlimited or volume-based emails',
       'Unlimited store connections',
       'Dedicated success & SLA guarantees',
       'Custom integrations & onboarding',
-      'Volume discounts starting at $0.025/email',
+      'Volume discounts starting at ₹2/email',
     ],
   },
+};
+
+const FALLBACK_PRICES: Record<string, { label: string; cadence: string }> = {
+  STARTER: { label: '₹999', cadence: 'per month' },
+  GROWTH: { label: '₹2,999', cadence: 'per month' },
+  PRO: { label: '₹9,999', cadence: 'per month' },
+  ENTERPRISE: { label: 'Custom', cadence: 'tailored plan' },
+};
+
+const PLAN_ORDER: Array<keyof typeof PLAN_META> = [
+  'STARTER',
+  'GROWTH',
+  'PRO',
+  'ENTERPRISE',
 ];
 
 export const metadata = {
@@ -61,6 +71,36 @@ export const metadata = {
 };
 
 export default function PricingPage() {
+  const pricing = trpc.getAvailablePlans.useQuery();
+
+  const currencyLabel =
+    pricing.data?.currency === 'USD'
+      ? 'USD ($)'
+      : pricing.data?.currency === 'INR'
+        ? 'INR (₹)'
+        : 'INR (₹)';
+
+  const plans = PLAN_ORDER.map((type) => {
+    const meta = PLAN_META[type];
+    const remotePlan = pricing.data?.plans.find((plan) => plan.type === type);
+    const priceValue = remotePlan?.price ?? -1;
+    const priceLabel =
+      remotePlan && priceValue >= 0
+        ? remotePlan.formattedPrice
+        : FALLBACK_PRICES[type].label;
+    const cadence =
+      remotePlan && priceValue >= 0
+        ? 'per month'
+        : FALLBACK_PRICES[type].cadence;
+    return {
+      ...meta,
+      type,
+      priceLabel,
+      cadence,
+      isHighlight: Boolean(meta.highlight),
+    };
+  });
+
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <section className="mx-auto flex max-w-6xl flex-col gap-16 px-6 pb-24 pt-36 sm:px-10">
@@ -73,33 +113,35 @@ export default function PricingPage() {
           </h1>
           <p className="mx-auto max-w-3xl text-lg text-slate-600 sm:text-xl">
             Plans map directly to our official pricing strategy—volume-based,
-            margin-positive tiers that move with your growth. Switch between
-            monthly and annual billing anytime (annual saves 20%).
+            margin-positive tiers that move with your growth. Prices shown in
+            {` `}
+            <span className="font-semibold text-slate-900">
+              {currencyLabel}
+            </span>{' '}
+            and adjust automatically based on your location.
           </p>
         </header>
 
         <div className="grid gap-10 lg:grid-cols-3">
           {plans.map((plan) => (
             <div
-              key={plan.name}
+              key={plan.type}
               className={`flex flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-10 shadow-sm shadow-slate-900/5 ${
-                plan.highlight ? 'border-slate-900 bg-slate-900 text-white' : ''
+                plan.isHighlight ? 'border-slate-900 bg-slate-900 text-white' : ''
               }`}
             >
               <div className="space-y-3">
                 <span
                   className={`text-xs font-semibold uppercase tracking-[0.3em] ${
-                    plan.highlight ? 'text-white/70' : 'text-slate-500'
+                    plan.isHighlight ? 'text-white/70' : 'text-slate-500'
                   }`}
                 >
                   {plan.badge}
                 </span>
                 <h2 className="text-2xl font-semibold">{plan.name}</h2>
                 <p className="text-4xl font-black tracking-tight">
-                  {plan.price}
-                  <span className="ml-2 text-sm font-medium">
-                    {plan.cadence}
-                  </span>
+                  {plan.priceLabel}
+                  <span className="ml-2 text-sm font-medium">{plan.cadence}</span>
                 </p>
               </div>
 
@@ -108,7 +150,7 @@ export default function PricingPage() {
                   <li
                     key={feature}
                     className={`flex items-start gap-3 ${
-                      plan.highlight ? 'text-white/80' : ''
+                      plan.isHighlight ? 'text-white/80' : ''
                     }`}
                   >
                     <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
@@ -119,12 +161,12 @@ export default function PricingPage() {
 
               <button
                 className={`mt-auto rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
-                  plan.highlight
+                  plan.isHighlight
                     ? 'border-white/40 bg-white text-slate-900 hover:bg-white/90'
                     : 'border-slate-900/20 text-slate-900 hover:border-slate-900/40'
                 }`}
               >
-                {plan.name === 'Enterprise' ? 'Talk to sales' : 'Start trial'}
+                {plan.type === 'ENTERPRISE' ? 'Talk to sales' : 'Start trial'}
               </button>
             </div>
           ))}
