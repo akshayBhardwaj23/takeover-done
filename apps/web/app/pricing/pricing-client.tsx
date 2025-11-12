@@ -124,10 +124,10 @@ export function PricingClient() {
           {plans.map((plan) => (
             <div
               key={plan.type}
-              className={`flex flex-col gap-6 rounded-3xl border border-slate-200 bg-white p-10 shadow-sm shadow-slate-900/5 ${
+              className={`flex flex-col gap-6 rounded-3xl p-10 shadow-sm shadow-slate-900/5 border transition-colors ${
                 plan.isHighlight
                   ? 'border-slate-900 bg-slate-900 text-white'
-                  : ''
+                  : 'border-slate-200 bg-white text-slate-900'
               }`}
             >
               <div className="space-y-3">
@@ -147,7 +147,7 @@ export function PricingClient() {
                 </p>
               </div>
 
-              <ul className="space-y-4 text-sm leading-relaxed text-slate-600">
+              <ul className="space-y-4 text-sm leading-relaxed">
                 {plan.features.map((feature) => (
                   <li
                     key={feature}
