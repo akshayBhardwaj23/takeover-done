@@ -285,6 +285,9 @@ export default function HomePage() {
   const [insightsInView, setInsightsInView] = useState(false);
   const mailingRef = useRef<HTMLDivElement | null>(null);
   const [mailingInView, setMailingInView] = useState(false);
+  const founderRef = useRef<HTMLDivElement | null>(null);
+  const [founderInView, setFounderInView] = useState(false);
+  const [showAutomationTip, setShowAutomationTip] = useState(false);
 
   const demoScenes = [
     {
@@ -371,6 +374,26 @@ export default function HomePage() {
     );
 
     observer.observe(mailingRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!founderRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setFounderInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.25 },
+    );
+
+    observer.observe(founderRef.current);
 
     return () => observer.disconnect();
   }, []);
@@ -991,6 +1014,157 @@ export default function HomePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Made for Founders */}
+      <section
+        ref={founderRef}
+        className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 py-24 text-white"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(94,234,212,0.18)_0,rgba(15,23,42,0)_60%)]" />
+        <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:flex-row lg:items-center">
+          <div
+            className={`w-full space-y-6 transition-all duration-700 ${
+              founderInView ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+            } lg:w-[40%]`}
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/70">
+              Made for Founders
+            </div>
+            <h2 className="text-3xl font-black md:text-4xl">
+              Run your business like a $100M brand - even if you’re solo.
+            </h2>
+            <p className="text-lg text-white/70">
+              ZYYP gives entrepreneurs and teams enterprise-grade automation, analytics, and
+              growth intelligence — without extra hires.
+            </p>
+            <div className="relative rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/80 shadow-lg shadow-cyan-500/10">
+              <p className="italic">
+                “Finally, an AI that runs my business while I sleep.”
+              </p>
+              <span className="mt-3 block text-xs uppercase tracking-[0.3em] text-white/50">
+                Founder, DTC Collective
+              </span>
+            </div>
+          </div>
+          <div
+            className={`relative w-full lg:w-[60%] ${
+              founderInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+            } transition-all duration-700`}
+            style={{ transitionDelay: '160ms' }}
+          >
+            <div
+              className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900 to-slate-950/90 p-8 shadow-2xl shadow-cyan-500/10"
+              onMouseEnter={() => setShowAutomationTip(true)}
+              onMouseLeave={() => setShowAutomationTip(false)}
+            >
+              <div className="absolute -left-12 top-12 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl" />
+              <div className="absolute -right-16 bottom-0 h-40 w-40 rounded-full bg-indigo-500/10 blur-3xl" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.08)_0,rgba(15,23,42,0)_65%)]" />
+              <div className="relative grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-inner backdrop-blur">
+                  <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-white/50">
+                    <span>Inbox automation</span>
+                    <span>02:14 AM</span>
+                  </div>
+                  <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/80 p-4 text-sm text-white/80 shadow-[0_0_25px_rgba(56,189,248,0.15)] founder-fade-in">
+                    <div className="flex items-center justify-between text-xs text-cyan-100/80">
+                      <span>New message</span>
+                      <span>Intent: Exchange</span>
+                    </div>
+                    <p className="mt-3">
+                      “Hi! My order arrived but I need a larger size. Can you help with an exchange?”
+                    </p>
+                    <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-cyan-100">
+                      AI detected intent
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-50 founder-slide-up">
+                    <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-emerald-100/80">
+                      <span>Automation</span>
+                      <span>Complete</span>
+                    </div>
+                    <p className="mt-2 font-semibold">Refund processed automatically</p>
+                    <p className="mt-1 text-xs text-emerald-100/80">
+                      Shopify · CRM updated · Customer notified
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 founder-slide-up delay-[120ms]">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/50">
+                      <span className="h-2 w-2 rounded-full bg-sky-400/80" />
+                      Marketing
+                    </div>
+                    <p className="mt-3 font-semibold">Next-best campaign queued</p>
+                    <p className="text-xs text-white/60">VIP win-back email scheduled</p>
+                  </div>
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 founder-slide-up delay-[220ms]">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/50">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                      Support
+                    </div>
+                    <p className="mt-3 font-semibold">Ticket closed with CSAT 5.0</p>
+                    <p className="text-xs text-white/60">
+                      Personalized reply sent + exchange details confirmed
+                    </p>
+                  </div>
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 founder-slide-up delay-[320ms]">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.3em] text-white/50">
+                      <span className="h-2 w-2 rounded-full bg-amber-300/80" />
+                      Sales
+                    </div>
+                    <p className="mt-3 font-semibold">Upsell offer generated</p>
+                    <p className="text-xs text-white/60">
+                      AI noted low inventory risk + suggested alternative bundle
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 grid gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur founder-dashboard">
+                <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/50">
+                  <span className="rounded-full bg-slate-900/60 px-3 py-1 font-semibold text-white/70">
+                    Dashboard update
+                  </span>
+                  <span>Customer satisfied ✅</span>
+                  <span>Ads optimized ✅</span>
+                  <span>Report generated ✅</span>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-white/80">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-inner">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/50">
+                      Founder view
+                    </p>
+                    <p className="mt-2 font-semibold text-white">ZYYP — Working While You Sleep.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {['02:00', '02:08', '02:15'].map((timestamp) => (
+                      <span
+                        key={timestamp}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60"
+                      >
+                        {timestamp}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {showAutomationTip && (
+                <div className="pointer-events-none absolute -top-4 right-10 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-semibold text-white/80 shadow-lg shadow-cyan-500/10 backdrop-blur founder-fade-in">
+                  <span>AI just automated another task 💡</span>
+                </div>
+              )}
+              <div
+                className="founder-cursor absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-white/20 shadow-lg shadow-cyan-500/20 backdrop-blur"
+                style={{
+                  animationDelay: founderInView ? '0s' : '-10s',
+                }}
+              >
+                <div className="h-2 w-2 rounded-full bg-white" />
+              </div>
             </div>
           </div>
         </div>
