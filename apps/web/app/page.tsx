@@ -365,7 +365,11 @@ export default function HomePage() {
             AI Business Copilot
           </div>
           <h1 className="text-4xl font-black leading-[1.05] md:text-6xl lg:text-7xl">
-            Meet ZYYP — Your AI Autopilot for Support, Analytics & Growth.
+            Meet ZYYP - Your{' '}
+            <span className="bg-gradient-to-r from-cyan-300 via-sky-400 to-indigo-400 bg-clip-text text-transparent animate-gradientShift">
+              AI Autopilot
+            </span>{' '}
+            for Support, Analytics & Growth.
           </h1>
           <p className="max-w-3xl text-lg text-white/70 md:text-xl">
             Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
@@ -429,8 +433,8 @@ export default function HomePage() {
                   type="button"
                   className={`flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-all duration-500 ${
                     index === activeScene
-                      ? 'border-white/30 bg-white/10 shadow-lg shadow-cyan-500/10 backdrop-blur'
-                      : 'opacity-60 hover:opacity-100 hover:border-white/20'
+                      ? 'border-white/60 bg-white text-slate-900 shadow-lg shadow-slate-900/10'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'
                   }`}
                   onClick={() => {
                     setActiveScene(index);
@@ -441,15 +445,27 @@ export default function HomePage() {
                   <span
                     className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
                       index === activeScene
-                        ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-200'
-                        : 'border-white/10 text-white/50'
+                        ? 'border-slate-900/10 bg-slate-900/5 text-slate-900'
+                        : 'border-white/20 text-white/60'
                     }`}
                   >
                     {index + 1}
                   </span>
                   <div>
-                    <p className="text-base font-semibold text-white">{scene.title}</p>
-                    <p className="text-sm text-white/70">{scene.description}</p>
+                    <p
+                      className={`text-base font-semibold ${
+                        index === activeScene ? 'text-slate-900' : 'text-white'
+                      }`}
+                    >
+                      {scene.title}
+                    </p>
+                    <p
+                      className={`text-sm ${
+                        index === activeScene ? 'text-slate-600' : 'text-white/70'
+                      }`}
+                    >
+                      {scene.description}
+                    </p>
                   </div>
                 </button>
               ))}
