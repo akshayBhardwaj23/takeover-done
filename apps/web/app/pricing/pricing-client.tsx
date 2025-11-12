@@ -89,12 +89,13 @@ export function PricingClient() {
       remotePlan && priceValue >= 0
         ? 'per month'
         : FALLBACK_PRICES[type].cadence;
+    const isHighlight = type === 'GROWTH';
     return {
       ...meta,
       type,
       priceLabel,
       cadence,
-      isHighlight: Boolean(meta.highlight),
+      isHighlight,
     };
   });
 
@@ -151,7 +152,7 @@ export function PricingClient() {
                   <li
                     key={feature}
                     className={`flex items-start gap-3 ${
-                      plan.isHighlight ? 'text-white/80' : ''
+                      plan.isHighlight ? 'text-white/80' : 'text-slate-600'
                     }`}
                   >
                     <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
