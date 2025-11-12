@@ -279,6 +279,15 @@
   animation: orbit-slow 35s linear infinite reverse;
 }
 
+.animate-glow {
+  animation: demoGlowPulse 2.4s ease-in-out infinite;
+}
+
+.animate-rise {
+  animation: demoRiseBar 0.9s ease-out forwards;
+  transform-origin: bottom;
+}
+
 @keyframes drift {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
@@ -308,6 +317,33 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes demoGlowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(125, 211, 252, 0.35);
+    opacity: 0.95;
+  }
+  50% {
+    box-shadow: 0 0 34px rgba(165, 243, 252, 0.4);
+    opacity: 1;
+  }
+}
+
+@keyframes demoRiseBar {
+  0% {
+    transform: scaleY(0.2);
+    opacity: 0.35;
+  }
+  60% {
+    transform: scaleY(1.05);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
   }
 }
 

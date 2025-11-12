@@ -268,6 +268,37 @@ const ACTION_VERBS = ['AUTOMATE', 'ANALYZE', 'GROW'];
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
   const [activeVerbIndex, setActiveVerbIndex] = useState(0);
+  const [activeScene, setActiveScene] = useState(0);
+
+  const demoScenes = [
+    {
+      id: 'email',
+      title: 'Customer email arrives',
+      description: 'ZYYP reads intent, sentiment, and critical data instantly.',
+    },
+    {
+      id: 'draft',
+      title: 'AI drafts the perfect reply',
+      description: 'Suggested response + Shopify action appears, ready for approval.',
+    },
+    {
+      id: 'insight',
+      title: 'Insight surfaces',
+      description: '"Response time reduced 42%" — clear impact in your dashboard.',
+    },
+    {
+      id: 'performance',
+      title: 'Growth metrics climb',
+      description: 'Performance graph highlights “Sales up 12%” to keep momentum.',
+    },
+  ];
+
+  const cursorPositions: Array<{ top: string; left: string }> = [
+    { top: '32%', left: '72%' },
+    { top: '56%', left: '64%' },
+    { top: '38%', left: '44%' },
+    { top: '62%', left: '58%' },
+  ];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -276,6 +307,15 @@ export default function HomePage() {
 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setActiveScene((prev) => (prev + 1) % demoScenes.length),
+      2600,
+    );
+
+    return () => clearInterval(interval);
+  }, [demoScenes.length]);
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -363,6 +403,218 @@ export default function HomePage() {
             <span>Purpose-built for modern support & revenue teams</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
             <span>Trusted by fast-moving operators across industries</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Demo Loop */}
+      <section className="bg-slate-950/95 py-20 text-white">
+        <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:flex-row lg:items-center">
+          <div className="w-full space-y-6 lg:w-[40%]">
+            <h2 className="text-3xl font-black md:text-4xl">
+              See ZYYP Power Your Business.
+            </h2>
+            <p className="text-lg text-white/70">
+              A silent, looping walkthrough that shows how ZYYP triages customer
+              emails, drafts replies, and surfaces the analytics that keep every team
+              ahead.
+            </p>
+            <div className="space-y-4">
+              {demoScenes.map((scene, index) => (
+                <div
+                  key={scene.id}
+                  className={`flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-500 ${
+                    index === activeScene
+                      ? 'border-white/30 bg-white/10 shadow-lg shadow-cyan-500/10 backdrop-blur'
+                      : 'opacity-60'
+                  }`}
+                >
+                  <span
+                    className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
+                      index === activeScene
+                        ? 'border-cyan-400/60 bg-cyan-400/10 text-cyan-200'
+                        : 'border-white/10 text-white/50'
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="text-base font-semibold text-white">{scene.title}</p>
+                    <p className="text-sm text-white/70">{scene.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="relative w-full overflow-visible lg:w-[60%]">
+            <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 shadow-2xl shadow-cyan-500/10">
+              {/* Ambient overlay */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12)_0,rgba(15,23,42,0)_60%)]" />
+
+              {/* Scene 1 */}
+              <div
+                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                  activeScene === 0 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                }`}
+              >
+                <div className="mx-auto w-full max-w-md rounded-3xl border border-cyan-400/20 bg-white/10 p-6 text-left shadow-xl shadow-cyan-500/10 backdrop-blur">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400/20 text-lg">
+                      ✉️
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white/80">Email from Maya</p>
+                      <span className="text-xs uppercase tracking-wide text-white/50">
+                        2 minutes ago
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-white/80">
+                    “Order arrived damaged. Need a replacement or refund ASAP.”
+                  </p>
+                  <div
+                    className={`mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200 ${
+                      activeScene === 0 ? 'animate-glow' : ''
+                    }`}
+                  >
+                    intent read
+                  </div>
+                </div>
+              </div>
+
+              {/* Scene 2 */}
+              <div
+                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                  activeScene === 1 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                }`}
+              >
+                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-purple-400/30 bg-white/10 p-6 shadow-xl shadow-purple-500/10 backdrop-blur">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.3em] text-white/50">
+                        draft reply
+                      </p>
+                      <h3 className="text-lg font-semibold text-white">AI Response</h3>
+                    </div>
+                    <span className="rounded-full bg-purple-500/20 px-3 py-1 text-xs font-semibold text-purple-200">
+                      97% confidence
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-3 text-sm leading-relaxed text-white/80">
+                    <p>
+                      Hi Maya — thanks for letting us know. I’ve already queued a replacement
+                      to ship today with express delivery.
+                    </p>
+                    <p>
+                      You’ll receive tracking in the next 2 hours. If you prefer a refund,
+                      just reply to this email.
+                    </p>
+                  </div>
+                  <div className="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em] text-purple-200/80">
+                    <span className="rounded-full bg-purple-500/15 px-3 py-1">
+                      action: create replacement order
+                    </span>
+                    <span className="rounded-full border border-purple-500/40 px-3 py-1">
+                      smart summary
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scene 3 */}
+              <div
+                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                  activeScene === 2 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                }`}
+              >
+                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-emerald-400/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-6 text-left shadow-lg shadow-emerald-500/20 backdrop-blur">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-lg text-emerald-100">
+                      📊
+                    </div>
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.35em] text-emerald-200/80">
+                        insight
+                      </p>
+                      <h3 className="text-lg font-semibold text-white">
+                        Response time reduced 42%
+                      </h3>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm text-emerald-50/80">
+                    Thanks to instant AI triage, the support team cleared high-priority cases
+                    before they aged.
+                  </p>
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-xs text-emerald-100/80">
+                    <div className="rounded-2xl border border-emerald-400/30 bg-white/5 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-200/70">
+                        csat
+                      </p>
+                      <p className="text-lg font-semibold text-white">4.8 / 5</p>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-400/30 bg-white/5 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-200/70">
+                        approvals automated
+                      </p>
+                      <p className="text-lg font-semibold text-white">78%</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scene 4 */}
+              <div
+                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                  activeScene === 3 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                }`}
+              >
+                <div className="mx-auto w-full max-w-xl rounded-[28px] border border-sky-400/25 bg-white/5 p-6 shadow-xl shadow-sky-500/20 backdrop-blur">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.35em] text-sky-200/80">
+                        performance
+                      </p>
+                      <h3 className="text-lg font-semibold text-white">Sales up 12%</h3>
+                    </div>
+                    <span className="rounded-full bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100">
+                      last 30 days
+                    </span>
+                  </div>
+                  <div className="mt-4 h-40 w-full rounded-2xl bg-gradient-to-tr from-sky-500/10 via-transparent to-sky-500/5 p-4">
+                    <div className="flex h-full items-end gap-2">
+                      {[22, 32, 44, 56, 68, 74, 82].map((value, index) => (
+                        <div
+                          key={index}
+                          className={`flex-1 rounded-full bg-sky-400/40 transition-all duration-500 ${
+                            activeScene === 3 ? 'animate-rise' : ''
+                          }`}
+                          style={{ height: `${value}%`, animationDelay: `${index * 0.12}s` }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-3 text-xs text-sky-100/80">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/40 px-3 py-1">
+                      📈 Forecast improved
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/40 px-3 py-1">
+                      ⚡ Playbooks enabled
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cursor */}
+              <div
+                className="pointer-events-none absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/15 shadow-lg shadow-cyan-500/20 backdrop-blur transition-all duration-700 ease-out"
+                style={{
+                  top: cursorPositions[activeScene]?.top,
+                  left: cursorPositions[activeScene]?.left,
+                }}
+              >
+                <div className="h-2 w-2 rounded-full bg-white/80" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
