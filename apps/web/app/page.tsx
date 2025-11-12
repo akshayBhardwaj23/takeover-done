@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 
 const trustedLogos = [
   'Aurora Threads',
@@ -263,8 +263,19 @@ const heroStreams: Array<{
   },
 ];
 
+const ACTION_VERBS = ['AUTOMATE', 'ANALYZE', 'GROW'];
+
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
+  const [activeVerbIndex, setActiveVerbIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveVerbIndex((prev) => (prev + 1) % ACTION_VERBS.length);
+    }, 2200);
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -308,27 +319,38 @@ export default function HomePage() {
         </div>
         <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
           <div className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
-            AI Support Desk
+            AI Business Copilot
           </div>
-          <h1 className="text-4xl font-black leading-[1.1] md:text-6xl lg:text-7xl md:leading-[1.08]">
-            Give your Shopify customers answers
-            <span className="block bg-gradient-to-r from-cyan-300 via-sky-400 to-indigo-400 bg-clip-text text-transparent">
-              in seconds, not hours
-            </span>
+          <h1 className="text-4xl font-black leading-[1.05] md:text-6xl lg:text-7xl">
+            Meet ZYYP — Your AI Autopilot for Support, Analytics & Growth.
           </h1>
           <p className="max-w-3xl text-lg text-white/70 md:text-xl">
-            The AI E-Commerce Support Assistant reads every email, pulls the
-            right Shopify order, and drafts the perfect reply with the action
-            ready to approve. Resolve tickets 60% faster, cut refunds from
-            slipping through the cracks, and delight your customers without
-            burning out your team.
+            Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
           </p>
+          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-white/60">
+            <span>We help teams</span>
+            <span className="relative inline-flex h-6 min-w-[8rem] overflow-hidden">
+              {ACTION_VERBS.map((verb, index) => (
+                <span
+                  key={verb}
+                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out ${
+                    index === activeVerbIndex
+                      ? 'translate-y-0 opacity-100'
+                      : 'translate-y-full opacity-0'
+                  }`}
+                >
+                  {verb}
+                </span>
+              ))}
+            </span>
+            <span>on autopilot</span>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/integrations"
               className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-100"
             >
-              Connect Shopify store
+              Launch your autopilot
             </Link>
             <a
               href="#how-it-works"
@@ -338,9 +360,9 @@ export default function HomePage() {
             </a>
           </div>
           <div className="mt-12 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50">
-            <span>Purpose-built for ecommerce support</span>
+            <span>Purpose-built for modern support & revenue teams</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
-            <span>Trusted by fast-moving DTC CX teams</span>
+            <span>Trusted by fast-moving operators across industries</span>
           </div>
         </div>
       </section>
