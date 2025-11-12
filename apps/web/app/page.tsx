@@ -265,6 +265,17 @@ const heroStreams: Array<{
 
 const ACTION_VERBS = ['AUTOMATE', 'ANALYZE', 'GROW'];
 
+const integrationIcons = [
+  { name: 'Shopify', emoji: '🛍️', gradient: 'from-emerald-400 to-emerald-600' },
+  { name: 'Gmail', emoji: '✉️', gradient: 'from-rose-400 to-red-500' },
+  { name: 'Slack', emoji: '💬', gradient: 'from-purple-400 to-fuchsia-500' },
+  { name: 'Mailgun', emoji: '📨', gradient: 'from-sky-400 to-cyan-500' },
+  { name: 'Meta Ads', emoji: '📣', gradient: 'from-blue-500 to-indigo-500' },
+  { name: 'Google Analytics', emoji: '📊', gradient: 'from-orange-400 to-amber-500' },
+  { name: 'HubSpot', emoji: '🚀', gradient: 'from-amber-500 to-orange-500' },
+  { name: 'Zapier', emoji: '⚙️', gradient: 'from-red-500 to-rose-500' },
+];
+
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
   const [activeVerbIndex, setActiveVerbIndex] = useState(0);
@@ -272,6 +283,8 @@ export default function HomePage() {
   const [isPaused, setIsPaused] = useState(false);
   const insightsRef = useRef<HTMLDivElement | null>(null);
   const [insightsInView, setInsightsInView] = useState(false);
+  const mailingRef = useRef<HTMLDivElement | null>(null);
+  const [mailingInView, setMailingInView] = useState(false);
 
   const demoScenes = [
     {
@@ -342,6 +355,26 @@ export default function HomePage() {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    if (!mailingRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setMailingInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      { threshold: 0.25 },
+    );
+
+    observer.observe(mailingRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Hero */}
@@ -392,7 +425,7 @@ export default function HomePage() {
               AI Autopilot
             </span>{' '}
             for Support, Analytics & Growth.
-          </h1>
+            </h1>
           <p className="max-w-3xl text-lg text-white/70 md:text-xl">
             Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
           </p>
@@ -415,19 +448,19 @@ export default function HomePage() {
             <span>on autopilot</span>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/integrations"
+              <Link
+                href="/integrations"
               className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-100"
-            >
+              >
               Launch your autopilot
-            </Link>
+              </Link>
             <a
               href="#how-it-works"
               className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white transition hover:border-white hover:text-white"
             >
               See how it works
             </a>
-          </div>
+            </div>
           <div className="mt-12 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50">
             <span>Purpose-built for modern support & revenue teams</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
@@ -437,13 +470,13 @@ export default function HomePage() {
       </section>
 
       {/* Demo Loop */}
-      <section className="bg-slate-950/95 py-20 text-white">
+      <section className="bg-white py-20 text-slate-900">
         <div className="mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:flex-row lg:items-center">
           <div className="w-full space-y-6 lg:w-[40%]">
-            <h2 className="text-3xl font-black md:text-4xl">
+            <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
               See ZYYP Power Your Business.
             </h2>
-            <p className="text-lg text-white/70">
+            <p className="text-lg text-slate-600">
               A silent, looping walkthrough that shows how ZYYP triages customer
               emails, drafts replies, and surfaces the analytics that keep every team
               ahead.
@@ -453,10 +486,10 @@ export default function HomePage() {
                 <button
                   key={scene.id}
                   type="button"
-                  className={`flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-all duration-500 ${
+                  className={`flex w-full items-start gap-3 rounded-2xl p-4 text-left transition-all duration-500 ${
                     index === activeScene
-                      ? 'border-white/60 bg-white text-slate-900 shadow-lg shadow-slate-900/10'
-                      : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'
+                      ? 'border border-slate-900/15 bg-white text-slate-900 shadow-xl shadow-slate-900/10'
+                      : 'border border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white'
                   }`}
                   onClick={() => {
                     setActiveScene(index);
@@ -468,35 +501,35 @@ export default function HomePage() {
                     className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
                       index === activeScene
                         ? 'border-slate-900/10 bg-slate-900/5 text-slate-900'
-                        : 'border-white/20 text-white/60'
+                        : 'border-slate-200 text-slate-400'
                     }`}
                   >
                     {index + 1}
-                  </span>
+              </span>
                   <div>
                     <p
                       className={`text-base font-semibold ${
-                        index === activeScene ? 'text-slate-900' : 'text-white'
+                        index === activeScene ? 'text-slate-900' : 'text-slate-700'
                       }`}
                     >
                       {scene.title}
                     </p>
                     <p
                       className={`text-sm ${
-                        index === activeScene ? 'text-slate-600' : 'text-white/70'
+                        index === activeScene ? 'text-slate-600' : 'text-slate-500'
                       }`}
                     >
                       {scene.description}
                     </p>
-                  </div>
+            </div>
                 </button>
               ))}
-            </div>
           </div>
+              </div>
           <div className="relative w-full overflow-visible lg:w-[60%]">
-            <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 shadow-2xl shadow-cyan-500/10">
+            <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl overflow-hidden rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-2xl shadow-slate-900/10">
               {/* Ambient overlay */}
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12)_0,rgba(15,23,42,0)_60%)]" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(148,163,184,0.18)_0,rgba(255,255,255,0)_65%)]" />
 
               {/* Scene 1 */}
               <div
@@ -504,23 +537,23 @@ export default function HomePage() {
                   activeScene === 0 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
                 }`}
               >
-                <div className="mx-auto w-full max-w-md rounded-3xl border border-cyan-400/20 bg-white/10 p-6 text-left shadow-xl shadow-cyan-500/10 backdrop-blur">
+                <div className="mx-auto w-full max-w-md rounded-3xl border border-cyan-400/30 bg-white p-6 text-left shadow-xl shadow-cyan-500/10">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-400/20 text-lg">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-500/10 text-lg text-cyan-600">
                       ✉️
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-white/80">Email from Maya</p>
-                      <span className="text-xs uppercase tracking-wide text-white/50">
+                      <p className="text-sm font-semibold text-slate-800">Email from Maya</p>
+                      <span className="text-xs uppercase tracking-wide text-slate-400">
                         2 minutes ago
                       </span>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm text-white/80">
+                  <p className="mt-4 text-sm text-slate-600">
                     “Order arrived damaged. Need a replacement or refund ASAP.”
                   </p>
                   <div
-                    className={`mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-cyan-200 ${
+                    className={`mt-5 inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-cyan-700 ${
                       activeScene === 0 ? 'animate-glow' : ''
                     }`}
                   >
@@ -535,19 +568,19 @@ export default function HomePage() {
                   activeScene === 1 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
                 }`}
               >
-                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-purple-400/30 bg-white/10 p-6 shadow-xl shadow-purple-500/10 backdrop-blur">
+                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-purple-400/40 bg-white p-6 shadow-xl shadow-purple-500/10">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm uppercase tracking-[0.3em] text-white/50">
+                      <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
                         draft reply
                       </p>
-                      <h3 className="text-lg font-semibold text-white">AI Response</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">AI Response</h3>
                     </div>
-                    <span className="rounded-full bg-purple-500/20 px-3 py-1 text-xs font-semibold text-purple-200">
+                    <span className="rounded-full bg-purple-500/15 px-3 py-1 text-xs font-semibold text-purple-700">
                       97% confidence
                     </span>
                   </div>
-                  <div className="mt-4 space-y-3 text-sm leading-relaxed text-white/80">
+                  <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600">
                     <p>
                       Hi Maya — thanks for letting us know. I’ve already queued a replacement
                       to ship today with express delivery.
@@ -557,11 +590,11 @@ export default function HomePage() {
                       just reply to this email.
                     </p>
                   </div>
-                  <div className="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em] text-purple-200/80">
-                    <span className="rounded-full bg-purple-500/15 px-3 py-1">
+                  <div className="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em] text-purple-600/80">
+                    <span className="rounded-full bg-purple-500/10 px-3 py-1">
                       action: create replacement order
                     </span>
-                    <span className="rounded-full border border-purple-500/40 px-3 py-1">
+                    <span className="rounded-full border border-purple-400/40 px-3 py-1">
                       smart summary
                     </span>
                   </div>
@@ -574,36 +607,36 @@ export default function HomePage() {
                   activeScene === 2 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
                 }`}
               >
-                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-emerald-400/25 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-6 text-left shadow-lg shadow-emerald-500/20 backdrop-blur">
+                <div className="mx-auto w-full max-w-lg rounded-[28px] border border-emerald-400/30 bg-gradient-to-br from-emerald-100 via-white to-emerald-50 p-6 text-left shadow-lg shadow-emerald-500/15">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-lg text-emerald-100">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-lg text-emerald-600">
                       📊
                     </div>
                     <div>
-                      <p className="text-sm uppercase tracking-[0.35em] text-emerald-200/80">
+                      <p className="text-sm uppercase tracking-[0.35em] text-emerald-600/80">
                         insight
                       </p>
-                      <h3 className="text-lg font-semibold text-white">
+                      <h3 className="text-lg font-semibold text-emerald-900">
                         Response time reduced 42%
                       </h3>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm text-emerald-50/80">
+                  <p className="mt-4 text-sm text-emerald-700/80">
                     Thanks to instant AI triage, the support team cleared high-priority cases
                     before they aged.
                   </p>
-                  <div className="mt-5 grid grid-cols-2 gap-3 text-xs text-emerald-100/80">
-                    <div className="rounded-2xl border border-emerald-400/30 bg-white/5 p-3">
-                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-200/70">
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-xs text-emerald-700/80">
+                    <div className="rounded-2xl border border-emerald-400/30 bg-white/80 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-500/80">
                         csat
                       </p>
-                      <p className="text-lg font-semibold text-white">4.8 / 5</p>
+                      <p className="text-lg font-semibold text-emerald-900">4.8 / 5</p>
                     </div>
-                    <div className="rounded-2xl border border-emerald-400/30 bg-white/5 p-3">
-                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-200/70">
+                    <div className="rounded-2xl border border-emerald-400/30 bg-white/80 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-500/80">
                         approvals automated
                       </p>
-                      <p className="text-lg font-semibold text-white">78%</p>
+                      <p className="text-lg font-semibold text-emerald-900">78%</p>
                     </div>
                   </div>
                 </div>
@@ -615,24 +648,24 @@ export default function HomePage() {
                   activeScene === 3 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
                 }`}
               >
-                <div className="mx-auto w-full max-w-xl rounded-[28px] border border-sky-400/25 bg-white/5 p-6 shadow-xl shadow-sky-500/20 backdrop-blur">
+                <div className="mx-auto w-full max-w-xl rounded-[28px] border border-sky-400/30 bg-white p-6 shadow-xl shadow-sky-500/15">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs uppercase tracking-[0.35em] text-sky-200/80">
+                      <p className="text-xs uppercase tracking-[0.35em] text-sky-500/80">
                         performance
                       </p>
-                      <h3 className="text-lg font-semibold text-white">Sales up 12%</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">Sales up 12%</h3>
                     </div>
-                    <span className="rounded-full bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-100">
+                    <span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700">
                       last 30 days
                     </span>
                   </div>
-                  <div className="mt-4 h-40 w-full rounded-2xl bg-gradient-to-tr from-sky-500/10 via-transparent to-sky-500/5 p-4">
+                  <div className="mt-4 h-40 w-full rounded-2xl bg-gradient-to-tr from-sky-200/40 via-transparent to-sky-100/50 p-4">
                     <div className="flex h-full items-end gap-2">
                       {[22, 32, 44, 56, 68, 74, 82].map((value, index) => (
                         <div
                           key={index}
-                          className={`flex-1 rounded-full bg-sky-400/40 transition-all duration-500 ${
+                          className={`flex-1 rounded-full bg-sky-400/60 transition-all duration-500 ${
                             activeScene === 3 ? 'animate-rise' : ''
                           }`}
                           style={{ height: `${value}%`, animationDelay: `${index * 0.12}s` }}
@@ -640,7 +673,7 @@ export default function HomePage() {
                       ))}
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center gap-3 text-xs text-sky-100/80">
+                  <div className="mt-4 flex items-center gap-3 text-xs text-sky-600/80">
                     <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/40 px-3 py-1">
                       📈 Forecast improved
                     </span>
@@ -653,17 +686,17 @@ export default function HomePage() {
 
               {/* Cursor */}
               <div
-                className="pointer-events-none absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-white/15 shadow-lg shadow-cyan-500/20 backdrop-blur transition-all duration-700 ease-out"
+                className="pointer-events-none absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-300 bg-white/60 shadow-lg shadow-slate-400/20 backdrop-blur transition-all duration-700 ease-out"
                 style={{
                   top: cursorPositions[activeScene]?.top,
                   left: cursorPositions[activeScene]?.left,
                 }}
               >
-                <div className="h-2 w-2 rounded-full bg-white/80" />
+                <div className="h-2 w-2 rounded-full bg-slate-500" />
               </div>
             </div>
           </div>
-        </div>
+              </div>
       </section>
 
       {/* Insights Dashboard */}
@@ -720,10 +753,10 @@ export default function HomePage() {
                     <p className="text-sm font-semibold text-slate-800">{card.title}</p>
                     <p className="text-sm text-slate-600">{card.data}</p>
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
           <div
             className={`relative w-full transition-all duration-700 ${
               insightsInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
@@ -753,8 +786,8 @@ export default function HomePage() {
                           style={{ height: `${height}%` }}
                         />
                       ))}
-                    </div>
-                  </div>
+              </div>
+            </div>
                   <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-md">
                     <div className="flex items-center justify-between">
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -844,13 +877,132 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Autonomous Mailing Engine */}
+      <section className="bg-white py-24">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-14 px-6 lg:flex-row lg:items-stretch">
+          <div className="w-full lg:w-[48%]">
+            <div
+              ref={mailingRef}
+              className={`relative h-full transition-all duration-700 ${
+                mailingInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+              }`}
+            >
+              <div className="relative mx-auto w-full rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/10 text-slate-700">
+                      ✉️
+                    </span>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                        AI draft
+                      </p>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Follow-up: Order status update
+            </p>
+          </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    94% confidence
+                  </span>
+                </div>
+                <div className="space-y-4 px-6 py-5 text-sm text-slate-600">
+                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-inner">
+                    <p className="font-semibold text-slate-800">Hi Alex,</p>
+                    <p>
+                      Your order is in the final packing stage and will ship within the next
+                      24 hours. We’ve upgraded you to priority shipping at no cost so it
+                      arrives on time.
+                    </p>
+                    <p>
+                      You can track its journey anytime: <span className="underline">Track order</span>.
+                    </p>
+                    <p className="text-slate-500">
+                      Thanks for your patience — we’ll ping you once it’s out the door.
+                    </p>
+                    <p>— Team ZYYP Automations</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-inner">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                      Smart recommendations
+                    </p>
+                    <ul className="mt-2 space-y-2 text-sm text-slate-600">
+                      <li>• Add 10% discount if order is delayed beyond 3 days.</li>
+                      <li>• Follow-up in 48 hours if no response.</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
+                  <button className="rounded-full border border-slate-300 px-5 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white">
+                    Edit Draft
+                  </button>
+                  <button className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-slate-800">
+                    Approve &amp; Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`w-full space-y-6 transition-all duration-700 ${
+              mailingInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+            } lg:w-[52%]`}
+            style={{ transitionDelay: '120ms' }}
+          >
+            <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
+              Autonomous Mailing Engine — Never Miss a Customer Again.
+            </h2>
+            <p className="text-lg text-slate-600">
+              ZYYP auto-drafts and sends follow-ups, offers, and updates based on customer
+              behavior, tickets, or sales trends — all fully editable by you.
+            </p>
+            <div className="space-y-4">
+              {[
+                {
+                  icon: '📬',
+                  title: 'Automated follow-ups',
+                  description:
+                    'Trigger emails instantly when support tickets stall or orders slip past SLA.',
+                },
+                {
+                  icon: '💬',
+                  title: 'Personalized replies',
+                  description:
+                    'Use customer data, sentiment, and purchase history to tailor every message.',
+                },
+                {
+                  icon: '📈',
+                  title: 'Triggered campaigns',
+                  description:
+                    'Launch win-back offers, restock alerts, and VIP check-ins without lifting a finger.',
+                },
+              ].map((feature, index) => (
+                <div
+                  key={feature.title}
+                  className="flex items-start gap-4 rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                  style={{ transitionDelay: `${index * 80}ms` }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900/10 text-lg">
+                    {feature.icon}
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold text-slate-900">{feature.title}</p>
+                    <p className="text-sm text-slate-600">{feature.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Logos */}
       <section className="border-b border-slate-100 bg-white py-16">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-12 gap-y-6 px-6 text-sm font-semibold uppercase tracking-[0.35em] text-slate-400">
           {trustedLogos.map((logo) => (
             <span key={logo}>{logo}</span>
           ))}
-        </div>
+          </div>
       </section>
 
       {/* How it works */}
@@ -894,28 +1046,28 @@ export default function HomePage() {
                 >
                   <h3 className="text-lg font-semibold text-slate-900">
                     {card.title}
-                  </h3>
+        </h3>
                   <p className="mt-3 text-sm text-slate-600">
                     {card.description}
                   </p>
-                </div>
-              ))}
             </div>
+              ))}
+              </div>
             <div className="flex flex-wrap gap-4">
-              <Link
+                <Link
                 href="/usage"
                 className="rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-black"
-              >
+                >
                 Explore the inbox
-              </Link>
+                </Link>
               <a
                 href="mailto:hello@notus.ai"
                 className="rounded-full border border-slate-900/10 px-7 py-3 text-sm font-semibold tracking-wide text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-900/20"
               >
                 Talk to us
               </a>
-            </div>
-          </div>
+              </div>
+              </div>
           <div className="space-y-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-slate-900/5">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
               <span>Inbox Overview</span>
@@ -930,11 +1082,11 @@ export default function HomePage() {
                   <p className="text-xs text-slate-500">
                     Intent: Refund request · Confidence 0.92
                   </p>
-                </div>
+              </div>
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
                   AI draft ready
                 </span>
-              </div>
+            </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -943,11 +1095,11 @@ export default function HomePage() {
                   <p className="text-xs text-slate-500">
                     Order #48219 · Delivered · 2 items
                   </p>
-                </div>
+          </div>
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-600">
                   Needs approval
                 </span>
-              </div>
+                </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -973,9 +1125,9 @@ export default function HomePage() {
                     {event.time}
                     <span className="mx-2 text-slate-400">·</span>
                     {event.intent}
-                  </div>
                 </div>
-              ))}
+              </div>
+            ))}
             </div>
           </div>
         </div>
@@ -986,12 +1138,38 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-3xl text-center">
             <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
-              Connect the tools you already use
+              Autonomous workflows across every platform
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Bring Shopify orders, support inboxes, outbound email, and
-              internal chat into one unified workflow.
+              Connect ZYYP with your favorite tools — from e-commerce to marketing to support —
+              for a truly autonomous business workflow.
             </p>
+            <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
+              + More Integrations Coming Soon.
+            </span>
+          </div>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+            {integrationIcons.map((tool, index) => (
+              <div
+                key={tool.name}
+                className="group relative overflow-hidden rounded-3xl border border-slate-100 bg-white p-5 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_45px_rgba(59,130,246,0.15)]"
+                style={{ transitionDelay: `${index * 40}ms` }}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tool.gradient} text-xl shadow-inner shadow-white/20 transition duration-300 group-hover:scale-105 group-hover:shadow-[0_0_25px_rgba(59,130,246,0.45)]`}
+                  >
+                    {tool.emoji}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
+                      {tool.name}
+                    </p>
+                    <p className="text-xs text-slate-400">Connected in minutes</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-2">
             {channelCards.map((card) => (
@@ -1012,7 +1190,7 @@ export default function HomePage() {
                     className={`rounded-full bg-gradient-to-r ${card.accent} px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white`}
                   >
                     {card.badge}
-                  </span>
+                      </span>
                 </div>
                 <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
                   <span>Status</span>
@@ -1020,7 +1198,7 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-          </div>
+              </div>
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {[
               {
@@ -1047,8 +1225,8 @@ export default function HomePage() {
                 <p className="mt-4 text-sm text-white/70">
                   {feature.description}
                 </p>
-              </div>
-            ))}
+            </div>
+          ))}
           </div>
         </div>
       </section>
@@ -1076,8 +1254,8 @@ export default function HomePage() {
                 <p className="mt-3 text-sm text-white/70">
                   {useCase.description}
                 </p>
-              </div>
-            ))}
+                </div>
+              ))}
           </div>
         </div>
       </section>
@@ -1100,7 +1278,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-2xl">
                   🤖
-                </div>
+            </div>
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
                     Dashboard
@@ -1108,7 +1286,7 @@ export default function HomePage() {
                   <p className="text-2xl font-black text-slate-900">
                     Support intelligence
                   </p>
-                </div>
+              </div>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 {[
@@ -1122,14 +1300,14 @@ export default function HomePage() {
                   >
                     <div className="text-sm font-semibold text-slate-500">
                       {item.label}
-                    </div>
+              </div>
                     <div className="mt-2 text-xl font-black text-slate-900">
                       {item.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
+              </div>
+                ))}
+            </div>
+          </div>
           </div>
           <div className="space-y-6">
             {benefits.map((benefit) => (
@@ -1166,7 +1344,7 @@ export default function HomePage() {
       {/* Live feed */}
       <section className="bg-slate-950 py-16 text-white">
         <div className="mx-auto max-w-6xl px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-2xl font-black md:text-3xl">
               Live support activity feed
             </h2>
@@ -1187,8 +1365,8 @@ export default function HomePage() {
                 <div className="text-xs uppercase tracking-[0.3em] text-white/50">
                   {event.time} · {event.intent}
                 </div>
-              </div>
-            ))}
+            </div>
+          ))}
           </div>
         </div>
       </section>
@@ -1198,7 +1376,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">
-              Pricing
+            Pricing
             </p>
             <h2 className="mt-4 text-3xl font-black text-slate-900 md:text-4xl">
               Choose a plan that scales with your support volume
@@ -1241,7 +1419,7 @@ export default function HomePage() {
                 )}
                 <div className="text-sm font-semibold uppercase tracking-[0.35em] text-current/70">
                   {plan.name}
-                </div>
+        </div>
                 <div className="mt-4 text-4xl font-black">
                   ${annual ? Math.round(plan.price * 0.8) : plan.price}
                   <span className="ml-2 text-sm font-semibold opacity-60">
@@ -1270,9 +1448,9 @@ export default function HomePage() {
                       </span>
                     </li>
                   ))}
-                </ul>
-                <Link
-                  href="/integrations"
+            </ul>
+            <Link
+              href="/integrations"
                   className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
                     plan.featured
                       ? 'bg-white text-slate-900 hover:bg-slate-100'
@@ -1284,10 +1462,10 @@ export default function HomePage() {
                     : plan.featured
                       ? 'Start free trial'
                       : 'Get started'}
-                </Link>
-              </div>
-            ))}
+            </Link>
           </div>
+            ))}
+            </div>
         </div>
       </section>
 
