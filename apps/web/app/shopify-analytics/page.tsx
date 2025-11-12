@@ -45,7 +45,7 @@ function ShopifyAnalyticsInner() {
 
   if (!selectedShop) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6">
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-24">
         <Card className="max-w-md p-8 text-center">
           <Store className="mx-auto h-16 w-16 text-slate-400" />
           <h2 className="mt-4 text-2xl font-bold text-slate-900">
@@ -69,7 +69,7 @@ function ShopifyAnalyticsInner() {
 
   if (analytics.isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6">
+      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-24">
         <div className="mx-auto max-w-7xl space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
@@ -148,7 +148,7 @@ function ShopifyAnalyticsInner() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-20">
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-24">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

@@ -172,7 +172,7 @@ function IntegrationsInner() {
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <main className="min-h-screen bg-slate-100 py-24">
+      <main className="min-h-screen bg-slate-100 py-28 lg:py-32">
         <div className="mx-auto max-w-6xl space-y-10 px-6">
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">

@@ -130,7 +130,7 @@ export default function UsagePage() {
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <main className="min-h-screen bg-slate-100 py-24">
-        <div className="mx-auto max-w-6xl space-y-10 px-6">
+        <div className="mx-auto max-w-6xl space-y-10 px-6 pt-10">
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">

@@ -415,7 +415,7 @@ export default function InboxPage() {
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <div className="min-h-screen bg-white pt-28 md:pt-32">
+      <div className="min-h-screen bg-white pt-32 md:pt-36">
         <header className="relative border-b border-slate-200/70 bg-white">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
