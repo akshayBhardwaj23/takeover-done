@@ -269,6 +269,7 @@ export default function HomePage() {
   const [annual, setAnnual] = useState(false);
   const [activeVerbIndex, setActiveVerbIndex] = useState(0);
   const [activeScene, setActiveScene] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   const demoScenes = [
     {
@@ -309,13 +310,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    if (isPaused) return;
+
     const interval = setInterval(
       () => setActiveScene((prev) => (prev + 1) % demoScenes.length),
-      2600,
+      5000,
     );
 
     return () => clearInterval(interval);
-  }, [demoScenes.length]);
+  }, [isPaused]);
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
@@ -421,13 +424,19 @@ export default function HomePage() {
             </p>
             <div className="space-y-4">
               {demoScenes.map((scene, index) => (
-                <div
+                <button
                   key={scene.id}
-                  className={`flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition-all duration-500 ${
+                  type="button"
+                  className={`flex w-full items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition-all duration-500 ${
                     index === activeScene
                       ? 'border-white/30 bg-white/10 shadow-lg shadow-cyan-500/10 backdrop-blur'
-                      : 'opacity-60'
+                      : 'opacity-60 hover:opacity-100 hover:border-white/20'
                   }`}
+                  onClick={() => {
+                    setActiveScene(index);
+                    setIsPaused(true);
+                    setTimeout(() => setIsPaused(false), 5000);
+                  }}
                 >
                   <span
                     className={`mt-1 inline-flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold ${
@@ -442,7 +451,7 @@ export default function HomePage() {
                     <p className="text-base font-semibold text-white">{scene.title}</p>
                     <p className="text-sm text-white/70">{scene.description}</p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </div>
