@@ -410,54 +410,59 @@ function AutomationShowcase() {
   };
 
   return (
-    <div className="relative flex h-[360px] w-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#0B0F1E]/95 via-[#0C192D]/90 to-[#111827]/95 p-6 text-white shadow-2xl shadow-cyan-500/10 md:p-8">
-      <div className="pointer-events-none absolute -left-16 top-8 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 bottom-6 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
-      <div className="flex items-center justify-between text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/50">
-        <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
-          {scenes[sceneIndex].label}
-        </span>
-        <span className="text-xs uppercase tracking-[0.2em] text-white/40">
-          {scenes[sceneIndex].caption}
-        </span>
-      </div>
-      <div className="relative mt-6 flex-1">
-        {scenes.map((scene, index) => (
+    <div className="flex flex-col gap-5 md:gap-6">
+      <div className="relative flex h-[360px] w-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#0B0F1E]/95 via-[#0C192D]/90 to-[#111827]/95 p-6 text-white shadow-2xl shadow-cyan-500/10 md:p-8">
+        <div className="pointer-events-none absolute -left-16 top-8 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -right-20 bottom-6 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="flex items-center justify-between text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/50">
+          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/60">
+            {scenes[sceneIndex].label}
+          </span>
+          <span className="text-xs uppercase tracking-[0.2em] text-white/40">
+            {scenes[sceneIndex].caption}
+          </span>
+        </div>
+        <div className="relative mt-6 flex-1">
+          {scenes.map((scene, index) => (
+            <div
+              key={scene.id}
+              className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                sceneIndex === index
+                  ? 'pointer-events-auto translate-y-0 opacity-100'
+                  : 'pointer-events-none translate-y-6 opacity-0'
+              }`}
+            >
+              {renderSceneContent(scene.id, sceneIndex === index)}
+            </div>
+          ))}
           <div
-            key={scene.id}
-            className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              sceneIndex === index
-                ? 'pointer-events-auto translate-y-0 opacity-100'
-                : 'pointer-events-none translate-y-6 opacity-0'
-            }`}
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{
+              top: cursorPositions[sceneIndex].top,
+              left: cursorPositions[sceneIndex].left,
+            }}
           >
-            {renderSceneContent(scene.id, sceneIndex === index)}
-          </div>
-        ))}
-        <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
-          style={{
-            top: cursorPositions[sceneIndex].top,
-            left: cursorPositions[sceneIndex].left,
-          }}
-        >
-          <div className="relative h-10 w-10">
-            <div className="absolute inset-0 rounded-full border border-white/30 bg-white/15 backdrop-blur" />
-            <div className="absolute inset-1 rounded-full border border-white/20 bg-white/30" />
-            <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
-            <div className="absolute -bottom-4 left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-md bg-white/70 shadow-lg shadow-cyan-500/20" />
+            <div className="relative h-10 w-10">
+              <div className="absolute inset-0 rounded-full border border-white/30 bg-white/15 backdrop-blur" />
+              <div className="absolute inset-1 rounded-full border border-white/20 bg-white/30" />
+              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+              <div className="absolute -bottom-4 left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-md bg-white/70 shadow-lg shadow-cyan-500/20" />
+            </div>
           </div>
         </div>
       </div>
-      <div className="mt-6 flex items-center gap-2">
+      <div className="relative z-10 flex items-center gap-2 px-2">
         {scenes.map((scene, index) => (
-          <span
+          <button
             key={scene.id}
-            className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+            type="button"
+            onClick={() => setSceneIndex(index)}
+            className={`h-1 flex-1 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
               sceneIndex === index
                 ? `scale-y-[1.8] bg-gradient-to-r ${scene.accent} shadow-[0_0_14px_rgba(56,189,248,0.45)]`
-                : 'bg-white/10'
+                : 'bg-white/10 hover:bg-white/20'
             }`}
+            aria-label={`Show ${scene.label}`}
           />
         ))}
       </div>
