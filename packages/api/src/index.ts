@@ -454,6 +454,50 @@ export const appRouter = t.router({
 
       return { ok: true };
     }),
+  disconnectStore: protectedProcedure
+    .input(z.object({ connectionId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          shopDomain: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const shopDomain = connection.shopDomain;
+
+      // Delete the connection
+      await prisma.connection.delete({
+        where: { id: connection.id },
+      });
+
+      // Optionally clean up related orders (optional - you may want to keep them for historical data)
+      // Uncomment the following if you want to delete orders when disconnecting:
+      // await prisma.order.deleteMany({
+      //   where: { connectionId: connection.id },
+      // });
+
+      await logEvent(
+        'shopify.store.disconnected',
+        { shop: shopDomain },
+        'connection',
+        connection.id,
+      );
+
+      return { ok: true, shopDomain };
+    }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
