@@ -195,7 +195,7 @@ async function resolveStoreName(
 function ensureSignature(text: string, signatureBlock: string): string {
   const trimmedSignature = signatureBlock.trim();
   if (!trimmedSignature) return text;
-  
+
   // Remove any placeholder text patterns
   let cleanedText = text
     .replace(/\[Your Name\]/gi, '')
@@ -203,7 +203,7 @@ function ensureSignature(text: string, signatureBlock: string): string {
     .replace(/\[Your Contact Information\]/gi, '')
     .replace(/\[Store Name\]/gi, '')
     .trim();
-  
+
   const normalizedText = cleanedText.toLowerCase().replace(/\s+/g, ' ');
   const normalizedSignature = trimmedSignature
     .toLowerCase()
@@ -504,10 +504,7 @@ export const appRouter = t.router({
       // 2. Get all messages for these orders and threads
       const messages = await prisma.message.findMany({
         where: {
-          OR: [
-            { orderId: { in: orderIds } },
-            { threadId: { in: threadIds } },
-          ],
+          OR: [{ orderId: { in: orderIds } }, { threadId: { in: threadIds } }],
         },
         select: { id: true },
       });
@@ -1143,7 +1140,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         }
         const subject = sanitizeLimited(input.subject, 500);
         let body = sanitizeLimited(input.body, 20000);
-        
+
         // Verify user owns the action (via order -> connection)
         const action = await prisma.action.findUnique({
           where: { id: input.actionId },
@@ -1165,14 +1162,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           connection.shopDomain ||
           'Support';
         const signatureBlock = `${storeName}\nCustomer Support Team`;
-        
+
         // Replace placeholders in body
         body = body
           .replace(/\[Your Name\]/gi, '')
           .replace(/\[Your Company\]/gi, storeName)
           .replace(/\[Your Contact Information\]/gi, '')
           .replace(/\[Store Name\]/gi, storeName);
-        
+
         // Ensure signature is present
         body = ensureSignature(body, signatureBlock);
 
@@ -1205,8 +1202,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const defaultFromEmail =
           process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-        // Get store's support email from connection metadata (connection already fetched above)
-        const metadata = (connection.metadata as any) ?? {};
+        // Get store's support email from connection metadata (metadata already fetched above)
         const storeSupportEmail = metadata.supportEmail as string | undefined;
 
         // Build FROM email with store name for better branding
@@ -1394,7 +1390,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           .replace(/\[Your Company\]/gi, storeName)
           .replace(/\[Your Contact Information\]/gi, '')
           .replace(/\[Store Name\]/gi, storeName);
-        
+
         // Ensure signature is present
         cleanedBody = ensureSignature(cleanedBody, signatureBlock);
 
