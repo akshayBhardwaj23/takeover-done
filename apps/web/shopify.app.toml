@@ -1,6 +1,7 @@
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
 
 name = "zyyp-ai"
+client_id = "2c2d43d2007f567989fd8b85b064afa0"
 application_url = "https://www.zyyp.ai"
 embedded = false
 
@@ -45,9 +46,9 @@ uri = "https://www.zyyp.ai/api/webhooks/shopify"
 [pos]
 embedded = false
 
-[app_proxy]
-# Learn more: https://shopify.dev/docs/apps/build/online-store/app-proxies
-url = ""
-subpath = ""
-prefix = ""
+# App proxy is not used - removed to avoid validation errors
+# [app_proxy]
+# url = ""
+# subpath = ""
+# prefix = ""
 
