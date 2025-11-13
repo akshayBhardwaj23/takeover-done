@@ -217,6 +217,42 @@ function ensureSignature(text: string, signatureBlock: string): string {
   return `${trimmed}${separator}${requiredSignature}`;
 }
 
+/**
+ * Format original email as quoted text for email threading
+ * This appends the original customer email at the bottom of the reply
+ */
+function formatEmailWithQuotedOriginal(
+  replyBody: string,
+  originalFrom: string,
+  originalDate: Date,
+  originalBody: string,
+): string {
+  // Format the date nicely
+  const dateStr = originalDate.toLocaleString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Format quoted text (prefix each line with >)
+  const quotedLines = originalBody
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+
+  // Combine reply with quoted original
+  return `${replyBody.trimEnd()}
+
+---
+
+On ${dateStr}, ${originalFrom} wrote:
+
+${quotedLines}`;
+}
+
 export { encryptSecure, decryptSecure } from './crypto';
 
 export const appRouter = t.router({
@@ -1144,7 +1180,25 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Verify user owns the action (via order -> connection)
         const action = await prisma.action.findUnique({
           where: { id: input.actionId },
-          include: { order: { include: { connection: true } } },
+          include: {
+            order: {
+              include: {
+                connection: true,
+                messages: {
+                  where: { direction: 'INBOUND' as any },
+                  orderBy: { createdAt: 'desc' as any },
+                  take: 1,
+                  select: {
+                    messageId: true,
+                    headers: true,
+                    from: true,
+                    body: true,
+                    createdAt: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!action || action.order.connection.userId !== ctx.userId) {
@@ -1153,6 +1207,12 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             message: 'Action access denied',
           });
         }
+
+        // Get the original message's Message-ID for threading
+        const originalMessage = action.order.messages[0];
+        const originalMessageId = originalMessage?.messageId ?? null;
+        const originalHeaders =
+          (originalMessage?.headers as Record<string, any>) ?? {};
 
         // Remove any placeholder text and ensure proper signature
         const connection = action.order.connection;
@@ -1172,6 +1232,16 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         // Ensure signature is present
         body = ensureSignature(body, signatureBlock);
+
+        // Append quoted original email for better context
+        if (originalMessage && originalMessage.body) {
+          body = formatEmailWithQuotedOriginal(
+            body,
+            originalMessage.from,
+            originalMessage.createdAt,
+            originalMessage.body,
+          );
+        }
 
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
@@ -1230,6 +1300,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
           formData.append('h:Reply-To', replyToEmail);
+        }
+
+        // Add email threading headers for proper reply threading
+        // This makes replies appear in the same conversation thread in email clients
+        if (originalMessageId) {
+          // In-Reply-To: ID of the message being replied to
+          formData.append('h:In-Reply-To', originalMessageId);
+
+          // References: List of all message IDs in the thread
+          // Start with existing References from original message (if any) and append the original Message-ID
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          const referencesChain = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+          formData.append('h:References', referencesChain);
         }
 
         const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
@@ -1319,7 +1407,28 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Get the original message and verify ownership
         const message = await prisma.message.findUnique({
           where: { id: input.messageId },
-          include: { thread: { include: { connection: true } } },
+          select: {
+            id: true,
+            from: true,
+            body: true,
+            createdAt: true,
+            messageId: true,
+            headers: true,
+            thread: {
+              select: {
+                id: true,
+                subject: true,
+                connection: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    shopDomain: true,
+                    metadata: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!message || message.thread.connection.userId !== ctx.userId) {
@@ -1328,6 +1437,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             message: 'Message access denied',
           });
         }
+
+        // Get the original message's Message-ID and headers for threading
+        const originalMessageId = message.messageId ?? null;
+        const originalHeaders = (message.headers as Record<string, any>) ?? {};
 
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
@@ -1394,6 +1507,16 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Ensure signature is present
         cleanedBody = ensureSignature(cleanedBody, signatureBlock);
 
+        // Append quoted original email for better context
+        if (message.body) {
+          cleanedBody = formatEmailWithQuotedOriginal(
+            cleanedBody,
+            message.from,
+            message.createdAt,
+            message.body,
+          );
+        }
+
         const formData = new FormData();
         formData.append('from', fromEmail);
         formData.append('to', message.from);
@@ -1406,6 +1529,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
           formData.append('h:Reply-To', replyToEmail);
+        }
+
+        // Add email threading headers for proper reply threading
+        // This makes replies appear in the same conversation thread in email clients
+        if (originalMessageId) {
+          // In-Reply-To: ID of the message being replied to
+          formData.append('h:In-Reply-To', originalMessageId);
+
+          // References: List of all message IDs in the thread
+          // Start with existing References from original message (if any) and append the original Message-ID
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          const referencesChain = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+          formData.append('h:References', referencesChain);
         }
 
         const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
@@ -1449,7 +1590,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Create outbound message record
         await prisma.message.create({
           data: {
-            threadId: message.threadId,
+            threadId: message.thread.id,
             from: fromEmail,
             to: message.from,
             body: safeBody,
