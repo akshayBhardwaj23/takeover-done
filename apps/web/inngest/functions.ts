@@ -43,6 +43,15 @@ export const processInboundEmail = inngest.createFunction(
       const orderId = msg.orderId;
       const order = msg.order;
 
+      // Get store name from connection metadata
+      const connection = msg.thread?.connection;
+      const metadata = (connection?.metadata as any) ?? {};
+      const storeName =
+        (metadata.storeName as string | undefined) ||
+        connection?.shopDomain ||
+        'Support';
+      const signatureBlock = `${storeName}\nCustomer Support Team`;
+
       // Extract customer name from email
       const customerName = customerEmail
         .split('@')[0]
@@ -109,8 +118,8 @@ export const processInboundEmail = inngest.createFunction(
         }
 
         reply += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        reply += `Best regards,\n`;
-        reply += `Customer Support Team`;
+        reply += `Warm regards,\n\n`;
+        reply += signatureBlock;
 
         confidence = proposedAction === 'NONE' ? 0.4 : 0.6;
       } else {
@@ -169,7 +178,14 @@ Write a comprehensive reply that addresses their concern and provides clear next
 7. Use the customer's name when appropriate
 8. Address their specific request directly
 
-Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
+
+Always end your response with:
+Warm regards,
+
+${signatureBlock}
+
+Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}`,
                   },
                   { role: 'user', content: prompt },
                 ],
@@ -181,9 +197,7 @@ Write responses that sound like they come from a real human support agent who ge
 
           if (!resp.ok) {
             const errorText = await resp.text().catch(() => 'Unknown error');
-            throw new Error(
-              `OpenAI API error: ${resp.status} - ${errorText}`,
-            );
+            throw new Error(`OpenAI API error: ${resp.status} - ${errorText}`);
           }
 
           const json: any = await resp.json();
@@ -196,8 +210,7 @@ Write responses that sound like they come from a real human support agent who ge
           if (/refund/.test(rlower)) proposedAction = 'REFUND';
           else if (/cancel/.test(rlower)) proposedAction = 'CANCEL';
           else if (/replace/.test(rlower)) proposedAction = 'REPLACE_ITEM';
-          else if (/address/.test(rlower))
-            proposedAction = 'ADDRESS_CHANGE';
+          else if (/address/.test(rlower)) proposedAction = 'ADDRESS_CHANGE';
           else if (/(update|status|tracking)/.test(rlower))
             proposedAction = 'INFO_REQUEST';
 
@@ -218,7 +231,8 @@ Write responses that sound like they come from a real human support agent who ge
           reply += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
           reply += `I want to make sure I address all your concerns properly.\n\n`;
           reply += `If you have any urgent questions, please don't hesitate to reach out.\n\n`;
-          reply += `Best regards,\nCustomer Support Team`;
+          reply += `Warm regards,\n\n`;
+          reply += signatureBlock;
 
           confidence = 0.5;
         }
@@ -241,12 +255,9 @@ Write responses that sound like they come from a real human support agent who ge
         },
       });
 
-      console.log(
-        `[Inngest] AI suggestion generated for message ${messageId}`,
-      );
+      console.log(`[Inngest] AI suggestion generated for message ${messageId}`);
 
       return { success: true, messageId };
     });
   },
 );
-

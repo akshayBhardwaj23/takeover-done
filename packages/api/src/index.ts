@@ -1475,6 +1475,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const connection = message.thread.connection;
         const metadata = (connection.metadata as any) ?? {};
         const storeSupportEmail = metadata.supportEmail as string | undefined;
+        const aliasEmail = metadata.alias as string | undefined;
         const storeName =
           (metadata.storeName as string | undefined) ||
           connection.shopDomain ||
@@ -1482,11 +1483,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         // Build FROM email with store name for better branding
         // Format: "Store Name <support@mail.zyyp.ai>"
-        // Reply-To will be set to store's actual support email
-        const fromEmail = storeSupportEmail
-          ? `${storeName} <${defaultFromEmail}>`
-          : defaultFromEmail;
-        const replyToEmail = storeSupportEmail || defaultFromEmail;
+        // Reply-To will be set to store's actual support email, or the alias that received the email
+        const fromEmail =
+          storeSupportEmail || aliasEmail
+            ? `${storeName} <${defaultFromEmail}>`
+            : defaultFromEmail;
+        // Priority: 1. storeSupportEmail, 2. alias (original recipient), 3. defaultFromEmail
+        const replyToEmail =
+          storeSupportEmail || aliasEmail || defaultFromEmail;
 
         if (!apiKey || !domain) {
           throw new TRPCError({
@@ -1526,8 +1530,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         );
         formData.append('text', cleanedBody.trim());
 
-        // Set Reply-To to store's support email so replies go to the store
-        if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
+        // Set Reply-To so customer replies go to the merchant's mailbox (not our system email)
+        // Always set Reply-To unless it's the same as the From address
+        if (replyToEmail !== defaultFromEmail) {
           formData.append('h:Reply-To', replyToEmail);
         }
 
