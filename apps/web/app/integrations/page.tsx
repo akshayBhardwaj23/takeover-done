@@ -26,6 +26,7 @@ import {
   Sparkles,
   Link as LinkIcon,
   ArrowRight,
+  Trash2,
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
@@ -80,9 +81,20 @@ function IntegrationsInner() {
   const updateStoreName = trpc.updateStoreName.useMutation({
     onSuccess: () => utils.connections.invalidate(),
   });
+  const disconnectStore = trpc.disconnectStore.useMutation({
+    onSuccess: (data) => {
+      utils.connections.invalidate();
+      setDisconnectDialogOpen(null);
+      toast.success(`Store ${data.shopDomain} disconnected successfully`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to disconnect store');
+    },
+  });
   const [shopInput, setShopInput] = useState('');
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<string | null>(null);
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
 
@@ -358,14 +370,84 @@ function IntegrationsInner() {
                                 Active
                               </Badge>
                               {editingStoreId !== c.id && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                                  onClick={() => beginEditStore(c)}
-                                >
-                                  Edit Name
-                                </Button>
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                    onClick={() => beginEditStore(c)}
+                                  >
+                                    Edit Name
+                                  </Button>
+                                  <Dialog
+                                    open={disconnectDialogOpen === c.id}
+                                    onOpenChange={(open) =>
+                                      setDisconnectDialogOpen(open ? c.id : null)
+                                    }
+                                  >
+                                    <DialogTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-full border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                        disabled={disconnectStore.isPending}
+                                      >
+                                        <Trash2 className="mr-1.5 h-3 w-3" />
+                                        Disconnect
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent containerClassName="max-w-md sm:rounded-3xl">
+                                      <DialogHeader>
+                                        <div className="flex items-center gap-3">
+                                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                                            <Trash2 className="h-5 w-5" />
+                                          </div>
+                                          <DialogTitle className="text-xl">
+                                            Disconnect Store
+                                          </DialogTitle>
+                                        </div>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <p className="text-sm text-slate-600">
+                                          Are you sure you want to disconnect{' '}
+                                          <span className="font-semibold text-slate-900">
+                                            {deriveStoreName(c)}
+                                          </span>
+                                          ? This will remove the store from your dashboard and stop
+                                          syncing new orders.
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                          You can reconnect this store at any time from the
+                                          integrations page.
+                                        </p>
+                                      </div>
+                                      <DialogFooter className="sm:justify-end">
+                                        <div className="flex gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                            onClick={() => setDisconnectDialogOpen(null)}
+                                          >
+                                            Cancel
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
+                                            onClick={() => {
+                                              disconnectStore.mutate({ connectionId: c.id });
+                                            }}
+                                            disabled={disconnectStore.isPending}
+                                          >
+                                            {disconnectStore.isPending
+                                              ? 'Disconnecting...'
+                                              : 'Disconnect Store'}
+                                          </Button>
+                                        </div>
+                                      </DialogFooter>
+                                    </DialogContent>
+                                  </Dialog>
+                                </>
                               )}
                               <Button
                                 className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"

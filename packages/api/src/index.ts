@@ -454,6 +454,105 @@ export const appRouter = t.router({
 
       return { ok: true };
     }),
+  disconnectStore: protectedProcedure
+    .input(z.object({ connectionId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          shopDomain: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const shopDomain = connection.shopDomain;
+
+      // Delete related data in the correct order to avoid foreign key constraint violations
+      // 1. Get all orders and threads for this connection
+      const orders = await prisma.order.findMany({
+        where: { connectionId: connection.id },
+        select: { id: true },
+      });
+      const orderIds = orders.map((o) => o.id);
+
+      const threads = await prisma.thread.findMany({
+        where: { connectionId: connection.id },
+        select: { id: true },
+      });
+      const threadIds = threads.map((t) => t.id);
+
+      // 2. Get all messages for these orders and threads
+      const messages = await prisma.message.findMany({
+        where: {
+          OR: [
+            { orderId: { in: orderIds } },
+            { threadId: { in: threadIds } },
+          ],
+        },
+        select: { id: true },
+      });
+      const messageIds = messages.map((m) => m.id);
+
+      // 3. Delete AISuggestions (they reference Message)
+      if (messageIds.length > 0) {
+        await prisma.aISuggestion.deleteMany({
+          where: { messageId: { in: messageIds } },
+        });
+      }
+
+      // 4. Delete Actions (they reference Order)
+      if (orderIds.length > 0) {
+        await prisma.action.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+      }
+
+      // 5. Delete Messages (they reference Order and Thread)
+      if (messageIds.length > 0) {
+        await prisma.message.deleteMany({
+          where: { id: { in: messageIds } },
+        });
+      }
+
+      // 6. Delete Orders
+      if (orderIds.length > 0) {
+        await prisma.order.deleteMany({
+          where: { connectionId: connection.id },
+        });
+      }
+
+      // 7. Delete Threads (they reference Connection)
+      if (threadIds.length > 0) {
+        await prisma.thread.deleteMany({
+          where: { connectionId: connection.id },
+        });
+      }
+
+      // 8. Finally, delete the connection
+      await prisma.connection.delete({
+        where: { id: connection.id },
+      });
+
+      await logEvent(
+        'shopify.store.disconnected',
+        { shop: shopDomain },
+        'connection',
+        connection.id,
+      );
+
+      return { ok: true, shopDomain };
+    }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
