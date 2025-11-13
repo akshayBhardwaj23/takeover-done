@@ -195,15 +195,24 @@ async function resolveStoreName(
 function ensureSignature(text: string, signatureBlock: string): string {
   const trimmedSignature = signatureBlock.trim();
   if (!trimmedSignature) return text;
-  const normalizedText = text.toLowerCase().replace(/\s+/g, ' ');
+  
+  // Remove any placeholder text patterns
+  let cleanedText = text
+    .replace(/\[Your Name\]/gi, '')
+    .replace(/\[Your Company\]/gi, '')
+    .replace(/\[Your Contact Information\]/gi, '')
+    .replace(/\[Store Name\]/gi, '')
+    .trim();
+  
+  const normalizedText = cleanedText.toLowerCase().replace(/\s+/g, ' ');
   const normalizedSignature = trimmedSignature
     .toLowerCase()
     .replace(/\s+/g, ' ');
   if (normalizedText.includes(normalizedSignature)) {
-    return text;
+    return cleanedText;
   }
-  const requiredSignature = `Best regards,\n${trimmedSignature}`;
-  const trimmed = text.trimEnd();
+  const requiredSignature = `Warm regards,\n\n${trimmedSignature}`;
+  const trimmed = cleanedText.trimEnd();
   const separator = trimmed.endsWith('\n') ? '' : '\n\n';
   return `${trimmed}${separator}${requiredSignature}`;
 }
@@ -919,7 +928,7 @@ export const appRouter = t.router({
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
       const storeName = await resolveStoreName(ctx.userId, input.orderId);
       const signatureBlock = `${storeName}\nCustomer Support Team`;
-      const requiredSignature = `Best regards,\n${signatureBlock}`;
+      const requiredSignature = `Warm regards,\n\n${signatureBlock}`;
 
       const buildFallback = () => {
         let body = `${greeting} ${customerName},\n\n`;
@@ -962,8 +971,11 @@ Guidelines:
 - Address their specific request directly
 - Offer specific solutions
 - Sign off with:
-Best regards,
+Warm regards,
+
 ${signatureBlock}
+
+IMPORTANT: Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}
 
 ${orderContext}
 
@@ -997,8 +1009,11 @@ Write a comprehensive reply that addresses their concern and provides clear next
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
 Always end your response with:
-Best regards,
-${signatureBlock}`,
+Warm regards,
+
+${signatureBlock}
+
+Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}`,
               },
               {
                 role: 'user',
@@ -1127,7 +1142,8 @@ ${signatureBlock}`,
           });
         }
         const subject = sanitizeLimited(input.subject, 500);
-        const body = sanitizeLimited(input.body, 20000);
+        let body = sanitizeLimited(input.body, 20000);
+        
         // Verify user owns the action (via order -> connection)
         const action = await prisma.action.findUnique({
           where: { id: input.actionId },
@@ -1140,6 +1156,25 @@ ${signatureBlock}`,
             message: 'Action access denied',
           });
         }
+
+        // Remove any placeholder text and ensure proper signature
+        const connection = action.order.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
+        const signatureBlock = `${storeName}\nCustomer Support Team`;
+        
+        // Replace placeholders in body
+        body = body
+          .replace(/\[Your Name\]/gi, '')
+          .replace(/\[Your Company\]/gi, storeName)
+          .replace(/\[Your Contact Information\]/gi, '')
+          .replace(/\[Store Name\]/gi, storeName);
+        
+        // Ensure signature is present
+        body = ensureSignature(body, signatureBlock);
 
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
@@ -1170,14 +1205,9 @@ ${signatureBlock}`,
         const defaultFromEmail =
           process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-        // Get store's support email from connection metadata
-        const connection = action.order.connection;
+        // Get store's support email from connection metadata (connection already fetched above)
         const metadata = (connection.metadata as any) ?? {};
         const storeSupportEmail = metadata.supportEmail as string | undefined;
-        const storeName =
-          (metadata.storeName as string | undefined) ||
-          connection.shopDomain ||
-          'Support';
 
         // Build FROM email with store name for better branding
         // Format: "Store Name <support@mail.zyyp.ai>"
@@ -1199,7 +1229,7 @@ ${signatureBlock}`,
         formData.append('from', fromEmail);
         formData.append('to', toEmail);
         formData.append('subject', subject);
-        formData.append('text', body);
+        formData.append('text', body.trim());
 
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
@@ -1357,6 +1387,17 @@ ${signatureBlock}`,
           });
         }
 
+        // Remove any placeholder text and ensure proper signature
+        const signatureBlock = `${storeName}\nCustomer Support Team`;
+        let cleanedBody = safeBody
+          .replace(/\[Your Name\]/gi, '')
+          .replace(/\[Your Company\]/gi, storeName)
+          .replace(/\[Your Contact Information\]/gi, '')
+          .replace(/\[Store Name\]/gi, storeName);
+        
+        // Ensure signature is present
+        cleanedBody = ensureSignature(cleanedBody, signatureBlock);
+
         const formData = new FormData();
         formData.append('from', fromEmail);
         formData.append('to', message.from);
@@ -1364,7 +1405,7 @@ ${signatureBlock}`,
           'subject',
           `Re: ${message.thread.subject || 'Your inquiry'}`,
         );
-        formData.append('text', safeBody);
+        formData.append('text', cleanedBody.trim());
 
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
