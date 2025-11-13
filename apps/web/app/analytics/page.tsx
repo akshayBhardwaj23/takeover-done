@@ -25,13 +25,18 @@ export default function AnalyticsPage() {
 
   if (analytics.isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-20">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
-            <p className="mt-2 text-slate-600">
-              Track your support performance and AI insights
-            </p>
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl space-y-8 px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <Activity className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">Analytics</h1>
+              <p className="text-sm text-slate-500">
+                Track your support performance and AI insights
+              </p>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
@@ -112,65 +117,65 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-28">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
-              AI Support Analytics
-            </h1>
-            <p className="mt-2 text-lg text-slate-600">
-              Track performance, ROI, and AI insights
-            </p>
+    <main className="min-h-screen bg-slate-100 py-28">
+      <div className="mx-auto max-w-6xl space-y-10 px-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <Activity className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">
+                AI Support Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Track performance, ROI, and AI insights
+              </p>
+            </div>
           </div>
-          <Badge className="bg-gradient-to-r from-emerald-500 to-green-500 text-white">
-            <Activity className="mr-1 h-4 w-4" />
+          <Badge className="flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
+            <Activity className="h-4 w-4" />
             Live Data
           </Badge>
-        </div>
+        </header>
 
-        {/* AI Suggestion Box */}
-        <AISuggestionBox />
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <AISuggestionBox />
+        </Card>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 lg:grid-cols-4 md:grid-cols-2 grid-cols-1">
           {statCards.map((stat) => {
             const Icon = stat.icon;
             const TrendIcon = stat.trend === 'up' ? TrendingUp : TrendingDown;
             return (
               <Card
                 key={stat.title}
-                className={`border-none bg-gradient-to-br ${stat.bgColor} p-6 shadow-sm transition-all hover:shadow-lg hover:scale-105`}
+                className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm font-medium ${stat.textColor}`}>
-                        {stat.title}
-                      </p>
-                      <TrendIcon
-                        className={`h-3 w-3 ${
-                          stat.trend === 'up'
-                            ? 'text-emerald-600'
-                            : 'text-blue-600'
-                        }`}
-                      />
-                    </div>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {stat.title}
+                    </p>
+                    <p className="text-3xl font-bold text-slate-900">
                       {stat.value}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-slate-700">
+                    <p className="text-xs font-semibold text-slate-600">
                       {stat.change}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {stat.subtext}
-                    </p>
+                    <p className="text-xs text-slate-400">{stat.subtext}</p>
                   </div>
-                  <div
-                    className={`rounded-xl bg-gradient-to-br ${stat.color} p-3 shadow-md`}
-                  >
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="rounded-full bg-slate-100 p-2">
+                      <Icon className="h-5 w-5 text-slate-700" />
+                    </div>
+                    <TrendIcon
+                      className={`h-4 w-4 ${
+                        stat.trend === 'up'
+                          ? 'text-emerald-500'
+                          : 'text-blue-500'
+                      }`}
+                    />
                   </div>
                 </div>
               </Card>
@@ -178,18 +183,20 @@ export default function AnalyticsPage() {
           })}
         </div>
 
-        {/* Email Volume Trend Chart */}
-        <Card className="p-6">
-          <div className="mb-6 flex items-center justify-between">
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-slate-900">
-                Email Volume Trend
+                Email volume trend
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="text-sm text-slate-500">
                 Last 7 days of inbound email activity
               </p>
             </div>
-            <BarChart3 className="h-6 w-6 text-indigo-500" />
+            <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Trend
+            </Badge>
           </div>
           <div className="space-y-3">
             {stats.volumeTrend.map((day, index) => {
@@ -209,21 +216,21 @@ export default function AnalyticsPage() {
 
               return (
                 <div key={index} className="flex items-center gap-3">
-                  <div className="w-20 text-sm font-medium text-slate-700">
+                  <div className="w-24 text-sm font-semibold text-slate-600">
                     {dayName}
-                    <span className="ml-1 text-xs text-slate-500">
+                    <span className="ml-2 text-xs font-normal text-slate-400">
                       {dateStr}
                     </span>
                   </div>
                   <div className="flex-1">
-                    <div className="h-8 w-full overflow-hidden rounded-lg bg-slate-100">
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
                   </div>
-                  <div className="w-16 text-right text-sm font-semibold text-slate-900">
+                  <div className="w-12 text-right text-sm font-semibold text-slate-700">
                     {day.count}
                   </div>
                 </div>
@@ -232,36 +239,32 @@ export default function AnalyticsPage() {
           </div>
         </Card>
 
-        {/* Additional Metrics */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {/* Email Mapping */}
-          <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-6">
+        <div className="grid gap-6 md:grid-cols-3 grid-cols-1">
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 p-3">
-                <CheckCircle className="h-6 w-6 text-white" />
+              <div className="rounded-full bg-slate-100 p-3">
+                <CheckCircle className="h-5 w-5 text-slate-700" />
               </div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Email Mapping
+                Email mapping
               </h2>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Mapped to Orders</span>
-                <Badge className="bg-emerald-100 text-emerald-700">
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify_between">
+                <span>Mapped to orders</span>
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
                   {stats.mappedEmails.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Unmapped</span>
-                <Badge className="bg-amber-100 text-amber-700">
+              <div className="flex items-center justify_between">
+                <span>Unmapped conversations</span>
+                <Badge className="border border-amber-200 bg-amber-50 text-amber-600">
                   {stats.unmappedEmails.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-900">
-                  Success Rate
-                </span>
-                <Badge className="bg-indigo-100 text-indigo-700">
+              <div className="flex items-center justify_between font-semibold">
+                <span>Success rate</span>
+                <Badge className="border border-indigo-200 bg-indigo-50 text-indigo-600">
                   {stats.totalEmails > 0
                     ? `${((stats.mappedEmails / stats.totalEmails) * 100).toFixed(1)}%`
                     : 'N/A'}
@@ -270,70 +273,64 @@ export default function AnalyticsPage() {
             </div>
           </Card>
 
-          {/* AI Performance */}
-          <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-6">
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 p-3">
-                <Sparkles className="h-6 w-6 text-white" />
+              <div className="rounded-full bg-slate-100 p-3">
+                <Sparkles className="h-5 w-5 text-slate-700" />
               </div>
               <h2 className="text-lg font-semibold text-slate-900">
-                AI Automation
+                AI automation
               </h2>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Suggestions Made</span>
-                <Badge className="bg-violet-100 text-violet-700">
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify_between">
+                <span>Suggestions made</span>
+                <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                   {stats.aiSuggestionsTotal.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Actions Taken</span>
-                <Badge className="bg-emerald-100 text-emerald-700">
+              <div className="flex items-center justify_between">
+                <span>Actions taken</span>
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
                   {stats.actionsTaken.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-900">
-                  This Week
-                </span>
-                <Badge className="bg-violet-100 text-violet-700">
+              <div className="flex items-center justify_between font-semibold">
+                <span>This week</span>
+                <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                   +{stats.actionsThisWeek.toLocaleString()}
                 </Badge>
               </div>
             </div>
           </Card>
 
-          {/* ROI Indicators */}
-          <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50 to-green-50 p-6">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-green-500 p-3">
-                <Zap className="h-6 w-6 text-white" />
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items_center gap-3">
+              <div className="rounded-full bg-slate-100 p-3">
+                <Zap className="h-5 w-5 text-slate-700" />
               </div>
               <h2 className="text-lg font-semibold text-slate-900">
-                ROI Impact
+                ROI impact
               </h2>
             </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Total Orders</span>
-                <Badge className="bg-slate-100 text-slate-700">
+            <div className="space-y-3 text-sm text-slate-600">
+              <div className="flex items-center justify_between">
+                <span>Total orders</span>
+                <Badge className="border border-slate-200 bg-slate-100 text-slate-700">
                   {stats.totalOrders.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Automation Rate</span>
-                <Badge className="bg-emerald-100 text-emerald-700">
+              <div className="flex items-center justify_between">
+                <span>Automation rate</span>
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
                   {stats.totalEmails > 0
                     ? `${((stats.actionsTaken / stats.totalEmails) * 100).toFixed(0)}%`
                     : 'N/A'}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-900">
-                  Time Saved
-                </span>
-                <Badge className="bg-emerald-100 text-emerald-700">
+              <div className="flex items-center justify_between font-semibold">
+                <span>Time saved</span>
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
                   {stats.actionsTaken > 0
                     ? `~${Math.round(stats.actionsTaken * 5)}m`
                     : 'N/A'}
@@ -343,71 +340,71 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* ROI Summary */}
-        <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-blue-50 to-purple-50 p-8">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 p-4 shadow-lg">
-              <DollarSign className="h-8 w-8 text-white" />
-            </div>
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">
-                Return on Investment
+              <h2 className="text-2xl font-semibold text-slate-900">
+                Return on investment
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Demonstrating value to your merchants
+              <p className="text-sm text-slate-500">
+                Demonstrate value to your merchants and stakeholders
               </p>
             </div>
+            <Badge className="border border-slate-200 bg-slate-100 text-slate-600">
+              <DollarSign className="mr-2 h-4 w-4" />
+              ROI summary
+            </Badge>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-            <div className="rounded-xl border border-indigo-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-                Emails Processed
+          <div className="grid gap-4 md:grid-cols-4 grid-cols-1">
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Emails processed
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.totalEmails.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 +{stats.emailsThisWeek} this week
               </p>
-            </div>
-            <div className="rounded-xl border border-emerald-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-emerald-600">
-                Actions Automated
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Actions automated
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.actionsTaken.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 {stats.totalEmails > 0
                   ? `${((stats.actionsTaken / stats.totalEmails) * 100).toFixed(0)}% automation rate`
                   : 'Getting started'}
               </p>
-            </div>
-            <div className="rounded-xl border border-violet-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-violet-600">
-                Time Saved
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Time saved
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.actionsTaken > 0
                   ? `${Math.round(stats.actionsTaken * 5)}`
                   : '0'}
-                <span className="text-lg text-slate-600">m</span>
+                <span className="ml-1 text-lg text-slate-500">m</span>
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 ~5 min per automated action
               </p>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-600">
-                CSAT Score
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Customer satisfaction
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.customerSatisfactionScore.toFixed(0)}%
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 Based on action types
               </p>
-            </div>
+            </Card>
           </div>
         </Card>
       </div>

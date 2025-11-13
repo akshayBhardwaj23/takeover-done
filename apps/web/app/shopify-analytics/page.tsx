@@ -45,37 +45,47 @@ function ShopifyAnalyticsInner() {
 
   if (!selectedShop) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/50 p-6 pt-28">
-        <Card className="max-w-md p-8 text-center">
-          <Store className="mx-auto h-16 w-16 text-slate-400" />
-          <h2 className="mt-4 text-2xl font-bold text-slate-900">
-            No Shopify Store Connected
-          </h2>
-          <p className="mt-2 text-slate-600">
-            Connect a Shopify store from the integrations page to view
-            analytics.
-          </p>
-          <a
-            href="/integrations"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-3 font-semibold text-white transition-all hover:from-emerald-700 hover:to-cyan-700"
-          >
-            Go to Integrations
-            <ArrowRight className="h-4 w-4" />
-          </a>
-        </Card>
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <Card className="mx-auto max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
+              <Store className="h-10 w-10 text-slate-500" />
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              No Shopify store connected
+            </h2>
+            <p className="mt-3 text-sm text-slate-500">
+              Connect your Shopify store from the integrations page to unlock revenue and customer analytics.
+            </p>
+            <a
+              href="/integrations"
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
+            >
+              Go to Integrations
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </Card>
+        </div>
       </main>
     );
   }
 
   if (analytics.isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-28">
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">
-              Shopify Analytics
-            </h1>
-            <p className="mt-2 text-slate-600">Loading store data...</p>
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl space-y-8 px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <Store className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Shopify Business Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Sales, orders, and customer insights
+              </p>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
@@ -148,23 +158,27 @@ function ShopifyAnalyticsInner() {
   ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50/30 to-cyan-50/50 p-6 pt-28">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="bg-gradient-to-r from-emerald-600 to-cyan-600 bg-clip-text text-4xl font-bold text-transparent">
-              Shopify Business Analytics
-            </h1>
-            <p className="mt-2 text-lg text-slate-600">
-              Sales, orders, and customer insights
-            </p>
+    <main className="min-h-screen bg-slate-100 py-28">
+      <div className="mx-auto max-w-6xl space-y-10 px-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <Store className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Shopify Business Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Sales, orders, and customer insights
+              </p>
+            </div>
           </div>
           {shopifyStores.length > 1 && (
             <select
               value={selectedShop}
               onChange={(e) => setSelectedShop(e.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition-all hover:border-emerald-500 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               {shopifyStores.map((store: any) => (
                 <option key={store.id} value={store.shopDomain}>
@@ -173,48 +187,40 @@ function ShopifyAnalyticsInner() {
               ))}
             </select>
           )}
-        </div>
+        </header>
 
-        {/* Current Store Badge */}
-        <Badge className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
-          <Store className="mr-1 h-4 w-4" />
+        <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
+          <Store className="h-4 w-4" />
           {selectedShop}
         </Badge>
 
-        {/* AI Suggestion Box */}
-        <AISuggestionBox shop={selectedShop} />
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <AISuggestionBox shop={selectedShop} />
+        </Card>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 grid-cols-1">
           {statCards.map((stat) => {
             const Icon = stat.icon;
             return (
               <Card
                 key={stat.title}
-                className={`border-none bg-gradient-to-br ${stat.bgColor} p-6 shadow-sm transition-all hover:shadow-lg hover:scale-105`}
+                className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className={`text-sm font-medium ${stat.textColor}`}>
-                        {stat.title}
-                      </p>
-                      <TrendingUp className="h-3 w-3 text-emerald-600" />
-                    </div>
-                    <p className="mt-2 text-3xl font-bold text-slate-900">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {stat.title}
+                    </p>
+                    <p className="text-3xl font-bold text-slate-900">
                       {stat.value}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-slate-700">
+                    <p className="text-xs font-semibold text-slate-600">
                       {stat.change}
                     </p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {stat.subtext}
-                    </p>
+                    <p className="text-xs text-slate-400">{stat.subtext}</p>
                   </div>
-                  <div
-                    className={`rounded-xl bg-gradient-to-br ${stat.color} p-3 shadow-md`}
-                  >
-                    <Icon className="h-6 w-6 text-white" />
+                  <div className="rounded-full bg-slate-100 p-2">
+                    <Icon className="h-5 w-5 text-slate-700" />
                   </div>
                 </div>
               </Card>
@@ -222,30 +228,23 @@ function ShopifyAnalyticsInner() {
           })}
         </div>
 
-        {/* Revenue Trend Chart */}
-        <Card className="p-6">
-          <div className="mb-6 flex items-center justify-between">
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                Revenue Trend
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Last 7 days of sales performance
-              </p>
+              <h2 className="text-xl font-semibold text-slate-900">Revenue trend</h2>
+              <p className="text-sm text-slate-500">Last 7 days of sales performance</p>
             </div>
-            <BarChart3 className="h-6 w-6 text-emerald-500" />
+            <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Trend
+            </Badge>
           </div>
           <div className="space-y-3">
             {stats.revenueTrend.map((day, index) => {
-              const maxRevenue = Math.max(
-                ...stats.revenueTrend.map((d) => d.revenue),
-              );
-              const percentage =
-                maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0;
+              const maxRevenue = Math.max(...stats.revenueTrend.map((d) => d.revenue));
+              const percentage = maxRevenue > 0 ? (day.revenue / maxRevenue) * 100 : 0;
               const date = new Date(day.date);
-              const dayName = date.toLocaleDateString('en-US', {
-                weekday: 'short',
-              });
+              const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
               const dateStr = date.toLocaleDateString('en-US', {
                 month: 'short',
                 day: 'numeric',
@@ -253,21 +252,21 @@ function ShopifyAnalyticsInner() {
 
               return (
                 <div key={index} className="flex items-center gap-3">
-                  <div className="w-20 text-sm font-medium text-slate-700">
+                  <div className="w-24 text-sm font-semibold text-slate-600">
                     {dayName}
-                    <span className="ml-1 text-xs text-slate-500">
+                    <span className="ml-2 text-xs font-normal text-slate-400">
                       {dateStr}
                     </span>
                   </div>
                   <div className="flex-1">
-                    <div className="h-8 w-full overflow-hidden rounded-lg bg-slate-100">
+                    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
                       <div
-                        className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all duration-500"
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
                         style={{ width: `${percentage}%` }}
                       />
                     </div>
                   </div>
-                  <div className="w-24 text-right text-sm font-semibold text-slate-900">
+                  <div className="w-28 text-right text-sm font-semibold text-slate-700">
                     {stats.currency} {day.revenue.toLocaleString()}
                   </div>
                 </div>
@@ -276,38 +275,32 @@ function ShopifyAnalyticsInner() {
           </div>
         </Card>
 
-        {/* Additional Metrics */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Order Status */}
-          <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
+        <div className="grid gap-6 md:grid-cols-2 grid-cols-1">
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 p-3">
-                <Package className="h-6 w-6 text-white" />
+              <div className="rounded-full bg-slate-100 p-3">
+                <Package className="h-5 w-5 text-slate-700" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Order Status
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">Order status</h2>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 text-sm text-slate-600">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Fulfilled</span>
-                <Badge className="bg-emerald-100 text-emerald-700">
+                <span>Fulfilled</span>
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   {stats.ordersFulfilled.toLocaleString()}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-700">Pending</span>
-                <Badge className="bg-amber-100 text-amber-700">
+                <span>Pending</span>
+                <Badge className="border border-amber-200 bg-amber-50 text-amber-600">
                   <Clock className="mr-1 h-3 w-3" />
                   {stats.ordersPending.toLocaleString()}
                 </Badge>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-900">
-                  Fulfillment Rate
-                </span>
-                <Badge className="bg-blue-100 text-blue-700">
+              <div className="flex items-center justify-between font-semibold">
+                <span>Fulfillment rate</span>
+                <Badge className="border border-blue-200 bg-blue-50 text-blue-600">
                   {stats.totalOrders > 0
                     ? `${((stats.ordersFulfilled / stats.totalOrders) * 100).toFixed(0)}%`
                     : 'N/A'}
@@ -316,21 +309,16 @@ function ShopifyAnalyticsInner() {
             </div>
           </Card>
 
-          {/* Top Products */}
-          <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-purple-50 p-6">
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-violet-500 to-purple-500 p-3">
-                <TrendingUp className="h-6 w-6 text-white" />
+              <div className="rounded-full bg-slate-100 p-3">
+                <TrendingUp className="h-5 w-5 text-slate-700" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Top Products
-              </h2>
+              <h2 className="text-lg font-semibold text-slate-900">Top products</h2>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 text-sm text-slate-600">
               {stats.topProducts.length === 0 ? (
-                <p className="text-sm text-slate-500">
-                  No product data available yet
-                </p>
+                <p className="text-slate-500">No product data available yet</p>
               ) : (
                 stats.topProducts.map((product, index) => (
                   <div
@@ -338,14 +326,12 @@ function ShopifyAnalyticsInner() {
                     className="flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2">
-                      <Badge className="h-6 w-6 rounded-full bg-violet-200 text-violet-700">
+                      <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
                         {index + 1}
                       </Badge>
-                      <span className="text-sm text-slate-700">
-                        {product.name}
-                      </span>
+                      <span>{product.name}</span>
                     </div>
-                    <Badge className="bg-violet-100 text-violet-700">
+                    <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                       {product.count} orders
                     </Badge>
                   </div>
@@ -355,64 +341,62 @@ function ShopifyAnalyticsInner() {
           </Card>
         </div>
 
-        {/* Business Summary */}
-        <Card className="border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 via-cyan-50 to-blue-50 p-8">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-emerald-600 to-cyan-600 p-4 shadow-lg">
-              <Store className="h-8 w-8 text-white" />
-            </div>
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">
-                Business Overview
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <h2 className="text-2xl font-semibold text-slate-900">Business overview</h2>
+              <p className="text-sm text-slate-500">
                 Key performance indicators for {selectedShop}
               </p>
             </div>
+            <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
+              <DollarSign className="mr-2 h-4 w-4" />
+              Monthly summary
+            </Badge>
           </div>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-            <div className="rounded-xl border border-emerald-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-emerald-600">
-                Monthly Revenue
+          <div className="grid gap-4 md:grid-cols-4 grid-cols-1">
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Monthly revenue
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.currency} {stats.revenueThisMonth.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 {stats.ordersThisMonth} orders
               </p>
-            </div>
-            <div className="rounded-xl border border-blue-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
-                AOV
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Avg order value
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.currency} {stats.averageOrderValue.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-600">Average order value</p>
-            </div>
-            <div className="rounded-xl border border-violet-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-violet-600">
+              <p className="mt-1 text-xs text-slate-500">Per order average</p>
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Customers
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.totalCustomers.toLocaleString()}
               </p>
-              <p className="mt-1 text-xs text-slate-600">
+              <p className="mt-1 text-xs text-slate-500">
                 +{stats.newCustomersThisWeek} this week
               </p>
-            </div>
-            <div className="rounded-xl border border-amber-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-amber-600">
-                Growth Rate
+            </Card>
+            <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Growth rate
               </p>
               <p className="mt-2 text-3xl font-bold text-slate-900">
                 {stats.ordersThisMonth > 0 && stats.totalOrders > 0
                   ? `${((stats.ordersThisMonth / stats.totalOrders) * 100).toFixed(0)}%`
                   : 'N/A'}
               </p>
-              <p className="mt-1 text-xs text-slate-600">Monthly growth</p>
-            </div>
+              <p className="mt-1 text-xs text-slate-500">Monthly growth</p>
+            </Card>
           </div>
         </Card>
       </div>
