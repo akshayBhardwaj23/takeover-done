@@ -118,6 +118,12 @@ export default function InboxPage() {
   const [draft, setDraft] = useState('');
   const [unlinkedSuggestion, setUnlinkedSuggestion] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [repliedOrderIds, setRepliedOrderIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [repliedMessageIds, setRepliedMessageIds] = useState<Set<string>>(
+    new Set(),
+  );
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     return () => {
@@ -369,6 +375,7 @@ export default function InboxPage() {
       );
       return;
     }
+    const currentOrderId = selectedOrder.shopifyId;
     try {
       const action = await createAction.mutateAsync({
         shop,
@@ -385,11 +392,43 @@ export default function InboxPage() {
         body: draft,
       });
       if (result.ok) {
+        // Mark this order as replied
+        setRepliedOrderIds((prev) => new Set(prev).add(currentOrderId));
+
         if ((result as any).stub)
           toast.warning('Reply logged (Mailgun not configured)');
         else toast.success('Reply sent successfully');
-        setDraft('');
-        emailLimit.refetch();
+
+        // Refetch data to get updated messages
+        const [ordersResult] = await Promise.all([
+          dbOrders.refetch(),
+          messages.refetch(),
+          emailLimit.refetch(),
+        ]);
+
+        // Find next order that needs a reply (use updated repliedOrderIds)
+        const updatedRepliedIds = new Set([...repliedOrderIds, currentOrderId]);
+        const allOrders = (ordersResult.data?.orders ?? []) as DbOrder[];
+        const nextOrder = allOrders.find(
+          (order) =>
+            order.shopifyId !== currentOrderId &&
+            !updatedRepliedIds.has(order.shopifyId),
+        );
+
+        if (nextOrder) {
+          // Move to next order
+          setSelectedOrderId(nextOrder.shopifyId);
+          setDraft('');
+          setUnlinkedSuggestion(null);
+        } else {
+          // No more orders, mark all and clear
+          const allOrderIds = new Set(allOrders.map((o) => o.shopifyId));
+          setRepliedOrderIds(allOrderIds);
+          setSelectedOrderId(null);
+          setDraft('');
+          setUnlinkedSuggestion(null);
+          toast.success('All emails have been replied to!');
+        }
       } else {
         toast.error(`Failed to send: ${(result as any).error}`);
       }
@@ -399,14 +438,45 @@ export default function InboxPage() {
   };
 
   const handleSendUnlinkedReply = async (message: any) => {
+    const currentMessageId = message.id;
     try {
       await sendUnassignedReply.mutateAsync({
         messageId: message.id,
         replyBody: draft || message.aiSuggestion?.reply || '',
       });
-      setDraft('');
-      setUnlinkedSuggestion(null);
-      setSelectedUnlinkedId(null);
+
+      // Mark this message as replied
+      setRepliedMessageIds((prev) => new Set(prev).add(currentMessageId));
+
+      // Refetch unassigned messages
+      const messagesResult = await unassigned.refetch();
+
+      // Find next unassigned message that needs a reply (use updated repliedMessageIds)
+      const updatedRepliedMessageIds = new Set([
+        ...repliedMessageIds,
+        currentMessageId,
+      ]);
+      const allMessages = (messagesResult.data?.messages ??
+        []) as UnassignedMessage[];
+      const nextMessage = allMessages.find(
+        (msg) =>
+          msg.id !== currentMessageId && !updatedRepliedMessageIds.has(msg.id),
+      );
+
+      if (nextMessage) {
+        // Move to next message
+        setSelectedUnlinkedId(nextMessage.id);
+        setDraft('');
+        setUnlinkedSuggestion(null);
+      } else {
+        // No more messages, mark all and clear
+        const allMessageIds = new Set(allMessages.map((m) => m.id));
+        setRepliedMessageIds(allMessageIds);
+        setSelectedUnlinkedId(null);
+        setDraft('');
+        setUnlinkedSuggestion(null);
+        toast.success('All unassigned emails have been replied to!');
+      }
     } catch (error: any) {
       toast.error(error.message ?? 'Reply failed');
     }
@@ -521,60 +591,69 @@ export default function InboxPage() {
                       ))}
                     </div>
                   ) : linkedPreviews.length ? (
-                    linkedPreviews.map(({ order, preview }) => (
-                      <button
-                        key={order.shopifyId}
-                        type="button"
-                        onClick={() => handleSelectOrder(order)}
-                        className={`grid w-full grid-cols-[1.2fr,1.4fr,1fr,1fr] items-center gap-3 px-4 py-4 text-left transition ${
-                          selectedOrderId === order.shopifyId
-                            ? 'bg-slate-50'
-                            : 'hover:bg-slate-50/60'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold tracking-tight text-slate-900">
-                            {order.name || `#${order.shopifyId}`}
+                    linkedPreviews.map(({ order, preview }) => {
+                      const isReplied = repliedOrderIds.has(order.shopifyId);
+                      return (
+                        <button
+                          key={order.shopifyId}
+                          type="button"
+                          onClick={() => handleSelectOrder(order)}
+                          className={`grid w-full grid-cols-[1.2fr,1.4fr,1fr,1fr] items-center gap-3 px-4 py-4 text-left transition ${
+                            selectedOrderId === order.shopifyId
+                              ? 'bg-slate-50'
+                              : 'hover:bg-slate-50/60'
+                          } ${isReplied ? 'opacity-60' : ''}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isReplied && (
+                              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                            )}
+                            <div>
+                              <div className="font-semibold tracking-tight text-slate-900">
+                                {order.name || `#${order.shopifyId}`}
+                              </div>
+                              <div className="text-xs text-slate-500">
+                                {new Date(order.createdAt).toLocaleString()}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-slate-500">
-                            {new Date(order.createdAt).toLocaleString()}
+                          <div>
+                            <p className="text-sm text-slate-600">
+                              {order.email ?? 'No email'}
+                            </p>
+                            <p className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500">
+                              <DollarSign className="h-3 w-3" />
+                              {formatCurrency(order.totalAmount)}
+                            </p>
                           </div>
-                        </div>
-                        <div>
-                          <p className="text-sm text-slate-600">
-                            {order.email ?? 'No email'}
-                          </p>
-                          <p className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500">
-                            <DollarSign className="h-3 w-3" />
-                            {formatCurrency(order.totalAmount)}
-                          </p>
-                        </div>
-                        <div>
-                          <Badge
-                            className={`text-xs font-semibold ${
-                              STATUS_COLORS[
-                                order.status as keyof typeof STATUS_COLORS
-                              ] ?? STATUS_COLORS.default
-                            }`}
-                          >
-                            {order.status || 'PENDING'}
-                          </Badge>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {recentOrders.data?.orders?.find(
-                              (o: any) => o.id === order.shopifyId,
-                            )?.fulfillmentStatus ?? '—'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="line-clamp-1 text-sm text-slate-600">
-                            {preview?.subject || 'Select to load latest email'}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {relativeTime(preview?.createdAt)}
-                          </p>
-                        </div>
-                      </button>
-                    ))
+                          <div>
+                            <Badge
+                              className={`text-xs font-semibold ${
+                                STATUS_COLORS[
+                                  order.status as keyof typeof STATUS_COLORS
+                                ] ?? STATUS_COLORS.default
+                              }`}
+                            >
+                              {order.status || 'PENDING'}
+                            </Badge>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {recentOrders.data?.orders?.find(
+                                (o: any) => o.id === order.shopifyId,
+                              )?.fulfillmentStatus ?? '—'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="line-clamp-1 text-sm text-slate-600">
+                              {preview?.subject ||
+                                'Select to load latest email'}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {relativeTime(preview?.createdAt)}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })
                   ) : (
                     <div className="p-8 text-center text-sm text-slate-500">
                       Connect your Shopify store to populate orders.
@@ -663,52 +742,62 @@ export default function InboxPage() {
                 ) : (unassigned.data?.messages ?? []).length ? (
                   (
                     (unassigned.data?.messages ?? []) as UnassignedMessage[]
-                  ).map((message) => (
-                    <div
-                      key={message.id}
-                      className="grid grid-cols-[2fr,1fr,1fr] items-center gap-3 px-4 py-4"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {message.subject ?? 'No subject'}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          From: {message.from}
-                        </p>
-                        <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                          {message.body}
-                        </p>
+                  ).map((message) => {
+                    const isReplied = repliedMessageIds.has(message.id);
+                    return (
+                      <div
+                        key={message.id}
+                        className={`grid grid-cols-[2fr,1fr,1fr] items-center gap-3 px-4 py-4 ${isReplied ? 'opacity-60' : ''}`}
+                      >
+                        <div className="flex items-start gap-2">
+                          {isReplied && (
+                            <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {message.subject ?? 'No subject'}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              From: {message.from}
+                            </p>
+                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">
+                              {message.body}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {new Date(message.createdAt).toLocaleString()}
+                        </div>
+                        <div className="flex flex-col gap-2 text-xs">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-full border-slate-200 text-slate-600"
+                            onClick={() => {
+                              setSelectedUnlinkedId(message.id);
+                              setSelectedOrderId(null);
+                              setUnlinkedSuggestion(
+                                message.aiSuggestion ?? null,
+                              );
+                              setDraft(message.aiSuggestion?.reply ?? '');
+                            }}
+                          >
+                            Preview
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="rounded-full bg-slate-900 text-white"
+                            disabled={sendUnassignedReply.isPending}
+                            onClick={() => handleSendUnlinkedReply(message)}
+                          >
+                            {sendUnassignedReply.isPending
+                              ? 'Sending…'
+                              : 'Send AI reply'}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {new Date(message.createdAt).toLocaleString()}
-                      </div>
-                      <div className="flex flex-col gap-2 text-xs">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-full border-slate-200 text-slate-600"
-                          onClick={() => {
-                            setSelectedUnlinkedId(message.id);
-                            setSelectedOrderId(null);
-                            setUnlinkedSuggestion(message.aiSuggestion ?? null);
-                            setDraft(message.aiSuggestion?.reply ?? '');
-                          }}
-                        >
-                          Preview
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="rounded-full bg-slate-900 text-white"
-                          disabled={sendUnassignedReply.isPending}
-                          onClick={() => handleSendUnlinkedReply(message)}
-                        >
-                          {sendUnassignedReply.isPending
-                            ? 'Sending…'
-                            : 'Send AI reply'}
-                        </Button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="p-8 text-center text-sm text-slate-500">
                     All emails are mapped. Great job! 🎉

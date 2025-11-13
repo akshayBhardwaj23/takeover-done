@@ -82,6 +82,20 @@ Roadmap, performance, and feature planning.
 - **[Usage Limits Implementation](./planning/USAGE_LIMITS_IMPLEMENTATION.md)** - Feature limits and quotas
 - **[Performance Explained](./planning/PERFORMANCE_EXPLAINED.md)** - Performance optimizations
 
+### 🧪 [Testing](./testing/)
+
+Testing guides and quality assurance.
+
+- **[Testing Guide](./testing/TESTING_GUIDE.md)** - Comprehensive testing guide for all features
+- **[Inngest Testing Guide](./deployment/INNGEST_TESTING_GUIDE.md)** - Background job testing
+
+### 🎯 [Features](./features/)
+
+Feature-specific documentation.
+
+- **[Playbooks](./PLAYBOOKS.md)** - Automation playbooks hub documentation
+- **[Email Configuration](./features/EMAIL_CONFIGURATION.md)** - Email sending and SMTP integration
+
 ---
 
 ## 🗺️ Quick Navigation by Task
@@ -119,11 +133,14 @@ docs/
 ├── setup/           # Getting started guides
 ├── architecture/    # Technical design docs
 ├── deployment/      # Production deployment
-├── redis/          # Redis and background jobs
-├── payments/       # Payment and pricing
-├── integrations/   # Third-party services
-├── operations/     # Runbooks and troubleshooting
-└── planning/        # Roadmap and features
+├── redis/           # Redis setup (optional, for idempotency)
+├── payments/        # Payment and pricing (Razorpay)
+├── integrations/    # Third-party services (Shopify, Mailgun)
+├── operations/      # Runbooks and troubleshooting
+├── planning/        # Roadmap and features
+├── testing/         # Testing guides and QA
+├── features/        # Feature-specific documentation
+└── PLAYBOOKS.md     # Automation playbooks
 ```
 
 ---
@@ -134,10 +151,12 @@ Can't find what you're looking for? Check:
 
 - **Setup issues?** → [Setup](./setup/)
 - **Deployment questions?** → [Deployment](./deployment/)
-- **Redis/background jobs?** → [Redis](./redis/)
+- **Redis/background jobs?** → [Redis](./redis/) (Note: Using Inngest now, Redis optional for idempotency)
 - **Payment integration?** → [Payments](./payments/)
 - **Architecture questions?** → [Architecture](./architecture/)
 - **Operations/runbook?** → [Operations](./operations/)
+- **Testing?** → [Testing](./testing/)
+- **Playbooks?** → [Playbooks](./PLAYBOOKS.md)
 
 ---
 

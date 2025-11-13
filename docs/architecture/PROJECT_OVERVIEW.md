@@ -19,19 +19,61 @@ An AI-powered E‑Commerce Support Assistant for Shopify store owners. It centra
 
 ### Tech Stack Summary
 
-- Next.js (App Router, TypeScript), Tailwind, Shadcn UI
-- tRPC for typed API; React Query client
-- Prisma (PostgreSQL)
-- Auth: NextAuth (Google), custom Shopify OAuth
-- Background Jobs: Inngest (serverless, event-driven) / Upstash Redis (optional)
-- Tunneling: Cloudflare Tunnel for HTTPS during development
+**Frontend:**
+- Next.js 14 (App Router, TypeScript)
+- Tailwind CSS + Shadcn UI components
+- React Query for data fetching
+- Lenis for smooth scrolling
+
+**Backend:**
+- tRPC for type-safe API
+- Prisma ORM (PostgreSQL)
+- Node.js runtime
+
+**Authentication:**
+- NextAuth.js (Google OAuth)
+- Custom Shopify OAuth implementation
+
+**Background Jobs:**
+- Inngest (serverless, event-driven)
+- Upstash Redis (optional, webhook idempotency only)
+
+**Integrations:**
+- Shopify Admin API + Webhooks
+- Mailgun (email sending/receiving)
+- OpenAI GPT-4o-mini (AI suggestions)
+- Razorpay (payments)
+
+**Monitoring:**
+- Sentry (error tracking)
+- Event logging system
+- Built-in analytics dashboards
+
+**Development:**
+- Cloudflare Tunnel for HTTPS during development
+- Turborepo for monorepo management
+- pnpm for package management
 
 ### Repository Layout
 
-- `apps/web`: UI, NextAuth, OAuth routes, webhook routes, tRPC handler, Inngest functions
-- `apps/worker`: Background worker (legacy placeholder, using Inngest now)
-- `packages/api`: tRPC router and server-side logic
-- `packages/db`: Prisma schema/client and event logger
+- `apps/web`: Next.js application
+  - UI components and pages
+  - NextAuth configuration
+  - OAuth routes (Shopify, Google)
+  - Webhook handlers (Shopify, Mailgun, Razorpay)
+  - tRPC handler
+  - Inngest functions for background jobs
+- `apps/worker`: Legacy worker folder (NOT USED - kept for reference, using Inngest now)
+- `packages/api`: tRPC router and business logic
+  - API routes and mutations
+  - Payment processing (Razorpay)
+  - Playbook management
+  - Analytics calculations
+- `packages/db`: Database layer
+  - Prisma schema and migrations
+  - Database helper functions
+  - Usage tracking and limits
+  - Event logging
 - Root utilities: Turborepo, pnpm workspace, shared tsconfig and tooling
 
 ### Folder Structure (current) and responsibilities
@@ -111,12 +153,39 @@ Basics of implementations by area:
 2. Browse `/inbox?shop=your-shop.myshopify.com`
 3. Select an order, generate AI suggestion (stub), Approve & Send (stub)
 
-### Current Status (MVP Complete)
+### Current Status (Production Ready)
 
+**Core Features (Complete):**
 - ✅ Real email delivery via Mailgun API
 - ✅ Email ingestion via Mailgun webhooks
 - ✅ Unified inbox with email threads and order matching
 - ✅ AI-powered reply generation (OpenAI GPT-4o-mini)
 - ✅ Background job processing (Inngest)
-- ✅ Analytics dashboards (AI Support + Shopify Business)
 - ✅ Per-store email aliases and support email configuration
+
+**Analytics & Insights (Complete):**
+- ✅ AI Support Analytics dashboard (response time, ROI, customer satisfaction)
+- ✅ Shopify Business Analytics dashboard (revenue, orders, customers, AOV)
+- ✅ 7-day trend visualizations
+- ✅ Real-time metrics and aggregated insights
+
+**Subscription & Billing (Complete):**
+- ✅ Razorpay payment integration
+- ✅ Multiple subscription plans (STARTER, GROWTH, PRO, ENTERPRISE, TRIAL)
+- ✅ Usage tracking and enforcement
+- ✅ Upgrade prompts and limit notifications
+- ✅ Webhook handling for payment events
+
+**Automation Playbooks (Complete):**
+- ✅ No-code playbook builder (6-step wizard)
+- ✅ 8 default playbooks across 6 categories
+- ✅ AI-powered execution with confidence thresholds
+- ✅ Manual approval workflows
+- ✅ Execution history tracking
+
+**Security & Multi-Tenancy (Complete):**
+- ✅ Complete data isolation by userId
+- ✅ Rate limiting (API, AI, Email, Webhooks)
+- ✅ HMAC verification for Shopify webhooks
+- ✅ Signature verification for Mailgun webhooks
+- ✅ Encrypted OAuth tokens and secrets

@@ -195,17 +195,62 @@ async function resolveStoreName(
 function ensureSignature(text: string, signatureBlock: string): string {
   const trimmedSignature = signatureBlock.trim();
   if (!trimmedSignature) return text;
-  const normalizedText = text.toLowerCase().replace(/\s+/g, ' ');
+
+  // Remove any placeholder text patterns
+  let cleanedText = text
+    .replace(/\[Your Name\]/gi, '')
+    .replace(/\[Your Company\]/gi, '')
+    .replace(/\[Your Contact Information\]/gi, '')
+    .replace(/\[Store Name\]/gi, '')
+    .trim();
+
+  const normalizedText = cleanedText.toLowerCase().replace(/\s+/g, ' ');
   const normalizedSignature = trimmedSignature
     .toLowerCase()
     .replace(/\s+/g, ' ');
   if (normalizedText.includes(normalizedSignature)) {
-    return text;
+    return cleanedText;
   }
-  const requiredSignature = `Best regards,\n${trimmedSignature}`;
-  const trimmed = text.trimEnd();
+  const requiredSignature = `Warm regards,\n\n${trimmedSignature}`;
+  const trimmed = cleanedText.trimEnd();
   const separator = trimmed.endsWith('\n') ? '' : '\n\n';
   return `${trimmed}${separator}${requiredSignature}`;
+}
+
+/**
+ * Format original email as quoted text for email threading
+ * This appends the original customer email at the bottom of the reply
+ */
+function formatEmailWithQuotedOriginal(
+  replyBody: string,
+  originalFrom: string,
+  originalDate: Date,
+  originalBody: string,
+): string {
+  // Format the date nicely
+  const dateStr = originalDate.toLocaleString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Format quoted text (prefix each line with >)
+  const quotedLines = originalBody
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n');
+
+  // Combine reply with quoted original
+  return `${replyBody.trimEnd()}
+
+---
+
+On ${dateStr}, ${originalFrom} wrote:
+
+${quotedLines}`;
 }
 
 export { encryptSecure, decryptSecure } from './crypto';
@@ -495,10 +540,7 @@ export const appRouter = t.router({
       // 2. Get all messages for these orders and threads
       const messages = await prisma.message.findMany({
         where: {
-          OR: [
-            { orderId: { in: orderIds } },
-            { threadId: { in: threadIds } },
-          ],
+          OR: [{ orderId: { in: orderIds } }, { threadId: { in: threadIds } }],
         },
         select: { id: true },
       });
@@ -919,7 +961,7 @@ export const appRouter = t.router({
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
       const storeName = await resolveStoreName(ctx.userId, input.orderId);
       const signatureBlock = `${storeName}\nCustomer Support Team`;
-      const requiredSignature = `Best regards,\n${signatureBlock}`;
+      const requiredSignature = `Warm regards,\n\n${signatureBlock}`;
 
       const buildFallback = () => {
         let body = `${greeting} ${customerName},\n\n`;
@@ -962,8 +1004,11 @@ Guidelines:
 - Address their specific request directly
 - Offer specific solutions
 - Sign off with:
-Best regards,
+Warm regards,
+
 ${signatureBlock}
+
+IMPORTANT: Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}
 
 ${orderContext}
 
@@ -997,8 +1042,11 @@ Write a comprehensive reply that addresses their concern and provides clear next
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
 Always end your response with:
-Best regards,
-${signatureBlock}`,
+Warm regards,
+
+${signatureBlock}
+
+Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}`,
               },
               {
                 role: 'user',
@@ -1127,11 +1175,30 @@ ${signatureBlock}`,
           });
         }
         const subject = sanitizeLimited(input.subject, 500);
-        const body = sanitizeLimited(input.body, 20000);
+        let body = sanitizeLimited(input.body, 20000);
+
         // Verify user owns the action (via order -> connection)
         const action = await prisma.action.findUnique({
           where: { id: input.actionId },
-          include: { order: { include: { connection: true } } },
+          include: {
+            order: {
+              include: {
+                connection: true,
+                messages: {
+                  where: { direction: 'INBOUND' as any },
+                  orderBy: { createdAt: 'desc' as any },
+                  take: 1,
+                  select: {
+                    messageId: true,
+                    headers: true,
+                    from: true,
+                    body: true,
+                    createdAt: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!action || action.order.connection.userId !== ctx.userId) {
@@ -1139,6 +1206,41 @@ ${signatureBlock}`,
             code: 'FORBIDDEN',
             message: 'Action access denied',
           });
+        }
+
+        // Get the original message's Message-ID for threading
+        const originalMessage = action.order.messages[0];
+        const originalMessageId = originalMessage?.messageId ?? null;
+        const originalHeaders =
+          (originalMessage?.headers as Record<string, any>) ?? {};
+
+        // Remove any placeholder text and ensure proper signature
+        const connection = action.order.connection;
+        const metadata = (connection.metadata as any) ?? {};
+        const storeName =
+          (metadata.storeName as string | undefined) ||
+          connection.shopDomain ||
+          'Support';
+        const signatureBlock = `${storeName}\nCustomer Support Team`;
+
+        // Replace placeholders in body
+        body = body
+          .replace(/\[Your Name\]/gi, '')
+          .replace(/\[Your Company\]/gi, storeName)
+          .replace(/\[Your Contact Information\]/gi, '')
+          .replace(/\[Store Name\]/gi, storeName);
+
+        // Ensure signature is present
+        body = ensureSignature(body, signatureBlock);
+
+        // Append quoted original email for better context
+        if (originalMessage && originalMessage.body) {
+          body = formatEmailWithQuotedOriginal(
+            body,
+            originalMessage.from,
+            originalMessage.createdAt,
+            originalMessage.body,
+          );
         }
 
         // Check usage limits before sending
@@ -1170,14 +1272,8 @@ ${signatureBlock}`,
         const defaultFromEmail =
           process.env.MAILGUN_FROM_EMAIL || `support@${domain}`;
 
-        // Get store's support email from connection metadata
-        const connection = action.order.connection;
-        const metadata = (connection.metadata as any) ?? {};
+        // Get store's support email from connection metadata (metadata already fetched above)
         const storeSupportEmail = metadata.supportEmail as string | undefined;
-        const storeName =
-          (metadata.storeName as string | undefined) ||
-          connection.shopDomain ||
-          'Support';
 
         // Build FROM email with store name for better branding
         // Format: "Store Name <support@mail.zyyp.ai>"
@@ -1199,11 +1295,29 @@ ${signatureBlock}`,
         formData.append('from', fromEmail);
         formData.append('to', toEmail);
         formData.append('subject', subject);
-        formData.append('text', body);
+        formData.append('text', body.trim());
 
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
           formData.append('h:Reply-To', replyToEmail);
+        }
+
+        // Add email threading headers for proper reply threading
+        // This makes replies appear in the same conversation thread in email clients
+        if (originalMessageId) {
+          // In-Reply-To: ID of the message being replied to
+          formData.append('h:In-Reply-To', originalMessageId);
+
+          // References: List of all message IDs in the thread
+          // Start with existing References from original message (if any) and append the original Message-ID
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          const referencesChain = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+          formData.append('h:References', referencesChain);
         }
 
         const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
@@ -1293,7 +1407,28 @@ ${signatureBlock}`,
         // Get the original message and verify ownership
         const message = await prisma.message.findUnique({
           where: { id: input.messageId },
-          include: { thread: { include: { connection: true } } },
+          select: {
+            id: true,
+            from: true,
+            body: true,
+            createdAt: true,
+            messageId: true,
+            headers: true,
+            thread: {
+              select: {
+                id: true,
+                subject: true,
+                connection: {
+                  select: {
+                    id: true,
+                    userId: true,
+                    shopDomain: true,
+                    metadata: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!message || message.thread.connection.userId !== ctx.userId) {
@@ -1302,6 +1437,10 @@ ${signatureBlock}`,
             message: 'Message access denied',
           });
         }
+
+        // Get the original message's Message-ID and headers for threading
+        const originalMessageId = message.messageId ?? null;
+        const originalHeaders = (message.headers as Record<string, any>) ?? {};
 
         // Check usage limits before sending
         const limitCheck = await canSendEmail(ctx.userId);
@@ -1357,6 +1496,27 @@ ${signatureBlock}`,
           });
         }
 
+        // Remove any placeholder text and ensure proper signature
+        const signatureBlock = `${storeName}\nCustomer Support Team`;
+        let cleanedBody = safeBody
+          .replace(/\[Your Name\]/gi, '')
+          .replace(/\[Your Company\]/gi, storeName)
+          .replace(/\[Your Contact Information\]/gi, '')
+          .replace(/\[Store Name\]/gi, storeName);
+
+        // Ensure signature is present
+        cleanedBody = ensureSignature(cleanedBody, signatureBlock);
+
+        // Append quoted original email for better context
+        if (message.body) {
+          cleanedBody = formatEmailWithQuotedOriginal(
+            cleanedBody,
+            message.from,
+            message.createdAt,
+            message.body,
+          );
+        }
+
         const formData = new FormData();
         formData.append('from', fromEmail);
         formData.append('to', message.from);
@@ -1364,11 +1524,29 @@ ${signatureBlock}`,
           'subject',
           `Re: ${message.thread.subject || 'Your inquiry'}`,
         );
-        formData.append('text', safeBody);
+        formData.append('text', cleanedBody.trim());
 
         // Set Reply-To to store's support email so replies go to the store
         if (storeSupportEmail && storeSupportEmail !== defaultFromEmail) {
           formData.append('h:Reply-To', replyToEmail);
+        }
+
+        // Add email threading headers for proper reply threading
+        // This makes replies appear in the same conversation thread in email clients
+        if (originalMessageId) {
+          // In-Reply-To: ID of the message being replied to
+          formData.append('h:In-Reply-To', originalMessageId);
+
+          // References: List of all message IDs in the thread
+          // Start with existing References from original message (if any) and append the original Message-ID
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          const referencesChain = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+          formData.append('h:References', referencesChain);
         }
 
         const response = await fetch(`${mailgunBaseUrl}/${domain}/messages`, {
@@ -1412,7 +1590,7 @@ ${signatureBlock}`,
         // Create outbound message record
         await prisma.message.create({
           data: {
-            threadId: message.threadId,
+            threadId: message.thread.id,
             from: fromEmail,
             to: message.from,
             body: safeBody,
