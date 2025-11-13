@@ -1,0 +1,53 @@
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "zyyp-ai"
+application_url = "https://www.zyyp.ai"
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = ""
+
+[access_scopes]
+# Add the scopes your app needs here.
+# Learn more: https://shopify.dev/docs/api/usage/access-scopes
+scopes = "read_orders,read_customers"
+
+[auth]
+redirect_urls = [
+  "https://www.zyyp.ai/api/shopify/callback",
+  "https://staging.zyyp.ai/api/shopify/callback"
+]
+
+[webhooks]
+api_version = "2024-10"
+
+# Mandatory compliance webhooks (REQUIRED for Shopify App Store)
+# These webhooks are required for GDPR/CPRA compliance
+# Documentation: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "https://www.zyyp.ai/api/webhooks/shopify/compliance"
+
+# Regular webhooks for app functionality
+[[webhooks.subscriptions]]
+topics = ["orders/create", "orders/updated", "orders/fulfilled"]
+uri = "https://www.zyyp.ai/api/webhooks/shopify"
+
+[[webhooks.subscriptions]]
+topics = ["refunds/create"]
+uri = "https://www.zyyp.ai/api/webhooks/shopify"
+
+[[webhooks.subscriptions]]
+topics = ["app/uninstalled"]
+uri = "https://www.zyyp.ai/api/webhooks/shopify"
+
+[pos]
+embedded = false
+
+[app_proxy]
+# Learn more: https://shopify.dev/docs/apps/build/online-store/app-proxies
+url = ""
+subpath = ""
+prefix = ""
+

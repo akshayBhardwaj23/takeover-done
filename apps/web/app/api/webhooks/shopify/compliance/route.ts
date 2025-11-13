@@ -1,0 +1,629 @@
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'node:crypto';
+import { prisma, logEvent } from '@ai-ecom/db';
+
+// Prisma requires Node.js runtime
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+/**
+ * Shopify Mandatory Compliance Webhooks Handler
+ * 
+ * Required for all apps on the Shopify App Store.
+ * Handles GDPR/CPRA compliance requests:
+ * - customers/data_request: Provide customer data to merchant
+ * - customers/redact: Delete customer data
+ * - shop/redact: Delete all shop data after uninstall
+ * 
+ * Documentation: https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance
+ */
+
+export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
+
+  console.log('[Compliance Webhook] Received request', {
+    requestId,
+    timestamp: new Date().toISOString(),
+  });
+
+  try {
+    // Get webhook headers
+    const secret = process.env.SHOPIFY_API_SECRET;
+    const hmac = req.headers.get('x-shopify-hmac-sha256') ?? '';
+    const topic = req.headers.get('x-shopify-topic') ?? '';
+    const shop = req.headers.get('x-shopify-shop-domain') ?? '';
+
+    console.log('[Compliance Webhook] Headers', {
+      requestId,
+      topic,
+      shop,
+      hmacPresent: !!hmac,
+    });
+
+    if (!secret) {
+      console.error('[Compliance Webhook] Missing SHOPIFY_API_SECRET');
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
+
+    // Read raw payload for HMAC verification
+    const payload = await req.text();
+
+    // Verify HMAC signature
+    const digest = crypto
+      .createHmac('sha256', secret)
+      .update(payload, 'utf8')
+      .digest('base64');
+
+    if (digest !== hmac) {
+      console.error('[Compliance Webhook] HMAC verification failed', {
+        requestId,
+        topic,
+        shop,
+        expectedPrefix: digest.substring(0, 10) + '...',
+        receivedPrefix: hmac.substring(0, 10) + '...',
+      });
+      return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
+    }
+
+    console.log('[Compliance Webhook] HMAC verified successfully', {
+      requestId,
+    });
+
+    // Parse payload
+    const data = JSON.parse(payload);
+
+    // Route to appropriate handler based on topic
+    switch (topic) {
+      case 'customers/data_request':
+        await handleCustomerDataRequest(data, shop, requestId);
+        break;
+      case 'customers/redact':
+        await handleCustomerRedact(data, shop, requestId);
+        break;
+      case 'shop/redact':
+        await handleShopRedact(data, shop, requestId);
+        break;
+      default:
+        console.warn('[Compliance Webhook] Unknown topic', {
+          requestId,
+          topic,
+        });
+    }
+
+    // Log successful handling
+    await logEvent('shopify.compliance.webhook', {
+      topic,
+      shop,
+      requestId,
+      success: true,
+    });
+
+    console.log('[Compliance Webhook] Successfully processed', {
+      requestId,
+      topic,
+      shop,
+    });
+
+    // Must return 200-series status to acknowledge receipt
+    return NextResponse.json({ success: true, requestId });
+  } catch (error) {
+    console.error('[Compliance Webhook] Error processing webhook:', {
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    await logEvent('shopify.compliance.webhook.error', {
+      requestId,
+      error: String(error),
+    });
+
+    // Return 500 to indicate processing error
+    return NextResponse.json(
+      { error: 'Processing error', requestId },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Handle customers/data_request webhook
+ * 
+ * Triggered when a customer requests their data from a store owner.
+ * You must provide the requested data to the store owner within 30 days.
+ * 
+ * Payload structure:
+ * {
+ *   shop_id: number,
+ *   shop_domain: string,
+ *   orders_requested: number[],
+ *   customer: {
+ *     id: number,
+ *     email: string,
+ *     phone: string
+ *   },
+ *   data_request: {
+ *     id: number
+ *   }
+ * }
+ */
+async function handleCustomerDataRequest(
+  data: any,
+  shop: string,
+  requestId: string
+) {
+  console.log('[Compliance] Processing customer data request', {
+    requestId,
+    shop,
+    customerId: data.customer?.id,
+    email: data.customer?.email,
+    ordersCount: data.orders_requested?.length || 0,
+  });
+
+  const customerId = data.customer?.id;
+  const customerEmail = data.customer?.email?.toLowerCase();
+  const customerPhone = data.customer?.phone;
+
+  try {
+    // Collect all data related to this customer from your database
+    const customerData: any = {
+      requestId: data.data_request?.id,
+      customer: {
+        id: customerId,
+        email: customerEmail,
+        phone: customerPhone,
+      },
+      ordersRequested: data.orders_requested || [],
+      dataCollectedAt: new Date().toISOString(),
+      shop,
+    };
+
+    // Find messages from/to this customer
+    if (customerEmail) {
+      const messages = await prisma.message.findMany({
+        where: {
+          OR: [{ from: customerEmail }, { to: customerEmail }],
+        },
+        include: {
+          thread: true,
+          aiSuggestion: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      customerData.messages = messages.map((msg) => ({
+        id: msg.id,
+        from: msg.from,
+        to: msg.to,
+        subject: msg.thread?.subject,
+        body: msg.body,
+        direction: msg.direction,
+        createdAt: msg.createdAt,
+        aiSuggestion: msg.aiSuggestion
+          ? {
+              reply: msg.aiSuggestion.reply,
+              proposedAction: msg.aiSuggestion.proposedAction,
+              confidence: msg.aiSuggestion.confidence,
+            }
+          : null,
+      }));
+    }
+
+    // Find orders for this customer
+    if (data.orders_requested && data.orders_requested.length > 0) {
+      const orders = await prisma.order.findMany({
+        where: {
+          shopifyId: { in: data.orders_requested.map(String) },
+        },
+        include: {
+          messages: true,
+          actions: true,
+        },
+      });
+
+      customerData.orders = orders.map((order) => ({
+        shopifyId: order.shopifyId,
+        name: order.name,
+        status: order.status,
+        email: order.email,
+        totalAmount: order.totalAmount,
+        createdAt: order.createdAt,
+        messagesCount: order.messages.length,
+        actionsCount: order.actions.length,
+      }));
+    }
+
+    // Log the data request for manual processing
+    // In production, you should:
+    // 1. Store this data in a secure location
+    // 2. Notify the merchant/admin
+    // 3. Provide a UI for them to download/send to customer
+    await logEvent('shopify.customer.data_request', {
+      requestId,
+      shop,
+      customerId,
+      email: customerEmail,
+      ordersRequested: data.orders_requested?.length || 0,
+      messagesFound: customerData.messages?.length || 0,
+      ordersFound: customerData.orders?.length || 0,
+      dataRequestId: data.data_request?.id,
+    });
+
+    console.log('[Compliance] Customer data request logged', {
+      requestId,
+      shop,
+      customerId,
+      email: customerEmail,
+      messagesFound: customerData.messages?.length || 0,
+      ordersFound: customerData.orders?.length || 0,
+    });
+
+    // TODO: Implement notification to merchant
+    // You should send an email or create an admin notification
+    // so the merchant can provide this data to the customer within 30 days
+  } catch (error) {
+    console.error('[Compliance] Error collecting customer data:', {
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Handle customers/redact webhook
+ * 
+ * Triggered when a customer requests data deletion.
+ * You must delete the customer's data within 30 days.
+ * 
+ * Note: Webhook is sent 10 days after request if no orders in last 6 months,
+ * otherwise delayed until 6 months have passed.
+ * 
+ * Payload structure:
+ * {
+ *   shop_id: number,
+ *   shop_domain: string,
+ *   customer: {
+ *     id: number,
+ *     email: string,
+ *     phone: string
+ *   },
+ *   orders_to_redact: number[]
+ * }
+ */
+async function handleCustomerRedact(
+  data: any,
+  shop: string,
+  requestId: string
+) {
+  console.log('[Compliance] Processing customer redact request', {
+    requestId,
+    shop,
+    customerId: data.customer?.id,
+    email: data.customer?.email,
+    ordersCount: data.orders_to_redact?.length || 0,
+  });
+
+  const customerId = data.customer?.id;
+  const customerEmail = data.customer?.email?.toLowerCase();
+  const customerPhone = data.customer?.phone;
+  const ordersToRedact = data.orders_to_redact || [];
+
+  try {
+    let deletedData = {
+      messages: 0,
+      threads: 0,
+      aiSuggestions: 0,
+      actions: 0,
+      orders: 0,
+    };
+
+    // Delete messages from/to this customer
+    if (customerEmail) {
+      // Find threads for this customer
+      const threads = await prisma.thread.findMany({
+        where: {
+          customerEmail,
+        },
+        select: { id: true },
+      });
+
+      const threadIds = threads.map((t) => t.id);
+
+      if (threadIds.length > 0) {
+        // Find messages in these threads
+        const messages = await prisma.message.findMany({
+          where: {
+            threadId: { in: threadIds },
+          },
+          select: { id: true },
+        });
+
+        const messageIds = messages.map((m) => m.id);
+
+        if (messageIds.length > 0) {
+          // Delete AI suggestions first (they reference messages)
+          const aiSuggestionsDeleted = await prisma.aISuggestion.deleteMany({
+            where: { messageId: { in: messageIds } },
+          });
+          deletedData.aiSuggestions = aiSuggestionsDeleted.count;
+
+          // Delete messages
+          const messagesDeleted = await prisma.message.deleteMany({
+            where: { id: { in: messageIds } },
+          });
+          deletedData.messages = messagesDeleted.count;
+        }
+
+        // Delete threads
+        const threadsDeleted = await prisma.thread.deleteMany({
+          where: { id: { in: threadIds } },
+        });
+        deletedData.threads = threadsDeleted.count;
+      }
+    }
+
+    // Delete specific orders if provided
+    if (ordersToRedact.length > 0) {
+      // Find orders to delete
+      const orders = await prisma.order.findMany({
+        where: {
+          shopifyId: { in: ordersToRedact.map(String) },
+        },
+        select: { id: true },
+      });
+
+      const orderIds = orders.map((o) => o.id);
+
+      if (orderIds.length > 0) {
+        // Delete actions first (they reference orders)
+        const actionsDeleted = await prisma.action.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+        deletedData.actions = actionsDeleted.count;
+
+        // Delete orders
+        const ordersDeleted = await prisma.order.deleteMany({
+          where: { id: { in: orderIds } },
+        });
+        deletedData.orders = ordersDeleted.count;
+      }
+    }
+
+    // Log the redaction
+    await logEvent('shopify.customer.redact', {
+      requestId,
+      shop,
+      customerId,
+      email: customerEmail,
+      phone: customerPhone,
+      ordersToRedact: ordersToRedact.length,
+      deletedData,
+    });
+
+    console.log('[Compliance] Customer data redacted successfully', {
+      requestId,
+      shop,
+      customerId,
+      email: customerEmail,
+      deletedData,
+    });
+  } catch (error) {
+    console.error('[Compliance] Error redacting customer data:', {
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+/**
+ * Handle shop/redact webhook
+ * 
+ * Triggered 48 hours after a store owner uninstalls your app.
+ * You must delete ALL data for that shop.
+ * 
+ * Payload structure:
+ * {
+ *   shop_id: number,
+ *   shop_domain: string
+ * }
+ */
+async function handleShopRedact(data: any, shop: string, requestId: string) {
+  console.log('[Compliance] Processing shop redact request', {
+    requestId,
+    shopId: data.shop_id,
+    shopDomain: data.shop_domain,
+  });
+
+  const shopDomain = data.shop_domain;
+
+  try {
+    let deletedData = {
+      aiSuggestions: 0,
+      actions: 0,
+      messages: 0,
+      threads: 0,
+      orders: 0,
+      playbooks: 0,
+      playbookExecutions: 0,
+      emailAliases: 0,
+      shopifyConnections: 0,
+    };
+
+    // Find all connections for this shop
+    const connections = await prisma.connection.findMany({
+      where: {
+        OR: [
+          { type: 'SHOPIFY', shopDomain },
+          {
+            type: 'CUSTOM_EMAIL',
+            metadata: { path: ['shopDomain'], equals: shopDomain },
+          },
+        ],
+      },
+      select: { id: true, type: true, userId: true },
+    });
+
+    console.log('[Compliance] Found connections to delete', {
+      requestId,
+      count: connections.length,
+      shopDomain,
+    });
+
+    if (connections.length === 0) {
+      console.log('[Compliance] No connections found for shop', {
+        requestId,
+        shopDomain,
+      });
+      await logEvent('shopify.shop.redact.no_data', {
+        requestId,
+        shopId: data.shop_id,
+        shopDomain,
+      });
+      return;
+    }
+
+    const connectionIds = connections.map((c) => c.id);
+    const userIds = [...new Set(connections.map((c) => c.userId))];
+
+    // Delete in correct order to respect foreign key constraints
+
+    // 1. Get orders for these connections
+    const orders = await prisma.order.findMany({
+      where: { connectionId: { in: connectionIds } },
+      select: { id: true },
+    });
+    const orderIds = orders.map((o) => o.id);
+
+    // 2. Get threads for these connections
+    const threads = await prisma.thread.findMany({
+      where: { connectionId: { in: connectionIds } },
+      select: { id: true },
+    });
+    const threadIds = threads.map((t) => t.id);
+
+    // 3. Get messages for these threads/orders
+    const messages = await prisma.message.findMany({
+      where: {
+        OR: [
+          { threadId: { in: threadIds } },
+          { orderId: { in: orderIds } },
+        ],
+      },
+      select: { id: true },
+    });
+    const messageIds = messages.map((m) => m.id);
+
+    // 4. Delete AI suggestions (reference messages)
+    if (messageIds.length > 0) {
+      const aiSuggestionsResult = await prisma.aISuggestion.deleteMany({
+        where: { messageId: { in: messageIds } },
+      });
+      deletedData.aiSuggestions = aiSuggestionsResult.count;
+    }
+
+    // 5. Delete actions (reference orders)
+    if (orderIds.length > 0) {
+      const actionsResult = await prisma.action.deleteMany({
+        where: { orderId: { in: orderIds } },
+      });
+      deletedData.actions = actionsResult.count;
+    }
+
+    // 6. Delete messages
+    if (messageIds.length > 0) {
+      const messagesResult = await prisma.message.deleteMany({
+        where: { id: { in: messageIds } },
+      });
+      deletedData.messages = messagesResult.count;
+    }
+
+    // 7. Delete threads
+    if (threadIds.length > 0) {
+      const threadsResult = await prisma.thread.deleteMany({
+        where: { id: { in: threadIds } },
+      });
+      deletedData.threads = threadsResult.count;
+    }
+
+    // 8. Delete orders
+    if (orderIds.length > 0) {
+      const ordersResult = await prisma.order.deleteMany({
+        where: { id: { in: orderIds } },
+      });
+      deletedData.orders = ordersResult.count;
+    }
+
+    // 9. Delete playbook executions and playbooks for these users
+    // (Only if this was their only store - optional, you may want to keep playbooks)
+    for (const userId of userIds) {
+      const otherConnections = await prisma.connection.count({
+        where: {
+          userId,
+          type: 'SHOPIFY',
+          NOT: { shopDomain },
+        },
+      });
+
+      // Only delete playbooks if this was their last store
+      if (otherConnections === 0) {
+        const userPlaybooks = await prisma.playbook.findMany({
+          where: { userId },
+          select: { id: true },
+        });
+        const playbookIds = userPlaybooks.map((p) => p.id);
+
+        if (playbookIds.length > 0) {
+          const executionsResult = await prisma.playbookExecution.deleteMany({
+            where: { playbookId: { in: playbookIds } },
+          });
+          deletedData.playbookExecutions = executionsResult.count;
+
+          const playbooksResult = await prisma.playbook.deleteMany({
+            where: { id: { in: playbookIds } },
+          });
+          deletedData.playbooks = playbooksResult.count;
+        }
+      }
+    }
+
+    // 10. Delete connections (Shopify and email aliases)
+    const emailAliases = connections.filter((c) => c.type === 'CUSTOM_EMAIL');
+    const shopifyConnections = connections.filter((c) => c.type === 'SHOPIFY');
+
+    const connectionsResult = await prisma.connection.deleteMany({
+      where: { id: { in: connectionIds } },
+    });
+    deletedData.emailAliases = emailAliases.length;
+    deletedData.shopifyConnections = shopifyConnections.length;
+
+    // Log the redaction
+    await logEvent('shopify.shop.redact', {
+      requestId,
+      shopId: data.shop_id,
+      shopDomain,
+      deletedData,
+    });
+
+    console.log('[Compliance] Shop data redacted successfully', {
+      requestId,
+      shopId: data.shop_id,
+      shopDomain,
+      deletedData,
+    });
+  } catch (error) {
+    console.error('[Compliance] Error redacting shop data:', {
+      requestId,
+      shopId: data.shop_id,
+      shopDomain,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error;
+  }
+}
+

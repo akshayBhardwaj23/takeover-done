@@ -168,6 +168,12 @@ type OrderDetail = OrderSummary & {
   - Verifies Shopify webhook HMAC signature
   - Handles events: `orders/create`, `orders/fulfilled`, `refunds/create`, `app/uninstalled`
   - Uses Redis for idempotency (24-hour TTL)
+- `POST /api/webhooks/shopify/compliance`
+  - **MANDATORY** compliance webhooks for Shopify App Store
+  - Handles GDPR/CPRA compliance events: `customers/data_request`, `customers/redact`, `shop/redact`
+  - Verifies HMAC signature
+  - Automatically deletes customer/shop data on redaction requests
+  - Logs data requests for merchant follow-up (30-day response required)
 - `POST /api/webhooks/email/custom`
   - Mailgun inbound email webhook handler
   - Verifies Mailgun signature (optional MAILGUN_SIGNING_KEY)

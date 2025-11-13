@@ -291,6 +291,22 @@ export default function InboxPage() {
     setView('orders');
   };
 
+  // Helper function to clean placeholder text from AI suggestions
+  const cleanPlaceholders = (text: string): string => {
+    return text
+      .replace(/\[Your Name\]/gi, '')
+      .replace(/\[Your Company\]/gi, '')
+      .replace(/\[Your Contact Information\]/gi, '')
+      .replace(/\[Store Name\]/gi, '')
+      .replace(/\[Your Company Name\]/gi, '')
+      .replace(
+        /Customer Support Team\s*\[Your Company\]/gi,
+        'Customer Support Team',
+      )
+      .replace(/Best regards,?\s*\[Your Name\]/gi, 'Best regards,')
+      .trim();
+  };
+
   const handleGenerateAi = async (message: any, order?: DbOrder) => {
     const inboundCandidate =
       message?.direction === 'INBOUND' ? message : (message ?? selectedEmail);
@@ -322,7 +338,11 @@ export default function InboxPage() {
       } else {
         setUnlinkedSuggestion(null);
       }
-      setDraft((response as any).suggestion ?? '');
+      // Clean placeholders from the generated suggestion
+      const cleanedSuggestion = cleanPlaceholders(
+        (response as any).suggestion ?? '',
+      );
+      setDraft(cleanedSuggestion);
     } catch (error: any) {
       toast.error(error.message ?? 'Failed to generate AI reply');
     }
@@ -421,10 +441,9 @@ export default function InboxPage() {
           setDraft('');
           setUnlinkedSuggestion(null);
         } else {
-          // No more orders, mark all and clear
-          const allOrderIds = new Set(allOrders.map((o) => o.shopifyId));
-          setRepliedOrderIds(allOrderIds);
+          // No more orders needing replies - close modal and clear draft
           setSelectedOrderId(null);
+          setSelectedUnlinkedId(null);
           setDraft('');
           setUnlinkedSuggestion(null);
           toast.success('All emails have been replied to!');
@@ -469,10 +488,9 @@ export default function InboxPage() {
         setDraft('');
         setUnlinkedSuggestion(null);
       } else {
-        // No more messages, mark all and clear
-        const allMessageIds = new Set(allMessages.map((m) => m.id));
-        setRepliedMessageIds(allMessageIds);
+        // No more messages needing replies - close modal and clear draft
         setSelectedUnlinkedId(null);
+        setSelectedOrderId(null);
         setDraft('');
         setUnlinkedSuggestion(null);
         toast.success('All unassigned emails have been replied to!');
@@ -991,7 +1009,11 @@ export default function InboxPage() {
                         size="sm"
                         variant="outline"
                         className="rounded-full border-slate-200 text-slate-600"
-                        onClick={() => setDraft(aiSuggestion?.reply ?? draft)}
+                        onClick={() =>
+                          setDraft(
+                            cleanPlaceholders(aiSuggestion?.reply ?? draft),
+                          )
+                        }
                       >
                         Use suggestion
                       </Button>
@@ -1011,7 +1033,7 @@ export default function InboxPage() {
                     />
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
-                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
+                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
                         onClick={handleSendReply}
                         disabled={
                           !draft ||
@@ -1019,10 +1041,17 @@ export default function InboxPage() {
                           approveSend.isPending
                         }
                       >
-                        {createAction.isPending || approveSend.isPending
-                          ? 'Sending…'
-                          : 'Send email'}
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        {createAction.isPending || approveSend.isPending ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Sending…
+                          </>
+                        ) : (
+                          <>
+                            Send email
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="outline"
@@ -1143,9 +1172,11 @@ export default function InboxPage() {
                           className="rounded-full border-slate-200 text-slate-600"
                           onClick={() =>
                             setDraft(
-                              (unlinkedSuggestion as any)?.draftReply ??
-                                selectedUnlinkedEmail.aiSuggestion?.reply ??
-                                '',
+                              cleanPlaceholders(
+                                (unlinkedSuggestion as any)?.draftReply ??
+                                  selectedUnlinkedEmail.aiSuggestion?.reply ??
+                                  '',
+                              ),
                             )
                           }
                         >
@@ -1168,7 +1199,7 @@ export default function InboxPage() {
                     />
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button
-                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
+                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
                         onClick={() =>
                           handleSendUnlinkedReply(selectedUnlinkedEmail)
                         }
@@ -1177,10 +1208,17 @@ export default function InboxPage() {
                           (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)
                         }
                       >
-                        {sendUnassignedReply.isPending
-                          ? 'Sending…'
-                          : 'Send AI reply'}
-                        <ArrowRight className="ml-2 h-4 w-4" />
+                        {sendUnassignedReply.isPending ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Sending…
+                          </>
+                        ) : (
+                          <>
+                            Send AI reply
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="outline"
