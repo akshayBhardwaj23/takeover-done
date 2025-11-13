@@ -3,10 +3,10 @@
 ### High-Level Components
 
 - Web (Next.js): UI, NextAuth, API routes (OAuth/webhooks), tRPC handler, Inngest functions
-- API (tRPC server): business logic, Shopify Admin API calls
-- DB (PostgreSQL via Prisma): multi-tenant data
+- API (tRPC server): business logic, Shopify Admin API calls, payment processing, playbook management
+- DB (PostgreSQL via Prisma): multi-tenant data with subscriptions, usage tracking, and automation playbooks
 - Background Jobs (Inngest): async email processing, AI suggestion generation (serverless, event-driven)
-- External: Shopify Admin API, Webhooks, Mailgun (email), OpenAI (AI)
+- External: Shopify Admin API, Webhooks, Mailgun (email), OpenAI (AI), Razorpay (payments)
 
 ### Component Diagram
 
@@ -24,6 +24,10 @@ flowchart LR
   I -->|Save| D[(PostgreSQL)]
   W -.->|Email| M[Mailgun]
   M -.->|Webhooks| W
+  W -->|Payments| R[Razorpay]
+  R -.->|Webhooks| W
+  W -->|Analytics| AN[Analytics Engine]
+  W -->|Playbooks| PL[Playbook Engine]
 ```
 
 ### Shopify OAuth Sequence
@@ -66,9 +70,47 @@ sequenceDiagram
 - Built-in retries: 3 attempts with exponential backoff
 - Serverless: No Redis polling required, scales automatically
 
+### Key Features
+
+**Subscription & Billing:**
+
+- Razorpay integration for subscription management
+- Usage tracking and enforcement (emails sent, AI suggestions)
+- Plan types: STARTER, GROWTH, PRO, ENTERPRISE, TRIAL
+- Automatic trial period and upgrade prompts
+
+**Analytics Dashboards:**
+
+- AI Support Analytics: response time, ROI, customer satisfaction, volume trends
+- Shopify Business Analytics: revenue, orders, customers, AOV, growth metrics
+- Real-time metrics with 7-day trend visualizations
+
+**Automation Playbooks:**
+
+- No-code automation builder with 6 categories
+- 8 default playbooks (refund, exchange, re-engagement, etc.)
+- AI-powered execution with confidence thresholds
+- Manual approval workflows for high-value actions
+
+**Email Management:**
+
+- Per-store email aliases with environment-specific routing
+- Mailgun integration with Reply-To support
+- Store-specific support email configuration
+- Webhook idempotency using Redis
+
+**Multi-Tenant Security:**
+
+- Complete data isolation by userId
+- All queries scoped to user's connections
+- Rate limiting: API (100/min), AI (10/min), Email (20/min)
+- HMAC verification for Shopify webhooks
+- Signature verification for Mailgun webhooks
+
 ### Scaling Notes
 
 - Inngest handles background job scaling automatically (serverless)
 - Cache hot reads (orders) with Redis (optional, Upstash)
-- Add per-tenant rate limiting and isolation
+- Per-tenant rate limiting and usage tracking
 - Inngest functions process async work without blocking webhooks
+- Subscription-based resource allocation and limits enforcement
