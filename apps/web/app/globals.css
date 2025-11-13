@@ -279,6 +279,48 @@
   animation: orbit-slow 35s linear infinite reverse;
 }
 
+.animate-glow {
+  animation: demoGlowPulse 2.4s ease-in-out infinite;
+}
+
+.animate-rise {
+  animation: demoRiseBar 0.9s ease-out forwards;
+  transform-origin: bottom;
+}
+
+.founder-fade-in {
+  animation: founderFade 1s ease-out forwards;
+}
+
+.founder-slide-up {
+  opacity: 0;
+  transform: translateY(12px);
+  animation: founderSlideUp 1s ease-out forwards;
+}
+
+.founder-slide-up.delay-\[120ms\] {
+  animation-delay: 0.12s;
+}
+
+.founder-slide-up.delay-\[220ms\] {
+  animation-delay: 0.22s;
+}
+
+.founder-slide-up.delay-\[320ms\] {
+  animation-delay: 0.32s;
+}
+
+.founder-dashboard {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: founderSlideUp 1.1s ease-out forwards;
+  animation-delay: 0.3s;
+}
+
+.founder-cursor {
+  animation: founderCursorLoop 14s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+
 @keyframes drift {
   0% {
     transform: translate3d(0, 0, 0) scale(1);
@@ -308,6 +350,76 @@
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes demoGlowPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(125, 211, 252, 0.35);
+    opacity: 0.95;
+  }
+  50% {
+    box-shadow: 0 0 34px rgba(165, 243, 252, 0.4);
+    opacity: 1;
+  }
+}
+
+@keyframes demoRiseBar {
+  0% {
+    transform: scaleY(0.2);
+    opacity: 0.35;
+  }
+  60% {
+    transform: scaleY(1.05);
+    opacity: 0.95;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes founderFade {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes founderSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes founderCursorLoop {
+  0% {
+    transform: translate3d(5%, 10%, 0) scale(1);
+  }
+  20% {
+    transform: translate3d(60%, 15%, 0) scale(1.05);
+  }
+  40% {
+    transform: translate3d(80%, 60%, 0) scale(0.95);
+  }
+  60% {
+    transform: translate3d(30%, 70%, 0) scale(1.02);
+  }
+  80% {
+    transform: translate3d(18%, 35%, 0) scale(0.98);
+  }
+  100% {
+    transform: translate3d(5%, 10%, 0) scale(1);
   }
 }
 
