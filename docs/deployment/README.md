@@ -36,6 +36,8 @@
 | Document | Description |
 |----------|-------------|
 | **[PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md)** | Pre-launch verification checklist | Before going to production |
+| **[SHOPIFY_COMPLIANCE_WEBHOOKS.md](./SHOPIFY_COMPLIANCE_WEBHOOKS.md)** | Mandatory compliance webhooks documentation | Understanding GDPR/CPRA compliance |
+| **[SHOPIFY_APP_STORE_SUBMISSION.md](./SHOPIFY_APP_STORE_SUBMISSION.md)** | Complete checklist for Shopify App Store submission | Submitting app to Shopify App Store |
 
 ---
 
