@@ -155,12 +155,26 @@ export default function InboxPage() {
       refetchOnMount: false, // Don't refetch if data exists
     },
   );
+  // Split into critical (orders) and secondary (unassigned) queries for progressive loading
+  // Orders load first (critical), then unassigned messages (secondary)
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
-    { ordersTake: 25, unassignedTake: 40 },
+    { ordersTake: 25, unassignedTake: 0 }, // Don't fetch unassigned in bootstrap
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false, // Don't refetch if data exists
+    },
+  );
+
+  // Separate query for unassigned messages - loads after orders (progressive loading)
+  const unassignedQuery = trpc.unassignedInbound.useQuery(
+    { take: 20 }, // Reduced from 40 to 20 for faster initial load
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      // Only fetch after orders have loaded (or immediately if orders already cached)
+      enabled: !inboxBootstrap.isLoading || !!inboxBootstrap.data,
     },
   );
 
@@ -173,11 +187,9 @@ export default function InboxPage() {
     refetch: inboxBootstrap.refetch,
   };
   const unassigned = {
-    data: inboxBootstrap.data
-      ? { messages: inboxBootstrap.data.unassigned }
-      : undefined,
-    isLoading: inboxBootstrap.isLoading,
-    refetch: inboxBootstrap.refetch,
+    data: unassignedQuery.data,
+    isLoading: unassignedQuery.isLoading,
+    refetch: unassignedQuery.refetch,
   };
   const emailLimit = {
     data: inboxBootstrap.data?.emailLimit,
@@ -214,7 +226,8 @@ export default function InboxPage() {
   });
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
     onSuccess: () => {
-      inboxBootstrap.refetch(); // Single refetch updates all data
+      unassignedQuery.refetch(); // Refetch unassigned messages
+      inboxBootstrap.refetch(); // Refetch email limit
       toast.success('Reply sent successfully');
     },
     onError: (error) => {
@@ -400,7 +413,8 @@ export default function InboxPage() {
     setIsRefreshing(true);
     try {
       const tasks: Array<Promise<unknown>> = [
-        inboxBootstrap.refetch(), // Use single refetch instead of multiple
+        inboxBootstrap.refetch(), // Refetch orders and email limit
+        unassignedQuery.refetch(), // Refetch unassigned messages
       ];
       if (shop) {
         tasks.push(recentOrders.refetch());
@@ -424,6 +438,7 @@ export default function InboxPage() {
     shop,
     selectedOrderId,
     inboxBootstrap.refetch,
+    unassignedQuery.refetch,
     recentOrders.refetch,
     messages.refetch,
     orderDetail.refetch,
@@ -516,14 +531,14 @@ export default function InboxPage() {
       setRepliedMessageIds((prev) => new Set(prev).add(currentMessageId));
 
       // Refetch unassigned messages
-      const messagesResult = await inboxBootstrap.refetch();
+      const messagesResult = await unassignedQuery.refetch();
 
       // Find next unassigned message that needs a reply (use updated repliedMessageIds)
       const updatedRepliedMessageIds = new Set([
         ...repliedMessageIds,
         currentMessageId,
       ]);
-      const allMessages = (messagesResult.data?.unassigned ??
+      const allMessages = (messagesResult.data?.messages ??
         []) as UnassignedMessage[];
       const nextMessage = allMessages.find(
         (msg) =>
