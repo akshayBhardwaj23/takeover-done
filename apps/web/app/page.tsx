@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Hero from './components/Hero';
 
 const trustedLogos = [
   'Aurora Threads',
@@ -75,49 +76,6 @@ const useCases = [
     title: 'Ops and CX teams',
     description:
       'Give operators the context they need—order history, shipping status, and recommended action—alongside every thread.',
-  },
-];
-
-const heroSlides = [
-  {
-    id: 'auto-reply',
-    tag: 'Inbox Automation',
-    headline: 'AI reply drafted in 3 seconds',
-    subtitle: '“Hi! My order arrived but I need a larger size.”',
-    pills: ['Intent detected', 'Refund queued'],
-    metricLabel: 'Time saved',
-    metricValue: '47s',
-    accent: 'from-cyan-300 via-sky-400 to-indigo-400',
-  },
-  {
-    id: 'insights',
-    tag: 'Analytics',
-    headline: 'Revenue up 14% this week',
-    subtitle: 'AI spotted 3 fast wins across CX + retention.',
-    pills: ['Churn risk down', 'VIPs happy'],
-    metricLabel: 'Lift',
-    metricValue: '+14%',
-    accent: 'from-emerald-300 via-teal-300 to-cyan-300',
-  },
-  {
-    id: 'playbooks',
-    tag: 'Automation Flow',
-    headline: 'Refund + exchange playbook firing',
-    subtitle: 'Rules triggered for delayed shipments overnight.',
-    pills: ['3 flows live', 'Human-in-loop'],
-    metricLabel: 'Tickets cleared',
-    metricValue: '38',
-    accent: 'from-indigo-300 via-purple-300 to-pink-300',
-  },
-  {
-    id: 'suggestions',
-    tag: 'AI Insights',
-    headline: 'Optimize delayed orders this week',
-    subtitle: 'AI suggests prioritizing “Logistics · East Coast”.',
-    pills: ['Confidence 92%', 'Ready-to-run'],
-    metricLabel: 'Impact forecast',
-    metricValue: '+$18k',
-    accent: 'from-amber-300 via-orange-300 to-rose-300',
   },
 ];
 
@@ -623,96 +581,6 @@ const faqs = [
   },
 ];
 
-const heroFlares: Array<{ style: CSSProperties; className: string }> = [
-  {
-    style: {
-      top: '-14%',
-      left: '-12%',
-      width: '30rem',
-      height: '30rem',
-      animationDuration: '24s',
-    },
-    className:
-      'rounded-full bg-gradient-to-br from-cyan-500/25 via-sky-500/10 to-transparent blur-3xl opacity-80 animate-drift mix-blend-screen',
-  },
-  {
-    style: {
-      top: '6%',
-      right: '-10%',
-      width: '34rem',
-      height: '34rem',
-      animationDuration: '28s',
-    },
-    className:
-      'rounded-full bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent blur-[160px] opacity-80 animate-drift mix-blend-screen',
-  },
-  {
-    style: {
-      bottom: '-16%',
-      left: '22%',
-      width: '40rem',
-      height: '40rem',
-      animationDuration: '26s',
-    },
-    className:
-      'rounded-full bg-gradient-to-tr from-blue-400/15 via-teal-400/10 to-transparent blur-[140px] opacity-70 animate-drift mix-blend-screen',
-  },
-];
-
-const heroSparkles: Array<{ style: CSSProperties; delay: string }> = [
-  { style: { top: '18%', left: '18%' }, delay: '0s' },
-  { style: { top: '32%', right: '22%' }, delay: '0.6s' },
-  { style: { top: '58%', left: '28%' }, delay: '1.2s' },
-  { style: { top: '48%', right: '30%' }, delay: '1.5s' },
-  { style: { top: '68%', left: '52%' }, delay: '0.9s' },
-  { style: { top: '26%', right: '45%' }, delay: '0.3s' },
-];
-
-const heroStreams: Array<{
-  style: CSSProperties;
-  gradient: string;
-  duration: string;
-  delay?: string;
-}> = [
-  {
-    style: {
-      top: '15%',
-      left: '10%',
-      width: '22rem',
-      height: '22rem',
-      transform: 'rotate(12deg)',
-    },
-    gradient: 'from-cyan-400/20 via-blue-500/10 to-transparent',
-    duration: '32s',
-    delay: '-4s',
-  },
-  {
-    style: {
-      bottom: '10%',
-      right: '12%',
-      width: '26rem',
-      height: '26rem',
-      transform: 'rotate(-18deg)',
-    },
-    gradient: 'from-indigo-400/18 via-purple-500/12 to-transparent',
-    duration: '36s',
-    delay: '-10s',
-  },
-  {
-    style: {
-      top: '28%',
-      right: '40%',
-      width: '18rem',
-      height: '18rem',
-      transform: 'rotate(35deg)',
-    },
-    gradient: 'from-sky-300/18 via-cyan-400/10 to-transparent',
-    duration: '28s',
-  },
-];
-
-const ACTION_VERBS = ['AUTOMATE', 'ANALYZE', 'GROW'];
-
 const integrationIcons = [
   { name: 'Shopify', emoji: '🛍️', gradient: 'from-emerald-400 to-emerald-600' },
   { name: 'Gmail', emoji: '✉️', gradient: 'from-rose-400 to-red-500' },
@@ -726,11 +594,8 @@ const integrationIcons = [
 
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
-  const [activeVerbIndex, setActiveVerbIndex] = useState(0);
   const [activeScene, setActiveScene] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
-  const [heroPaused, setHeroPaused] = useState(false);
   const insightsRef = useRef<HTMLDivElement | null>(null);
   const [insightsInView, setInsightsInView] = useState(false);
   const mailingRef = useRef<HTMLDivElement | null>(null);
@@ -738,7 +603,6 @@ export default function HomePage() {
   const founderRef = useRef<HTMLDivElement | null>(null);
   const [founderInView, setFounderInView] = useState(false);
   const [showAutomationTip, setShowAutomationTip] = useState(false);
-  const heroPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoScenes = [
     {
@@ -771,14 +635,6 @@ export default function HomePage() {
   ];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveVerbIndex((prev) => (prev + 1) % ACTION_VERBS.length);
-    }, 2200);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     if (isPaused) return;
 
     const interval = setInterval(
@@ -788,34 +644,6 @@ export default function HomePage() {
 
     return () => clearInterval(interval);
   }, [isPaused]);
-
-  useEffect(() => {
-    if (heroPaused) return;
-
-    const interval = setInterval(
-      () => setHeroSlideIndex((prev) => (prev + 1) % heroSlides.length),
-      4500,
-    );
-
-    return () => clearInterval(interval);
-  }, [heroPaused]);
-
-  useEffect(() => {
-    return () => {
-      if (heroPauseTimeoutRef.current) {
-        clearTimeout(heroPauseTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleHeroManualSelect = (index: number) => {
-    setHeroSlideIndex(index);
-    setHeroPaused(true);
-    if (heroPauseTimeoutRef.current) {
-      clearTimeout(heroPauseTimeoutRef.current);
-    }
-    heroPauseTimeoutRef.current = setTimeout(() => setHeroPaused(false), 7000);
-  };
 
   useEffect(() => {
     if (!insightsRef.current) return;
@@ -879,204 +707,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1B0A02] via-[#2C0F04] to-[#3B1706] text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28)_0,rgba(15,23,42,0)_55%)]" />
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {heroFlares.map((flare, index) => (
-            <div
-              key={`hero-flare-${index}`}
-              className={flare.className}
-              style={flare.style}
-            />
-          ))}
-          {heroStreams.map((stream, index) => (
-            <div
-              key={`hero-stream-${index}`}
-              className={`absolute rounded-full bg-gradient-to-r ${stream.gradient} blur-[120px] opacity-70`}
-              style={{
-                ...stream.style,
-                animation: `drift ${stream.duration} ease-in-out infinite`,
-                animationDelay: stream.delay ?? '0s',
-              }}
-            />
-          ))}
-          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/10 bg-white/5 blur-3xl opacity-30 mix-blend-screen" />
-          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full border border-orange-200/40 opacity-70 mix-blend-overlay animate-orbit-slow" />
-          <div className="absolute left-1/2 top-[18%] h-[24rem] w-[24rem] -translate-x-1/2 rounded-full border border-orange-100/30 opacity-40 mix-blend-overlay animate-orbit-reverse" />
-          <div className="absolute inset-0 opacity-80">
-            <div className="absolute left-[10%] top-[15%] h-64 w-64 rounded-[40%] bg-gradient-to-br from-[#FF8F3F]/50 via-[#FFB347]/30 to-transparent blur-[120px] animate-drift-slow" />
-            <div className="absolute right-[5%] top-[25%] h-72 w-72 rounded-[40%] bg-gradient-to-br from-[#FF5C39]/45 via-[#FF914D]/30 to-transparent blur-[140px] animate-drift" />
-            <div className="absolute left-1/2 top-[60%] h-60 w-60 -translate-x-1/2 rounded-[50%] bg-gradient-to-br from-[#FFD166]/35 via-[#FF9F1C]/25 to-transparent blur-[120px] animate-drift-medium" />
-          </div>
-          {heroSparkles.map((sparkle, index) => (
-            <span
-              key={`hero-sparkle-${index}`}
-              className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_12px_rgba(251,191,36,0.8)]"
-              style={{
-                ...sparkle.style,
-                animation: `drift 14s ease-in-out infinite`,
-                animationDelay: sparkle.delay,
-              }}
-            />
-          ))}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,146,60,0.08)_0,rgba(15,23,42,0)_55%)]" />
-        </div>
-        <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
-          <div className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-amber-200">
-            AI Business Copilot
-          </div>
-          <h1 className="text-4xl font-black leading-[1.05] text-white md:text-6xl lg:text-7xl">
-            Meet ZYYP - Your{' '}
-            <span className="bg-gradient-to-r from-amber-200 via-orange-300 to-rose-300 bg-clip-text text-transparent animate-gradientShift">
-              AI Autopilot
-            </span>{' '}
-            for Support, Analytics & Growth.
-            </h1>
-          <p className="max-w-3xl text-lg text-white/80 md:text-xl">
-            Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
-          </p>
-          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-amber-100/80">
-            <span>We help teams</span>
-            <span className="relative inline-flex h-6 min-w-[8rem] overflow-hidden">
-              {ACTION_VERBS.map((verb, index) => (
-                <span
-                  key={verb}
-                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out ${
-                    index === activeVerbIndex
-                      ? 'translate-y-0 opacity-100'
-                      : 'translate-y-full opacity-0'
-                  }`}
-                >
-                  {verb}
-                </span>
-              ))}
-            </span>
-            <span>on autopilot</span>
-          </div>
-          <div className="w-full max-w-4xl">
-            <div className="hidden flex-col gap-5 md:flex">
-              <div
-                className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#2C0F04] via-[#3B1706] to-[#501F08] p-6 shadow-[0_0_40px_rgba(255,153,51,0.25)]"
-                onMouseEnter={() => setHeroPaused(true)}
-                onMouseLeave={() => setHeroPaused(false)}
-              >
-                <div className="pointer-events-none absolute -left-12 top-6 h-40 w-40 rounded-full bg-amber-400/25 blur-3xl" />
-                <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
-                {[{ top: '10%', left: '18%' }, { top: '70%', left: '30%' }, { top: '48%', left: '72%' }].map(
-                  (particle, index) => (
-                    <span
-                      key={`hero-particle-${index}`}
-                      className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_14px_rgba(251,191,36,0.9)]"
-                      style={{
-                        top: particle.top,
-                        left: particle.left,
-                        animation: 'pulse 6s ease-in-out infinite',
-                        animationDelay: `${index * 1.2}s`,
-                      }}
-                    />
-                  ),
-                )}
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-                  {heroSlides.map((slide, index) => (
-                    <div
-                      key={slide.id}
-                      className={`absolute inset-0 flex flex-col justify-between rounded-[24px] border border-white/5 bg-slate-900/20 p-6 text-left text-white transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                        heroSlideIndex === index
-                          ? 'translate-y-0 opacity-100'
-                          : 'pointer-events-none translate-y-6 opacity-0'
-                      }`}
-                    >
-                      <div>
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-                          {slide.tag}
-                        </span>
-                        <h3 className="mt-6 text-2xl font-bold">{slide.headline}</h3>
-                        <p className="mt-3 text-sm text-white/70">{slide.subtitle}</p>
-                        <div className="mt-4 flex flex-wrap gap-3 text-xs">
-                          {slide.pills.map((pill) => (
-                            <span
-                              key={pill}
-                              className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-white/70"
-                            >
-                              {pill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between pt-4">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                            {slide.metricLabel}
-                          </p>
-                          <p className="mt-1 text-3xl font-black">{slide.metricValue}</p>
-                        </div>
-                        <div className="relative h-14 w-24 overflow-hidden rounded-2xl border border-white/15 bg-white/5">
-                          <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent" />
-                          <div
-                            className={`absolute inset-y-2 left-3 right-3 rounded-xl bg-gradient-to-r ${slide.accent} opacity-80`}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div className="invisible h-[260px] w-full" />
-                </div>
-                <div className="relative mt-5 flex items-center justify-center gap-3">
-                  {heroSlides.map((slide, index) => (
-                    <button
-                      key={slide.id}
-                      type="button"
-                      onClick={() => handleHeroManualSelect(index)}
-                      onMouseEnter={() => handleHeroManualSelect(index)}
-                      className={`h-2 w-8 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
-                        heroSlideIndex === index
-                          ? `scale-y-150 bg-gradient-to-r ${slide.accent} shadow-[0_0_12px_rgba(56,189,248,0.5)]`
-                          : 'bg-white/15 hover:bg-white/30'
-                      }`}
-                      aria-label={`Show ${slide.tag}`}
-                    />
-                  ))}
-                </div>
-                <a
-                  href="#how-it-works"
-                  className="group absolute -bottom-10 right-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 shadow-lg shadow-cyan-500/10 backdrop-blur transition hover:border-white/40 hover:text-white"
-                >
-                  👀 Watch ZYYP in action — it’s fully autonomous.
-                  <span className="transition group-hover:translate-x-1">↗</span>
-                </a>
-              </div>
-            </div>
-            <div className="mt-8 rounded-[32px] border border-white/15 bg-white/10 p-6 text-left text-white/80 shadow-lg shadow-cyan-500/10 md:hidden">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Live demo</p>
-              <h3 className="mt-3 text-2xl font-bold">AI reply drafted in 3 seconds</h3>
-              <p className="mt-2 text-sm">
-                ZYYP keeps the inbox, analytics, and automation flows running on your behalf. Watch it
-                process refunds and surface insights while you’re on the go.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/integrations"
-              className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-100"
-              >
-              Launch your autopilot
-              </Link>
-            <a
-              href="#how-it-works"
-              className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white transition hover:border-white hover:text-white"
-            >
-              See how it works
-            </a>
-            </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50 md:mt-12">
-            <span>Purpose-built for modern support & revenue teams</span>
-            <span className="h-1 w-1 rounded-full bg-white/30" />
-            <span>Trusted by fast-moving operators across industries</span>
-          </div>
-        </div>
-      </section>
+      <Hero />
 
       {/* Demo Loop */}
       <section className="bg-white py-20 text-slate-900">
