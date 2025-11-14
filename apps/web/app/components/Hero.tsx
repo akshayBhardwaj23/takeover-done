@@ -83,7 +83,7 @@ export default function Hero() {
       <NeuralBackground />
       <FloatingParticles count={20} />
 
-      <div className="relative z-10 flex max-w-5xl flex-col items-center text-center">
+      <div className="relative z-10 mt-16 flex max-w-5xl flex-col items-center text-center md:mt-24">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.4em] text-cyan-200/80">
           ZYYP AUTOPILOT
         </div>
@@ -161,10 +161,8 @@ function AutopilotCore({
           return (
             <motion.div
               key={label}
-              className="absolute flex w-[200px] items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
-              style={{
-                transform: `rotate(${angle}deg) translateX(${radius}px) rotate(${-angle}deg)`,
-              }}
+              className="absolute left-1/2 top-1/2 flex w-[210px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+              style={{ transform: `translate(-50%, -50%) rotate(${angle}deg) translateX(${radius}px) rotate(${-angle}deg)` }}
               animate={{
                 scale: isActive ? 1.05 : 0.92,
                 opacity: isActive ? 1 : 0.65,
