@@ -880,8 +880,8 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(94,234,212,0.18)_0,rgba(15,23,42,0)_45%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-br from-[#1B0A02] via-[#2C0F04] to-[#3B1706] text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28)_0,rgba(15,23,42,0)_55%)]" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {heroFlares.map((flare, index) => (
             <div
@@ -901,13 +901,18 @@ export default function HomePage() {
               }}
             />
           ))}
-          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/10 bg-white/5 blur-3xl opacity-40 mix-blend-screen" />
-          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full border border-white/10 opacity-60 mix-blend-overlay animate-orbit-slow" />
-          <div className="absolute left-1/2 top-[18%] h-[24rem] w-[24rem] -translate-x-1/2 rounded-full border border-white/5 opacity-30 mix-blend-overlay animate-orbit-reverse" />
+          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/10 bg-white/5 blur-3xl opacity-30 mix-blend-screen" />
+          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full border border-orange-200/40 opacity-70 mix-blend-overlay animate-orbit-slow" />
+          <div className="absolute left-1/2 top-[18%] h-[24rem] w-[24rem] -translate-x-1/2 rounded-full border border-orange-100/30 opacity-40 mix-blend-overlay animate-orbit-reverse" />
+          <div className="absolute inset-0 opacity-80">
+            <div className="absolute left-[10%] top-[15%] h-64 w-64 rounded-[40%] bg-gradient-to-br from-[#FF8F3F]/50 via-[#FFB347]/30 to-transparent blur-[120px] animate-drift-slow" />
+            <div className="absolute right-[5%] top-[25%] h-72 w-72 rounded-[40%] bg-gradient-to-br from-[#FF5C39]/45 via-[#FF914D]/30 to-transparent blur-[140px] animate-drift" />
+            <div className="absolute left-1/2 top-[60%] h-60 w-60 -translate-x-1/2 rounded-[50%] bg-gradient-to-br from-[#FFD166]/35 via-[#FF9F1C]/25 to-transparent blur-[120px] animate-drift-medium" />
+          </div>
           {heroSparkles.map((sparkle, index) => (
             <span
               key={`hero-sparkle-${index}`}
-              className="absolute h-2 w-2 rounded-full bg-cyan-100/70 shadow-[0_0_12px_rgba(165,243,252,0.8)]"
+              className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_12px_rgba(251,191,36,0.8)]"
               style={{
                 ...sparkle.style,
                 animation: `drift 14s ease-in-out infinite`,
@@ -915,23 +920,23 @@ export default function HomePage() {
               }}
             />
           ))}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(147,197,253,0.08)_0,rgba(15,23,42,0)_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,146,60,0.08)_0,rgba(15,23,42,0)_55%)]" />
         </div>
         <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
-          <div className="rounded-full border border-white/20 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-white/70">
+          <div className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-amber-200">
             AI Business Copilot
           </div>
-          <h1 className="text-4xl font-black leading-[1.05] md:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-black leading-[1.05] text-white md:text-6xl lg:text-7xl">
             Meet ZYYP - Your{' '}
-            <span className="bg-gradient-to-r from-cyan-300 via-sky-400 to-indigo-400 bg-clip-text text-transparent animate-gradientShift">
+            <span className="bg-gradient-to-r from-amber-200 via-orange-300 to-rose-300 bg-clip-text text-transparent animate-gradientShift">
               AI Autopilot
             </span>{' '}
             for Support, Analytics & Growth.
             </h1>
-          <p className="max-w-3xl text-lg text-white/70 md:text-xl">
+          <p className="max-w-3xl text-lg text-white/80 md:text-xl">
             Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
           </p>
-          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-white/60">
+          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-amber-100/80">
             <span>We help teams</span>
             <span className="relative inline-flex h-6 min-w-[8rem] overflow-hidden">
               {ACTION_VERBS.map((verb, index) => (
@@ -952,17 +957,17 @@ export default function HomePage() {
           <div className="w-full max-w-4xl">
             <div className="hidden flex-col gap-5 md:flex">
               <div
-                className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0B0F1A] via-[#0D182B] to-[#111827] p-6 shadow-[0_0_40px_rgba(100,180,255,0.15)]"
+                className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#2C0F04] via-[#3B1706] to-[#501F08] p-6 shadow-[0_0_40px_rgba(255,153,51,0.25)]"
                 onMouseEnter={() => setHeroPaused(true)}
                 onMouseLeave={() => setHeroPaused(false)}
               >
-                <div className="pointer-events-none absolute -left-12 top-6 h-40 w-40 rounded-full bg-cyan-400/25 blur-3xl" />
-                <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
+                <div className="pointer-events-none absolute -left-12 top-6 h-40 w-40 rounded-full bg-amber-400/25 blur-3xl" />
+                <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
                 {[{ top: '10%', left: '18%' }, { top: '70%', left: '30%' }, { top: '48%', left: '72%' }].map(
                   (particle, index) => (
                     <span
                       key={`hero-particle-${index}`}
-                      className="absolute h-2 w-2 rounded-full bg-cyan-100/70 shadow-[0_0_14px_rgba(165,243,252,0.8)]"
+                      className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_14px_rgba(251,191,36,0.9)]"
                       style={{
                         top: particle.top,
                         left: particle.left,
