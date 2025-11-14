@@ -14,21 +14,15 @@ const PLAYBOOK_STEPS = [
   'CRM synced',
 ];
 
-const STAGE_DURATIONS = [1200, 900, 1500, 1100, 1100, 900] as const;
-const RESET_STAGE = STAGE_DURATIONS.length - 1;
+const STAGE_DURATIONS = [1400, 1200, 1800, 1400, 1500] as const;
+const FINAL_STAGE = STAGE_DURATIONS.length - 1;
 
 const windowVariants = {
   hidden: { opacity: 0, y: 40, scale: 0.92, filter: 'blur(12px)' },
   visible: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
-  exit: { opacity: 0, y: 80, scale: 0.9, filter: 'blur(16px)' },
 };
 
 const glowBorder = 'border border-white/10 bg-white/5 shadow-[0_30px_80px_rgba(4,5,12,0.55)] backdrop-blur-xl';
-
-function getStageVariant(stage: number, threshold: number) {
-  if (stage === RESET_STAGE) return 'exit';
-  return stage >= threshold ? 'visible' : 'hidden';
-}
 
 export default function Hero() {
   const [stage, setStage] = useState(0);
@@ -36,20 +30,14 @@ export default function Hero() {
   const [playbookProgress, setPlaybookProgress] = useState(0);
 
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout>;
-    let currentStage = 0;
+    if (stage >= FINAL_STAGE) return;
 
-    const loop = () => {
-      setStage(currentStage);
-      timeout = setTimeout(() => {
-        currentStage = (currentStage + 1) % STAGE_DURATIONS.length;
-        loop();
-      }, STAGE_DURATIONS[currentStage]);
-    };
+    const timeout = setTimeout(() => {
+      setStage((prev) => Math.min(prev + 1, FINAL_STAGE));
+    }, STAGE_DURATIONS[stage]);
 
-    loop();
     return () => clearTimeout(timeout);
-  }, []);
+  }, [stage]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -97,18 +85,28 @@ export default function Hero() {
     };
   }, [stage]);
 
-  const analyticsActive = stage >= 4 && stage !== RESET_STAGE;
+  const analyticsActive = stage >= FINAL_STAGE;
 
   return (
-    <section className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#05060b] px-6 py-24 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,142,92,0.25)_0,rgba(2,6,23,0)_60%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-20">
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,142,92,0.08),rgba(255,78,189,0.12))]" />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)1px,transparent_1px)] bg-[length:60px] mix-blend-screen" />
-        <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(255,255,255,0.04)1px,transparent_1px)] bg-[length:60px] mix-blend-screen" />
+    <section className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#04040a] px-6 py-24 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,200,150,0.25)_0,rgba(4,4,10,0)_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-30">
+        <div className="absolute inset-0 bg-[linear-gradient(130deg,rgba(255,158,92,0.25),rgba(255,78,189,0.35),rgba(105,132,255,0.2))]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)1px,transparent_1px)] bg-[length:70px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(255,255,255,0.04)1px,transparent_1px)] bg-[length:70px] mix-blend-screen" />
       </div>
-      <div className="pointer-events-none absolute left-[-10%] top-[-10%] h-[28rem] w-[28rem] rounded-[40%] bg-[radial-gradient(circle,rgba(255,142,92,0.3),transparent_70%)] blur-[160px]" />
-      <div className="pointer-events-none absolute right-[-5%] bottom-[-5%] h-[26rem] w-[26rem] rounded-[45%] bg-[radial-gradient(circle,rgba(255,78,189,0.35),transparent_70%)] blur-[150px]" />
+      <div className="pointer-events-none absolute left-[-12%] top-[-15%] h-[32rem] w-[32rem] rounded-[45%] bg-[radial-gradient(circle,rgba(255,184,105,0.35),transparent_70%)] blur-[180px]" />
+      <div className="pointer-events-none absolute right-[-6%] bottom-[-10%] h-[30rem] w-[30rem] rounded-[45%] bg-[radial-gradient(circle,rgba(255,120,210,0.35),transparent_70%)] blur-[180px]" />
+      <motion.div
+        className="pointer-events-none absolute left-[12%] top-[22%] h-32 w-32 rounded-full border border-white/20 bg-white/5"
+        animate={{ y: [0, 25, -10, 0], x: [0, 10, -8, 0], rotate: [0, 6, -4, 0] }}
+        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="pointer-events-none absolute right-[18%] top-[28%] h-40 w-40 rounded-[30%] border border-white/10 bg-gradient-to-br from-[#ffbf81]/30 to-transparent"
+        animate={{ y: [0, -20, 10, 0], x: [0, -12, 6, 0] }}
+        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
+      />
 
       <div className="relative z-10 flex max-w-5xl flex-col items-center text-center">
         <p className="mb-4 inline-flex items-center rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs font-semibold uppercase tracking-[0.4em] text-white/80">
@@ -138,7 +136,7 @@ export default function Hero() {
 
       <div className="relative mt-16 flex w-full max-w-6xl flex-col items-center">
         <motion.div
-          className="absolute -left-6 top-10 hidden h-20 w-20 rounded-full border border-white/20 bg-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur-lg md:block"
+          className="absolute -left-10 top-4 hidden h-24 w-24 rounded-full border border-white/20 bg-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-lg md:block"
           animate={{
             x: ['0%', '12%', '-8%', '10%', '0%'],
             y: ['0%', '10%', '-6%', '4%', '0%'],
@@ -149,18 +147,18 @@ export default function Hero() {
           <div className="absolute left-[38%] top-[85%] h-6 w-6 rotate-45 rounded bg-white/70 shadow-lg shadow-orange-500/30" />
         </motion.div>
 
-        <div className="relative grid min-h-[520px] w-full place-items-center">
+        <div className="relative grid min-h-[560px] w-full place-items-center">
           {/* Inbox */}
           <motion.div
-            className={`absolute -left-4 -top-8 w-[280px] rounded-3xl ${glowBorder}`}
+            className={`absolute left-[6%] top-0 w-[320px] rounded-3xl ${glowBorder}`}
             variants={windowVariants}
             initial="hidden"
-            animate={getStageVariant(stage, 0)}
+            animate={stage >= 0 ? 'visible' : 'hidden'}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <motion.div
-              animate={stage >= 0 && stage !== RESET_STAGE ? { y: [-4, 4, -4] } : { y: 0 }}
-              transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+              animate={stage >= 0 ? { y: [-4, 4, -4] } : { y: 0 }}
+              transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
             >
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.4em] text-white/50">
                 <span>Inbox</span>
@@ -171,11 +169,7 @@ export default function Hero() {
               </p>
               <motion.div
                 className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-white/70"
-                animate={
-                  stage >= 0 && stage !== RESET_STAGE
-                    ? { opacity: [0.6, 1, 0.6] }
-                    : { opacity: 0 }
-                }
+                animate={stage >= 0 ? { opacity: [0.6, 1, 0.6] } : { opacity: 0 }}
                 transition={{ duration: 1.6, repeat: Infinity }}
               >
                 <span className="h-2 w-2 rounded-full bg-gradient-to-r from-[#ff8a5c] to-[#ff4ebd]" />
@@ -186,15 +180,15 @@ export default function Hero() {
 
           {/* Order panel */}
           <motion.div
-            className={`absolute right-0 top-6 w-[260px] rounded-3xl ${glowBorder}`}
+            className={`absolute right-[8%] top-10 w-[320px] rounded-3xl ${glowBorder}`}
             variants={windowVariants}
             initial="hidden"
-            animate={getStageVariant(stage, 1)}
+            animate={stage >= 1 ? 'visible' : 'hidden'}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <motion.div
-              animate={stage >= 1 && stage !== RESET_STAGE ? { y: [3, -3, 3] } : { y: 0 }}
-              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              animate={stage >= 1 ? { y: [3, -3, 3] } : { y: 0 }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
             >
               <p className="text-xs uppercase tracking-[0.4em] text-white/40">Order Panel</p>
               <div className="mt-4 space-y-2 text-sm text-white/80">
@@ -214,15 +208,15 @@ export default function Hero() {
 
           {/* AI Draft */}
           <motion.div
-            className={`absolute left-1/2 top-1/2 w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-3xl ${glowBorder}`}
+            className={`absolute left-1/2 top-1/2 w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-[32px] ${glowBorder}`}
             variants={windowVariants}
             initial="hidden"
-            animate={getStageVariant(stage, 2)}
+            animate={stage >= 2 ? 'visible' : 'hidden'}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <motion.div
-              animate={stage >= 2 && stage !== RESET_STAGE ? { y: [-2, 2, -2] } : { y: 0 }}
-              transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+              animate={stage >= 2 ? { y: [-2, 2, -2] } : { y: 0 }}
+              transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
             >
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.4em] text-white/50">
                 <span>AI Draft</span>
@@ -239,15 +233,15 @@ export default function Hero() {
 
           {/* Playbook */}
           <motion.div
-            className={`absolute left-2 bottom-0 w-[260px] rounded-3xl ${glowBorder}`}
+            className={`absolute left-[4%] bottom-[6%] w-[300px] rounded-[32px] ${glowBorder}`}
             variants={windowVariants}
             initial="hidden"
-            animate={getStageVariant(stage, 3)}
+            animate={stage >= 3 ? 'visible' : 'hidden'}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <motion.div
-              animate={stage >= 3 && stage !== RESET_STAGE ? { y: [2, -2, 2] } : { y: 0 }}
-              transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut' }}
+              animate={stage >= 3 ? { y: [2, -2, 2] } : { y: 0 }}
+              transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
             >
               <p className="text-xs uppercase tracking-[0.4em] text-white/40">
                 Exchange Playbook
@@ -282,15 +276,15 @@ export default function Hero() {
 
           {/* Analytics */}
           <motion.div
-            className={`absolute right-8 bottom-6 w-[320px] rounded-3xl ${glowBorder}`}
+            className={`absolute right-[6%] bottom-[4%] w-[360px] rounded-[32px] ${glowBorder}`}
             variants={windowVariants}
             initial="hidden"
-            animate={getStageVariant(stage, 4)}
+            animate={stage >= 4 ? 'visible' : 'hidden'}
             transition={{ duration: 0.8, ease: 'easeOut' }}
           >
             <motion.div
-              animate={stage >= 4 && stage !== RESET_STAGE ? { y: [-1, 1, -1] } : { y: 0 }}
-              transition={{ duration: 7.5, repeat: Infinity, ease: 'easeInOut' }}
+              animate={stage >= 4 ? { y: [-1, 1, -1] } : { y: 0 }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
             >
               <p className="text-xs uppercase tracking-[0.4em] text-white/40">Analytics</p>
               <div className="mt-4 space-y-4 text-sm">
@@ -307,10 +301,9 @@ export default function Hero() {
                     <motion.div
                       className="h-2 rounded-full bg-white/10"
                       animate={{
-                        background:
-                          analyticsActive && stage !== RESET_STAGE
-                            ? 'linear-gradient(90deg,#ff8a5c,#ff4ebd)'
-                            : 'rgba(255,255,255,0.1)',
+                        background: analyticsActive
+                          ? 'linear-gradient(90deg,#ff8a5c,#ff4ebd)'
+                          : 'rgba(255,255,255,0.1)',
                       }}
                     >
                       <motion.span
