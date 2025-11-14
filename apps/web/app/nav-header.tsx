@@ -13,10 +13,15 @@ export default function Header() {
     enabled: isAuthed,
     refetchInterval: 60000,
   });
-  const { data: connectionsData } = trpc.connections.useQuery(undefined, {
-    enabled: isAuthed,
-    staleTime: 60_000,
-  });
+  const { data: connectionsData, isLoading: connectionsLoading } = trpc.connections.useQuery(
+    undefined,
+    {
+      enabled: isAuthed,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch if data exists in cache
+    },
+  );
 
   const isTrial = emailUsage?.trial?.isTrial;
   const trialExpired = emailUsage?.trial?.expired;
@@ -138,7 +143,11 @@ export default function Header() {
                   </button>
                   {storesOpen && (
                     <div className="absolute left-0 top-full z-50 w-64 translate-y-2 overflow-hidden rounded-lg border border-slate-200 bg-white text-sm text-slate-600 shadow-lg shadow-slate-900/10">
-                      {stores.length ? (
+                      {connectionsLoading ? (
+                        <div className="space-y-2 px-4 py-3">
+                          <p className="text-slate-500">Loading stores...</p>
+                        </div>
+                      ) : stores.length ? (
                         <ul className="py-2">
                           {stores.map((store) => (
                             <li key={store.id}>
