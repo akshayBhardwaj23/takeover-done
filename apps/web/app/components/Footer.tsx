@@ -24,6 +24,7 @@ export default function Footer() {
     { href: '/', label: 'Home' },
     { href: '/about', label: 'About Us' },
     { href: '/pricing', label: 'Pricing' },
+    { href: '/faq', label: 'FAQ' },
   ] satisfies Array<{ href: Route; label: string }>;
 
   return (
