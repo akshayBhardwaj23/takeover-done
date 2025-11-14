@@ -13,10 +13,12 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 const ORBIT_CHIPS = [
   'Refund processed · $42 saved',
   'AI drafted reply · 94% confidence',
-  'Order updated',
-  'Delay detected · fix suggested',
-  'Customer sentiment rising +12%',
+  'Exchange started automatically',
+  'Delay detected · customer notified',
+  'Sentiment rising +12%',
 ];
+
+const ORBIT_DURATION = 12; // seconds per full rotation
 
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
@@ -49,7 +51,7 @@ export default function Hero() {
   useEffect(() => {
     const interval = setInterval(() => {
       setChipFocus((prev) => (prev + 1) % ORBIT_CHIPS.length);
-    }, 3000);
+    }, (ORBIT_DURATION * 1000) / ORBIT_CHIPS.length);
     return () => clearInterval(interval);
   }, []);
 
@@ -111,7 +113,8 @@ export default function Hero() {
       </div>
 
       <div className="relative z-10 mt-16 flex w-full max-w-5xl flex-col items-center">
-        <AutopilotCore chips={ORBIT_CHIPS} focusIndex={chipFocus} tilt={tilt} />
+        <AutopilotCore chips={ORBIT_CHIPS} focusIndex={chipFocus} tilt={tilt} orbitDuration={ORBIT_DURATION} />
+        <LiveActivityPulse />
         <LivePreviewPanel text={typedPreview} progress={previewProgress} />
       </div>
     </section>
@@ -122,10 +125,12 @@ function AutopilotCore({
   chips,
   focusIndex,
   tilt,
+  orbitDuration,
 }: {
   chips: string[];
   focusIndex: number;
   tilt: { x: number; y: number };
+  orbitDuration: number;
 }) {
   const radius = 190;
 
@@ -148,13 +153,18 @@ function AutopilotCore({
       />
       <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,rgba(46,238,245,0.45),rgba(0,20,30,0.3))] blur-[30px]" />
       <div className="relative z-10 flex h-full w-full items-center justify-center rounded-full border border-cyan-200/30 bg-white/5 backdrop-blur-3xl">
+        <CoreParticles />
         <div className="flex flex-col items-center text-center text-cyan-100">
           <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/70">Autopilot Core</p>
           <p className="mt-3 text-3xl font-semibold text-white">Live</p>
           <p className="mt-2 text-sm text-cyan-100/70">Actions streaming in realtime</p>
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-0">
+      <motion.div
+        className="pointer-events-none absolute inset-0"
+        animate={{ rotate: 360 }}
+        transition={{ duration: orbitDuration, repeat: Infinity, ease: 'linear' }}
+      >
         {chips.map((label, index) => {
           const angle = (360 / chips.length) * index;
           const isActive = focusIndex === index;
@@ -175,8 +185,72 @@ function AutopilotCore({
             </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </motion.div>
+  );
+}
+
+function CoreParticles() {
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 14 }).map((_, index) => {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 80 + Math.random() * 90;
+        return {
+          id: index,
+          angle,
+          distance,
+          duration: 5 + Math.random() * 4,
+          delay: Math.random() * 2,
+        };
+      }),
+    [],
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {particles.map((particle) => (
+        <motion.span
+          key={particle.id}
+          className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#2EEEF5]"
+          style={{ opacity: 0.45 }}
+          initial={{ x: 0, y: 0, scale: 0.6, opacity: 0 }}
+          animate={{
+            x: Math.cos(particle.angle) * particle.distance,
+            y: Math.sin(particle.angle) * particle.distance,
+            opacity: [0, 0.6, 0],
+            scale: [0.5, 1, 0.3],
+          }}
+          transition={{
+            duration: particle.duration,
+            delay: particle.delay,
+            repeat: Infinity,
+            ease: 'easeOut',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LiveActivityPulse() {
+  return (
+    <div className="mt-10 flex items-center gap-4 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm text-cyan-100/80 backdrop-blur-2xl">
+      <span className="text-xs uppercase tracking-[0.4em] text-cyan-200/70">Live activity pulse</span>
+      <span className="flex items-center text-base text-white">
+        ZYYP is processing tasks in realtime
+        <span className="ml-3 flex gap-2">
+          {[0, 1, 2].map((index) => (
+            <motion.span
+              key={index}
+              className="h-1.5 w-1.5 rounded-full bg-cyan-200/80"
+              animate={{ opacity: [0.2, 1, 0.2] }}
+              transition={{ duration: 1, repeat: Infinity, delay: index * 0.2, ease: 'easeInOut' }}
+            />
+          ))}
+        </span>
+      </span>
+    </div>
   );
 }
 
