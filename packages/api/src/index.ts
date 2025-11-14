@@ -913,6 +913,18 @@ export const appRouter = t.router({
           where: { connectionId: { in: orderConnectionIds } },
           orderBy: { createdAt: 'desc' },
           take: ordersTake,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
         }),
         unassignedConnectionIds.length
           ? prisma.message.findMany({
@@ -1774,8 +1786,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: true,
             body: true,
             createdAt: true,
+            thread: {
+              select: {
+                subject: true,
+              },
+            },
             aiSuggestion: {
-              select: { reply: true, proposedAction: true, confidence: true },
+              select: {
+                reply: true,
+                proposedAction: true,
+                confidence: true,
+              },
             },
           },
         });
