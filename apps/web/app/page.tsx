@@ -78,6 +78,49 @@ const useCases = [
   },
 ];
 
+const heroSlides = [
+  {
+    id: 'auto-reply',
+    tag: 'Inbox Automation',
+    headline: 'AI reply drafted in 3 seconds',
+    subtitle: '“Hi! My order arrived but I need a larger size.”',
+    pills: ['Intent detected', 'Refund queued'],
+    metricLabel: 'Time saved',
+    metricValue: '47s',
+    accent: 'from-cyan-300 via-sky-400 to-indigo-400',
+  },
+  {
+    id: 'insights',
+    tag: 'Analytics',
+    headline: 'Revenue up 14% this week',
+    subtitle: 'AI spotted 3 fast wins across CX + retention.',
+    pills: ['Churn risk down', 'VIPs happy'],
+    metricLabel: 'Lift',
+    metricValue: '+14%',
+    accent: 'from-emerald-300 via-teal-300 to-cyan-300',
+  },
+  {
+    id: 'playbooks',
+    tag: 'Automation Flow',
+    headline: 'Refund + exchange playbook firing',
+    subtitle: 'Rules triggered for delayed shipments overnight.',
+    pills: ['3 flows live', 'Human-in-loop'],
+    metricLabel: 'Tickets cleared',
+    metricValue: '38',
+    accent: 'from-indigo-300 via-purple-300 to-pink-300',
+  },
+  {
+    id: 'suggestions',
+    tag: 'AI Insights',
+    headline: 'Optimize delayed orders this week',
+    subtitle: 'AI suggests prioritizing “Logistics · East Coast”.',
+    pills: ['Confidence 92%', 'Ready-to-run'],
+    metricLabel: 'Impact forecast',
+    metricValue: '+$18k',
+    accent: 'from-amber-300 via-orange-300 to-rose-300',
+  },
+];
+
 const benefits = [
   {
     title: 'Resolve tickets in minutes',
@@ -686,6 +729,8 @@ export default function HomePage() {
   const [activeVerbIndex, setActiveVerbIndex] = useState(0);
   const [activeScene, setActiveScene] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
   const insightsRef = useRef<HTMLDivElement | null>(null);
   const [insightsInView, setInsightsInView] = useState(false);
   const mailingRef = useRef<HTMLDivElement | null>(null);
@@ -693,6 +738,7 @@ export default function HomePage() {
   const founderRef = useRef<HTMLDivElement | null>(null);
   const [founderInView, setFounderInView] = useState(false);
   const [showAutomationTip, setShowAutomationTip] = useState(false);
+  const heroPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoScenes = [
     {
@@ -742,6 +788,34 @@ export default function HomePage() {
 
     return () => clearInterval(interval);
   }, [isPaused]);
+
+  useEffect(() => {
+    if (heroPaused) return;
+
+    const interval = setInterval(
+      () => setHeroSlideIndex((prev) => (prev + 1) % heroSlides.length),
+      4500,
+    );
+
+    return () => clearInterval(interval);
+  }, [heroPaused]);
+
+  useEffect(() => {
+    return () => {
+      if (heroPauseTimeoutRef.current) {
+        clearTimeout(heroPauseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleHeroManualSelect = (index: number) => {
+    setHeroSlideIndex(index);
+    setHeroPaused(true);
+    if (heroPauseTimeoutRef.current) {
+      clearTimeout(heroPauseTimeoutRef.current);
+    }
+    heroPauseTimeoutRef.current = setTimeout(() => setHeroPaused(false), 7000);
+  };
 
   useEffect(() => {
     if (!insightsRef.current) return;
@@ -875,6 +949,108 @@ export default function HomePage() {
             </span>
             <span>on autopilot</span>
           </div>
+          <div className="w-full max-w-4xl">
+            <div className="hidden flex-col gap-5 md:flex">
+              <div
+                className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#0B0F1A] via-[#0D182B] to-[#111827] p-6 shadow-[0_0_40px_rgba(100,180,255,0.15)]"
+                onMouseEnter={() => setHeroPaused(true)}
+                onMouseLeave={() => setHeroPaused(false)}
+              >
+                <div className="pointer-events-none absolute -left-12 top-6 h-40 w-40 rounded-full bg-cyan-400/25 blur-3xl" />
+                <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
+                {[{ top: '10%', left: '18%' }, { top: '70%', left: '30%' }, { top: '48%', left: '72%' }].map(
+                  (particle, index) => (
+                    <span
+                      key={`hero-particle-${index}`}
+                      className="absolute h-2 w-2 rounded-full bg-cyan-100/70 shadow-[0_0_14px_rgba(165,243,252,0.8)]"
+                      style={{
+                        top: particle.top,
+                        left: particle.left,
+                        animation: 'pulse 6s ease-in-out infinite',
+                        animationDelay: `${index * 1.2}s`,
+                      }}
+                    />
+                  ),
+                )}
+                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+                  {heroSlides.map((slide, index) => (
+                    <div
+                      key={slide.id}
+                      className={`absolute inset-0 flex flex-col justify-between rounded-[24px] border border-white/5 bg-slate-900/20 p-6 text-left text-white transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                        heroSlideIndex === index
+                          ? 'translate-y-0 opacity-100'
+                          : 'pointer-events-none translate-y-6 opacity-0'
+                      }`}
+                    >
+                      <div>
+                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+                          {slide.tag}
+                        </span>
+                        <h3 className="mt-6 text-2xl font-bold">{slide.headline}</h3>
+                        <p className="mt-3 text-sm text-white/70">{slide.subtitle}</p>
+                        <div className="mt-4 flex flex-wrap gap-3 text-xs">
+                          {slide.pills.map((pill) => (
+                            <span
+                              key={pill}
+                              className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-white/70"
+                            >
+                              {pill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+                            {slide.metricLabel}
+                          </p>
+                          <p className="mt-1 text-3xl font-black">{slide.metricValue}</p>
+                        </div>
+                        <div className="relative h-14 w-24 overflow-hidden rounded-2xl border border-white/15 bg-white/5">
+                          <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent" />
+                          <div
+                            className={`absolute inset-y-2 left-3 right-3 rounded-xl bg-gradient-to-r ${slide.accent} opacity-80`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="invisible h-[260px] w-full" />
+                </div>
+                <div className="relative mt-5 flex items-center justify-center gap-3">
+                  {heroSlides.map((slide, index) => (
+                    <button
+                      key={slide.id}
+                      type="button"
+                      onClick={() => handleHeroManualSelect(index)}
+                      onMouseEnter={() => handleHeroManualSelect(index)}
+                      className={`h-2 w-8 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
+                        heroSlideIndex === index
+                          ? `scale-y-150 bg-gradient-to-r ${slide.accent} shadow-[0_0_12px_rgba(56,189,248,0.5)]`
+                          : 'bg-white/15 hover:bg-white/30'
+                      }`}
+                      aria-label={`Show ${slide.tag}`}
+                    />
+                  ))}
+                </div>
+                <a
+                  href="#how-it-works"
+                  className="group absolute -bottom-10 right-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 shadow-lg shadow-cyan-500/10 backdrop-blur transition hover:border-white/40 hover:text-white"
+                >
+                  👀 Watch ZYYP in action — it’s fully autonomous.
+                  <span className="transition group-hover:translate-x-1">↗</span>
+                </a>
+              </div>
+            </div>
+            <div className="mt-8 rounded-[32px] border border-white/15 bg-white/10 p-6 text-left text-white/80 shadow-lg shadow-cyan-500/10 md:hidden">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Live demo</p>
+              <h3 className="mt-3 text-2xl font-bold">AI reply drafted in 3 seconds</h3>
+              <p className="mt-2 text-sm">
+                ZYYP keeps the inbox, analytics, and automation flows running on your behalf. Watch it
+                process refunds and surface insights while you’re on the go.
+              </p>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
                 href="/integrations"
@@ -889,7 +1065,7 @@ export default function HomePage() {
               See how it works
             </a>
             </div>
-          <div className="mt-12 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50">
+          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50 md:mt-12">
             <span>Purpose-built for modern support & revenue teams</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
             <span>Trusted by fast-moving operators across industries</span>
