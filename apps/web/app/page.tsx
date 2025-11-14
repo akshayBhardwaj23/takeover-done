@@ -880,63 +880,30 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-gray-900">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[#1B0A02] via-[#2C0F04] to-[#3B1706] text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28)_0,rgba(15,23,42,0)_55%)]" />
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#FFF8F2] via-[#FFE3CF] to-[#FFD2AF] text-slate-900">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65)_0,rgba(255,255,255,0)_55%)]" />
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {heroFlares.map((flare, index) => (
-            <div
-              key={`hero-flare-${index}`}
-              className={flare.className}
-              style={flare.style}
-            />
-          ))}
-          {heroStreams.map((stream, index) => (
-            <div
-              key={`hero-stream-${index}`}
-              className={`absolute rounded-full bg-gradient-to-r ${stream.gradient} blur-[120px] opacity-70`}
-              style={{
-                ...stream.style,
-                animation: `drift ${stream.duration} ease-in-out infinite`,
-                animationDelay: stream.delay ?? '0s',
-              }}
-            />
-          ))}
-          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/10 bg-white/5 blur-3xl opacity-30 mix-blend-screen" />
-          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full border border-orange-200/40 opacity-70 mix-blend-overlay animate-orbit-slow" />
-          <div className="absolute left-1/2 top-[18%] h-[24rem] w-[24rem] -translate-x-1/2 rounded-full border border-orange-100/30 opacity-40 mix-blend-overlay animate-orbit-reverse" />
-          <div className="absolute inset-0 opacity-80">
-            <div className="absolute left-[10%] top-[15%] h-64 w-64 rounded-[40%] bg-gradient-to-br from-[#FF8F3F]/50 via-[#FFB347]/30 to-transparent blur-[120px] animate-drift-slow" />
-            <div className="absolute right-[5%] top-[25%] h-72 w-72 rounded-[40%] bg-gradient-to-br from-[#FF5C39]/45 via-[#FF914D]/30 to-transparent blur-[140px] animate-drift" />
-            <div className="absolute left-1/2 top-[60%] h-60 w-60 -translate-x-1/2 rounded-[50%] bg-gradient-to-br from-[#FFD166]/35 via-[#FF9F1C]/25 to-transparent blur-[120px] animate-drift-medium" />
-          </div>
-          {heroSparkles.map((sparkle, index) => (
-            <span
-              key={`hero-sparkle-${index}`}
-              className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_12px_rgba(251,191,36,0.8)]"
-              style={{
-                ...sparkle.style,
-                animation: `drift 14s ease-in-out infinite`,
-                animationDelay: sparkle.delay,
-              }}
-            />
-          ))}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,146,60,0.08)_0,rgba(15,23,42,0)_55%)]" />
+          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/30 blur-3xl opacity-40" />
+          <div className="absolute left-[10%] top-[12%] h-72 w-72 rounded-[40%] bg-gradient-to-br from-[#FFB347]/40 via-[#FFCE8B]/30 to-transparent blur-[140px] animate-drift-slow" />
+          <div className="absolute right-[6%] top-[28%] h-80 w-80 rounded-[40%] bg-gradient-to-br from-[#FF8F5C]/35 via-[#FFB199]/25 to-transparent blur-[150px] animate-drift" />
+          <div className="absolute left-1/2 top-[60%] h-64 w-64 -translate-x-1/2 rounded-[50%] bg-gradient-to-br from-[#FFE8C8]/45 via-[#FFC58F]/25 to-transparent blur-[150px] animate-drift-medium" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,176,124,0.18)_0,rgba(255,255,255,0)_55%)]" />
         </div>
-        <div className="relative mx-auto flex min-h-[90vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-40 text-center">
-          <div className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-amber-200">
+        <div className="relative mx-auto flex min-h-[85vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-32 text-center text-slate-900">
+          <div className="rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-orange-600 shadow-sm shadow-orange-200/60">
             AI Business Copilot
           </div>
-          <h1 className="text-4xl font-black leading-[1.05] text-white md:text-6xl lg:text-7xl">
+          <h1 className="text-4xl font-black leading-[1.05] text-slate-900 md:text-6xl lg:text-7xl">
             Meet ZYYP - Your{' '}
-            <span className="bg-gradient-to-r from-amber-200 via-orange-300 to-rose-300 bg-clip-text text-transparent animate-gradientShift">
+            <span className="bg-gradient-to-r from-orange-500 via-pink-500 to-rose-400 bg-clip-text text-transparent animate-gradientShift">
               AI Autopilot
             </span>{' '}
             for Support, Analytics & Growth.
             </h1>
-          <p className="max-w-3xl text-lg text-white/80 md:text-xl">
+          <p className="max-w-3xl text-lg text-slate-700 md:text-xl">
             Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
           </p>
-          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-amber-100/80">
+          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-slate-500">
             <span>We help teams</span>
             <span className="relative inline-flex h-6 min-w-[8rem] overflow-hidden">
               {ACTION_VERBS.map((verb, index) => (
@@ -957,70 +924,65 @@ export default function HomePage() {
           <div className="w-full max-w-4xl">
             <div className="hidden flex-col gap-5 md:flex">
               <div
-                className="relative overflow-hidden rounded-[36px] border border-white/10 bg-gradient-to-br from-[#2C0F04] via-[#3B1706] to-[#501F08] p-6 shadow-[0_0_40px_rgba(255,153,51,0.25)]"
+                className="relative overflow-hidden rounded-[36px] border border-white/80 bg-white p-6 text-left shadow-[0_40px_120px_rgba(255,138,76,0.18)]"
                 onMouseEnter={() => setHeroPaused(true)}
                 onMouseLeave={() => setHeroPaused(false)}
               >
-                <div className="pointer-events-none absolute -left-12 top-6 h-40 w-40 rounded-full bg-amber-400/25 blur-3xl" />
-                <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
-                {[{ top: '10%', left: '18%' }, { top: '70%', left: '30%' }, { top: '48%', left: '72%' }].map(
-                  (particle, index) => (
-                    <span
-                      key={`hero-particle-${index}`}
-                      className="absolute h-2 w-2 rounded-full bg-amber-100/80 shadow-[0_0_14px_rgba(251,191,36,0.9)]"
-                      style={{
-                        top: particle.top,
-                        left: particle.left,
-                        animation: 'pulse 6s ease-in-out infinite',
-                        animationDelay: `${index * 1.2}s`,
-                      }}
-                    />
-                  ),
-                )}
-                <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+                <div className="pointer-events-none absolute inset-0 rounded-[36px] border border-white/40" />
+                <div className="pointer-events-none absolute -left-10 top-0 h-40 w-40 rounded-full bg-orange-200/50 blur-3xl" />
+                <div className="pointer-events-none absolute -right-6 bottom-0 h-48 w-48 rounded-full bg-pink-200/50 blur-3xl" />
+                <div className="relative rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
+                  <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-slate-400">
+                    <span className="h-2 w-2 rounded-full bg-rose-400" />
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="text-slate-500">Live preview · stitched for founders</span>
+                  </div>
+                  <div className="relative h-[280px]">
                   {heroSlides.map((slide, index) => (
                     <div
                       key={slide.id}
-                      className={`absolute inset-0 flex flex-col justify-between rounded-[24px] border border-white/5 bg-slate-900/20 p-6 text-left text-white transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                        className={`absolute inset-0 flex flex-col justify-between rounded-[20px] border border-slate-100 bg-gradient-to-br from-white to-orange-50/30 px-6 py-5 text-left text-slate-900 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         heroSlideIndex === index
                           ? 'translate-y-0 opacity-100'
                           : 'pointer-events-none translate-y-6 opacity-0'
                       }`}
                     >
-                      <div>
-                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-                          {slide.tag}
-                        </span>
-                        <h3 className="mt-6 text-2xl font-bold">{slide.headline}</h3>
-                        <p className="mt-3 text-sm text-white/70">{slide.subtitle}</p>
-                        <div className="mt-4 flex flex-wrap gap-3 text-xs">
-                          {slide.pills.map((pill) => (
-                            <span
-                              key={pill}
-                              className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-white/70"
-                            >
-                              {pill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between pt-4">
                         <div>
-                          <p className="text-xs uppercase tracking-[0.3em] text-white/40">
-                            {slide.metricLabel}
-                          </p>
-                          <p className="mt-1 text-3xl font-black">{slide.metricValue}</p>
+                          <span className="inline-flex items-center rounded-full border border-orange-200/80 bg-orange-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">
+                            {slide.tag}
+                          </span>
+                          <h3 className="mt-6 text-2xl font-bold text-slate-900">{slide.headline}</h3>
+                          <p className="mt-3 text-sm text-slate-600">{slide.subtitle}</p>
+                          <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">
+                            {slide.pills.map((pill) => (
+                              <span
+                                key={pill}
+                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em]"
+                              >
+                                {pill}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className="relative h-14 w-24 overflow-hidden rounded-2xl border border-white/15 bg-white/5">
-                          <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent" />
-                          <div
-                            className={`absolute inset-y-2 left-3 right-3 rounded-xl bg-gradient-to-r ${slide.accent} opacity-80`}
-                          />
+                        <div className="mt-6 flex items-center justify-between pt-2">
+                          <div>
+                            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
+                              {slide.metricLabel}
+                            </p>
+                            <p className="mt-1 text-3xl font-black text-slate-900">{slide.metricValue}</p>
+                          </div>
+                          <div className="relative h-14 w-28 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                            <div className="absolute inset-0 bg-gradient-to-r from-white via-orange-50 to-transparent" />
+                            <div
+                              className={`absolute inset-y-2 left-3 right-3 rounded-xl bg-gradient-to-r ${slide.accent} opacity-80`}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
                   ))}
-                  <div className="invisible h-[260px] w-full" />
+                    <div className="invisible h-[280px] w-full" />
+                  </div>
                 </div>
                 <div className="relative mt-5 flex items-center justify-center gap-3">
                   {heroSlides.map((slide, index) => (
@@ -1029,10 +991,10 @@ export default function HomePage() {
                       type="button"
                       onClick={() => handleHeroManualSelect(index)}
                       onMouseEnter={() => handleHeroManualSelect(index)}
-                      className={`h-2 w-8 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
+                      className={`h-2 w-8 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500/60 ${
                         heroSlideIndex === index
-                          ? `scale-y-150 bg-gradient-to-r ${slide.accent} shadow-[0_0_12px_rgba(56,189,248,0.5)]`
-                          : 'bg-white/15 hover:bg-white/30'
+                          ? `scale-y-150 bg-gradient-to-r ${slide.accent} shadow-[0_0_16px_rgba(255,149,0,0.4)]`
+                          : 'bg-slate-200 hover:bg-slate-300'
                       }`}
                       aria-label={`Show ${slide.tag}`}
                     />
@@ -1040,16 +1002,16 @@ export default function HomePage() {
                 </div>
                 <a
                   href="#how-it-works"
-                  className="group absolute -bottom-10 right-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 shadow-lg shadow-cyan-500/10 backdrop-blur transition hover:border-white/40 hover:text-white"
+                  className="group absolute -bottom-12 right-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold text-slate-600 shadow-lg shadow-orange-200/60 transition hover:border-slate-300 hover:text-slate-900"
                 >
                   👀 Watch ZYYP in action — it’s fully autonomous.
                   <span className="transition group-hover:translate-x-1">↗</span>
                 </a>
               </div>
             </div>
-            <div className="mt-8 rounded-[32px] border border-white/15 bg-white/10 p-6 text-left text-white/80 shadow-lg shadow-cyan-500/10 md:hidden">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/50">Live demo</p>
-              <h3 className="mt-3 text-2xl font-bold">AI reply drafted in 3 seconds</h3>
+            <div className="mt-8 rounded-[32px] border border-white/80 bg-white/80 p-6 text-left text-slate-700 shadow-xl shadow-orange-200 md:hidden">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">Live demo</p>
+              <h3 className="mt-3 text-2xl font-bold text-slate-900">AI reply drafted in 3 seconds</h3>
               <p className="mt-2 text-sm">
                 ZYYP keeps the inbox, analytics, and automation flows running on your behalf. Watch it
                 process refunds and surface insights while you’re on the go.
@@ -1057,20 +1019,20 @@ export default function HomePage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/integrations"
-              className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-slate-100"
-              >
+            <Link
+              href="/integrations"
+              className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-black"
+            >
               Launch your autopilot
-              </Link>
+            </Link>
             <a
               href="#how-it-works"
-              className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white transition hover:border-white hover:text-white"
+              className="rounded-full border border-slate-900/10 bg-white/80 px-8 py-3 text-base font-semibold text-slate-900 transition hover:border-slate-900/30"
             >
               See how it works
             </a>
-            </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-medium text-white/50 md:mt-12">
+          </div>
+          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-medium text-slate-600 md:mt-12">
             <span>Purpose-built for modern support & revenue teams</span>
             <span className="h-1 w-1 rounded-full bg-white/30" />
             <span>Trusted by fast-moving operators across industries</span>
