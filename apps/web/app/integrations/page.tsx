@@ -1,7 +1,14 @@
 'use client';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { trpc } from '../../lib/trpc';
-import { Suspense, useEffect, useState, useRef, type ChangeEvent } from 'react';
+import {
+  Suspense,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  type ChangeEvent,
+} from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import {
@@ -66,8 +73,19 @@ function IntegrationsInner() {
   const sp = useSearchParams();
   const connected = sp.get('connected');
   const shop = sp.get('shop');
-  const { data, isLoading: connectionsLoading } = trpc.connections.useQuery();
-  const emailHealth = trpc.emailHealth.useQuery();
+  const { data, isLoading: connectionsLoading } = trpc.connections.useQuery(
+    undefined,
+    {
+      staleTime: 60_000, // Cache for 60 seconds
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch if data exists
+    },
+  );
+  const emailHealth = trpc.emailHealth.useQuery(undefined, {
+    staleTime: 30_000, // Cache for 30 seconds (health data changes less frequently)
+    refetchOnWindowFocus: false,
+    refetchOnMount: false, // Don't refetch if data exists
+  });
   const utils = (trpc as any).useUtils();
   const createAlias = trpc.createEmailAlias.useMutation({
     onSuccess: () => utils.connections.invalidate(),
@@ -145,11 +163,19 @@ function IntegrationsInner() {
       `/api/shopify/install?shop=${encodeURIComponent(domain)}`;
   }
 
-  const shopifyConnections = connections.filter((c) => c.type === 'SHOPIFY');
-  const emailConnections = connections.filter((c) => c.type === 'CUSTOM_EMAIL');
-  const activeAliases = emailConnections.filter(
-    (c) => !c.metadata?.disabled,
-  ).length;
+  // Memoize filtered connections to prevent unnecessary recalculations
+  const shopifyConnections = useMemo(
+    () => connections.filter((c) => c.type === 'SHOPIFY'),
+    [connections],
+  );
+  const emailConnections = useMemo(
+    () => connections.filter((c) => c.type === 'CUSTOM_EMAIL'),
+    [connections],
+  );
+  const activeAliases = useMemo(
+    () => emailConnections.filter((c) => !c.metadata?.disabled).length,
+    [emailConnections],
+  );
   const isSavingStoreName = updateStoreName.isPending;
 
   const beginEditStore = (connection: ConnectionSummary) => {
