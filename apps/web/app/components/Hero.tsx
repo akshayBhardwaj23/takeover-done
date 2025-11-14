@@ -4,422 +4,365 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const DRAFT_TEXT =
-  "Hi! We've processed an exchange for your order. A replacement is already on the way. Let us know if you need anything else!";
+const EMAIL_TEXT = `Hey Jordan,
 
-const PLAYBOOK_STEPS = [
-  'Inventory checked',
-  'Replacement created',
-  'Customer updated',
-  'CRM synced',
+We detected a shipping delay on Order #48291, so I already queued an express reship and credited $42 back to their wallet. Let me know if you'd like me to notify the CX channel as well.
+
+— ZYYP Autopilot`;
+
+const ORBIT_CHIPS = [
+  'Refund processed · $42 saved',
+  'AI drafted reply · 94% confidence',
+  'Order updated',
+  'Delay detected · fix suggested',
+  'Customer sentiment rising +12%',
 ];
 
-const STAGE_DURATIONS = [1200, 1300, 2000, 1700, 1500] as const;
-const FINAL_STAGE = STAGE_DURATIONS.length - 1;
-
-const popupCard =
-  'z-[2] border border-white/15 bg-white/10 px-7 py-6 text-left text-sm text-white/85 shadow-[0_30px_80px_rgba(4,5,12,0.55)] rounded-[22px] backdrop-blur-[32px]';
-
-const popupVariants = {
-  hidden: { opacity: 0, y: 40, scale: 0.94, filter: 'blur(12px)' },
-  visible: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
-};
-
-type Parallax = { x: number; y: number };
-
 export default function Hero() {
-  const [stage, setStage] = useState(0);
-  const [typedDraft, setTypedDraft] = useState('');
-  const [playbookProgress, setPlaybookProgress] = useState(0);
-  const [parallax, setParallax] = useState<Parallax>({ x: 0, y: 0 });
-  const heroRef = useRef<HTMLElement | null>(null);
+  const [typedPreview, setTypedPreview] = useState('');
+  const [chipFocus, setChipFocus] = useState(0);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    if (stage >= FINAL_STAGE) return;
-    const timeout = setTimeout(() => {
-      setStage((prev) => Math.min(prev + 1, FINAL_STAGE));
-    }, STAGE_DURATIONS[stage]);
+    let index = 0;
+    let timeout: ReturnType<typeof setTimeout>;
+
+    const type = () => {
+      setTypedPreview(EMAIL_TEXT.slice(0, index));
+      index += 1;
+
+      if (index <= EMAIL_TEXT.length) {
+        timeout = setTimeout(type, 20);
+      } else {
+        timeout = setTimeout(() => {
+          index = 0;
+          type();
+        }, 2400);
+      }
+    };
+
+    timeout = setTimeout(type, 400);
     return () => clearTimeout(timeout);
-  }, [stage]);
+  }, []);
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (stage === 2) {
-      setTypedDraft('');
-      let index = 0;
-      interval = setInterval(() => {
-        index += 1;
-        setTypedDraft(DRAFT_TEXT.slice(0, index));
-        if (index >= DRAFT_TEXT.length && interval) clearInterval(interval);
-      }, 18);
-    } else if (stage > 2) {
-      setTypedDraft(DRAFT_TEXT);
-    } else {
-      setTypedDraft('');
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [stage]);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (stage === 3) {
-      setPlaybookProgress(0);
-      let progress = 0;
-      interval = setInterval(() => {
-        progress += 1;
-        setPlaybookProgress(progress);
-        if (progress >= PLAYBOOK_STEPS.length && interval) clearInterval(interval);
-      }, 260);
-    } else if (stage > 3) {
-      setPlaybookProgress(PLAYBOOK_STEPS.length);
-    } else {
-      setPlaybookProgress(0);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [stage]);
+    const interval = setInterval(() => {
+      setChipFocus((prev) => (prev + 1) % ORBIT_CHIPS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const handleMove = (event: MouseEvent) => {
-      if (!heroRef.current) return;
-      const rect = heroRef.current.getBoundingClientRect();
+      if (!sectionRef.current) return;
+      const rect = sectionRef.current.getBoundingClientRect();
       const relativeX = event.clientX - (rect.left + rect.width / 2);
       const relativeY = event.clientY - (rect.top + rect.height / 2);
-      setParallax({
-        x: relativeX / 40,
-        y: relativeY / 40,
+      setTilt({
+        x: relativeX / rect.width * 10,
+        y: -relativeY / rect.height * 10,
       });
     };
-    window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
+
+    window.addEventListener('pointermove', handleMove, { passive: true });
+    return () => window.removeEventListener('pointermove', handleMove);
   }, []);
 
-  const analyticsActive = stage >= FINAL_STAGE;
-
-  const noiseTexture = useMemo(
-    () =>
-      'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2740%27 height=%2740%27 viewBox=%270 0 40 40%27%3E%3Cfilter id=%27n%27%3E%3CfeTurbulence type=%27fractalNoise%27 baseFrequency=%270.85%27 numOctaves=%271%27/%3E%3C/filter%3E%3Crect width=%2740%27 height=%2740%27 filter=%27url(%23n)%27 opacity=%270.12%27/%3E%3C/svg%3E")',
-    [],
-  );
-
-  const blobs = useMemo(
-    () => [
-      { id: 'blob-1', className: 'left-[6%] top-[8%]', color: '#FF8A5C', opacity: 0.35, delay: 0, depth: 1.2 },
-      { id: 'blob-2', className: 'right-[10%] top-[34%]', color: '#FF6A3D', opacity: 0.3, delay: 4, depth: 0.9 },
-      { id: 'blob-3', className: 'left-[18%] bottom-[8%]', color: '#FCE3DA', opacity: 0.4, delay: 8, depth: 0.6 },
-    ],
-    [],
-  );
-
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 16 }).map((_, index) => ({
-        id: index,
-        left: `${Math.random() * 100}%`,
-        top: `${Math.random() * 100}%`,
-        delay: Math.random() * 6,
-        duration: 12 + Math.random() * 8,
-      })),
-    [],
-  );
+  const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <section
-      ref={heroRef}
-      className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-24 text-white"
+      ref={sectionRef}
+      className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-16 text-white"
       style={{
         background:
-          'linear-gradient(180deg,#FFF4EF 0%,#FFD7C5 20%,#FF8F6A 60%,#E14A2A 100%)',
-        borderBottomLeftRadius: '32px',
-        borderBottomRightRadius: '32px',
+          'radial-gradient(circle at center,#0A2A43 0%,#001F3F 40%,#000F1F 100%)',
       }}
     >
-      <div
-        className="pointer-events-none absolute inset-0 opacity-80 mix-blend-soft-light"
-        style={{ backgroundImage: noiseTexture }}
-      />
+      <NeuralBackground />
+      <FloatingParticles count={20} />
 
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        {blobs.map((blob) => (
-          <div
-            key={blob.id}
-            className={`absolute h-[320px] w-[320px] ${blob.className}`}
-            style={{
-              transform: `translate3d(${parallax.x * blob.depth}px, ${parallax.y * blob.depth}px, 0)`,
-            }}
-          >
-            <motion.div
-              className="h-full w-full rounded-full blur-[160px]"
-              style={{ backgroundColor: blob.color, opacity: blob.opacity }}
-              animate={{ y: [0, -40, 20, 0], x: [0, 30, -15, 0] }}
-              transition={{ duration: 20, ease: 'easeInOut', repeat: Infinity, delay: blob.delay }}
-            />
-          </div>
-        ))}
-
-        {particles.map((particle) => (
-          <div
-            key={particle.id}
-            className="absolute"
-            style={{
-              left: particle.left,
-              top: particle.top,
-              transform: `translate3d(${parallax.x * 0.2}px, ${parallax.y * 0.2}px, 0)`,
-            }}
-          >
-            <motion.div
-              className="h-1 w-1 rounded-full bg-white/70 blur-[1px]"
-              animate={{ y: [0, -80], opacity: [0, 0.7, 0] }}
-              transition={{ duration: particle.duration, repeat: Infinity, delay: particle.delay, ease: 'easeInOut' }}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="relative z-[3] flex max-w-5xl flex-col items-center text-center text-white">
-        <h1 className="text-4xl font-black leading-tight md:text-6xl lg:text-7xl">
+      <div className="relative z-10 flex max-w-5xl flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2 text-xs uppercase tracking-[0.4em] text-cyan-200/80">
+          ZYYP AUTOPILOT
+        </div>
+        <h1 className="mt-6 text-4xl font-bold leading-tight text-white md:text-6xl lg:text-7xl">
           Meet ZYYP — Your AI Autopilot for Support, Analytics & Growth.
         </h1>
-        <p className="mt-5 max-w-3xl text-lg text-white/85">
-          Automate interactions, analyze performance, and unlock faster growth — all from one intelligent platform.
+        <p className="mt-5 max-w-3xl text-lg text-cyan-50/80">
+          Watch your business run itself — replies drafted, actions taken, insights delivered. Automatically.
         </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
           <Link
             href="/integrations"
-            className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-lg shadow-orange-500/30 transition hover:-translate-y-0.5"
+            className="rounded-full bg-white px-8 py-3 text-base font-semibold text-slate-900 shadow-[0_20px_60px_rgba(46,238,245,0.35)] transition hover:-translate-y-0.5 hover:shadow-[0_25px_70px_rgba(46,238,245,0.5)]"
           >
             Launch your autopilot
           </Link>
           <a
-            href="#how-it-works"
-            className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white transition hover:border-white hover:text-white"
+            href="#live-demo"
+            className="rounded-full border border-white/30 px-8 py-3 text-base font-semibold text-white/90 backdrop-blur-md transition hover:border-cyan-200 hover:text-white"
           >
-            See how it works
+            See Live Demo
           </a>
         </div>
       </div>
 
-      <div className="relative z-[3] mt-16 flex w-full max-w-6xl flex-col items-center">
-        <div className="relative grid min-h-[620px] w-full place-items-center">
-          <PopupInbox stage={stage} parallax={parallax} />
-          <PopupOrder stage={stage} parallax={parallax} />
-          <PopupDraft stage={stage} typedText={typedDraft} parallax={parallax} />
-          <PopupPlaybook stage={stage} progress={playbookProgress} parallax={parallax} />
-          <PopupAnalytics stage={stage} active={analyticsActive} parallax={parallax} />
-        </div>
+      <div className="relative z-10 mt-16 flex w-full max-w-5xl flex-col items-center">
+        <AutopilotCore chips={ORBIT_CHIPS} focusIndex={chipFocus} tilt={tilt} />
+        <LivePreviewPanel text={typedPreview} progress={previewProgress} />
       </div>
     </section>
   );
 }
 
-function PopupInbox({ stage, parallax }: { stage: number; parallax: Parallax }) {
-  return (
-    <div
-      className="absolute left-[6%] top-1/2 -translate-y-1/2"
-      style={{ transform: `translate3d(${parallax.x * 1.2}px, ${parallax.y * 1.2}px, 0)` }}
-    >
-      <motion.div
-        className={`${popupCard} w-[360px]`}
-        variants={popupVariants}
-        initial="hidden"
-        animate={stage >= 0 ? 'visible' : 'hidden'}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      >
-        <div className="flex items-center justify-between text-[0.65rem] uppercase tracking-[0.35em] text-white/55">
-          <span>Inbox</span>
-          <span>2:14 AM</span>
-        </div>
-        <p className="mt-4 text-base text-white">
-          “Hi, I need to exchange my order. Got the wrong size.”
-        </p>
-        <motion.div
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em]"
-          animate={stage >= 0 ? { opacity: [0.5, 1, 0.5] } : { opacity: 0 }}
-          transition={{ duration: 1.6, repeat: Infinity }}
-        >
-          <span className="h-2 w-2 rounded-full bg-gradient-to-r from-[#ff8a5c] to-[#ff4ebd]" />
-          AI detecting intent
-        </motion.div>
-      </motion.div>
-    </div>
-  );
-}
-
-function PopupOrder({ stage, parallax }: { stage: number; parallax: Parallax }) {
-  return (
-    <div
-      className="absolute right-[6%] top-1/2 -translate-y-1/2"
-      style={{ transform: `translate3d(${parallax.x * 0.9}px, ${parallax.y * 0.9}px, 0)` }}
-    >
-      <motion.div
-        className={`${popupCard} w-[360px]`}
-        variants={popupVariants}
-        initial="hidden"
-        animate={stage >= 1 ? 'visible' : 'hidden'}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      >
-        <p className="text-[0.65rem] uppercase tracking-[0.35em] text-white/50">Order Panel</p>
-        <div className="mt-4 flex items-center justify-between text-base text-white">
-          <span>Order #48291</span>
-          <span className="rounded-full border border-white/20 px-2 py-0.5 text-[0.6rem] uppercase tracking-[0.3em] text-white/65">
-            Delivered
-          </span>
-        </div>
-        <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/85">
-          <p>Items — Hoodie (Size M)</p>
-          <p className="mt-2 text-white/60">Detected intent: Exchange</p>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function PopupDraft({
-  stage,
-  typedText,
-  parallax,
+function AutopilotCore({
+  chips,
+  focusIndex,
+  tilt,
 }: {
-  stage: number;
-  typedText: string;
-  parallax: Parallax;
+  chips: string[];
+  focusIndex: number;
+  tilt: { x: number; y: number };
 }) {
+  const radius = 190;
+
   return (
-    <div
-      className="absolute right-[5%] bottom-[8%]"
-      style={{ transform: `translate3d(${parallax.x * 0.7}px, ${parallax.y * 0.7}px, 0)` }}
+    <motion.div
+      className="relative mt-16 h-[420px] w-[420px] max-w-full rounded-full border border-cyan-300/10 bg-white/5 p-6"
+      style={{
+        transformStyle: 'preserve-3d',
+      }}
+      animate={{
+        rotateX: tilt.y,
+        rotateY: tilt.x,
+      }}
+      transition={{ type: 'spring', stiffness: 80, damping: 12, mass: 0.8 }}
     >
       <motion.div
-        className={`${popupCard} w-[430px]`}
-        variants={popupVariants}
-        initial="hidden"
-        animate={stage >= 2 ? 'visible' : 'hidden'}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      >
-        <div className="flex items-center justify-between text-[0.65rem] uppercase tracking-[0.35em] text-white/55">
-          <span>AI Draft</span>
-          <span>Live</span>
+        className="absolute inset-3 rounded-full border border-cyan-200/30 bg-gradient-to-b from-white/10 to-transparent blur-xl"
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 12, ease: 'linear' }}
+      />
+      <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_center,rgba(46,238,245,0.45),rgba(0,20,30,0.3))] blur-[30px]" />
+      <div className="relative z-10 flex h-full w-full items-center justify-center rounded-full border border-cyan-200/30 bg-white/5 backdrop-blur-3xl">
+        <div className="flex flex-col items-center text-center text-cyan-100">
+          <p className="text-xs uppercase tracking-[0.4em] text-cyan-200/70">Autopilot Core</p>
+          <p className="mt-3 text-3xl font-semibold text-white">Live</p>
+          <p className="mt-2 text-sm text-cyan-100/70">Actions streaming in realtime</p>
         </div>
-        <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-5 text-base leading-relaxed text-white/90">
-          <p>{typedText}</p>
-          {stage === 2 && typedDraftProgress(typedText) && (
-            <span className="inline-flex h-5 w-1 animate-pulse rounded-full bg-white/85" />
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function typedDraftProgress(current: string) {
-  return current.length < DRAFT_TEXT.length;
-}
-
-function PopupPlaybook({
-  stage,
-  progress,
-  parallax,
-}: {
-  stage: number;
-  progress: number;
-  parallax: Parallax;
-}) {
-  return (
-    <div
-      className="absolute left-[5%] bottom-[10%]"
-      style={{ transform: `translate3d(${parallax.x * 1.1}px, ${parallax.y * 1.1}px, 0)` }}
-    >
-      <motion.div
-        className={`${popupCard} w-[330px]`}
-        variants={popupVariants}
-        initial="hidden"
-        animate={stage >= 3 ? 'visible' : 'hidden'}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      >
-        <p className="text-[0.65rem] uppercase tracking-[0.35em] text-white/50">Exchange playbook</p>
-        <div className="mt-4 space-y-3 text-sm">
-          {PLAYBOOK_STEPS.map((step, index) => (
+      </div>
+      <div className="pointer-events-none absolute inset-0">
+        {chips.map((label, index) => {
+          const angle = (360 / chips.length) * index;
+          const isActive = focusIndex === index;
+          return (
             <motion.div
-              key={step}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-white/85"
-              animate={{
-                opacity: stage > 3 || progress > index ? 1 : stage === 3 ? 0.35 : 0.1,
-                x: stage > 3 || progress > index ? 0 : -10,
+              key={label}
+              className="absolute flex w-[200px] items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+              style={{
+                transform: `rotate(${angle}deg) translateX(${radius}px) rotate(${-angle}deg)`,
               }}
-              transition={{ duration: 0.4, ease: 'easeOut', delay: index * 0.1 }}
+              animate={{
+                scale: isActive ? 1.05 : 0.92,
+                opacity: isActive ? 1 : 0.65,
+                filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
+              }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
             >
-              <span
-                className={`flex h-5 w-5 items-center justify-center rounded-full border text-[0.65rem] ${
-                  progress > index || stage > 3
-                    ? 'border-[#ff8a5c]/80 bg-[#ff8a5c]/25 text-white'
-                    : 'border-white/30 text-white/50'
-                }`}
-              >
-                ✔
-              </span>
-              <span>{step}</span>
+              <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_12px_rgba(46,238,245,0.8)]" />
+              <p className="text-xs font-medium text-white">{label}</p>
             </motion.div>
-          ))}
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+function LivePreviewPanel({ text, progress }: { text: string; progress: number }) {
+  const orderVisible = progress > 0.35;
+  const analyticsVisible = progress > 0.65;
+
+  return (
+    <motion.div
+      id="live-demo"
+      className="mt-16 w-full rounded-[28px] border border-white/15 bg-white/5 p-8 text-left text-white backdrop-blur-3xl shadow-[0_50px_120px_rgba(0,0,0,0.45)]"
+      initial={{ opacity: 0, y: 60, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.8, ease: 'easeOut' }}
+    >
+      <p className="text-sm uppercase tracking-[0.35em] text-cyan-200/70">Live preview</p>
+      <div className="mt-5 grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm leading-relaxed text-white/90">
+          <p className="font-semibold text-cyan-100">AI drafting reply…</p>
+          <p className="mt-4 whitespace-pre-line text-base text-white/80">
+            {text}
+            <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-cyan-200/80" />
+          </p>
         </div>
-      </motion.div>
+        <div className="flex flex-col gap-5">
+          <motion.div
+            className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/85"
+            initial={{ opacity: 0, x: -40 }}
+            animate={{ opacity: orderVisible ? 1 : 0, x: orderVisible ? 0 : -40 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          >
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-cyan-100/70">
+              <span>Order update</span>
+              <span>Synced</span>
+            </div>
+            <p className="mt-3 text-base text-white">Order #48291 · Express reship</p>
+            <p className="mt-2 text-cyan-100/70">ETA pulled forward by 2 days.</p>
+          </motion.div>
+          <motion.div
+            className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/85"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: analyticsVisible ? 1 : 0, x: analyticsVisible ? 0 : 40 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          >
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-cyan-100/70">
+              <span>Insight pulse</span>
+              <span>+12%</span>
+            </div>
+            <p className="mt-3 text-base text-white">Customer sentiment rising</p>
+            <motion.div
+              className="mt-4 h-2 rounded-full bg-white/10"
+              animate={{ background: 'linear-gradient(90deg,#2EEEF5,#6B95FF)' }}
+            >
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-indigo-400"
+                animate={{ width: analyticsVisible ? '92%' : '0%' }}
+                transition={{ duration: 1, ease: 'easeInOut' }}
+              />
+            </motion.div>
+          </motion.div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function FloatingParticles({ count }: { count: number }) {
+  const particles = useMemo(
+    () =>
+      Array.from({ length: count }).map((_, index) => ({
+        id: index,
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        delay: Math.random() * 5,
+      })),
+    [count],
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      {particles.map((particle) => (
+        <motion.span
+          key={particle.id}
+          className="absolute h-1 w-1 rounded-full bg-cyan-200/70 mix-blend-screen"
+          style={{ left: `${particle.left}%`, top: `${particle.top}%` }}
+          animate={{ y: [-15, 15], opacity: [0, 0.8, 0] }}
+          transition={{ duration: 14, repeat: Infinity, delay: particle.delay, ease: 'easeInOut' }}
+        />
+      ))}
     </div>
   );
 }
 
-function PopupAnalytics({
-  stage,
-  active,
-  parallax,
-}: {
-  stage: number;
-  active: boolean;
-  parallax: Parallax;
-}) {
-  const metrics = [
-    { label: 'CSAT Projection', value: '+18%' },
-    { label: 'Time saved', value: '4m 12s' },
-    { label: 'Revenue risk prevented', value: '$240' },
-  ];
+function NeuralBackground() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  return (
-    <div
-      className="absolute left-1/2 top-[58%]"
-      style={{ transform: `translate3d(${parallax.x * 0.6}px, ${parallax.y * 0.6}px, 0)` }}
-    >
-      <motion.div
-        className={`${popupCard} w-[460px] -translate-x-1/2`}
-        variants={popupVariants}
-        initial="hidden"
-        animate={stage >= 4 ? 'visible' : 'hidden'}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-      >
-        <p className="text-[0.65rem] uppercase tracking-[0.35em] text-white/50">Analytics pulse</p>
-        <div className="mt-4 space-y-4 text-sm">
-          {metrics.map((metric, index) => (
-            <div key={metric.label}>
-              <div className="flex items-center justify-between text-white/80">
-                <span>{metric.label}</span>
-                <span className="font-semibold text-white">{metric.value}</span>
-              </div>
-              <motion.div
-                className="mt-2 h-2 rounded-full bg-white/15"
-                animate={{
-                  background: active ? 'linear-gradient(90deg,#ff8a5c,#ff4ebd)' : 'rgba(255,255,255,0.15)',
-                }}
-              >
-                <motion.span
-                  className="block h-full rounded-full bg-gradient-to-r from-[#ff8a5c] to-[#ff4ebd]"
-                  animate={{ width: active ? ['16%', '92%'] : '18%' }}
-                  transition={{ duration: 1.3, delay: index * 0.1, ease: 'easeInOut' }}
-                />
-              </motion.div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  );
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    type Node = {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      radius: number;
+    };
+
+    const createNodes = (): Node[] => {
+      const rect = canvas.getBoundingClientRect();
+      return Array.from({ length: 45 }).map(() => ({
+        x: Math.random() * rect.width,
+        y: Math.random() * rect.height,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        radius: 1 + Math.random() * 1.5,
+      }));
+    };
+
+    let nodes: Node[] = [];
+
+    const handleResize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      nodes = createNodes();
+    };
+
+    handleResize();
+
+    let animationFrame: number;
+
+    const draw = () => {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.lineWidth = 0.6;
+
+      nodes.forEach((node) => {
+        node.x += node.vx;
+        node.y += node.vy;
+        if (node.x < 0 || node.x > rect.width) node.vx *= -1;
+        if (node.y < 0 || node.y > rect.height) node.vy *= -1;
+      });
+
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance < 180) {
+            const alpha = 1 - distance / 200;
+            ctx.strokeStyle = `rgba(46,238,245,${alpha * 0.35})`;
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.stroke();
+          }
+        }
+      }
+
+      nodes.forEach((node) => {
+        ctx.fillStyle = 'rgba(46,238,245,0.65)';
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      animationFrame = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full opacity-70" />;
 }
 
