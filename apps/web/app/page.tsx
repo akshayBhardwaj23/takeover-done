@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Hero from './components/Hero';
 
 const trustedLogos = [
   'Aurora Threads',
@@ -75,49 +76,6 @@ const useCases = [
     title: 'Ops and CX teams',
     description:
       'Give operators the context they need—order history, shipping status, and recommended action—alongside every thread.',
-  },
-];
-
-const heroSlides = [
-  {
-    id: 'auto-reply',
-    tag: 'Inbox Automation',
-    headline: 'AI reply drafted in 3 seconds',
-    subtitle: '“Hi! My order arrived but I need a larger size.”',
-    pills: ['Intent detected', 'Refund queued'],
-    metricLabel: 'Time saved',
-    metricValue: '47s',
-    accent: 'from-cyan-300 via-sky-400 to-indigo-400',
-  },
-  {
-    id: 'insights',
-    tag: 'Analytics',
-    headline: 'Revenue up 14% this week',
-    subtitle: 'AI spotted 3 fast wins across CX + retention.',
-    pills: ['Churn risk down', 'VIPs happy'],
-    metricLabel: 'Lift',
-    metricValue: '+14%',
-    accent: 'from-emerald-300 via-teal-300 to-cyan-300',
-  },
-  {
-    id: 'playbooks',
-    tag: 'Automation Flow',
-    headline: 'Refund + exchange playbook firing',
-    subtitle: 'Rules triggered for delayed shipments overnight.',
-    pills: ['3 flows live', 'Human-in-loop'],
-    metricLabel: 'Tickets cleared',
-    metricValue: '38',
-    accent: 'from-indigo-300 via-purple-300 to-pink-300',
-  },
-  {
-    id: 'suggestions',
-    tag: 'AI Insights',
-    headline: 'Optimize delayed orders this week',
-    subtitle: 'AI suggests prioritizing “Logistics · East Coast”.',
-    pills: ['Confidence 92%', 'Ready-to-run'],
-    metricLabel: 'Impact forecast',
-    metricValue: '+$18k',
-    accent: 'from-amber-300 via-orange-300 to-rose-300',
   },
 ];
 
@@ -623,96 +581,6 @@ const faqs = [
   },
 ];
 
-const heroFlares: Array<{ style: CSSProperties; className: string }> = [
-  {
-    style: {
-      top: '-14%',
-      left: '-12%',
-      width: '30rem',
-      height: '30rem',
-      animationDuration: '24s',
-    },
-    className:
-      'rounded-full bg-gradient-to-br from-cyan-500/25 via-sky-500/10 to-transparent blur-3xl opacity-80 animate-drift mix-blend-screen',
-  },
-  {
-    style: {
-      top: '6%',
-      right: '-10%',
-      width: '34rem',
-      height: '34rem',
-      animationDuration: '28s',
-    },
-    className:
-      'rounded-full bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent blur-[160px] opacity-80 animate-drift mix-blend-screen',
-  },
-  {
-    style: {
-      bottom: '-16%',
-      left: '22%',
-      width: '40rem',
-      height: '40rem',
-      animationDuration: '26s',
-    },
-    className:
-      'rounded-full bg-gradient-to-tr from-blue-400/15 via-teal-400/10 to-transparent blur-[140px] opacity-70 animate-drift mix-blend-screen',
-  },
-];
-
-const heroSparkles: Array<{ style: CSSProperties; delay: string }> = [
-  { style: { top: '18%', left: '18%' }, delay: '0s' },
-  { style: { top: '32%', right: '22%' }, delay: '0.6s' },
-  { style: { top: '58%', left: '28%' }, delay: '1.2s' },
-  { style: { top: '48%', right: '30%' }, delay: '1.5s' },
-  { style: { top: '68%', left: '52%' }, delay: '0.9s' },
-  { style: { top: '26%', right: '45%' }, delay: '0.3s' },
-];
-
-const heroStreams: Array<{
-  style: CSSProperties;
-  gradient: string;
-  duration: string;
-  delay?: string;
-}> = [
-  {
-    style: {
-      top: '15%',
-      left: '10%',
-      width: '22rem',
-      height: '22rem',
-      transform: 'rotate(12deg)',
-    },
-    gradient: 'from-cyan-400/20 via-blue-500/10 to-transparent',
-    duration: '32s',
-    delay: '-4s',
-  },
-  {
-    style: {
-      bottom: '10%',
-      right: '12%',
-      width: '26rem',
-      height: '26rem',
-      transform: 'rotate(-18deg)',
-    },
-    gradient: 'from-indigo-400/18 via-purple-500/12 to-transparent',
-    duration: '36s',
-    delay: '-10s',
-  },
-  {
-    style: {
-      top: '28%',
-      right: '40%',
-      width: '18rem',
-      height: '18rem',
-      transform: 'rotate(35deg)',
-    },
-    gradient: 'from-sky-300/18 via-cyan-400/10 to-transparent',
-    duration: '28s',
-  },
-];
-
-const ACTION_VERBS = ['AUTOMATE', 'ANALYZE', 'GROW'];
-
 const integrationIcons = [
   { name: 'Shopify', emoji: '🛍️', gradient: 'from-emerald-400 to-emerald-600' },
   { name: 'Gmail', emoji: '✉️', gradient: 'from-rose-400 to-red-500' },
@@ -726,11 +594,8 @@ const integrationIcons = [
 
 export default function HomePage() {
   const [annual, setAnnual] = useState(false);
-  const [activeVerbIndex, setActiveVerbIndex] = useState(0);
   const [activeScene, setActiveScene] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
-  const [heroPaused, setHeroPaused] = useState(false);
   const insightsRef = useRef<HTMLDivElement | null>(null);
   const [insightsInView, setInsightsInView] = useState(false);
   const mailingRef = useRef<HTMLDivElement | null>(null);
@@ -738,7 +603,6 @@ export default function HomePage() {
   const founderRef = useRef<HTMLDivElement | null>(null);
   const [founderInView, setFounderInView] = useState(false);
   const [showAutomationTip, setShowAutomationTip] = useState(false);
-  const heroPauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const demoScenes = [
     {
@@ -771,14 +635,6 @@ export default function HomePage() {
   ];
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveVerbIndex((prev) => (prev + 1) % ACTION_VERBS.length);
-    }, 2200);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     if (isPaused) return;
 
     const interval = setInterval(
@@ -788,34 +644,6 @@ export default function HomePage() {
 
     return () => clearInterval(interval);
   }, [isPaused]);
-
-  useEffect(() => {
-    if (heroPaused) return;
-
-    const interval = setInterval(
-      () => setHeroSlideIndex((prev) => (prev + 1) % heroSlides.length),
-      4500,
-    );
-
-    return () => clearInterval(interval);
-  }, [heroPaused]);
-
-  useEffect(() => {
-    return () => {
-      if (heroPauseTimeoutRef.current) {
-        clearTimeout(heroPauseTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  const handleHeroManualSelect = (index: number) => {
-    setHeroSlideIndex(index);
-    setHeroPaused(true);
-    if (heroPauseTimeoutRef.current) {
-      clearTimeout(heroPauseTimeoutRef.current);
-    }
-    heroPauseTimeoutRef.current = setTimeout(() => setHeroPaused(false), 7000);
-  };
 
   useEffect(() => {
     if (!insightsRef.current) return;
@@ -879,166 +707,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#FFF8F2] via-[#FFE3CF] to-[#FFD2AF] text-slate-900">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.65)_0,rgba(255,255,255,0)_55%)]" />
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-[18%] h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-white/30 blur-3xl opacity-40" />
-          <div className="absolute left-[10%] top-[12%] h-72 w-72 rounded-[40%] bg-gradient-to-br from-[#FFB347]/40 via-[#FFCE8B]/30 to-transparent blur-[140px] animate-drift-slow" />
-          <div className="absolute right-[6%] top-[28%] h-80 w-80 rounded-[40%] bg-gradient-to-br from-[#FF8F5C]/35 via-[#FFB199]/25 to-transparent blur-[150px] animate-drift" />
-          <div className="absolute left-1/2 top-[60%] h-64 w-64 -translate-x-1/2 rounded-[50%] bg-gradient-to-br from-[#FFE8C8]/45 via-[#FFC58F]/25 to-transparent blur-[150px] animate-drift-medium" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,176,124,0.18)_0,rgba(255,255,255,0)_55%)]" />
-        </div>
-        <div className="relative mx-auto flex min-h-[85vh] w-full max-w-6xl flex-col items-center justify-center gap-8 px-6 pb-24 pt-32 text-center text-slate-900">
-          <div className="rounded-full border border-white/60 bg-white/80 px-4 py-2 text-sm font-semibold uppercase tracking-[0.3em] text-orange-600 shadow-sm shadow-orange-200/60">
-            AI Business Copilot
-          </div>
-          <h1 className="text-4xl font-black leading-[1.05] text-slate-900 md:text-6xl lg:text-7xl">
-            Meet ZYYP - Your{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-pink-500 to-rose-400 bg-clip-text text-transparent animate-gradientShift">
-              AI Autopilot
-            </span>{' '}
-            for Support, Analytics & Growth.
-            </h1>
-          <p className="max-w-3xl text-lg text-slate-700 md:text-xl">
-            Automate your customer interactions, analyze your performance, and unlock faster growth — all from one intelligent platform.
-          </p>
-          <div className="flex items-center justify-center gap-3 text-sm font-semibold uppercase tracking-[0.4em] text-slate-500">
-            <span>We help teams</span>
-            <span className="relative inline-flex h-6 min-w-[8rem] overflow-hidden">
-              {ACTION_VERBS.map((verb, index) => (
-                <span
-                  key={verb}
-                  className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-out ${
-                    index === activeVerbIndex
-                      ? 'translate-y-0 opacity-100'
-                      : 'translate-y-full opacity-0'
-                  }`}
-                >
-                  {verb}
-                </span>
-              ))}
-            </span>
-            <span>on autopilot</span>
-          </div>
-          <div className="w-full max-w-4xl">
-            <div className="hidden flex-col gap-5 md:flex">
-              <div
-                className="relative overflow-hidden rounded-[36px] border border-white/80 bg-white p-6 text-left shadow-[0_40px_120px_rgba(255,138,76,0.18)]"
-                onMouseEnter={() => setHeroPaused(true)}
-                onMouseLeave={() => setHeroPaused(false)}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-[36px] border border-white/40" />
-                <div className="pointer-events-none absolute -left-10 top-0 h-40 w-40 rounded-full bg-orange-200/50 blur-3xl" />
-                <div className="pointer-events-none absolute -right-6 bottom-0 h-48 w-48 rounded-full bg-pink-200/50 blur-3xl" />
-                <div className="relative rounded-[24px] border border-slate-200 bg-white/95 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.08)]">
-                  <div className="mb-5 flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-slate-400">
-                    <span className="h-2 w-2 rounded-full bg-rose-400" />
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    <span className="text-slate-500">Live preview · stitched for founders</span>
-                  </div>
-                  <div className="relative h-[280px]">
-                  {heroSlides.map((slide, index) => (
-                    <div
-                      key={slide.id}
-                        className={`absolute inset-0 flex flex-col justify-between rounded-[20px] border border-slate-100 bg-gradient-to-br from-white to-orange-50/30 px-6 py-5 text-left text-slate-900 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                        heroSlideIndex === index
-                          ? 'translate-y-0 opacity-100'
-                          : 'pointer-events-none translate-y-6 opacity-0'
-                      }`}
-                    >
-                        <div>
-                          <span className="inline-flex items-center rounded-full border border-orange-200/80 bg-orange-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">
-                            {slide.tag}
-                          </span>
-                          <h3 className="mt-6 text-2xl font-bold text-slate-900">{slide.headline}</h3>
-                          <p className="mt-3 text-sm text-slate-600">{slide.subtitle}</p>
-                          <div className="mt-4 flex flex-wrap gap-3 text-xs text-slate-600">
-                            {slide.pills.map((pill) => (
-                              <span
-                                key={pill}
-                                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em]"
-                              >
-                                {pill}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="mt-6 flex items-center justify-between pt-2">
-                          <div>
-                            <p className="text-[0.6rem] uppercase tracking-[0.3em] text-slate-400">
-                              {slide.metricLabel}
-                            </p>
-                            <p className="mt-1 text-3xl font-black text-slate-900">{slide.metricValue}</p>
-                          </div>
-                          <div className="relative h-14 w-28 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                            <div className="absolute inset-0 bg-gradient-to-r from-white via-orange-50 to-transparent" />
-                            <div
-                              className={`absolute inset-y-2 left-3 right-3 rounded-xl bg-gradient-to-r ${slide.accent} opacity-80`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                  ))}
-                    <div className="invisible h-[280px] w-full" />
-                  </div>
-                </div>
-                <div className="relative mt-5 flex items-center justify-center gap-3">
-                  {heroSlides.map((slide, index) => (
-                    <button
-                      key={slide.id}
-                      type="button"
-                      onClick={() => handleHeroManualSelect(index)}
-                      onMouseEnter={() => handleHeroManualSelect(index)}
-                      className={`h-2 w-8 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500/60 ${
-                        heroSlideIndex === index
-                          ? `scale-y-150 bg-gradient-to-r ${slide.accent} shadow-[0_0_16px_rgba(255,149,0,0.4)]`
-                          : 'bg-slate-200 hover:bg-slate-300'
-                      }`}
-                      aria-label={`Show ${slide.tag}`}
-                    />
-                  ))}
-                </div>
-                <a
-                  href="#how-it-works"
-                  className="group absolute -bottom-12 right-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-xs font-semibold text-slate-600 shadow-lg shadow-orange-200/60 transition hover:border-slate-300 hover:text-slate-900"
-                >
-                  👀 Watch ZYYP in action — it’s fully autonomous.
-                  <span className="transition group-hover:translate-x-1">↗</span>
-                </a>
-              </div>
-            </div>
-            <div className="mt-8 rounded-[32px] border border-white/80 bg-white/80 p-6 text-left text-slate-700 shadow-xl shadow-orange-200 md:hidden">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-orange-500">Live demo</p>
-              <h3 className="mt-3 text-2xl font-bold text-slate-900">AI reply drafted in 3 seconds</h3>
-              <p className="mt-2 text-sm">
-                ZYYP keeps the inbox, analytics, and automation flows running on your behalf. Watch it
-                process refunds and surface insights while you’re on the go.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/integrations"
-              className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-black"
-            >
-              Launch your autopilot
-            </Link>
-            <a
-              href="#how-it-works"
-              className="rounded-full border border-slate-900/10 bg-white/80 px-8 py-3 text-base font-semibold text-slate-900 transition hover:border-slate-900/30"
-            >
-              See how it works
-            </a>
-          </div>
-          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm font-medium text-slate-600 md:mt-12">
-            <span>Purpose-built for modern support & revenue teams</span>
-            <span className="h-1 w-1 rounded-full bg-white/30" />
-            <span>Trusted by fast-moving operators across industries</span>
-          </div>
-        </div>
-      </section>
+      <Hero />
 
       {/* Demo Loop */}
       <section className="bg-white py-20 text-slate-900">
