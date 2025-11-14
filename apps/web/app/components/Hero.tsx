@@ -132,13 +132,14 @@ function AutopilotCore({
   tilt: { x: number; y: number };
   orbitDuration: number;
 }) {
-  const radius = 190;
+  const radius = 235;
 
   return (
     <motion.div
       className="relative mt-16 h-[420px] w-[420px] max-w-full rounded-full border border-cyan-300/10 bg-white/5 p-6"
       style={{
         transformStyle: 'preserve-3d',
+        overflow: 'visible',
       }}
       animate={{
         rotateX: tilt.y,
@@ -161,7 +162,7 @@ function AutopilotCore({
         </div>
       </div>
       <motion.div
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 z-20"
         animate={{ rotate: 360 }}
         transition={{ duration: orbitDuration, repeat: Infinity, ease: 'linear' }}
       >
@@ -171,7 +172,7 @@ function AutopilotCore({
           return (
             <motion.div
               key={label}
-              className="absolute left-1/2 top-1/2 flex w-[210px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+              className="absolute left-1/2 top-1/2 flex w-[220px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
               style={{ transform: `translate(-50%, -50%) rotate(${angle}deg) translateX(${radius}px) rotate(${-angle}deg)` }}
               animate={{
                 scale: isActive ? 1.05 : 0.92,
