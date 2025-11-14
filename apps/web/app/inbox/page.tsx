@@ -28,7 +28,6 @@ import {
   ArrowRight,
   Clock,
   DollarSign,
-  Search,
   ListChecks,
 } from 'lucide-react';
 import {
@@ -581,15 +580,6 @@ export default function InboxPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
-                <Search className="h-4 w-4" />
-                <input
-                  placeholder="Search shop…"
-                  value={shop}
-                  onChange={(event) => setShop(event.target.value)}
-                  className="w-36 bg-transparent text-sm outline-none"
-                />
-              </div>
               <Button
                 variant="outline"
                 className="rounded-full border-slate-200 text-xs text-slate-600"
