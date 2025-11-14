@@ -113,6 +113,7 @@ function IntegrationsInner() {
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<string | null>(null);
+  const [isConnectingShopify, setIsConnectingShopify] = useState(false);
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
 
@@ -159,6 +160,8 @@ function IntegrationsInner() {
       toast.error('This store is already connected.');
       return;
     }
+    setIsConnectingShopify(true);
+    // Redirect to Shopify OAuth
     (window as any).location.href =
       `/api/shopify/install?shop=${encodeURIComponent(domain)}`;
   }
@@ -524,9 +527,20 @@ function IntegrationsInner() {
                     </div>
                     <Button
                       type="submit"
-                      className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-black"
+                      className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                      disabled={isConnectingShopify}
                     >
-                      Continue to Shopify
+                      {isConnectingShopify ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        <>
+                          Continue to Shopify
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
                     </Button>
                   </form>
                   <DialogFooter className="sm:justify-start">
