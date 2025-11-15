@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const EMAIL_TEXT = `Hey Jordan,
 
@@ -10,59 +10,8 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 — ZYYP Autopilot`;
 
-const EQUATION_TOKENS = [
-  'Σ',
-  '∂',
-  '→',
-  '%',
-  'α',
-  'β',
-  'λ',
-  '•',
-  '=',
-  '≈',
-  '⇒',
-  '∂x/∂t',
-  'x = 0.42',
-  'w(t)=Σ(aᵢ·xᵢ)',
-  'softmax(x)',
-  '∇f(x)',
-];
-
-const NEURON_CLUSTERS = [
-  { id: 'left-upper', left: '9%', top: '20%' },
-  { id: 'left-mid', left: '15%', top: '55%' },
-  { id: 'right-upper', left: '78%', top: '18%' },
-  { id: 'right-mid', left: '82%', top: '60%' },
-  { id: 'bottom-center', left: '50%', top: '88%' },
-];
-
-type Parallax = { x: number; y: number };
-type EquationItem = {
-  id: string;
-  token: string;
-  left: number;
-  top: number;
-  blur: number;
-  opacity: number;
-  duration: number;
-  driftX: number;
-  driftY: number;
-  scale: number;
-  rotation: number;
-  delay: number;
-};
-type EquationLayers = {
-  near: EquationItem[];
-  mid: EquationItem[];
-  far: EquationItem[];
-};
-
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
-  const [parallax, setParallax] = useState<Parallax>({ x: 0, y: 0 });
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mathLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let index = 0;
@@ -87,19 +36,7 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      const { innerWidth, innerHeight } = window;
-      setParallax({
-        x: ((event.clientX - innerWidth / 2) / innerWidth) * 10,
-        y: ((event.clientY - innerHeight / 2) / innerHeight) * 10,
-      });
-    };
-    window.addEventListener('pointermove', handler);
-    return () => window.removeEventListener('pointermove', handler);
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas = document.getElementById('neuronCanvas') as HTMLCanvasElement | null;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -108,21 +45,24 @@ export default function Hero() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };
+
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    let animationFrame: number;
-    let nodes = Array.from({ length: 30 }).map(() => ({
+    let nodes = Array.from({ length: 32 }).map(() => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      blur: Math.random() > 0.5 ? 0 : 12,
+      blur: Math.random() > 0.5 ? 12 : 0,
     }));
 
-    const drawNeurons = () => {
+    let animationFrame: number;
+
+    const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
       nodes.forEach((n) => {
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 2.2, 0, 2 * Math.PI);
+        ctx.arc(n.x, n.y, 2, 0, 2 * Math.PI);
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.filter = n.blur ? `blur(${n.blur}px)` : 'none';
         ctx.fill();
@@ -130,115 +70,96 @@ export default function Hero() {
 
       nodes.forEach((a, i) => {
         nodes.forEach((b, j) => {
-          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 160) {
+          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 150) {
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
             ctx.lineWidth = 1;
             ctx.stroke();
           }
         });
       });
 
-      animationFrame = requestAnimationFrame(drawNeurons);
+      animationFrame = requestAnimationFrame(draw);
     };
-    drawNeurons();
+
+    draw();
+
+    const mathLayer = document.getElementById('mathLayer');
+    if (mathLayer) {
+      mathLayer.innerHTML = '';
+      const equations = [
+        '∂/∂x (x² + 3x)',
+        'Σ (xᵢ × wᵢ)',
+        'softmax(x) = eˣ / Σeˣ',
+        '∇f(x)',
+        'xᵀWx',
+        'embeddingₙ • vector',
+      ];
+
+      equations.forEach((eq) => {
+        const el = document.createElement('div');
+        el.className = 'math-equation';
+        el.textContent = eq;
+        el.style.left = `${Math.random() * 90}%`;
+        el.style.top = `${Math.random() * 80}%`;
+        el.style.animationDuration = `${8 + Math.random() * 8}s`;
+        mathLayer.appendChild(el);
+      });
+    }
 
     return () => {
-      cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', resizeCanvas);
+      if (animationFrame) cancelAnimationFrame(animationFrame);
     };
-  }, []);
-
-  useEffect(() => {
-    const mathLayer = mathLayerRef.current;
-    if (!mathLayer) return;
-    mathLayer.innerHTML = '';
-    const equations = [
-      '∂/∂x (x² + 3x)',
-      'Σ (xᵢ × wᵢ)',
-      'softmax(x) = eˣ / Σeˣ',
-      '∇f(x)',
-      'xᵀWx',
-      'embedding_vectorₙ',
-    ];
-
-    equations.forEach(() => {
-      const eq = document.createElement('div');
-      eq.classList.add('math-equation');
-      eq.style.left = `${Math.random() * 90}%`;
-      eq.style.top = `${Math.random() * 80}%`;
-      eq.style.animationDuration = `${10 + Math.random() * 10}s`;
-      eq.textContent = equations[Math.floor(Math.random() * equations.length)];
-      mathLayer.appendChild(eq);
-    });
   }, []);
 
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <>
-      <section
-        className="hero-background relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
-        style={{
-          background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
-          fontFamily: '"General Sans","Inter Tight",sans-serif',
-        }}
-      >
-        <canvas id="neuronCanvas" ref={canvasRef} className="absolute inset-0 h-full w-full pointer-events-none" />
-        <div id="mathLayer" ref={mathLayerRef} className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
-        <NeuronBackground parallax={parallax} />
-        <EquationField parallax={parallax} />
+      <section className="relative flex min-h-screen w-full flex-col items-center justify-center px-6 py-[170px] text-[#1A1A1A]">
+        <div className="relative overflow-hidden hero-bg w-full">
+          <canvas id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
+          <div id="mathLayer" className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
 
-        <div className="ai-equation-background">
-          <span className="eq eq1">∂x/∂t</span>
-          <span className="eq eq2">Σ ai·xi</span>
-          <span className="eq eq3">λ = 0.42</span>
-          <span className="eq eq4">→</span>
-          <span className="eq eq5">α + β</span>
-          <span className="eq eq6">x = 12%</span>
-          <span className="eq eq7">≈ 0.98</span>
-          <span className="eq eq8">w(t)</span>
-          <span className="eq eq9">∂L/∂w</span>
-          <span className="eq eq10">%</span>
-        </div>
+          <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center text-center gap-7">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
+              ZYYP AUTOPILOT
+            </div>
+            <div className="flex flex-col items-center gap-5">
+              <h1
+                className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
+                style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
+              >
+                Meet <span className="gradient-text font-black">ZYYP</span> — Your{' '}
+                <span className="gradient-text font-black">AI Autopilot</span> for Support, Analytics & Growth.
+              </h1>
+              <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
+            </div>
+            <p className="max-w-[620px] text-lg text-[#1A1A1A]/70">
+              Watch your business run itself — replies drafted, actions taken, and insights delivered while you focus on bigger moves.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
+              <Link
+                href="/integrations"
+                className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-[0_15px_45px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.25)]"
+              >
+                Launch your autopilot
+              </Link>
+              <a
+                href="#live-demo"
+                className="rounded-full border border-[#1A1A1A]/20 px-8 py-3 text-base font-semibold text-[#1A1A1A] backdrop-blur-sm transition hover:border-[#1A1A1A]/40"
+              >
+                See Live Demo
+              </a>
+            </div>
+          </div>
 
-        <div className="hero-content relative z-10 mt-6 flex max-w-5xl flex-col items-center text-center gap-7">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
-            ZYYP AUTOPILOT
+          <div className="relative z-10 mt-12 mx-auto flex w-full max-w-5xl justify-center px-4">
+            <LivePreviewPanel text={typedPreview} progress={previewProgress} />
           </div>
-          <div className="flex flex-col items-center gap-5">
-            <h1
-              className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
-              style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
-            >
-              Meet <span className="gradient-text font-black">ZYYP</span> — Your{' '}
-              <span className="gradient-text font-black">AI Autopilot</span> for Support, Analytics & Growth.
-            </h1>
-            <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
-          </div>
-          <p className="max-w-[620px] text-lg text-[#1A1A1A]/70">
-            Watch your business run itself — replies drafted, actions taken, and insights delivered while you focus on bigger moves.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
-            <Link
-              href="/integrations"
-              className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-[0_15px_45px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.25)]"
-            >
-              Launch your autopilot
-            </Link>
-            <a
-              href="#live-demo"
-              className="rounded-full border border-[#1A1A1A]/20 px-8 py-3 text-base font-semibold text-[#1A1A1A] backdrop-blur-sm transition hover:border-[#1A1A1A]/40"
-            >
-              See Live Demo
-            </a>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-12 flex w-full max-w-5xl justify-center px-4">
-          <LivePreviewPanel text={typedPreview} progress={previewProgress} />
         </div>
       </section>
 
@@ -258,118 +179,35 @@ export default function Hero() {
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
+        .hero-bg {
+          background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%);
+          position: relative;
+          overflow: hidden;
+        }
         #neuronCanvas {
-          opacity: 0.18;
+          opacity: 0.16;
           mix-blend-mode: multiply;
         }
         #mathLayer {
-          opacity: 0.1;
-          font-size: 20px;
-          color: #000000;
-          filter: blur(5px);
+          opacity: 0.12;
           position: absolute;
+          font-size: 18px;
+          color: #000;
+          filter: blur(5px);
         }
         .math-equation {
           position: absolute;
-          animation: floatEquation 12s linear infinite alternate;
           white-space: nowrap;
+          animation: floatEquation 12s linear infinite alternate;
         }
         @keyframes floatEquation {
           from {
             transform: translateY(0px);
-            opacity: 0.1;
-          }
-          to {
-            transform: translateY(-25px);
-            opacity: 0.18;
-          }
-        }
-        .hero-background {
-          background: linear-gradient(180deg, #ffffff 0%, #f6f7f9 100%);
-          position: relative;
-          overflow: hidden;
-        }
-        .ai-equation-background {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-          pointer-events: none;
-          z-index: 0;
-        }
-        .ai-equation-background .eq {
-          position: absolute;
-          font-size: 18px;
-          font-weight: 300;
-          opacity: 0.06;
-          color: rgba(0, 0, 0, 0.35);
-          filter: blur(2px);
-          animation: floatAnim 14s ease-in-out infinite alternate;
-          transform: translateZ(0);
-        }
-        .eq1 {
-          top: 12%;
-          left: 8%;
-          animation-duration: 16s;
-        }
-        .eq2 {
-          top: 22%;
-          right: 12%;
-          animation-duration: 18s;
-        }
-        .eq3 {
-          top: 40%;
-          left: 15%;
-          animation-duration: 20s;
-        }
-        .eq4 {
-          top: 55%;
-          right: 18%;
-          animation-duration: 17s;
-        }
-        .eq5 {
-          top: 70%;
-          left: 25%;
-          animation-duration: 22s;
-        }
-        .eq6 {
-          top: 30%;
-          left: 42%;
-          animation-duration: 19s;
-        }
-        .eq7 {
-          top: 63%;
-          right: 30%;
-          animation-duration: 21s;
-        }
-        .eq8 {
-          top: 48%;
-          left: 70%;
-          animation-duration: 15s;
-        }
-        .eq9 {
-          top: 78%;
-          left: 55%;
-          animation-duration: 23s;
-        }
-        .eq10 {
-          top: 15%;
-          right: 40%;
-          animation-duration: 20s;
-        }
-        @keyframes floatAnim {
-          0% {
-            transform: translateY(0px) translateX(0px) scale(1);
-            opacity: 0.03;
-          }
-          50% {
-            transform: translateY(-18px) translateX(12px) scale(1.05);
             opacity: 0.08;
           }
-          100% {
-            transform: translateY(12px) translateX(-10px) scale(0.95);
-            opacity: 0.04;
+          to {
+            transform: translateY(-30px);
+            opacity: 0.18;
           }
         }
         .hero-content {
@@ -448,146 +286,3 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
   );
 }
 
-function NeuronBackground({ parallax }: { parallax: Parallax }) {
-  const clusters = useMemo(
-    () =>
-      NEURON_CLUSTERS.map((cluster) => ({
-        ...cluster,
-        nodes: Array.from({ length: 5 }).map((_, index) => ({
-          id: `${cluster.id}-node-${index}`,
-          x: (Math.random() - 0.5) * 70,
-          y: (Math.random() - 0.5) * 50,
-        })),
-      })),
-    [],
-  );
-
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 z-0"
-      style={{
-        maskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
-        WebkitMaskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
-      }}
-    >
-      {clusters.map((cluster) => (
-        <div key={cluster.id} className="absolute" style={{ left: cluster.left, top: cluster.top }}>
-          {cluster.nodes.map((node, index) => (
-            <motion.span
-              key={node.id}
-              className="absolute block rounded-full"
-              style={{
-                width: index % 2 === 0 ? 3 : 4,
-                height: index % 2 === 0 ? 3 : 4,
-                background:
-                  'radial-gradient(circle, rgba(255,165,100,0.35) 0%, rgba(255,165,100,0) 70%)',
-                boxShadow: '0 0 6px rgba(255,165,100,0.25)',
-                left: `${node.x}px`,
-                top: `${node.y}px`,
-              }}
-              animate={{
-                x: [node.x, node.x + parallax.x * 0.3, node.x],
-                y: [node.y, node.y + parallax.y * 0.3 + (index % 2 === 0 ? 1 : -1), node.y],
-                opacity: [0.95, 1, 0.95],
-              }}
-              transition={{ duration: 9 + index, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          ))}
-          {cluster.nodes.slice(0, cluster.nodes.length - 1).map((node, index) => {
-            const next = cluster.nodes[index + 1];
-            const dx = next.x - node.x;
-            const dy = next.y - node.y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-            return (
-              <motion.span
-                key={`${cluster.id}-line-${index}`}
-                className="absolute block origin-left rounded-full"
-                style={{
-                  left: `${node.x}px`,
-                  top: `${node.y}px`,
-                  width: length,
-                  height: 1,
-                  background: 'rgba(0,0,0,0.06)',
-                  transform: `rotate(${angle}deg)`,
-                }}
-                animate={{ opacity: [0.6, 0.9, 0.6], x: [0, parallax.x * 0.1, 0], y: [0, parallax.y * 0.1, 0] }}
-                transition={{ duration: 10 + index, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EquationField({ parallax }: { parallax: Parallax }) {
-  const layers = useMemo<EquationLayers>(() => {
-    const generateLayer = (count: number, blur: number, opacity: number, speed: number) =>
-      Array.from({ length: count }).map((_, index) => {
-        let left = 0;
-        let top = 0;
-        do {
-          left = Math.random() * 100;
-          top = Math.random() * 100;
-        } while (left > 30 && left < 70 && top > 28 && top < 68);
-        return {
-          id: `eq-${blur}-${index}`,
-          token: EQUATION_TOKENS[Math.floor(Math.random() * EQUATION_TOKENS.length)],
-          left,
-          top,
-          blur,
-          opacity,
-          duration: speed + Math.random() * 4,
-          driftX: (Math.random() - 0.5) * 25,
-          driftY: (Math.random() - 0.5) * 25,
-          scale: 0.8 + Math.random() * 0.6,
-          rotation: -10 + Math.random() * 20,
-          delay: Math.random() * 2,
-        };
-      });
-    return {
-      near: generateLayer(12, 2, 0.08, 10),
-      mid: generateLayer(14, 4, 0.05, 14),
-      far: generateLayer(18, 6, 0.03, 18),
-    };
-  }, []);
-
-  const renderLayer = (items: EquationItem[], depth: number) =>
-    items.map((item) => (
-      <motion.span
-        key={item.id}
-        className="absolute text-base font-light tracking-wide"
-        style={{
-          left: `${item.left}%`,
-          top: `${item.top}%`,
-          color: depth === 0 ? 'rgba(0,0,0,0.08)' : depth === 1 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.03)',
-          filter: `blur(${item.blur}px)`,
-          fontSize: `${item.scale}rem`,
-          transform: `rotate(${item.rotation}deg) translateZ(0)`,
-        }}
-        animate={{
-          opacity: [item.opacity * 0.6, item.opacity, item.opacity * 0.6],
-          x: [0, item.driftX + parallax.x * 0.2, 0],
-          y: [0, item.driftY + parallax.y * 0.2, 0],
-        }}
-        transition={{
-          duration: item.duration,
-          repeat: Infinity,
-          ease: 'easeInOut',
-          delay: item.delay,
-        }}
-      >
-        {item.token}
-      </motion.span>
-    ));
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
-      {renderLayer(layers.far, 2)}
-      {renderLayer(layers.mid, 1)}
-      {renderLayer(layers.near, 0)}
-    </div>
-  );
-}
