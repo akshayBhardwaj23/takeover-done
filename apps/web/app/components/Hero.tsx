@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const EMAIL_TEXT = `Hey Jordan,
 
@@ -12,6 +12,8 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mathLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let index = 0;
@@ -36,7 +38,7 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
-    const canvas = document.getElementById('neuronCanvas') as HTMLCanvasElement | null;
+    const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -49,11 +51,19 @@ export default function Hero() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    let nodes = Array.from({ length: 32 }).map(() => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      blur: Math.random() > 0.5 ? 12 : 0,
-    }));
+    const randomVelocity = () => (Math.random() - 0.5) * 0.2;
+
+    let nodes = Array.from({ length: 46 }).map(() => {
+      const blurred = Math.random() < 0.6;
+      return {
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        blur: blurred ? 6 + Math.random() * 12 : 0,
+        opacity: blurred ? 0.06 : 0.12,
+        vx: randomVelocity(),
+        vy: randomVelocity(),
+      };
+    });
 
     let animationFrame: number;
 
@@ -61,20 +71,28 @@ export default function Hero() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       nodes.forEach((n) => {
+        n.x += n.vx;
+        n.y += n.vy;
+
+        if (n.x < -20) n.x = canvas.width + 20;
+        if (n.x > canvas.width + 20) n.x = -20;
+        if (n.y < -20) n.y = canvas.height + 20;
+        if (n.y > canvas.height + 20) n.y = -20;
+
         ctx.beginPath();
         ctx.arc(n.x, n.y, 2, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillStyle = `rgba(0,0,0,${n.opacity})`;
         ctx.filter = n.blur ? `blur(${n.blur}px)` : 'none';
         ctx.fill();
       });
 
       nodes.forEach((a, i) => {
         nodes.forEach((b, j) => {
-          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 150) {
+          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 160) {
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+            ctx.strokeStyle = 'rgba(0,0,0,0.14)';
             ctx.lineWidth = 1;
             ctx.stroke();
           }
@@ -86,7 +104,7 @@ export default function Hero() {
 
     draw();
 
-    const mathLayer = document.getElementById('mathLayer');
+    const mathLayer = mathLayerRef.current;
     if (mathLayer) {
       mathLayer.innerHTML = '';
       const equations = [
@@ -96,6 +114,8 @@ export default function Hero() {
         '∇f(x)',
         'xᵀWx',
         'embeddingₙ • vector',
+        '∂L/∂w',
+        'Σ ai·xi',
       ];
 
       equations.forEach((eq) => {
@@ -105,6 +125,7 @@ export default function Hero() {
         el.style.left = `${Math.random() * 90}%`;
         el.style.top = `${Math.random() * 80}%`;
         el.style.animationDuration = `${8 + Math.random() * 8}s`;
+        el.style.animationDelay = `${Math.random() * 4}s`;
         mathLayer.appendChild(el);
       });
     }
@@ -119,47 +140,53 @@ export default function Hero() {
 
   return (
     <>
-      <section className="relative flex min-h-screen w-full flex-col items-center justify-center px-6 py-[170px] text-[#1A1A1A]">
-        <div className="relative overflow-hidden hero-bg w-full">
-          <canvas id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
-          <div id="mathLayer" className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
+      <section
+        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
+        style={{
+          background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
+          fontFamily: '"General Sans","Inter Tight",sans-serif',
+        }}
+      >
+        <div className="hero-bg absolute inset-0">
+          <canvas ref={canvasRef} id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
+          <div ref={mathLayerRef} id="mathLayer" className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
+        </div>
 
-          <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center text-center gap-7">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
-              ZYYP AUTOPILOT
-            </div>
-            <div className="flex flex-col items-center gap-5">
-              <h1
-                className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
-                style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
-              >
-                Meet <span className="gradient-text font-black">ZYYP</span> — Your{' '}
-                <span className="gradient-text font-black">AI Autopilot</span> for Support, Analytics & Growth.
-              </h1>
-              <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
-            </div>
-            <p className="max-w-[620px] text-lg text-[#1A1A1A]/70">
-              Watch your business run itself — replies drafted, actions taken, and insights delivered while you focus on bigger moves.
-            </p>
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/integrations"
-                className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-[0_15px_45px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.25)]"
-              >
-                Launch your autopilot
-              </Link>
-              <a
-                href="#live-demo"
-                className="rounded-full border border-[#1A1A1A]/20 px-8 py-3 text-base font-semibold text-[#1A1A1A] backdrop-blur-sm transition hover:border-[#1A1A1A]/40"
-              >
-                See Live Demo
-              </a>
-            </div>
+        <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
+            ZYYP AUTOPILOT
           </div>
+          <div className="flex flex-col items-center gap-5">
+            <h1
+              className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
+              style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
+            >
+              Meet <span className="gradient-text font-black">ZYYP</span> — Your <span className="gradient-text font-black">AI Autopilot</span> for Support,
+              Analytics & Growth.
+            </h1>
+            <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
+          </div>
+          <p className="max-w-[620px] text-lg text-[#1A1A1A]/70">
+            Watch your business run itself — replies drafted, actions taken, and insights delivered while you focus on bigger moves.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/integrations"
+              className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-[0_15px_45px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.25)]"
+            >
+              Launch your autopilot
+            </Link>
+            <a
+              href="#live-demo"
+              className="rounded-full border border-[#1A1A1A]/20 px-8 py-3 text-base font-semibold text-[#1A1A1A] backdrop-blur-sm transition hover:border-[#1A1A1A]/40"
+            >
+              See Live Demo
+            </a>
+          </div>
+        </div>
 
-          <div className="relative z-10 mt-12 mx-auto flex w-full max-w-5xl justify-center px-4">
-            <LivePreviewPanel text={typedPreview} progress={previewProgress} />
-          </div>
+        <div className="relative z-10 mt-12 w-full max-w-5xl px-4">
+          <LivePreviewPanel text={typedPreview} progress={previewProgress} />
         </div>
       </section>
 
@@ -180,16 +207,37 @@ export default function Hero() {
           -webkit-text-fill-color: transparent;
         }
         .hero-bg {
-          background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%);
-          position: relative;
+          position: absolute;
+          inset: 0;
           overflow: hidden;
+          pointer-events: none;
+        }
+        .hero-bg::before,
+        .hero-bg::after {
+          content: '';
+          position: absolute;
+          width: 520px;
+          height: 520px;
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(255, 214, 190, 0.28), transparent 70%);
+          filter: blur(180px);
+          opacity: 0.35;
+        }
+        .hero-bg::before {
+          bottom: 5%;
+          left: -10%;
+        }
+        .hero-bg::after {
+          top: 0;
+          right: -15%;
+          background: radial-gradient(circle, rgba(209, 215, 230, 0.4), transparent 70%);
         }
         #neuronCanvas {
-          opacity: 0.16;
+          opacity: 0.22;
           mix-blend-mode: multiply;
         }
         #mathLayer {
-          opacity: 0.12;
+          opacity: 0.16;
           position: absolute;
           font-size: 18px;
           color: #000;
@@ -198,16 +246,16 @@ export default function Hero() {
         .math-equation {
           position: absolute;
           white-space: nowrap;
-          animation: floatEquation 12s linear infinite alternate;
+          animation: floatEquation 14s ease-in-out infinite alternate;
         }
         @keyframes floatEquation {
           from {
-            transform: translateY(0px);
-            opacity: 0.08;
+            transform: translateY(0px) translateX(0px);
+            opacity: 0.06;
           }
           to {
-            transform: translateY(-30px);
-            opacity: 0.18;
+            transform: translateY(-35px) translateX(18px);
+            opacity: 0.16;
           }
         }
         .hero-content {
