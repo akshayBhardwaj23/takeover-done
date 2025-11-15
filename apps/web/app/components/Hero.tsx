@@ -10,13 +10,31 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 — ZYYP Autopilot`;
 
-const EQUATIONS = [
-  '∂/∂x (x² + 3x)',
-  'Σ (xᵢ · wᵢ)',
-  'softmax(x) = eˣ / Σ eˣ',
+const EQUATION_TOKENS = [
+  'Σ',
+  '∂',
+  '→',
+  '%',
+  'α',
+  'β',
+  'λ',
+  '•',
+  '=',
+  '≈',
+  '⇒',
+  '∂x/∂t',
+  'x = 0.42',
+  'w(t)=Σ(aᵢ·xᵢ)',
+  'softmax(x)',
   '∇f(x)',
-  'xᵀWx',
-  'embedding_vectorₙ',
+];
+
+const NEURON_CLUSTERS = [
+  { id: 'left-upper', left: '9%', top: '20%' },
+  { id: 'left-mid', left: '15%', top: '55%' },
+  { id: 'right-upper', left: '78%', top: '18%' },
+  { id: 'right-mid', left: '82%', top: '60%' },
+  { id: 'bottom-center', left: '50%', top: '88%' },
 ];
 
 type Parallax = { x: number; y: number };
@@ -51,8 +69,8 @@ export default function Hero() {
     const handler = (event: MouseEvent) => {
       const { innerWidth, innerHeight } = window;
       setParallax({
-        x: ((event.clientX - innerWidth / 2) / innerWidth) * 12,
-        y: ((event.clientY - innerHeight / 2) / innerHeight) * 12,
+        x: ((event.clientX - innerWidth / 2) / innerWidth) * 10,
+        y: ((event.clientY - innerHeight / 2) / innerHeight) * 10,
       });
     };
     window.addEventListener('pointermove', handler);
@@ -70,9 +88,8 @@ export default function Hero() {
           fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
-        <AmbientGlows parallax={parallax} />
-        <NeuralDepthLayer />
-        <MathFormulaLayer />
+        <NeuronBackground parallax={parallax} />
+        <EquationField parallax={parallax} />
 
         <div className="relative z-10 mt-6 flex max-w-5xl flex-col items-center text-center gap-7">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
@@ -107,7 +124,6 @@ export default function Hero() {
           </div>
         </div>
 
-        <MicroParticles />
         <div className="relative z-10 mt-12 flex w-full max-w-5xl justify-center px-4">
           <LivePreviewPanel text={typedPreview} progress={previewProgress} />
         </div>
@@ -201,164 +217,146 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
   );
 }
 
-function NeuralDepthLayer() {
-  const visuals = useMemo(() => {
-    const nodes = Array.from({ length: 28 }).map((_, index) => {
-      const blur = Math.random() < 0.6;
-      return {
-        id: `node-${index}`,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        size: blur ? 10 + Math.random() * 8 : 4 + Math.random() * 3,
-        blur,
-        opacity: blur ? 0.06 : 0.12,
-        duration: 8 + Math.random() * 6,
-      };
-    });
-
-    const lines = Array.from({ length: 18 }).map((_, index) => {
-      const blur = Math.random() < 0.6;
-      return {
-        id: `line-${index}`,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        length: 120 + Math.random() * 180,
-        angle: Math.random() * 360,
-        blur,
-        opacity: blur ? 0.06 : 0.12,
-        duration: 10 + Math.random() * 5,
-      };
-    });
-
-    return { nodes, lines };
-  }, []);
+function NeuronBackground({ parallax }: { parallax: Parallax }) {
+  const clusters = useMemo(
+    () =>
+      NEURON_CLUSTERS.map((cluster) => ({
+        ...cluster,
+        nodes: Array.from({ length: 5 }).map((_, index) => ({
+          id: `${cluster.id}-node-${index}`,
+          x: (Math.random() - 0.5) * 70,
+          y: (Math.random() - 0.5) * 50,
+        })),
+      })),
+    [],
+  );
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-      {visuals.lines.map((line) => (
-        <motion.span
-          key={line.id}
-          className="absolute block origin-left rounded-full bg-black"
-          style={{
-            left: `${line.left}%`,
-            top: `${line.top}%`,
-            width: line.length,
-            height: 1,
-            opacity: line.opacity,
-            filter: line.blur ? 'blur(10px)' : 'none',
-            transform: `rotate(${line.angle}deg)`,
-          }}
-          animate={{ x: [-2, 1, -2], y: [-1, 2, -1] }}
-          transition={{ duration: line.duration, repeat: Infinity, ease: 'easeInOut' }}
-        />
-      ))}
-      {visuals.nodes.map((node) => (
-        <motion.span
-          key={node.id}
-          className="absolute block rounded-full bg-black"
-          style={{
-            left: `${node.left}%`,
-            top: `${node.top}%`,
-            width: node.size,
-            height: node.size,
-            opacity: node.opacity,
-            filter: node.blur ? 'blur(12px)' : 'none',
-          }}
-          animate={{ x: [-2, 2, -2], y: [1, -1, 1] }}
-          transition={{ duration: node.duration, repeat: Infinity, ease: 'easeInOut' }}
-        />
+    <div
+      className="pointer-events-none absolute inset-0 z-0"
+      style={{
+        maskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
+        WebkitMaskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
+      }}
+    >
+      {clusters.map((cluster) => (
+        <div key={cluster.id} className="absolute" style={{ left: cluster.left, top: cluster.top }}>
+          {cluster.nodes.map((node, index) => (
+            <motion.span
+              key={node.id}
+              className="absolute block rounded-full"
+              style={{
+                width: index % 2 === 0 ? 3 : 4,
+                height: index % 2 === 0 ? 3 : 4,
+                background:
+                  'radial-gradient(circle, rgba(255,165,100,0.35) 0%, rgba(255,165,100,0) 70%)',
+                boxShadow: '0 0 6px rgba(255,165,100,0.25)',
+                left: `${node.x}px`,
+                top: `${node.y}px`,
+              }}
+              animate={{
+                x: [node.x, node.x + parallax.x * 0.3, node.x],
+                y: [node.y, node.y + parallax.y * 0.3 + (index % 2 === 0 ? 1 : -1), node.y],
+                opacity: [0.95, 1, 0.95],
+              }}
+              transition={{ duration: 9 + index, repeat: Infinity, ease: 'easeInOut' }}
+            />
+          ))}
+          {cluster.nodes.slice(0, cluster.nodes.length - 1).map((node, index) => {
+            const next = cluster.nodes[index + 1];
+            const dx = next.x - node.x;
+            const dy = next.y - node.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+            return (
+              <motion.span
+                key={`${cluster.id}-line-${index}`}
+                className="absolute block origin-left rounded-full"
+                style={{
+                  left: `${node.x}px`,
+                  top: `${node.y}px`,
+                  width: length,
+                  height: 1,
+                  background: 'rgba(0,0,0,0.06)',
+                  transform: `rotate(${angle}deg)`,
+                }}
+                animate={{ opacity: [0.6, 0.9, 0.6], x: [0, parallax.x * 0.1, 0], y: [0, parallax.y * 0.1, 0] }}
+                transition={{ duration: 10 + index, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            );
+          })}
+        </div>
       ))}
     </div>
   );
 }
 
-function MathFormulaLayer() {
-  const formulas = useMemo(
-    () =>
-      EQUATIONS.map((label, index) => ({
-        id: `formula-${index}`,
-        label,
-        left: 10 + Math.random() * 80,
-        top: 10 + Math.random() * 70,
-        delay: Math.random() * 2,
-        duration: 6 + Math.random() * 4,
-        drift: Math.random() * 20 - 10,
-      })),
-    [],
-  );
+function EquationField({ parallax }: { parallax: Parallax }) {
+  const layers = useMemo(() => {
+    const generateLayer = (count: number, blur: number, opacity: number, speed: number) =>
+      Array.from({ length: count }).map((_, index) => {
+        let left = 0;
+        let top = 0;
+        do {
+          left = Math.random() * 100;
+          top = Math.random() * 100;
+        } while (left > 30 && left < 70 && top > 28 && top < 68);
+        return {
+          id: `eq-${blur}-${index}`,
+          token: EQUATION_TOKENS[Math.floor(Math.random() * EQUATION_TOKENS.length)],
+          left,
+          top,
+          blur,
+          opacity,
+          duration: speed + Math.random() * 4,
+          driftX: (Math.random() - 0.5) * 25,
+          driftY: (Math.random() - 0.5) * 25,
+          scale: 0.8 + Math.random() * 0.6,
+          rotation: -10 + Math.random() * 20,
+          delay: Math.random() * 2,
+        };
+      });
+    return {
+      near: generateLayer(12, 2, 0.08, 10),
+      mid: generateLayer(14, 4, 0.05, 14),
+      far: generateLayer(18, 6, 0.03, 18),
+    };
+  }, []);
+
+  const renderLayer = (items: ReturnType<typeof useMemo>['near'], depth: number) =>
+    items.map((item) => (
+      <motion.span
+        key={item.id}
+        className="absolute text-base font-light tracking-wide"
+        style={{
+          left: `${item.left}%`,
+          top: `${item.top}%`,
+          color: depth === 0 ? 'rgba(0,0,0,0.08)' : depth === 1 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.03)',
+          filter: `blur(${item.blur}px)`,
+          fontSize: `${item.scale}rem`,
+          transform: `rotate(${item.rotation}deg) translateZ(0)`,
+        }}
+        animate={{
+          opacity: [item.opacity * 0.6, item.opacity, item.opacity * 0.6],
+          x: [0, item.driftX + parallax.x * 0.2, 0],
+          y: [0, item.driftY + parallax.y * 0.2, 0],
+        }}
+        transition={{
+          duration: item.duration,
+          repeat: Infinity,
+          ease: 'easeInOut',
+          delay: item.delay,
+        }}
+      >
+        {item.token}
+      </motion.span>
+    ));
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
-      {formulas.map((formula) => (
-        <motion.span
-          key={formula.id}
-          className="absolute text-base font-medium"
-          style={{
-            left: `${formula.left}%`,
-            top: `${formula.top}%`,
-            color: 'rgba(0,0,0,0.05)',
-            filter: 'blur(5px)',
-          }}
-          animate={{ opacity: [0, 0.5, 0], x: [0, formula.drift, 0] }}
-          transition={{ duration: formula.duration, repeat: Infinity, ease: 'easeInOut', delay: formula.delay }}
-        >
-          {formula.label}
-        </motion.span>
-      ))}
-    </div>
-  );
-}
-
-function AmbientGlows({ parallax }: { parallax: Parallax }) {
-  return (
-    <div className="pointer-events-none absolute inset-0 z-0">
-      <motion.div
-        className="absolute -left-32 bottom-0 h-96 w-96 rounded-full"
-        style={{
-          background: 'radial-gradient(circle,#FFB899 0%,transparent 70%)',
-          opacity: 0.15,
-          filter: 'blur(180px)',
-        }}
-        animate={{ x: parallax.x * 1.2, y: parallax.y * 1.2 }}
-        transition={{ type: 'spring', stiffness: 50, damping: 20 }}
-      />
-      <motion.div
-        className="absolute -right-20 top-10 h-80 w-80 rounded-full"
-        style={{
-          background: 'radial-gradient(circle,#D9DDE5 0%,transparent 70%)',
-          opacity: 0.15,
-          filter: 'blur(180px)',
-        }}
-        animate={{ x: parallax.x * -1, y: parallax.y * -1 }}
-        transition={{ type: 'spring', stiffness: 50, damping: 20 }}
-      />
-    </div>
-  );
-}
-
-function MicroParticles() {
-  const particles = useMemo(
-    () =>
-      Array.from({ length: 28 }).map((_, index) => ({
-        id: index,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        delay: Math.random() * 3,
-      })),
-    [],
-  );
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[2]">
-      {particles.map((particle) => (
-        <motion.span
-          key={particle.id}
-          className="absolute h-1 w-1 rounded-full bg-[#1A1A1A]/20"
-          style={{ left: `${particle.left}%`, top: `${particle.top}%` }}
-          animate={{ y: [-6, 6, -6], opacity: [0, 0.5, 0] }}
-          transition={{ duration: 8 + Math.random() * 4, repeat: Infinity, ease: 'easeInOut', delay: particle.delay }}
-        />
-      ))}
+      {renderLayer(layers.far, 2)}
+      {renderLayer(layers.mid, 1)}
+      {renderLayer(layers.near, 0)}
     </div>
   );
 }
