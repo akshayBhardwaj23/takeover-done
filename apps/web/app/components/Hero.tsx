@@ -13,27 +13,27 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 const FLOATING_CARDS = [
   {
     text: 'Refund processed automatically',
-    coords: { top: '10%', left: '20%' },
+    coords: { top: '4%', left: '22%' },
     duration: 5.2,
   },
   {
     text: 'AI drafted reply ready · 94% confidence',
-    coords: { top: '38%', left: '11%' },
+    coords: { top: '45%', left: '4%' },
     duration: 4.6,
   },
   {
     text: 'Exchange created · customer notified',
-    coords: { top: '86%', left: '50%' },
+    coords: { top: '102%', left: '50%' },
     duration: 5.6,
   },
   {
     text: 'Delivery delay detected · proactive update sent',
-    coords: { top: '48%', right: '8%' },
+    coords: { top: '52%', right: '4%' },
     duration: 4.8,
   },
   {
     text: 'Customer sentiment improving · +12% this week',
-    coords: { top: '12%', right: '15%' },
+    coords: { top: '6%', right: '18%' },
     duration: 5.4,
   },
 ];
