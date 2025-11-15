@@ -11,18 +11,15 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 — ZYYP Autopilot`;
 
 const ORBIT_CHIPS = [
-  'Refund processed · $42 saved',
-  'AI drafted reply · 94% confidence',
-  'Exchange started automatically',
-  'Delay detected · customer notified',
-  'Sentiment rising +12%',
+  { label: 'Refund processed · $42 saved', angle: -80 },
+  { label: 'AI drafted reply · 94% confidence', angle: -20 },
+  { label: 'Exchange started automatically', angle: 30 },
+  { label: 'Delay detected · customer notified', angle: 90 },
+  { label: 'Sentiment rising +12%', angle: 150 },
 ];
-
-const ORBIT_DURATION = 12; // seconds per full rotation
 
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
-  const [chipFocus, setChipFocus] = useState(0);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const sectionRef = useRef<HTMLElement | null>(null);
 
@@ -46,13 +43,6 @@ export default function Hero() {
 
     timeout = setTimeout(type, 400);
     return () => clearTimeout(timeout);
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setChipFocus((prev) => (prev + 1) % ORBIT_CHIPS.length);
-    }, (ORBIT_DURATION * 1000) / ORBIT_CHIPS.length);
-    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -113,7 +103,7 @@ export default function Hero() {
       </div>
 
       <div className="relative z-10 mt-16 flex w-full max-w-5xl flex-col items-center">
-        <AutopilotCore chips={ORBIT_CHIPS} focusIndex={chipFocus} tilt={tilt} orbitDuration={ORBIT_DURATION} />
+        <AutopilotCore chips={ORBIT_CHIPS} tilt={tilt} />
         <LiveActivityPulse />
         <LivePreviewPanel text={typedPreview} progress={previewProgress} />
       </div>
@@ -123,16 +113,12 @@ export default function Hero() {
 
 function AutopilotCore({
   chips,
-  focusIndex,
   tilt,
-  orbitDuration,
 }: {
-  chips: string[];
-  focusIndex: number;
+  chips: { label: string; angle: number }[];
   tilt: { x: number; y: number };
-  orbitDuration: number;
 }) {
-  const radius = 235;
+  const orbitRadius = 250;
 
   return (
     <motion.div
@@ -161,32 +147,22 @@ function AutopilotCore({
           <p className="mt-2 text-sm text-cyan-100/70">Actions streaming in realtime</p>
         </div>
       </div>
-      <motion.div
-        className="pointer-events-none absolute inset-0 z-20"
-        animate={{ rotate: 360 }}
-        transition={{ duration: orbitDuration, repeat: Infinity, ease: 'linear' }}
-      >
-        {chips.map((label, index) => {
-          const angle = (360 / chips.length) * index;
-          const isActive = focusIndex === index;
-          return (
-            <motion.div
-              key={label}
-              className="absolute left-1/2 top-1/2 flex w-[220px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/20 bg-white/10 px-4 py-3 text-sm text-cyan-50/80 shadow-[0_15px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-              style={{ transform: `translate(-50%, -50%) rotate(${angle}deg) translateX(${radius}px) rotate(${-angle}deg)` }}
-              animate={{
-                scale: isActive ? 1.05 : 0.92,
-                opacity: isActive ? 1 : 0.65,
-                filter: isActive ? 'blur(0px)' : 'blur(0.5px)',
-              }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-            >
-              <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_12px_rgba(46,238,245,0.8)]" />
-              <p className="text-xs font-medium text-white">{label}</p>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+      <div className="pointer-events-none absolute inset-0 z-20">
+        {chips.map((chip, index) => (
+          <motion.div
+            key={chip.label}
+            className="absolute left-1/2 top-1/2 flex w-[230px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/25 bg-white/15 px-4 py-3 text-sm text-cyan-50 shadow-[0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+            style={{
+              transform: `translate(-50%, -50%) rotate(${chip.angle}deg) translateX(${orbitRadius}px) rotate(${-chip.angle}deg)`,
+            }}
+            animate={{ y: [-6, 6, -6] }}
+            transition={{ duration: 6 + index, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_12px_rgba(46,238,245,0.8)]" />
+            <p className="text-xs font-medium text-white">{chip.label}</p>
+          </motion.div>
+        ))}
+      </div>
     </motion.div>
   );
 }
