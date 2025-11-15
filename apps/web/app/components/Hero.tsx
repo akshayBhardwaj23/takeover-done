@@ -10,14 +10,6 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 — ZYYP Autopilot`;
 
-const ORBIT_CHIPS = [
-  { label: 'Refund processed · $42 saved', x: -260, y: -40 },
-  { label: 'AI drafted reply · 94% confidence', x: -200, y: 150 },
-  { label: 'Exchange started automatically', x: 0, y: 210 },
-  { label: 'Delay detected · customer notified', x: 210, y: 130 },
-  { label: 'Sentiment rising +12%', x: 240, y: -60 },
-];
-
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -103,7 +95,7 @@ export default function Hero() {
       </div>
 
       <div className="relative z-10 mt-16 flex w-full max-w-5xl flex-col items-center">
-        <AutopilotCore chips={ORBIT_CHIPS} tilt={tilt} />
+        <AutopilotCore tilt={tilt} />
         <LiveActivityPulse />
         <LivePreviewPanel text={typedPreview} progress={previewProgress} />
       </div>
@@ -111,13 +103,7 @@ export default function Hero() {
   );
 }
 
-function AutopilotCore({
-  chips,
-  tilt,
-}: {
-  chips: { label: string; x: number; y: number }[];
-  tilt: { x: number; y: number };
-}) {
+function AutopilotCore({ tilt }: { tilt: { x: number; y: number } }) {
 
   return (
     <motion.div
@@ -145,20 +131,6 @@ function AutopilotCore({
           <p className="mt-3 text-3xl font-semibold text-white">Live</p>
           <p className="mt-2 text-sm text-cyan-100/70">Actions streaming in realtime</p>
         </div>
-      </div>
-      <div className="pointer-events-none absolute inset-0 z-20">
-        {chips.map((chip, index) => (
-          <motion.div
-            key={chip.label}
-            className="absolute left-1/2 top-1/2 flex w-[230px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/25 bg-white/15 px-4 py-3 text-sm text-cyan-50 shadow-[0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-            style={{ transform: `translate(-50%, -50%) translate(${chip.x}px, ${chip.y}px)` }}
-            animate={{ y: [-6, 6, -6] }}
-            transition={{ duration: 5 + index, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_12px_rgba(46,238,245,0.8)]" />
-            <p className="text-xs font-medium text-white">{chip.label}</p>
-          </motion.div>
-        ))}
       </div>
     </motion.div>
   );
