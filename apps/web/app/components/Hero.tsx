@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const EMAIL_TEXT = `Hey Jordan,
 
@@ -61,6 +61,8 @@ type EquationLayers = {
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const [parallax, setParallax] = useState<Parallax>({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mathLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let index = 0;
@@ -96,17 +98,96 @@ export default function Hero() {
     return () => window.removeEventListener('pointermove', handler);
   }, []);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    let animationFrame: number;
+    let nodes = Array.from({ length: 30 }).map(() => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      blur: Math.random() > 0.5 ? 0 : 12,
+    }));
+
+    const drawNeurons = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      nodes.forEach((n) => {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, 2.2, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.filter = n.blur ? `blur(${n.blur}px)` : 'none';
+        ctx.fill();
+      });
+
+      nodes.forEach((a, i) => {
+        nodes.forEach((b, j) => {
+          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 160) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        });
+      });
+
+      animationFrame = requestAnimationFrame(drawNeurons);
+    };
+    drawNeurons();
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      window.removeEventListener('resize', resizeCanvas);
+    };
+  }, []);
+
+  useEffect(() => {
+    const mathLayer = mathLayerRef.current;
+    if (!mathLayer) return;
+    mathLayer.innerHTML = '';
+    const equations = [
+      '∂/∂x (x² + 3x)',
+      'Σ (xᵢ × wᵢ)',
+      'softmax(x) = eˣ / Σeˣ',
+      '∇f(x)',
+      'xᵀWx',
+      'embedding_vectorₙ',
+    ];
+
+    equations.forEach(() => {
+      const eq = document.createElement('div');
+      eq.classList.add('math-equation');
+      eq.style.left = `${Math.random() * 90}%`;
+      eq.style.top = `${Math.random() * 80}%`;
+      eq.style.animationDuration = `${10 + Math.random() * 10}s`;
+      eq.textContent = equations[Math.floor(Math.random() * equations.length)];
+      mathLayer.appendChild(eq);
+    });
+  }, []);
+
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <>
       <section
-        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
+        className="hero-background relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
+        <canvas id="neuronCanvas" ref={canvasRef} className="absolute inset-0 h-full w-full pointer-events-none" />
+        <div id="mathLayer" ref={mathLayerRef} className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
         <NeuronBackground parallax={parallax} />
         <EquationField parallax={parallax} />
 
@@ -176,6 +257,37 @@ export default function Hero() {
           animation: shimmer 7s linear infinite;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+        }
+        #neuronCanvas {
+          opacity: 0.18;
+          mix-blend-mode: multiply;
+        }
+        #mathLayer {
+          opacity: 0.1;
+          font-size: 20px;
+          color: #000000;
+          filter: blur(5px);
+          position: absolute;
+        }
+        .math-equation {
+          position: absolute;
+          animation: floatEquation 12s linear infinite alternate;
+          white-space: nowrap;
+        }
+        @keyframes floatEquation {
+          from {
+            transform: translateY(0px);
+            opacity: 0.1;
+          }
+          to {
+            transform: translateY(-25px);
+            opacity: 0.18;
+          }
+        }
+        .hero-background {
+          background: linear-gradient(180deg, #ffffff 0%, #f6f7f9 100%);
+          position: relative;
+          overflow: hidden;
         }
         .ai-equation-background {
           position: absolute;
