@@ -13,7 +13,6 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mathLayerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let index = 0;
@@ -51,19 +50,16 @@ export default function Hero() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    const randomVelocity = () => (Math.random() - 0.5) * 0.2;
+    const randomVelocity = () => (Math.random() - 0.5) * 0.25;
 
-    let nodes = Array.from({ length: 46 }).map(() => {
-      const blurred = Math.random() < 0.6;
-      return {
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        blur: blurred ? 6 + Math.random() * 12 : 0,
-        opacity: blurred ? 0.06 : 0.12,
-        vx: randomVelocity(),
-        vy: randomVelocity(),
-      };
-    });
+    let nodes = Array.from({ length: 72 }).map(() => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      radius: 1.2 + Math.random() * 1.5,
+      opacity: 0.12 + Math.random() * 0.08,
+      vx: randomVelocity(),
+      vy: randomVelocity(),
+    }));
 
     let animationFrame: number;
 
@@ -80,9 +76,9 @@ export default function Hero() {
         if (n.y > canvas.height + 20) n.y = -20;
 
         ctx.beginPath();
-        ctx.arc(n.x, n.y, 2, 0, 2 * Math.PI);
+        ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
         ctx.fillStyle = `rgba(0,0,0,${n.opacity})`;
-        ctx.filter = n.blur ? `blur(${n.blur}px)` : 'none';
+        ctx.filter = 'none';
         ctx.fill();
       });
 
@@ -104,31 +100,7 @@ export default function Hero() {
 
     draw();
 
-    const mathLayer = mathLayerRef.current;
-    if (mathLayer) {
-      mathLayer.innerHTML = '';
-      const equations = [
-        '∂/∂x (x² + 3x)',
-        'Σ (xᵢ × wᵢ)',
-        'softmax(x) = eˣ / Σeˣ',
-        '∇f(x)',
-        'xᵀWx',
-        'embeddingₙ • vector',
-        '∂L/∂w',
-        'Σ ai·xi',
-      ];
-
-      equations.forEach((eq) => {
-        const el = document.createElement('div');
-        el.className = 'math-equation';
-        el.textContent = eq;
-        el.style.left = `${Math.random() * 90}%`;
-        el.style.top = `${Math.random() * 80}%`;
-        el.style.animationDuration = `${8 + Math.random() * 8}s`;
-        el.style.animationDelay = `${Math.random() * 4}s`;
-        mathLayer.appendChild(el);
-      });
-    }
+    // no overlay labels active
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
@@ -149,7 +121,6 @@ export default function Hero() {
       >
         <div className="hero-bg absolute inset-0">
           <canvas ref={canvasRef} id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
-          <div ref={mathLayerRef} id="mathLayer" className="absolute inset-0 h-full w-full overflow-hidden pointer-events-none" />
         </div>
 
         <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
@@ -219,9 +190,8 @@ export default function Hero() {
           width: 520px;
           height: 520px;
           border-radius: 9999px;
-          background: radial-gradient(circle, rgba(255, 214, 190, 0.28), transparent 70%);
-          filter: blur(180px);
-          opacity: 0.35;
+          background: radial-gradient(circle, rgba(255, 214, 190, 0.22), transparent 65%);
+          opacity: 0.45;
         }
         .hero-bg::before {
           bottom: 5%;
@@ -230,33 +200,11 @@ export default function Hero() {
         .hero-bg::after {
           top: 0;
           right: -15%;
-          background: radial-gradient(circle, rgba(209, 215, 230, 0.4), transparent 70%);
+          background: radial-gradient(circle, rgba(209, 215, 230, 0.34), transparent 65%);
         }
         #neuronCanvas {
-          opacity: 0.22;
-          mix-blend-mode: multiply;
-        }
-        #mathLayer {
-          opacity: 0.16;
-          position: absolute;
-          font-size: 18px;
-          color: #000;
-          filter: blur(5px);
-        }
-        .math-equation {
-          position: absolute;
-          white-space: nowrap;
-          animation: floatEquation 14s ease-in-out infinite alternate;
-        }
-        @keyframes floatEquation {
-          from {
-            transform: translateY(0px) translateX(0px);
-            opacity: 0.06;
-          }
-          to {
-            transform: translateY(-35px) translateX(18px);
-            opacity: 0.16;
-          }
+          opacity: 0.32;
+          mix-blend-mode: normal;
         }
         .hero-content {
           position: relative;
