@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState, Fragment, useRef } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  Fragment,
+  useRef,
+  useCallback,
+} from 'react';
 import { trpc } from '../../lib/trpc';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
@@ -21,7 +28,6 @@ import {
   ArrowRight,
   Clock,
   DollarSign,
-  Search,
   ListChecks,
 } from 'lucide-react';
 import {
@@ -141,36 +147,86 @@ export default function InboxPage() {
 
   const recentOrders = trpc.ordersRecent.useQuery(
     { shop: shop || '', limit: 10 },
-    { enabled: !!shop },
+    {
+      enabled: !!shop,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch if data exists
+    },
   );
-  const dbOrders = trpc.ordersListDb.useQuery({ take: 25 });
+  // Split into critical (orders) and secondary (unassigned) queries for progressive loading
+  // Orders load first (critical), then unassigned messages (secondary)
+  const inboxBootstrap = trpc.inboxBootstrap.useQuery(
+    { ordersTake: 25, unassignedTake: 0 }, // Don't fetch unassigned in bootstrap
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch if data exists
+    },
+  );
+
+  // Separate query for unassigned messages - loads after orders (progressive loading)
+  const unassignedQuery = trpc.unassignedInbound.useQuery(
+    { take: 20 }, // Reduced from 40 to 20 for faster initial load
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      // Only fetch after orders have loaded (or immediately if orders already cached)
+      enabled: !inboxBootstrap.isLoading || !!inboxBootstrap.data,
+    },
+  );
+
+  // Create aliases from inboxBootstrap to maintain existing code compatibility
+  const dbOrders = {
+    data: inboxBootstrap.data
+      ? { orders: inboxBootstrap.data.orders }
+      : undefined,
+    isLoading: inboxBootstrap.isLoading,
+    refetch: inboxBootstrap.refetch,
+  };
+  const unassigned = {
+    data: unassignedQuery.data,
+    isLoading: unassignedQuery.isLoading,
+    refetch: unassignedQuery.refetch,
+  };
+  const emailLimit = {
+    data: inboxBootstrap.data?.emailLimit,
+    isLoading: inboxBootstrap.isLoading,
+    refetch: inboxBootstrap.refetch,
+  };
+
   const messages = trpc.messagesByOrder.useQuery(
     { shopifyOrderId: selectedOrderId ?? '' },
-    { enabled: !!selectedOrderId },
+    {
+      enabled: !!selectedOrderId,
+      staleTime: 30_000, // Cache messages for 30s
+      refetchOnWindowFocus: false,
+    },
   );
   const orderDetail = trpc.orderGet.useQuery(
     { shop: shop || '', orderId: selectedOrderId || '' },
-    { enabled: !!shop && !!selectedOrderId },
+    {
+      enabled: !!shop && !!selectedOrderId,
+      staleTime: 60_000, // Cache order details for 60s
+      refetchOnWindowFocus: false,
+    },
   );
-  const emailLimit = trpc.checkEmailLimit.useQuery(undefined, {
-    refetchInterval: 30000,
-  });
-  const unassigned = trpc.unassignedInbound.useQuery({ take: 40 });
 
   const suggest = trpc.aiSuggestReply.useMutation();
   const createAction = trpc.actionCreate.useMutation();
   const approveSend = trpc.actionApproveAndSend.useMutation();
   const refreshOrder = trpc.refreshOrderFromShopify.useMutation({
     onSuccess: () => {
-      dbOrders.refetch();
+      inboxBootstrap.refetch(); // Single refetch updates all data
       orderDetail.refetch();
       toast.success('Order synced from Shopify');
     },
   });
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
     onSuccess: () => {
-      unassigned.refetch();
-      emailLimit.refetch();
+      unassignedQuery.refetch(); // Refetch unassigned messages
+      inboxBootstrap.refetch(); // Refetch email limit
       toast.success('Reply sent successfully');
     },
     onError: (error) => {
@@ -283,13 +339,13 @@ export default function InboxPage() {
     }));
   }, [orders, messagePreviewByOrder]);
 
-  const handleSelectOrder = (order: DbOrder) => {
+  const handleSelectOrder = useCallback((order: DbOrder) => {
     setSelectedOrderId(order.shopifyId);
     setSelectedUnlinkedId(null);
     setUnlinkedSuggestion(null);
     setDraft('');
     setView('orders');
-  };
+  }, []);
 
   // Helper function to clean placeholder text from AI suggestions
   const cleanPlaceholders = (text: string): string => {
@@ -348,7 +404,7 @@ export default function InboxPage() {
     }
   };
 
-  const handleRefreshAll = async () => {
+  const handleRefreshAll = useCallback(async () => {
     if (refreshTimer.current) {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = null;
@@ -356,9 +412,8 @@ export default function InboxPage() {
     setIsRefreshing(true);
     try {
       const tasks: Array<Promise<unknown>> = [
-        dbOrders.refetch(),
-        unassigned.refetch(),
-        emailLimit.refetch(),
+        inboxBootstrap.refetch(), // Refetch orders and email limit
+        unassignedQuery.refetch(), // Refetch unassigned messages
       ];
       if (shop) {
         tasks.push(recentOrders.refetch());
@@ -378,7 +433,15 @@ export default function InboxPage() {
         setIsRefreshing(false);
       }, 400);
     }
-  };
+  }, [
+    shop,
+    selectedOrderId,
+    inboxBootstrap.refetch,
+    unassignedQuery.refetch,
+    recentOrders.refetch,
+    messages.refetch,
+    orderDetail.refetch,
+  ]);
 
   const handleSendReply = async () => {
     if (!selectedEmail || !selectedOrder) return;
@@ -421,9 +484,8 @@ export default function InboxPage() {
 
         // Refetch data to get updated messages
         const [ordersResult] = await Promise.all([
-          dbOrders.refetch(),
+          inboxBootstrap.refetch(), // Single refetch updates orders, unassigned, and emailLimit
           messages.refetch(),
-          emailLimit.refetch(),
         ]);
 
         // Find next order that needs a reply (use updated repliedOrderIds)
@@ -468,7 +530,7 @@ export default function InboxPage() {
       setRepliedMessageIds((prev) => new Set(prev).add(currentMessageId));
 
       // Refetch unassigned messages
-      const messagesResult = await unassigned.refetch();
+      const messagesResult = await unassignedQuery.refetch();
 
       // Find next unassigned message that needs a reply (use updated repliedMessageIds)
       const updatedRepliedMessageIds = new Set([
@@ -518,15 +580,6 @@ export default function InboxPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500">
-                <Search className="h-4 w-4" />
-                <input
-                  placeholder="Search shop…"
-                  value={shop}
-                  onChange={(event) => setShop(event.target.value)}
-                  className="w-36 bg-transparent text-sm outline-none"
-                />
-              </div>
               <Button
                 variant="outline"
                 className="rounded-full border-slate-200 text-xs text-slate-600"

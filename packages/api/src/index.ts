@@ -876,6 +876,87 @@ export const appRouter = t.router({
         return { orders: [] };
       }
     }),
+  inboxBootstrap: protectedProcedure
+    .input(
+      z
+        .object({
+          ordersTake: z.number().min(1).max(100).default(25),
+          unassignedTake: z.number().min(1).max(100).default(40),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
+      const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
+
+      // Fetch all connections once to avoid multiple round-trips
+      const connections = await prisma.connection.findMany({
+        where: { userId: ctx.userId },
+        select: { id: true, type: true },
+      });
+
+      if (connections.length === 0) {
+        return {
+          orders: [],
+          unassigned: [],
+          emailLimit: await canSendEmail(ctx.userId),
+        };
+      }
+
+      const orderConnectionIds = connections.map((c) => c.id);
+      const unassignedConnectionIds = connections
+        .filter((c) => c.type === ('CUSTOM_EMAIL' as any))
+        .map((c) => c.id);
+
+      const [orders, unassignedMessages, emailLimit] = await Promise.all([
+        prisma.order.findMany({
+          where: { connectionId: { in: orderConnectionIds } },
+          orderBy: { createdAt: 'desc' },
+          take: ordersTake,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
+        }),
+        unassignedConnectionIds.length
+          ? prisma.message.findMany({
+              where: {
+                orderId: null,
+                direction: 'INBOUND' as any,
+                thread: { connectionId: { in: unassignedConnectionIds } },
+              },
+              orderBy: { createdAt: 'desc' },
+              take: unassignedTake,
+              select: {
+                id: true,
+                threadId: true,
+                from: true,
+                to: true,
+                body: true,
+                createdAt: true,
+                aiSuggestion: {
+                  select: {
+                    reply: true,
+                    proposedAction: true,
+                    confidence: true,
+                  },
+                },
+              },
+            })
+          : [],
+        canSendEmail(ctx.userId),
+      ]);
+
+      return { orders, unassigned: unassignedMessages, emailLimit };
+    }),
   orderGet: protectedProcedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -1705,8 +1786,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: true,
             body: true,
             createdAt: true,
+            thread: {
+              select: {
+                subject: true,
+              },
+            },
             aiSuggestion: {
-              select: { reply: true, proposedAction: true, confidence: true },
+              select: {
+                reply: true,
+                proposedAction: true,
+                confidence: true,
+              },
             },
           },
         });
