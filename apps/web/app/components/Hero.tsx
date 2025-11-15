@@ -19,8 +19,11 @@ const EQUATIONS = [
   'embedding_vectorₙ',
 ];
 
+type Parallax = { x: number; y: number };
+
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
+  const [parallax, setParallax] = useState<Parallax>({ x: 0, y: 0 });
 
   useEffect(() => {
     let index = 0;
@@ -44,31 +47,51 @@ export default function Hero() {
     return () => clearTimeout(timeout);
   }, []);
 
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      const { innerWidth, innerHeight } = window;
+      setParallax({
+        x: ((event.clientX - innerWidth / 2) / innerWidth) * 12,
+        y: ((event.clientY - innerHeight / 2) / innerHeight) * 12,
+      });
+    };
+    window.addEventListener('pointermove', handler);
+    return () => window.removeEventListener('pointermove', handler);
+  }, []);
+
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <>
       <section
-        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-12 text-[#1A1A1A]"
+        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
+          fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
+        <AmbientGlows parallax={parallax} />
         <NeuralDepthLayer />
         <MathFormulaLayer />
 
-        <div className="relative z-10 mt-10 flex max-w-5xl flex-col items-center text-center gap-6">
+        <div className="relative z-10 mt-6 flex max-w-5xl flex-col items-center text-center gap-7">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
             ZYYP AUTOPILOT
           </div>
-          <h1 className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]">
-            Meet <span className="gradient-text">ZYYP</span> — Your{' '}
-            <span className="gradient-text">AI Autopilot</span> for Support, Analytics & Growth.
-          </h1>
-          <p className="max-w-3xl text-lg text-[#1A1A1A]/70">
+          <div className="flex flex-col items-center gap-5">
+            <h1
+              className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
+              style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
+            >
+              Meet <span className="gradient-text font-black">ZYYP</span> — Your{' '}
+              <span className="gradient-text font-black">AI Autopilot</span> for Support, Analytics & Growth.
+            </h1>
+            <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
+          </div>
+          <p className="max-w-[620px] text-lg text-[#1A1A1A]/70">
             Watch your business run itself — replies drafted, actions taken, and insights delivered while you focus on bigger moves.
           </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-4">
             <Link
               href="/integrations"
               className="rounded-full bg-slate-900 px-8 py-3 text-base font-semibold text-white shadow-[0_15px_45px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_55px_rgba(0,0,0,0.25)]"
@@ -84,6 +107,7 @@ export default function Hero() {
           </div>
         </div>
 
+        <MicroParticles />
         <div className="relative z-10 mt-12 flex w-full max-w-5xl justify-center px-4">
           <LivePreviewPanel text={typedPreview} progress={previewProgress} />
         </div>
@@ -117,23 +141,27 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
   return (
     <motion.div
       id="live-demo"
-      className="w-full max-w-4xl rounded-[18px] border border-white/70 bg-white/75 p-8 text-left text-[#1A1A1A] backdrop-blur-[12px] shadow-[0_8px_30px_rgba(0,0,0,0.05)]"
+      className="w-full max-w-[115%] rounded-[24px] border border-white/70 bg-white/80 p-10 text-left text-[#1A1A1A] backdrop-blur-[20px] shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
       initial={{ opacity: 0, y: 40, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.8, ease: 'easeOut' }}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/60">Live drafter preview</p>
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-white/80 bg-white/80 p-5 text-sm leading-relaxed shadow-[0_6px_18px_rgba(0,0,0,0.04)]">
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.15fr_0.95fr]">
+        <motion.div
+          className="rounded-2xl border border-white/80 bg-white/85 p-6 text-sm leading-relaxed shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
+          animate={{ opacity: [0.85, 1, 0.85] }}
+          transition={{ duration: 2.6, repeat: Infinity }}
+        >
           <p className="font-semibold text-[#1A1A1A]">AI drafting reply…</p>
           <p className="mt-4 whitespace-pre-line text-base text-[#1A1A1A]/80">
             {text}
             <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
           </p>
-        </div>
+        </motion.div>
         <div className="flex flex-col gap-5">
           <motion.div
-            className="rounded-2xl border border-white/80 bg-white/85 p-4 text-sm text-[#1A1A1A] shadow-[0_6px_18px_rgba(0,0,0,0.04)]"
+            className="rounded-2xl border border-white/80 bg-white/80 p-5 text-sm text-[#1A1A1A] shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
             initial={{ opacity: 0, x: -40 }}
             animate={{ opacity: orderVisible ? 1 : 0.3, x: orderVisible ? 0 : -30 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -146,7 +174,7 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
             <p className="mt-2 text-sm text-[#1A1A1A]/60">ETA pulled forward by 2 days.</p>
           </motion.div>
           <motion.div
-            className="rounded-2xl border border-white/80 bg-white/85 p-4 text-sm text-[#1A1A1A] shadow-[0_6px_18px_rgba(0,0,0,0.04)]"
+            className="rounded-2xl border border-white/80 bg-white/80 p-5 text-sm text-[#1A1A1A] shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: analyticsVisible ? 1 : 0.3, x: analyticsVisible ? 0 : 30 }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -276,6 +304,60 @@ function MathFormulaLayer() {
         >
           {formula.label}
         </motion.span>
+      ))}
+    </div>
+  );
+}
+
+function AmbientGlows({ parallax }: { parallax: Parallax }) {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      <motion.div
+        className="absolute -left-32 bottom-0 h-96 w-96 rounded-full"
+        style={{
+          background: 'radial-gradient(circle,#FFB899 0%,transparent 70%)',
+          opacity: 0.15,
+          filter: 'blur(180px)',
+        }}
+        animate={{ x: parallax.x * 1.2, y: parallax.y * 1.2 }}
+        transition={{ type: 'spring', stiffness: 50, damping: 20 }}
+      />
+      <motion.div
+        className="absolute -right-20 top-10 h-80 w-80 rounded-full"
+        style={{
+          background: 'radial-gradient(circle,#D9DDE5 0%,transparent 70%)',
+          opacity: 0.15,
+          filter: 'blur(180px)',
+        }}
+        animate={{ x: parallax.x * -1, y: parallax.y * -1 }}
+        transition={{ type: 'spring', stiffness: 50, damping: 20 }}
+      />
+    </div>
+  );
+}
+
+function MicroParticles() {
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 28 }).map((_, index) => ({
+        id: index,
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        delay: Math.random() * 3,
+      })),
+    [],
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[2]">
+      {particles.map((particle) => (
+        <motion.span
+          key={particle.id}
+          className="absolute h-1 w-1 rounded-full bg-[#1A1A1A]/20"
+          style={{ left: `${particle.left}%`, top: `${particle.top}%` }}
+          animate={{ y: [-6, 6, -6], opacity: [0, 0.5, 0] }}
+          transition={{ duration: 8 + Math.random() * 4, repeat: Infinity, ease: 'easeInOut', delay: particle.delay }}
+        />
       ))}
     </div>
   );
