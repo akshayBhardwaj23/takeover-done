@@ -11,11 +11,11 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 — ZYYP Autopilot`;
 
 const ORBIT_CHIPS = [
-  { label: 'Refund processed · $42 saved', angle: -80 },
-  { label: 'AI drafted reply · 94% confidence', angle: -20 },
-  { label: 'Exchange started automatically', angle: 30 },
-  { label: 'Delay detected · customer notified', angle: 90 },
-  { label: 'Sentiment rising +12%', angle: 150 },
+  { label: 'Refund processed · $42 saved', x: -260, y: -40 },
+  { label: 'AI drafted reply · 94% confidence', x: -200, y: 150 },
+  { label: 'Exchange started automatically', x: 0, y: 210 },
+  { label: 'Delay detected · customer notified', x: 210, y: 130 },
+  { label: 'Sentiment rising +12%', x: 240, y: -60 },
 ];
 
 export default function Hero() {
@@ -115,10 +115,9 @@ function AutopilotCore({
   chips,
   tilt,
 }: {
-  chips: { label: string; angle: number }[];
+  chips: { label: string; x: number; y: number }[];
   tilt: { x: number; y: number };
 }) {
-  const orbitRadius = 250;
 
   return (
     <motion.div
@@ -152,11 +151,9 @@ function AutopilotCore({
           <motion.div
             key={chip.label}
             className="absolute left-1/2 top-1/2 flex w-[230px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-2xl border border-cyan-200/25 bg-white/15 px-4 py-3 text-sm text-cyan-50 shadow-[0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-            style={{
-              transform: `translate(-50%, -50%) rotate(${chip.angle}deg) translateX(${orbitRadius}px) rotate(${-chip.angle}deg)`,
-            }}
+            style={{ transform: `translate(-50%, -50%) translate(${chip.x}px, ${chip.y}px)` }}
             animate={{ y: [-6, 6, -6] }}
-            transition={{ duration: 6 + index, repeat: Infinity, ease: 'easeInOut' }}
+            transition={{ duration: 5 + index, repeat: Infinity, ease: 'easeInOut' }}
           >
             <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_12px_rgba(46,238,245,0.8)]" />
             <p className="text-xs font-medium text-white">{chip.label}</p>
