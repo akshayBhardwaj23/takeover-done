@@ -10,6 +10,34 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 — ZYYP Autopilot`;
 
+const FLOATING_CARDS = [
+  {
+    text: 'Refund processed automatically',
+    coords: { top: '10%', left: '20%' },
+    duration: 5.2,
+  },
+  {
+    text: 'AI drafted reply ready · 94% confidence',
+    coords: { top: '38%', left: '11%' },
+    duration: 4.6,
+  },
+  {
+    text: 'Exchange created · customer notified',
+    coords: { top: '86%', left: '50%' },
+    duration: 5.6,
+  },
+  {
+    text: 'Delivery delay detected · proactive update sent',
+    coords: { top: '48%', right: '8%' },
+    duration: 4.8,
+  },
+  {
+    text: 'Customer sentiment improving · +12% this week',
+    coords: { top: '12%', right: '15%' },
+    duration: 5.4,
+  },
+];
+
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -104,7 +132,6 @@ export default function Hero() {
 }
 
 function AutopilotCore({ tilt }: { tilt: { x: number; y: number } }) {
-
   return (
     <motion.div
       className="relative mt-16 h-[420px] w-[420px] max-w-full rounded-full border border-cyan-300/10 bg-white/5 p-6"
@@ -132,6 +159,7 @@ function AutopilotCore({ tilt }: { tilt: { x: number; y: number } }) {
           <p className="mt-2 text-sm text-cyan-100/70">Actions streaming in realtime</p>
         </div>
       </div>
+      <FloatingActionCards />
     </motion.div>
   );
 }
@@ -174,6 +202,36 @@ function CoreParticles() {
             ease: 'easeOut',
           }}
         />
+      ))}
+    </div>
+  );
+}
+
+function FloatingActionCards() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      {FLOATING_CARDS.map((card, index) => (
+        <motion.div
+          key={card.text}
+          className="pointer-events-auto flex max-w-xs items-center gap-2 rounded-2xl border border-white/15 bg-white/15 px-4 py-3 text-sm text-white/85 shadow-[0_8px_20px_rgba(0,0,0,0.25)] backdrop-blur-[14px]"
+          style={{
+            position: 'absolute',
+            transform: 'translate(-50%, -50%)',
+            ...card.coords,
+          }}
+          animate={{ y: [-3, 3, -3], rotate: [-1.2, 1.2, -1.2] }}
+          transition={{
+            duration: card.duration,
+            repeat: Infinity,
+            ease: 'easeInOut',
+            repeatType: 'mirror',
+          }}
+          whileHover={{ scale: 1.05 }}
+        >
+          <span className="h-2 w-2 rounded-full bg-gradient-to-r from-cyan-200 to-cyan-400 shadow-[0_0_10px_rgba(46,238,245,0.65)]" />
+          <span className="leading-snug">{card.text}</span>
+          <span className="pointer-events-none absolute left-0 top-0 block h-[2px] w-full rounded-t-2xl bg-white/45 opacity-80" />
+        </motion.div>
       ))}
     </div>
   );
