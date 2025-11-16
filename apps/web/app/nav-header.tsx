@@ -268,18 +268,18 @@ export default function Header() {
           {isAuthed ? (
             <div className="flex items-center gap-4">
               {emailUsage && (
-                <div className="hidden items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium md:flex">
+                <div className="hidden h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium md:flex">
                   <span
-                    className={`flex items-center gap-2 ${
+                    className={`inline-flex h-6 items-center gap-1.5 leading-none ${
                       trialExpired ? 'text-rose-600' : 'text-slate-600'
                     }`}
                   >
                     <Mail className="h-3.5 w-3.5" />
-                    {emailsRemainingLabel}
+                    <span className="translate-y-[0.5px]">{emailsRemainingLabel}</span>
                   </span>
                   {isTrial && (
                     <span
-                      className={`ml-2 rounded-full px-2 py-0.5 text-[11px] ${
+                      className={`inline-flex h-6 items-center rounded-full px-2 text-[11px] leading-none ${
                         trialExpired
                           ? 'bg-rose-100 text-rose-600'
                           : 'bg-slate-100 text-slate-600'
@@ -294,7 +294,7 @@ export default function Header() {
                     (emailLimit !== -1 && emailsRemainingCount === 0)) && (
                     <Link
                       href="/usage"
-                      className="ml-3 rounded-full bg-rose-600 px-3 py-1 text-white transition hover:bg-rose-700"
+                      className="ml-1 inline-flex h-6 items-center rounded-full bg-rose-600 px-3 text-white leading-none transition hover:bg-rose-700"
                     >
                       Upgrade
                     </Link>

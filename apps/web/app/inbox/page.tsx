@@ -157,7 +157,7 @@ export default function InboxPage() {
   // Split into critical (orders) and secondary (unassigned) queries for progressive loading
   // Orders load first (critical), then unassigned messages (secondary)
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
-    { ordersTake: 25, unassignedTake: 0 }, // Don't fetch unassigned in bootstrap
+    { ordersTake: 25 }, // Don't fetch unassigned in bootstrap (omit unassignedTake to satisfy schema)
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
@@ -224,7 +224,16 @@ export default function InboxPage() {
     },
   });
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      // Backend may return { ok: false, error } with 200 status for non-TRPC errors
+      if (!data?.ok) {
+        const message = data?.error || 'Failed to send reply'; // Show backend error if present
+        toast.error(message);
+        // Still refresh usage/unassigned to keep UI accurate
+        unassignedQuery.refetch();
+        inboxBootstrap.refetch();
+        return;
+      }
       unassignedQuery.refetch(); // Refetch unassigned messages
       inboxBootstrap.refetch(); // Refetch email limit
       toast.success('Reply sent successfully');
