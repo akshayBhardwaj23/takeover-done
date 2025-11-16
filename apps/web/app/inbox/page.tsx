@@ -727,8 +727,12 @@ export default function InboxPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="line-clamp-1 text-sm text-slate-600">
-                              {preview?.subject ||
+                            <p
+                              className={`text-sm text-slate-600 ${
+                                preview?.subject ? 'line-clamp-1' : ''
+                              }`}
+                            >
+                              {preview?.subject ??
                                 'Select to load latest email'}
                             </p>
                             <p className="mt-1 text-xs text-slate-500">
