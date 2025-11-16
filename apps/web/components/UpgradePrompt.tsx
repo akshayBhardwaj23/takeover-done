@@ -222,10 +222,10 @@ export function UpgradePrompt({
 
   // inline variant
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-600/10 p-3">
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
       <div className="flex items-center gap-2">
-        <AlertCircle className="h-4 w-4 text-amber-400" />
-        <p className="text-sm text-amber-200">
+        <AlertCircle className="h-4 w-4 text-amber-600" />
+        <p className="text-sm text-amber-800">
           {trialExpired
             ? 'Free trial ended. Upgrade to continue sending emails. '
             : isAtLimit
@@ -233,7 +233,7 @@ export function UpgradePrompt({
               : `Approaching limit (${usagePercentage.toFixed(0)}% used). `}
           <button
             onClick={handleUpgrade}
-            className="font-semibold underline hover:text-amber-100"
+            className="font-semibold underline text-amber-700 hover:text-amber-800"
             disabled={createCheckout.isPending}
           >
             {createCheckout.isPending
