@@ -214,7 +214,10 @@ function AutomationShowcase() {
     }, 5000);
   };
 
-  const renderSceneContent = (sceneId: AutomationSceneId, isActive: boolean) => {
+  const renderSceneContent = (
+    sceneId: AutomationSceneId,
+    isActive: boolean,
+  ) => {
     switch (sceneId) {
       case 'inbox':
         return (
@@ -273,20 +276,29 @@ function AutomationShowcase() {
                   </span>
                 </div>
                 <p className="mt-4 text-xs text-white/70">
-                  Personalized win-back emails scheduled for 7:00 AM with SMS follow-up.
+                  Personalized win-back emails scheduled for 7:00 AM with SMS
+                  follow-up.
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-3 text-xs text-white/70">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="uppercase tracking-[0.25em] text-white/40">Audience</p>
+                  <p className="uppercase tracking-[0.25em] text-white/40">
+                    Audience
+                  </p>
                   <p className="mt-2 text-sm font-semibold text-white">VIP</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="uppercase tracking-[0.25em] text-white/40">Status</p>
-                  <p className="mt-2 text-sm font-semibold text-emerald-200">Ready</p>
+                  <p className="uppercase tracking-[0.25em] text-white/40">
+                    Status
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-emerald-200">
+                    Ready
+                  </p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="uppercase tracking-[0.25em] text-white/40">Impact</p>
+                  <p className="uppercase tracking-[0.25em] text-white/40">
+                    Impact
+                  </p>
                   <p className="mt-2 text-sm font-semibold text-white">+18%</p>
                 </div>
               </div>
@@ -326,12 +338,20 @@ function AutomationShowcase() {
               </div>
               <div className="space-y-3 text-xs text-white/70">
                 <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span className="uppercase tracking-[0.25em] text-white/40">Handle Time</span>
-                  <span className="text-sm font-semibold text-emerald-200">-62%</span>
+                  <span className="uppercase tracking-[0.25em] text-white/40">
+                    Handle Time
+                  </span>
+                  <span className="text-sm font-semibold text-emerald-200">
+                    -62%
+                  </span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                  <span className="uppercase tracking-[0.25em] text-white/40">Macros Used</span>
-                  <span className="text-sm font-semibold text-white">Auto-detected</span>
+                  <span className="uppercase tracking-[0.25em] text-white/40">
+                    Macros Used
+                  </span>
+                  <span className="text-sm font-semibold text-white">
+                    Auto-detected
+                  </span>
                 </div>
               </div>
             </div>
@@ -370,12 +390,18 @@ function AutomationShowcase() {
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs text-white/70">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="uppercase tracking-[0.25em] text-white/40">AOV Impact</p>
+                  <p className="uppercase tracking-[0.25em] text-white/40">
+                    AOV Impact
+                  </p>
                   <p className="mt-2 text-sm font-semibold text-white">+12%</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="uppercase tracking-[0.25em] text-white/40">Confidence</p>
-                  <p className="mt-2 text-sm font-semibold text-emerald-200">High</p>
+                  <p className="uppercase tracking-[0.25em] text-white/40">
+                    Confidence
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-emerald-200">
+                    High
+                  </p>
                 </div>
               </div>
             </div>
@@ -447,7 +473,8 @@ function AutomationShowcase() {
               ZYYP — Working While You Sleep.
             </h3>
             <p className="max-w-sm text-sm text-white/70">
-              Automations keep shipping, marketing, support, and insights humming while you rest.
+              Automations keep shipping, marketing, support, and insights
+              humming while you rest.
             </p>
           </div>
         );
@@ -546,51 +573,68 @@ function AutomationPoster() {
   );
 }
 
-const pricingPlans = [
-  {
-    name: 'Launch',
-    price: 49,
-    description: 'Solo founders and new stores',
+type PlanKey = 'STARTER' | 'GROWTH' | 'PRO' | 'ENTERPRISE';
+type PlanMeta = {
+  name: string;
+  badge: string;
+  features: string[];
+  highlight?: boolean;
+};
+
+const PLAN_META: Record<PlanKey, PlanMeta> = {
+  STARTER: {
+    name: 'Starter',
+    badge: 'For emerging brands',
     features: [
-      'Up to 3 connected inboxes',
-      '1 Shopify storefront',
-      '200 AI-assisted replies / month',
-      'AI draft + order summary panel',
-      'Manual approval workflow',
-      'Shared macros & templates',
-      'Email support',
+      '500 emails/month (outbound)',
+      '1 Shopify store connection',
+      'Unlimited AI suggestions',
+      'Basic AI reply generation',
+      'Order matching & email threading',
     ],
   },
-  {
+  GROWTH: {
     name: 'Growth',
-    price: 129,
-    description: 'Growing CX teams',
+    badge: 'Most popular',
+    highlight: true,
     features: [
-      'Unlimited inboxes',
-      '3 Shopify storefronts',
-      '1,000 AI-assisted replies / month',
-      'Auto-approve rules & thresholds',
-      'Slack escalations',
-      'Support analytics dashboard',
-      'Priority support',
+      '2,500 emails/month',
+      'Up to 3 store connections',
+      'Priority support response',
+      'Advanced analytics & dashboards',
+      'Reusable email templates',
     ],
-    featured: true,
   },
-  {
+  PRO: {
+    name: 'Pro',
+    badge: 'For high-volume teams',
+    features: [
+      '10,000 emails/month',
+      'Up to 10 store connections',
+      'Custom AI training sessions',
+      'Full API access',
+      'White-label & advanced reporting',
+    ],
+  },
+  ENTERPRISE: {
     name: 'Enterprise',
-    price: 249,
-    description: 'High-volume brands & agencies',
+    badge: 'Designed with you',
     features: [
-      'Unlimited storefronts',
-      'Unlimited AI-assisted replies',
-      'Custom tone & brand voice',
-      'Role-based access controls',
-      'Dedicated success manager',
-      'Private data retention policies',
-      'SLA-backed support',
+      'Unlimited or volume-based emails',
+      'Unlimited store connections',
+      'Dedicated success & SLA guarantees',
+      'Custom integrations & onboarding',
+      'Volume discounts starting at ₹2/email',
     ],
   },
-];
+};
+
+const FALLBACK_PRICES: Record<PlanKey, { label: string; cadence: string }> = {
+  STARTER: { label: '₹999', cadence: 'per month' },
+  GROWTH: { label: '₹2,999', cadence: 'per month' },
+  PRO: { label: '₹9,999', cadence: 'per month' },
+  ENTERPRISE: { label: 'Custom', cadence: 'tailored plan' },
+};
 
 const faqs = [
   {
@@ -657,7 +701,15 @@ const SlackLogo = () => (
 
 const MetaAdsLogo = () => (
   <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
-    <rect x="4" y="6" width="24" height="20" rx="10" fill="#0A84FF" opacity=".2" />
+    <rect
+      x="4"
+      y="6"
+      width="24"
+      height="20"
+      rx="10"
+      fill="#0A84FF"
+      opacity=".2"
+    />
     <path
       fill="#0A84FF"
       d="M10 22c-1.9 0-3-1.5-3-4.2 0-4 2.1-7.8 5.1-7.8 2.4 0 3.6 1.9 5.3 4.8 1.4-2.8 2.7-4.8 5-4.8 2.9 0 4.6 3.7 4.6 7.6 0 3.1-1.2 4.4-2.8 4.4-2.1 0-3.3-2.4-5-5.5-1.5 2.9-2.8 5.5-5.2 5.5-1.3 0-2.4-.7-3.9-3.5l1.3-.7c1 2 1.8 2.6 2.6 2.6 1.5 0 2.7-2.3 4.4-5.7-1.5-2.6-2.4-3.8-3.7-3.8-1.9 0-3.4 2.8-3.4 6.2 0 2 .7 2.9 2 2.9 1.1 0 1.8-.6 2.7-1.5l.8 1c-1 .9-2.1 1.7-3.6 1.7z"
@@ -701,13 +753,37 @@ type IntegrationIcon = {
 };
 
 const integrationIcons: IntegrationIcon[] = [
-  { name: 'Shopify', gradient: 'from-emerald-400 to-emerald-600', Icon: ShopifyLogo },
+  {
+    name: 'Shopify',
+    gradient: 'from-emerald-400 to-emerald-600',
+    Icon: ShopifyLogo,
+  },
   { name: 'Mail', gradient: 'from-rose-400 to-red-500', Icon: MailLogo },
-  { name: 'Slack', gradient: 'from-purple-400 to-fuchsia-500', Icon: SlackLogo },
-  { name: 'Meta Ads', gradient: 'from-blue-500 to-indigo-500', Icon: MetaAdsLogo },
-  { name: 'Google Analytics', gradient: 'from-orange-400 to-amber-500', Icon: GoogleAnalyticsLogo },
-  { name: 'WooCommerce', gradient: 'from-purple-500 to-indigo-500', Icon: WooLogo },
-  { name: 'Google Ads', gradient: 'from-sky-500 to-blue-600', Icon: GoogleAdsLogo },
+  {
+    name: 'Slack',
+    gradient: 'from-purple-400 to-fuchsia-500',
+    Icon: SlackLogo,
+  },
+  {
+    name: 'Meta Ads',
+    gradient: 'from-blue-500 to-indigo-500',
+    Icon: MetaAdsLogo,
+  },
+  {
+    name: 'Google Analytics',
+    gradient: 'from-orange-400 to-amber-500',
+    Icon: GoogleAnalyticsLogo,
+  },
+  {
+    name: 'WooCommerce',
+    gradient: 'from-purple-500 to-indigo-500',
+    Icon: WooLogo,
+  },
+  {
+    name: 'Google Ads',
+    gradient: 'from-sky-500 to-blue-600',
+    Icon: GoogleAdsLogo,
+  },
 ];
 
 export default function HomePage() {
@@ -731,17 +807,20 @@ export default function HomePage() {
     {
       id: 'draft',
       title: 'AI drafts the perfect reply',
-      description: 'Suggested response + Shopify action appears, ready for approval.',
+      description:
+        'Suggested response + Shopify action appears, ready for approval.',
     },
     {
       id: 'insight',
       title: 'Insight surfaces',
-      description: '"Response time reduced 42%" — clear impact in your dashboard.',
+      description:
+        '"Response time reduced 42%" — clear impact in your dashboard.',
     },
     {
       id: 'performance',
       title: 'Growth metrics climb',
-      description: 'Performance graph highlights “Sales up 12%” to keep momentum.',
+      description:
+        'Performance graph highlights “Sales up 12%” to keep momentum.',
     },
   ];
 
@@ -836,8 +915,8 @@ export default function HomePage() {
             </h2>
             <p className="text-lg text-slate-600">
               A silent, looping walkthrough that shows how ZYYP triages customer
-              emails, drafts replies, and surfaces the analytics that keep every team
-              ahead.
+              emails, drafts replies, and surfaces the analytics that keep every
+              team ahead.
             </p>
             <div className="space-y-4">
               {demoScenes.map((scene, index) => (
@@ -863,27 +942,31 @@ export default function HomePage() {
                     }`}
                   >
                     {index + 1}
-              </span>
+                  </span>
                   <div>
                     <p
                       className={`text-base font-semibold ${
-                        index === activeScene ? 'text-slate-900' : 'text-slate-700'
+                        index === activeScene
+                          ? 'text-slate-900'
+                          : 'text-slate-700'
                       }`}
                     >
                       {scene.title}
                     </p>
                     <p
                       className={`text-sm ${
-                        index === activeScene ? 'text-slate-600' : 'text-slate-500'
+                        index === activeScene
+                          ? 'text-slate-600'
+                          : 'text-slate-500'
                       }`}
                     >
                       {scene.description}
                     </p>
-            </div>
+                  </div>
                 </button>
               ))}
+            </div>
           </div>
-              </div>
           <div className="relative w-full overflow-visible lg:w-[60%]">
             <div className="relative mx-auto aspect-[16/10] w-full max-w-3xl overflow-hidden rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-2xl shadow-slate-900/10">
               {/* Ambient overlay */}
@@ -892,7 +975,9 @@ export default function HomePage() {
               {/* Scene 1 */}
               <div
                 className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
-                  activeScene === 0 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                  activeScene === 0
+                    ? 'translate-y-0 opacity-100'
+                    : 'translate-y-6 opacity-0'
                 }`}
               >
                 <div className="mx-auto w-full max-w-md rounded-3xl border border-cyan-400/30 bg-white p-6 text-left shadow-xl shadow-cyan-500/10">
@@ -901,7 +986,9 @@ export default function HomePage() {
                       ✉️
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Email from Maya</p>
+                      <p className="text-sm font-semibold text-slate-800">
+                        Email from Maya
+                      </p>
                       <span className="text-xs uppercase tracking-wide text-slate-400">
                         2 minutes ago
                       </span>
@@ -923,7 +1010,9 @@ export default function HomePage() {
               {/* Scene 2 */}
               <div
                 className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
-                  activeScene === 1 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                  activeScene === 1
+                    ? 'translate-y-0 opacity-100'
+                    : 'translate-y-6 opacity-0'
                 }`}
               >
                 <div className="mx-auto w-full max-w-lg rounded-[28px] border border-purple-400/40 bg-white p-6 shadow-xl shadow-purple-500/10">
@@ -932,7 +1021,9 @@ export default function HomePage() {
                       <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
                         draft reply
                       </p>
-                      <h3 className="text-lg font-semibold text-slate-900">AI Response</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        AI Response
+                      </h3>
                     </div>
                     <span className="rounded-full bg-purple-500/15 px-3 py-1 text-xs font-semibold text-purple-700">
                       97% confidence
@@ -940,12 +1031,12 @@ export default function HomePage() {
                   </div>
                   <div className="mt-4 space-y-3 text-sm leading-relaxed text-slate-600">
                     <p>
-                      Hi Maya — thanks for letting us know. I’ve already queued a replacement
-                      to ship today with express delivery.
+                      Hi Maya — thanks for letting us know. I’ve already queued
+                      a replacement to ship today with express delivery.
                     </p>
                     <p>
-                      You’ll receive tracking in the next 2 hours. If you prefer a refund,
-                      just reply to this email.
+                      You’ll receive tracking in the next 2 hours. If you prefer
+                      a refund, just reply to this email.
                     </p>
                   </div>
                   <div className="mt-5 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.25em] text-purple-600/80">
@@ -962,7 +1053,9 @@ export default function HomePage() {
               {/* Scene 3 */}
               <div
                 className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
-                  activeScene === 2 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                  activeScene === 2
+                    ? 'translate-y-0 opacity-100'
+                    : 'translate-y-6 opacity-0'
                 }`}
               >
                 <div className="mx-auto w-full max-w-lg rounded-[28px] border border-emerald-400/30 bg-gradient-to-br from-emerald-100 via-white to-emerald-50 p-6 text-left shadow-lg shadow-emerald-500/15">
@@ -980,21 +1073,25 @@ export default function HomePage() {
                     </div>
                   </div>
                   <p className="mt-4 text-sm text-emerald-700/80">
-                    Thanks to instant AI triage, the support team cleared high-priority cases
-                    before they aged.
+                    Thanks to instant AI triage, the support team cleared
+                    high-priority cases before they aged.
                   </p>
                   <div className="mt-5 grid grid-cols-2 gap-3 text-xs text-emerald-700/80">
                     <div className="rounded-2xl border border-emerald-400/30 bg-white/80 p-3">
                       <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-500/80">
                         csat
                       </p>
-                      <p className="text-lg font-semibold text-emerald-900">4.8 / 5</p>
+                      <p className="text-lg font-semibold text-emerald-900">
+                        4.8 / 5
+                      </p>
                     </div>
                     <div className="rounded-2xl border border-emerald-400/30 bg-white/80 p-3">
                       <p className="text-[10px] uppercase tracking-[0.35em] text-emerald-500/80">
                         approvals automated
                       </p>
-                      <p className="text-lg font-semibold text-emerald-900">78%</p>
+                      <p className="text-lg font-semibold text-emerald-900">
+                        78%
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1003,7 +1100,9 @@ export default function HomePage() {
               {/* Scene 4 */}
               <div
                 className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
-                  activeScene === 3 ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+                  activeScene === 3
+                    ? 'translate-y-0 opacity-100'
+                    : 'translate-y-6 opacity-0'
                 }`}
               >
                 <div className="mx-auto w-full max-w-xl rounded-[28px] border border-sky-400/30 bg-white p-6 shadow-xl shadow-sky-500/15">
@@ -1012,7 +1111,9 @@ export default function HomePage() {
                       <p className="text-xs uppercase tracking-[0.35em] text-sky-500/80">
                         performance
                       </p>
-                      <h3 className="text-lg font-semibold text-slate-900">Sales up 12%</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        Sales up 12%
+                      </h3>
                     </div>
                     <span className="rounded-full bg-sky-500/15 px-3 py-1 text-xs font-semibold text-sky-700">
                       last 30 days
@@ -1026,7 +1127,10 @@ export default function HomePage() {
                           className={`flex-1 rounded-full bg-sky-400/60 transition-all duration-500 ${
                             activeScene === 3 ? 'animate-rise' : ''
                           }`}
-                          style={{ height: `${value}%`, animationDelay: `${index * 0.12}s` }}
+                          style={{
+                            height: `${value}%`,
+                            animationDelay: `${index * 0.12}s`,
+                          }}
                         />
                       ))}
                     </div>
@@ -1054,7 +1158,7 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-              </div>
+        </div>
       </section>
 
       {/* Insights Dashboard */}
@@ -1066,16 +1170,18 @@ export default function HomePage() {
         <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:flex-row lg:items-center">
           <div
             className={`w-full space-y-6 transition-all duration-700 ${
-              insightsInView ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+              insightsInView
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-6 opacity-0'
             } lg:w-[38%]`}
           >
             <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
               Smarter Insights. Happier Customers. Higher Revenue.
             </h2>
             <p className="text-lg text-slate-600">
-              ZYYP continually reviews every interaction to surface the trends and risks
-              that matter. Spot churn signals, act on sentiment, and quantify the revenue
-              impact of every automation.
+              ZYYP continually reviews every interaction to surface the trends
+              and risks that matter. Spot churn signals, act on sentiment, and
+              quantify the revenue impact of every automation.
             </p>
             <div className="space-y-4">
               {[
@@ -1108,16 +1214,20 @@ export default function HomePage() {
                     {card.icon}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800">{card.title}</p>
+                    <p className="text-sm font-semibold text-slate-800">
+                      {card.title}
+                    </p>
                     <p className="text-sm text-slate-600">{card.data}</p>
                   </div>
-                  </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
+          </div>
           <div
             className={`relative w-full transition-all duration-700 ${
-              insightsInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+              insightsInView
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-8 opacity-0'
             } lg:w-[62%]`}
             style={{ transitionDelay: '160ms' }}
           >
@@ -1134,8 +1244,12 @@ export default function HomePage() {
                         +18% WoW
                       </span>
                     </div>
-                    <h3 className="mt-2 text-2xl font-bold text-slate-900">$182k</h3>
-                    <p className="text-sm text-slate-500">Processed in the last 7 days</p>
+                    <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                      $182k
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Processed in the last 7 days
+                    </p>
                     <div className="mt-6 flex items-end gap-1">
                       {[28, 40, 36, 48, 56, 62, 70].map((height, idx) => (
                         <span
@@ -1144,8 +1258,8 @@ export default function HomePage() {
                           style={{ height: `${height}%` }}
                         />
                       ))}
-              </div>
-            </div>
+                    </div>
+                  </div>
                   <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-md">
                     <div className="flex items-center justify-between">
                       <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
@@ -1156,7 +1270,10 @@ export default function HomePage() {
                       </span>
                     </div>
                     <div className="mt-4 h-32">
-                      <svg viewBox="0 0 200 120" className="h-full w-full text-emerald-500">
+                      <svg
+                        viewBox="0 0 200 120"
+                        className="h-full w-full text-emerald-500"
+                      >
                         <path
                           d="M5 90 C40 60, 80 110, 120 70 C150 40, 180 60, 195 35"
                           fill="none"
@@ -1164,7 +1281,12 @@ export default function HomePage() {
                           strokeWidth="4"
                           strokeLinecap="round"
                         />
-                        <circle cx="195" cy="35" r="5" className="fill-emerald-500" />
+                        <circle
+                          cx="195"
+                          cy="35"
+                          r="5"
+                          className="fill-emerald-500"
+                        />
                       </svg>
                     </div>
                     <p className="mt-3 text-sm text-slate-500">
@@ -1187,25 +1309,33 @@ export default function HomePage() {
                         <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                           opened
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">74%</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          74%
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                           clicked
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">31%</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          31%
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                           replies
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">12%</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          12%
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
                           revenue influenced
                         </p>
-                        <p className="text-lg font-semibold text-slate-900">$8.4k</p>
+                        <p className="text-lg font-semibold text-slate-900">
+                          $8.4k
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1216,7 +1346,9 @@ export default function HomePage() {
                     <div className="mt-4 space-y-3 text-sm text-slate-600">
                       <div className="flex items-center justify-between rounded-2xl bg-slate-100/80 px-4 py-3">
                         <span>On-time</span>
-                        <span className="font-semibold text-slate-900">87%</span>
+                        <span className="font-semibold text-slate-900">
+                          87%
+                        </span>
                       </div>
                       <div className="flex items-center justify-between rounded-2xl bg-amber-100/80 px-4 py-3">
                         <span>Escalated</span>
@@ -1242,7 +1374,9 @@ export default function HomePage() {
             <div
               ref={mailingRef}
               className={`relative h-full transition-all duration-700 ${
-                mailingInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+                mailingInView
+                  ? 'translate-y-0 opacity-100'
+                  : 'translate-y-8 opacity-0'
               }`}
             >
               <div className="relative mx-auto w-full rounded-[32px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100 shadow-2xl">
@@ -1257,8 +1391,8 @@ export default function HomePage() {
                       </p>
                       <p className="text-sm font-semibold text-slate-700">
                         Follow-up: Order status update
-            </p>
-          </div>
+                      </p>
+                    </div>
                   </div>
                   <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     94% confidence
@@ -1268,15 +1402,17 @@ export default function HomePage() {
                   <div className="space-y-2 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-inner">
                     <p className="font-semibold text-slate-800">Hi Alex,</p>
                     <p>
-                      Your order is in the final packing stage and will ship within the next
-                      24 hours. We’ve upgraded you to priority shipping at no cost so it
-                      arrives on time.
+                      Your order is in the final packing stage and will ship
+                      within the next 24 hours. We’ve upgraded you to priority
+                      shipping at no cost so it arrives on time.
                     </p>
                     <p>
-                      You can track its journey anytime: <span className="underline">Track order</span>.
+                      You can track its journey anytime:{' '}
+                      <span className="underline">Track order</span>.
                     </p>
                     <p className="text-slate-500">
-                      Thanks for your patience — we’ll ping you once it’s out the door.
+                      Thanks for your patience — we’ll ping you once it’s out
+                      the door.
                     </p>
                     <p>— Team ZYYP Automations</p>
                   </div>
@@ -1285,7 +1421,9 @@ export default function HomePage() {
                       Smart recommendations
                     </p>
                     <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                      <li>• Add 10% discount if order is delayed beyond 3 days.</li>
+                      <li>
+                        • Add 10% discount if order is delayed beyond 3 days.
+                      </li>
                       <li>• Follow-up in 48 hours if no response.</li>
                     </ul>
                   </div>
@@ -1303,7 +1441,9 @@ export default function HomePage() {
           </div>
           <div
             className={`w-full space-y-6 transition-all duration-700 ${
-              mailingInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+              mailingInView
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-8 opacity-0'
             } lg:w-[52%]`}
             style={{ transitionDelay: '120ms' }}
           >
@@ -1311,8 +1451,9 @@ export default function HomePage() {
               Autonomous Mailing Engine — Never Miss a Customer Again.
             </h2>
             <p className="text-lg text-slate-600">
-              ZYYP auto-drafts and sends follow-ups, offers, and updates based on customer
-              behavior, tickets, or sales trends — all fully editable by you.
+              ZYYP auto-drafts and sends follow-ups, offers, and updates based
+              on customer behavior, tickets, or sales trends — all fully
+              editable by you.
             </p>
             <div className="space-y-4">
               {[
@@ -1344,8 +1485,12 @@ export default function HomePage() {
                     {feature.icon}
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-slate-900">{feature.title}</p>
-                    <p className="text-sm text-slate-600">{feature.description}</p>
+                    <p className="text-base font-semibold text-slate-900">
+                      {feature.title}
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      {feature.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -1363,7 +1508,9 @@ export default function HomePage() {
         <div className="relative mx-auto flex max-w-6xl flex-col gap-12 px-6 lg:flex-row lg:items-center">
           <div
             className={`w-full space-y-6 transition-all duration-700 ${
-              founderInView ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+              founderInView
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-6 opacity-0'
             } lg:w-[40%]`}
           >
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/70">
@@ -1373,8 +1520,8 @@ export default function HomePage() {
               Run your business like a $100M brand - even if you’re solo.
             </h2>
             <p className="text-lg text-white/70">
-              ZYYP gives entrepreneurs and teams enterprise-grade automation, analytics, and
-              growth intelligence — without extra hires.
+              ZYYP gives entrepreneurs and teams enterprise-grade automation,
+              analytics, and growth intelligence — without extra hires.
             </p>
             <div className="relative rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/80 shadow-lg shadow-cyan-500/10">
               <p className="italic">
@@ -1387,7 +1534,9 @@ export default function HomePage() {
           </div>
           <div
             className={`relative w-full lg:w-[60%] ${
-              founderInView ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+              founderInView
+                ? 'translate-y-0 opacity-100'
+                : 'translate-y-8 opacity-0'
             } transition-all duration-700`}
             style={{ transitionDelay: '160ms' }}
           >
@@ -1424,7 +1573,7 @@ export default function HomePage() {
           {trustedLogos.map((logo) => (
             <span key={logo}>{logo}</span>
           ))}
-          </div>
+        </div>
       </section>
 
       {/* How it works */}
@@ -1468,28 +1617,28 @@ export default function HomePage() {
                 >
                   <h3 className="text-lg font-semibold text-slate-900">
                     {card.title}
-        </h3>
+                  </h3>
                   <p className="mt-3 text-sm text-slate-600">
                     {card.description}
                   </p>
-            </div>
+                </div>
               ))}
-              </div>
+            </div>
             <div className="flex flex-wrap gap-4">
-                <Link
+              <Link
                 href="/usage"
                 className="rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-black"
-                >
+              >
                 Explore the inbox
-                </Link>
+              </Link>
               <a
                 href="mailto:hello@notus.ai"
                 className="rounded-full border border-slate-900/10 px-7 py-3 text-sm font-semibold tracking-wide text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-900/20"
               >
                 Talk to us
               </a>
-              </div>
-              </div>
+            </div>
+          </div>
           <div className="space-y-6 rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-slate-900/5">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.35em] text-slate-500">
               <span>Inbox Overview</span>
@@ -1504,11 +1653,11 @@ export default function HomePage() {
                   <p className="text-xs text-slate-500">
                     Intent: Refund request · Confidence 0.92
                   </p>
-              </div>
+                </div>
                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-600">
                   AI draft ready
                 </span>
-            </div>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -1517,11 +1666,11 @@ export default function HomePage() {
                   <p className="text-xs text-slate-500">
                     Order #48219 · Delivered · 2 items
                   </p>
-          </div>
+                </div>
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-600">
                   Needs approval
                 </span>
-                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
@@ -1547,9 +1696,9 @@ export default function HomePage() {
                     {event.time}
                     <span className="mx-2 text-slate-400">·</span>
                     {event.intent}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
             </div>
           </div>
         </div>
@@ -1563,8 +1712,8 @@ export default function HomePage() {
               Autonomous workflows across every platform
             </h2>
             <p className="mt-4 text-lg text-slate-600">
-              Connect ZYYP with your favorite tools — from e-commerce to marketing to support —
-              for a truly autonomous business workflow.
+              Connect ZYYP with your favorite tools — from e-commerce to
+              marketing to support — for a truly autonomous business workflow.
             </p>
             <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-600 shadow-sm">
               + More Integrations Coming Soon.
@@ -1587,7 +1736,9 @@ export default function HomePage() {
                     <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
                       {tool.name}
                     </p>
-                    <p className="text-xs text-slate-400">Connected in minutes</p>
+                    <p className="text-xs text-slate-400">
+                      Connected in minutes
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1595,10 +1746,23 @@ export default function HomePage() {
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-2">
             {channelCards.map((card) => {
-              const plan = card.pricePlan
-                ? pricingPlans.find((pricingPlan) => pricingPlan.name === card.pricePlan)
+              const planKeyMap: Record<string, PlanKey> = {
+                Launch: 'STARTER',
+                Starter: 'STARTER',
+                Growth: 'GROWTH',
+                Pro: 'PRO',
+                Enterprise: 'ENTERPRISE',
+              };
+              const mappedKey: PlanKey | undefined = card.pricePlan
+                ? planKeyMap[card.pricePlan]
+                : undefined;
+              const planLabel = mappedKey ? PLAN_META[mappedKey].name : null;
+              const planPriceLabel = mappedKey
+                ? FALLBACK_PRICES[mappedKey].label
                 : null;
-              const planPrice = plan ? (annual ? Math.round(plan.price * 0.8) : plan.price) : null;
+              const planCadence = mappedKey
+                ? FALLBACK_PRICES[mappedKey].cadence
+                : null;
 
               return (
                 <div
@@ -1617,17 +1781,21 @@ export default function HomePage() {
                     <span
                       className={`rounded-full bg-gradient-to-r ${card.accent} px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white`}
                     >
-                      {plan ? plan.name : card.badge}
+                      {planLabel ?? card.badge}
                     </span>
                   </div>
                   <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-                    <span>{plan ? 'Pricing' : 'Status'}</span>
-                    <span>{plan ? `$${planPrice}/seat` : card.status}</span>
+                    <span>{mappedKey ? 'Pricing' : 'Status'}</span>
+                    <span>
+                      {mappedKey
+                        ? `${planPriceLabel} · ${planCadence}`
+                        : card.status}
+                    </span>
                   </div>
                 </div>
               );
             })}
-              </div>
+          </div>
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {[
               {
@@ -1654,8 +1822,8 @@ export default function HomePage() {
                 <p className="mt-4 text-sm text-white/70">
                   {feature.description}
                 </p>
-            </div>
-          ))}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1683,8 +1851,8 @@ export default function HomePage() {
                 <p className="mt-3 text-sm text-white/70">
                   {useCase.description}
                 </p>
-                </div>
-              ))}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1707,7 +1875,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-2xl">
                   🤖
-            </div>
+                </div>
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
                     Dashboard
@@ -1715,7 +1883,7 @@ export default function HomePage() {
                   <p className="text-2xl font-black text-slate-900">
                     Support intelligence
                   </p>
-              </div>
+                </div>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
                 {[
@@ -1729,14 +1897,14 @@ export default function HomePage() {
                   >
                     <div className="text-sm font-semibold text-slate-500">
                       {item.label}
-              </div>
+                    </div>
                     <div className="mt-2 text-xl font-black text-slate-900">
                       {item.value}
-            </div>
-              </div>
+                    </div>
+                  </div>
                 ))}
+              </div>
             </div>
-          </div>
           </div>
           <div className="space-y-6">
             {benefits.map((benefit) => (
@@ -1773,7 +1941,7 @@ export default function HomePage() {
       {/* Live feed */}
       <section className="bg-slate-950 py-16 text-white">
         <div className="mx-auto max-w-6xl px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-2xl font-black md:text-3xl">
               Live support activity feed
             </h2>
@@ -1794,8 +1962,8 @@ export default function HomePage() {
                 <div className="text-xs uppercase tracking-[0.3em] text-white/50">
                   {event.time} · {event.intent}
                 </div>
-            </div>
-          ))}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -1805,96 +1973,87 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6">
           <div className="mx-auto max-w-3xl text-center">
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">
-            Pricing
+              Pricing
             </p>
             <h2 className="mt-4 text-3xl font-black text-slate-900 md:text-4xl">
               Choose a plan that scales with your support volume
             </h2>
             <p className="mt-4 text-lg text-slate-600">
               All plans include Shopify + inbox integrations, AI reply drafts,
-              and analytics. Switch to annual billing and save 20%.
+              and analytics.
             </p>
           </div>
-          <div className="mt-10 flex items-center justify-center gap-4 text-sm font-semibold text-slate-600">
-            <span>Monthly</span>
-            <button
-              type="button"
-              aria-pressed={annual}
-              onClick={() => setAnnual((value) => !value)}
-              className={`relative h-9 w-16 rounded-full transition-colors ${annual ? 'bg-slate-900' : 'bg-slate-300'}`}
-            >
-              <span
-                className={`absolute top-1 h-7 w-7 rounded-full bg-white shadow transition ${annual ? 'right-1' : 'left-1'}`}
-              />
-            </button>
-            <span className={annual ? 'text-slate-900' : ''}>
-              Yearly · Save 20%
-            </span>
-          </div>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {pricingPlans.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative flex flex-col rounded-3xl border p-8 shadow-lg transition hover:-translate-y-1 ${
-                  plan.featured
-                    ? 'border-slate-900 bg-slate-900 text-white shadow-2xl'
-                    : 'border-white bg-white text-slate-900 shadow-slate-200/60'
-                }`}
-              >
-                {plan.featured && (
-                  <span className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900">
-                    Most Popular
-                  </span>
-                )}
-                <div className="text-sm font-semibold uppercase tracking-[0.35em] text-current/70">
-                  {plan.name}
-        </div>
-                <div className="mt-4 text-4xl font-black">
-                  ${annual ? Math.round(plan.price * 0.8) : plan.price}
-                  <span className="ml-2 text-sm font-semibold opacity-60">
-                    /seat
-                  </span>
-                </div>
-                <p
-                  className={`mt-2 text-sm ${plan.featured ? 'text-white/70' : 'text-slate-500'}`}
-                >
-                  {plan.description}
-                </p>
-                <ul className="mt-6 space-y-3 text-sm">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3">
-                      <span
-                        className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${plan.featured ? 'bg-white/20 text-white' : 'bg-slate-900/5 text-slate-700'}`}
-                      >
-                        ✓
+          {/* Pricing is sourced from the Pricing page config to stay consistent */}
+          <div className="mt-12 grid gap-8 md:grid-cols-4">
+            {(['STARTER', 'GROWTH', 'PRO', 'ENTERPRISE'] as PlanKey[]).map(
+              (type) => {
+                const meta = PLAN_META[type];
+                const price = FALLBACK_PRICES[type];
+                const isDark = type === 'GROWTH' || type === 'ENTERPRISE';
+                const showFeaturedBadge = type === 'GROWTH';
+                return (
+                  <div
+                    key={type}
+                    className={`relative flex flex-col rounded-3xl border p-8 shadow-lg transition hover:-translate-y-1 ${
+                      isDark
+                        ? 'border-slate-900 bg-slate-900 text-white shadow-2xl'
+                        : 'border-white bg-white text-slate-900 shadow-slate-200/60'
+                    }`}
+                  >
+                    {showFeaturedBadge && (
+                      <span className="absolute -top-4 left-1/2 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-900">
+                        Most Popular
                       </span>
-                      <span
-                        className={
-                          plan.featured ? 'text-white/80' : 'text-slate-600'
-                        }
-                      >
-                        {feature}
+                    )}
+                    <div className="text-sm font-semibold uppercase tracking-[0.35em] text-current/70">
+                      {meta.name}
+                    </div>
+                    <div className="mt-4 text-4xl font-black">
+                      {price.label}
+                      <span className="ml-2 text-sm font-semibold opacity-60">
+                        {price.cadence}
                       </span>
-                    </li>
-                  ))}
-            </ul>
-            <Link
-              href="/integrations"
-                  className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
-                    plan.featured
-                      ? 'bg-white text-slate-900 hover:bg-slate-100'
-                      : 'bg-slate-900 text-white hover:bg-black'
-                  }`}
-                >
-                  {plan.name === 'Enterprise'
-                    ? 'Talk to sales'
-                    : plan.featured
-                      ? 'Start free trial'
-                      : 'Get started'}
-            </Link>
+                    </div>
+                    <p
+                      className={`mt-2 text-sm ${isDark ? 'text-white/70' : 'text-slate-500'}`}
+                    >
+                      {meta.badge}
+                    </p>
+                    <ul className="mt-6 space-y-3 text-sm">
+                      {meta.features.map((feature) => (
+                        <li key={feature} className="flex items-center gap-3">
+                          <span
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${isDark ? 'bg-white/20 text-white' : 'bg-slate-900/5 text-slate-700'}`}
+                          >
+                            ✓
+                          </span>
+                          <span
+                            className={
+                              isDark ? 'text-white/80' : 'text-slate-600'
+                            }
+                          >
+                            {feature}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href="/integrations"
+                      className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
+                        isDark
+                          ? 'bg-white text-slate-900 hover:bg-slate-100'
+                          : 'bg-slate-900 text-white hover:bg-black'
+                      }`}
+                    >
+                      {type === 'ENTERPRISE'
+                        ? 'Talk to sales'
+                        : 'Start free trial'}
+                    </Link>
+                  </div>
+                );
+              },
+            )}
           </div>
-            ))}
-            </div>
         </div>
       </section>
 
