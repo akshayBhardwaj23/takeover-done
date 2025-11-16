@@ -25,7 +25,7 @@ import {
   Info,
   AlertTriangle,
 } from 'lucide-react';
-import { StatsCardSkeleton } from '../../../components/SkeletonLoaders';
+import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 
 // Integration Card Component
 function IntegrationCard({
