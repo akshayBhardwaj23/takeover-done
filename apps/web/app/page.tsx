@@ -30,13 +30,23 @@ const supportEvents = [
   { id: 'Order #47492', time: '1h ago', intent: 'Invoice resent' },
 ];
 
-const channelCards = [
+type ChannelCard = {
+  name: string;
+  model: string;
+  status: string;
+  badge: string;
+  accent: string;
+  pricePlan?: string;
+};
+
+const channelCards: ChannelCard[] = [
   {
-    name: 'Gmail',
+    name: 'Mail',
     model: 'Support Inbox',
     status: 'Connected',
     badge: 'Primary',
     accent: 'from-blue-500 to-indigo-500',
+    pricePlan: 'Launch',
   },
   {
     name: 'Shopify',
@@ -160,15 +170,49 @@ function AutomationShowcase() {
   ];
 
   const [sceneIndex, setSceneIndex] = useState(0);
+  const [isScenePaused, setIsScenePaused] = useState(false);
+  const loopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(
-      () => setSceneIndex((prev) => (prev + 1) % scenes.length),
-      4000,
-    );
+    if (isScenePaused) return;
 
-    return () => clearInterval(interval);
-  }, [scenes.length]);
+    loopTimeoutRef.current = setTimeout(() => {
+      setSceneIndex((prev) => (prev + 1) % scenes.length);
+    }, 4000);
+
+    return () => {
+      if (loopTimeoutRef.current) {
+        clearTimeout(loopTimeoutRef.current);
+        loopTimeoutRef.current = null;
+      }
+    };
+  }, [sceneIndex, isScenePaused, scenes.length]);
+
+  useEffect(() => {
+    return () => {
+      if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
+      if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
+    };
+  }, []);
+
+  const handleSceneSelect = (index: number) => {
+    setSceneIndex(index);
+    setIsScenePaused(true);
+
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
+    }
+
+    if (pauseTimeoutRef.current) {
+      clearTimeout(pauseTimeoutRef.current);
+    }
+
+    pauseTimeoutRef.current = setTimeout(() => {
+      setIsScenePaused(false);
+    }, 5000);
+  };
 
   const renderSceneContent = (sceneId: AutomationSceneId, isActive: boolean) => {
     switch (sceneId) {
@@ -196,7 +240,7 @@ function AutomationShowcase() {
               </div>
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-200">
                 <span className="text-lg leading-none">✔</span>
-                Refund processed automatically.
+                Replacement processed automatically.
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -427,27 +471,27 @@ function AutomationShowcase() {
           {scenes.map((scene, index) => (
             <div
               key={scene.id}
-              className={`absolute inset-0 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`absolute inset-0 z-10 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 sceneIndex === index
                   ? 'pointer-events-auto translate-y-0 opacity-100'
                   : 'pointer-events-none translate-y-6 opacity-0'
               }`}
+              onClick={() => handleSceneSelect(index)}
             >
               {renderSceneContent(scene.id, sceneIndex === index)}
             </div>
           ))}
           <div
-            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 mix-blend-screen opacity-40 transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
               top: cursorPositions[sceneIndex].top,
               left: cursorPositions[sceneIndex].left,
             }}
           >
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-full border border-white/30 bg-white/15 backdrop-blur" />
-              <div className="absolute inset-1 rounded-full border border-white/20 bg-white/30" />
-              <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
-              <div className="absolute -bottom-4 left-1/2 h-5 w-5 -translate-x-1/2 rotate-45 rounded-md bg-white/70 shadow-lg shadow-cyan-500/20" />
+            <div className="relative h-12 w-12">
+              <div className="absolute inset-0 rounded-full border border-white/30 shadow-[0_0_18px_rgba(255,255,255,0.25)]" />
+              <div className="absolute inset-3 rounded-full border border-white/20" />
+              <div className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80" />
             </div>
           </div>
         </div>
@@ -457,7 +501,7 @@ function AutomationShowcase() {
           <button
             key={scene.id}
             type="button"
-            onClick={() => setSceneIndex(index)}
+            onClick={() => handleSceneSelect(index)}
             className={`h-1 flex-1 rounded-full transition-all duration-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60 ${
               sceneIndex === index
                 ? `scale-y-[1.8] bg-gradient-to-r ${scene.accent} shadow-[0_0_14px_rgba(56,189,248,0.45)]`
@@ -490,7 +534,7 @@ function AutomationPoster() {
           </div>
           <div className="flex items-center gap-2 text-sm font-medium text-emerald-200">
             <span className="text-lg leading-none">✔</span>
-            Refund processed automatically.
+            Replacement processed automatically.
           </div>
         </div>
       </div>
@@ -581,15 +625,89 @@ const faqs = [
   },
 ];
 
-const integrationIcons = [
-  { name: 'Shopify', emoji: '🛍️', gradient: 'from-emerald-400 to-emerald-600' },
-  { name: 'Gmail', emoji: '✉️', gradient: 'from-rose-400 to-red-500' },
-  { name: 'Slack', emoji: '💬', gradient: 'from-purple-400 to-fuchsia-500' },
-  { name: 'Mailgun', emoji: '📨', gradient: 'from-sky-400 to-cyan-500' },
-  { name: 'Meta Ads', emoji: '📣', gradient: 'from-blue-500 to-indigo-500' },
-  { name: 'Google Analytics', emoji: '📊', gradient: 'from-orange-400 to-amber-500' },
-  { name: 'HubSpot', emoji: '🚀', gradient: 'from-amber-500 to-orange-500' },
-  { name: 'Zapier', emoji: '⚙️', gradient: 'from-red-500 to-rose-500' },
+const ShopifyLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <path fill="#A5D6A7" d="M4 8.5 18 4l10 2.5v19L18 28 4 25.5z" />
+    <path fill="#4CAF50" d="M18 4v24l10-3.5v-18z" />
+    <path
+      fill="#fff"
+      d="m15.6 22.6 1.2-8.6c.1-.6.6-1 1.2-1l2.5.1-.3 2.2-1.4-.1-.7 5.8z"
+    />
+    <path fill="#2E7D32" d="M8 10.5 18 4v24l-10-2.5z" opacity=".2" />
+  </svg>
+);
+
+const MailLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <rect x="4" y="7" width="24" height="18" rx="4" fill="#F06292" />
+    <path fill="#fff" d="m6 9 10 8 10-8z" opacity=".9" />
+    <path fill="#F8BBD0" d="m6 23 9.5-7.4c.3-.3.7-.3 1 0L26 23z" />
+  </svg>
+);
+
+const SlackLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <rect x="6" y="6" width="20" height="20" rx="10" fill="#fff" />
+    <path fill="#36C5F0" d="M14 6h2v7h-2a3 3 0 1 1 0-6z" />
+    <path fill="#2EB67D" d="M26 14v2h-7v-2a3 3 0 1 1 6 0z" />
+    <path fill="#ECB22E" d="M18 26h-2v-7h2a3 3 0 1 1 0 6z" />
+    <path fill="#E01E5A" d="M6 18v-2h7v2a3 3 0 1 1-6 0z" />
+  </svg>
+);
+
+const MetaAdsLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <rect x="4" y="6" width="24" height="20" rx="10" fill="#0A84FF" opacity=".2" />
+    <path
+      fill="#0A84FF"
+      d="M10 22c-1.9 0-3-1.5-3-4.2 0-4 2.1-7.8 5.1-7.8 2.4 0 3.6 1.9 5.3 4.8 1.4-2.8 2.7-4.8 5-4.8 2.9 0 4.6 3.7 4.6 7.6 0 3.1-1.2 4.4-2.8 4.4-2.1 0-3.3-2.4-5-5.5-1.5 2.9-2.8 5.5-5.2 5.5-1.3 0-2.4-.7-3.9-3.5l1.3-.7c1 2 1.8 2.6 2.6 2.6 1.5 0 2.7-2.3 4.4-5.7-1.5-2.6-2.4-3.8-3.7-3.8-1.9 0-3.4 2.8-3.4 6.2 0 2 .7 2.9 2 2.9 1.1 0 1.8-.6 2.7-1.5l.8 1c-1 .9-2.1 1.7-3.6 1.7z"
+    />
+  </svg>
+);
+
+const GoogleAnalyticsLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <rect x="6" y="14" width="6" height="12" rx="3" fill="#F9A825" />
+    <rect x="14" y="8" width="6" height="18" rx="3" fill="#FB8C00" />
+    <rect x="22" y="4" width="6" height="22" rx="3" fill="#F4511E" />
+  </svg>
+);
+
+const WooLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <path
+      d="M6 11c0-2.2 1.8-4 4-4h12c2.2 0 4 1.8 4 4v8c0 2.2-1.8 4-4 4H10c-2.2 0-4-1.8-4-4z"
+      fill="#9C27B0"
+    />
+    <path
+      fill="#fff"
+      d="M11.2 18.4 9.6 14h1.6l.7 2.4.8-2.4H14l.8 2.4.7-2.4h1.5l-1.6 4.4h-1.5l-.7-2.1-.7 2.1zm8.6 0c-1.3 0-2.3-1.1-2.3-2.5s1-2.5 2.3-2.5 2.3 1.1 2.3 2.5-1 2.5-2.3 2.5zm0-1.2c.4 0 .7-.5.7-1.3s-.3-1.3-.7-1.3c-.4 0-.7.5-.7 1.3s.3 1.3.7 1.3z"
+    />
+  </svg>
+);
+
+const GoogleAdsLogo = () => (
+  <svg viewBox="0 0 32 32" role="img" aria-hidden className="h-6 w-6">
+    <path d="M10 6h4l8 20h-4z" fill="#F4B400" />
+    <path d="M12 26a4 4 0 1 1 0-8 4 4 0 0 1 0 8z" fill="#0F9D58" />
+    <path d="M16 6h4a4 4 0 0 1 4 4v14h-4z" fill="#4285F4" />
+  </svg>
+);
+
+type IntegrationIcon = {
+  name: string;
+  gradient: string;
+  Icon: () => JSX.Element;
+};
+
+const integrationIcons: IntegrationIcon[] = [
+  { name: 'Shopify', gradient: 'from-emerald-400 to-emerald-600', Icon: ShopifyLogo },
+  { name: 'Mail', gradient: 'from-rose-400 to-red-500', Icon: MailLogo },
+  { name: 'Slack', gradient: 'from-purple-400 to-fuchsia-500', Icon: SlackLogo },
+  { name: 'Meta Ads', gradient: 'from-blue-500 to-indigo-500', Icon: MetaAdsLogo },
+  { name: 'Google Analytics', gradient: 'from-orange-400 to-amber-500', Icon: GoogleAnalyticsLogo },
+  { name: 'WooCommerce', gradient: 'from-purple-500 to-indigo-500', Icon: WooLogo },
+  { name: 'Google Ads', gradient: 'from-sky-500 to-blue-600', Icon: GoogleAdsLogo },
 ];
 
 export default function HomePage() {
@@ -1461,9 +1579,9 @@ export default function HomePage() {
               >
                 <div className="flex items-center gap-3">
                   <span
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tool.gradient} text-xl shadow-inner shadow-white/20 transition duration-300 group-hover:scale-105 group-hover:shadow-[0_0_25px_rgba(59,130,246,0.45)]`}
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${tool.gradient} shadow-inner shadow-white/20 transition duration-300 group-hover:scale-105 group-hover:shadow-[0_0_25px_rgba(59,130,246,0.45)]`}
                   >
-                    {tool.emoji}
+                    <tool.Icon />
                   </span>
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500">
@@ -1476,32 +1594,39 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-14 grid gap-6 md:grid-cols-2">
-            {channelCards.map((card) => (
-              <div
-                key={card.name}
-                className="flex flex-col justify-between rounded-3xl border border-slate-100 bg-slate-50/70 p-6 shadow-lg shadow-slate-900/5 transition hover:-translate-y-1 hover:border-slate-200"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">
-                      {card.name}
-                    </p>
-                    <p className="mt-3 text-2xl font-black text-slate-900">
-                      {card.model}
-                    </p>
+            {channelCards.map((card) => {
+              const plan = card.pricePlan
+                ? pricingPlans.find((pricingPlan) => pricingPlan.name === card.pricePlan)
+                : null;
+              const planPrice = plan ? (annual ? Math.round(plan.price * 0.8) : plan.price) : null;
+
+              return (
+                <div
+                  key={card.name}
+                  className="flex flex-col justify-between rounded-3xl border border-slate-100 bg-slate-50/70 p-6 shadow-lg shadow-slate-900/5 transition hover:-translate-y-1 hover:border-slate-200"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">
+                        {card.name}
+                      </p>
+                      <p className="mt-3 text-2xl font-black text-slate-900">
+                        {card.model}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full bg-gradient-to-r ${card.accent} px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white`}
+                    >
+                      {plan ? plan.name : card.badge}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded-full bg-gradient-to-r ${card.accent} px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white`}
-                  >
-                    {card.badge}
-                      </span>
+                  <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
+                    <span>{plan ? 'Pricing' : 'Status'}</span>
+                    <span>{plan ? `$${planPrice}/seat` : card.status}</span>
+                  </div>
                 </div>
-                <div className="mt-6 flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700">
-                  <span>Status</span>
-                  <span>{card.status}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
               </div>
           <div className="mt-16 grid gap-6 md:grid-cols-3">
             {[

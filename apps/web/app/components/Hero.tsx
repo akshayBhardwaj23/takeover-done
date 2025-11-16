@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const EMAIL_TEXT = `Hey Jordan,
 
@@ -10,38 +10,9 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 
 — ZYYP Autopilot`;
 
-const EQUATION_TOKENS = [
-  'Σ',
-  '∂',
-  '→',
-  '%',
-  'α',
-  'β',
-  'λ',
-  '•',
-  '=',
-  '≈',
-  '⇒',
-  '∂x/∂t',
-  'x = 0.42',
-  'w(t)=Σ(aᵢ·xᵢ)',
-  'softmax(x)',
-  '∇f(x)',
-];
-
-const NEURON_CLUSTERS = [
-  { id: 'left-upper', left: '9%', top: '20%' },
-  { id: 'left-mid', left: '15%', top: '55%' },
-  { id: 'right-upper', left: '78%', top: '18%' },
-  { id: 'right-mid', left: '82%', top: '60%' },
-  { id: 'bottom-center', left: '50%', top: '88%' },
-];
-
-type Parallax = { x: number; y: number };
-
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
-  const [parallax, setParallax] = useState<Parallax>({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     let index = 0;
@@ -66,15 +37,75 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      const { innerWidth, innerHeight } = window;
-      setParallax({
-        x: ((event.clientX - innerWidth / 2) / innerWidth) * 10,
-        y: ((event.clientY - innerHeight / 2) / innerHeight) * 10,
-      });
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resizeCanvas = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     };
-    window.addEventListener('pointermove', handler);
-    return () => window.removeEventListener('pointermove', handler);
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const randomVelocity = () => (Math.random() - 0.5) * 0.25;
+
+    let nodes = Array.from({ length: 72 }).map(() => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      radius: 1.2 + Math.random() * 1.5,
+      opacity: 0.12 + Math.random() * 0.08,
+      vx: randomVelocity(),
+      vy: randomVelocity(),
+    }));
+
+    let animationFrame: number;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      nodes.forEach((n) => {
+        n.x += n.vx;
+        n.y += n.vy;
+
+        if (n.x < -20) n.x = canvas.width + 20;
+        if (n.x > canvas.width + 20) n.x = -20;
+        if (n.y < -20) n.y = canvas.height + 20;
+        if (n.y > canvas.height + 20) n.y = -20;
+
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
+        ctx.fillStyle = `rgba(0,0,0,${n.opacity})`;
+        ctx.filter = 'none';
+        ctx.fill();
+      });
+
+      nodes.forEach((a, i) => {
+        nodes.forEach((b, j) => {
+          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 160) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+        });
+      });
+
+      animationFrame = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    // no overlay labels active
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+    };
   }, []);
 
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
@@ -88,10 +119,11 @@ export default function Hero() {
           fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
-        <NeuronBackground parallax={parallax} />
-        <EquationField parallax={parallax} />
+        <div className="hero-bg absolute inset-0">
+          <canvas ref={canvasRef} id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
+        </div>
 
-        <div className="relative z-10 mt-6 flex max-w-5xl flex-col items-center text-center gap-7">
+        <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
             ZYYP AUTOPILOT
           </div>
@@ -100,8 +132,8 @@ export default function Hero() {
               className="text-4xl font-semibold leading-tight text-[#1A1A1A] md:text-6xl lg:text-[64px]"
               style={{ letterSpacing: '0.2px', fontFamily: '"Satoshi Black","Neue Montreal",sans-serif' }}
             >
-              Meet <span className="gradient-text font-black">ZYYP</span> — Your{' '}
-              <span className="gradient-text font-black">AI Autopilot</span> for Support, Analytics & Growth.
+              Meet <span className="gradient-text font-black">ZYYP</span> — Your <span className="gradient-text font-black">AI Autopilot</span> for Support,
+              Analytics & Growth.
             </h1>
             <span className="block h-px w-32 bg-gradient-to-r from-transparent via-[#1A1A1A]/20 to-transparent" />
           </div>
@@ -124,7 +156,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="relative z-10 mt-12 flex w-full max-w-5xl justify-center px-4">
+        <div className="relative z-10 mt-12 w-full max-w-5xl px-4">
           <LivePreviewPanel text={typedPreview} progress={previewProgress} />
         </div>
       </section>
@@ -144,6 +176,39 @@ export default function Hero() {
           animation: shimmer 7s linear infinite;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
+        }
+        .hero-bg {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+        .hero-bg::before,
+        .hero-bg::after {
+          content: '';
+          position: absolute;
+          width: 520px;
+          height: 520px;
+          border-radius: 9999px;
+          background: radial-gradient(circle, rgba(255, 214, 190, 0.22), transparent 65%);
+          opacity: 0.45;
+        }
+        .hero-bg::before {
+          bottom: 5%;
+          left: -10%;
+        }
+        .hero-bg::after {
+          top: 0;
+          right: -15%;
+          background: radial-gradient(circle, rgba(209, 215, 230, 0.34), transparent 65%);
+        }
+        #neuronCanvas {
+          opacity: 0.32;
+          mix-blend-mode: normal;
+        }
+        .hero-content {
+          position: relative;
+          z-index: 2;
         }
       `}</style>
     </>
@@ -214,150 +279,6 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
         </div>
       </div>
     </motion.div>
-  );
-}
-
-function NeuronBackground({ parallax }: { parallax: Parallax }) {
-  const clusters = useMemo(
-    () =>
-      NEURON_CLUSTERS.map((cluster) => ({
-        ...cluster,
-        nodes: Array.from({ length: 5 }).map((_, index) => ({
-          id: `${cluster.id}-node-${index}`,
-          x: (Math.random() - 0.5) * 70,
-          y: (Math.random() - 0.5) * 50,
-        })),
-      })),
-    [],
-  );
-
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 z-0"
-      style={{
-        maskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
-        WebkitMaskImage: 'radial-gradient(circle at center, rgba(0,0,0,0.55), transparent 75%)',
-      }}
-    >
-      {clusters.map((cluster) => (
-        <div key={cluster.id} className="absolute" style={{ left: cluster.left, top: cluster.top }}>
-          {cluster.nodes.map((node, index) => (
-            <motion.span
-              key={node.id}
-              className="absolute block rounded-full"
-              style={{
-                width: index % 2 === 0 ? 3 : 4,
-                height: index % 2 === 0 ? 3 : 4,
-                background:
-                  'radial-gradient(circle, rgba(255,165,100,0.35) 0%, rgba(255,165,100,0) 70%)',
-                boxShadow: '0 0 6px rgba(255,165,100,0.25)',
-                left: `${node.x}px`,
-                top: `${node.y}px`,
-              }}
-              animate={{
-                x: [node.x, node.x + parallax.x * 0.3, node.x],
-                y: [node.y, node.y + parallax.y * 0.3 + (index % 2 === 0 ? 1 : -1), node.y],
-                opacity: [0.95, 1, 0.95],
-              }}
-              transition={{ duration: 9 + index, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          ))}
-          {cluster.nodes.slice(0, cluster.nodes.length - 1).map((node, index) => {
-            const next = cluster.nodes[index + 1];
-            const dx = next.x - node.x;
-            const dy = next.y - node.y;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-            return (
-              <motion.span
-                key={`${cluster.id}-line-${index}`}
-                className="absolute block origin-left rounded-full"
-                style={{
-                  left: `${node.x}px`,
-                  top: `${node.y}px`,
-                  width: length,
-                  height: 1,
-                  background: 'rgba(0,0,0,0.06)',
-                  transform: `rotate(${angle}deg)`,
-                }}
-                animate={{ opacity: [0.6, 0.9, 0.6], x: [0, parallax.x * 0.1, 0], y: [0, parallax.y * 0.1, 0] }}
-                transition={{ duration: 10 + index, repeat: Infinity, ease: 'easeInOut' }}
-              />
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EquationField({ parallax }: { parallax: Parallax }) {
-  const layers = useMemo(() => {
-    const generateLayer = (count: number, blur: number, opacity: number, speed: number) =>
-      Array.from({ length: count }).map((_, index) => {
-        let left = 0;
-        let top = 0;
-        do {
-          left = Math.random() * 100;
-          top = Math.random() * 100;
-        } while (left > 30 && left < 70 && top > 28 && top < 68);
-        return {
-          id: `eq-${blur}-${index}`,
-          token: EQUATION_TOKENS[Math.floor(Math.random() * EQUATION_TOKENS.length)],
-          left,
-          top,
-          blur,
-          opacity,
-          duration: speed + Math.random() * 4,
-          driftX: (Math.random() - 0.5) * 25,
-          driftY: (Math.random() - 0.5) * 25,
-          scale: 0.8 + Math.random() * 0.6,
-          rotation: -10 + Math.random() * 20,
-          delay: Math.random() * 2,
-        };
-      });
-    return {
-      near: generateLayer(12, 2, 0.08, 10),
-      mid: generateLayer(14, 4, 0.05, 14),
-      far: generateLayer(18, 6, 0.03, 18),
-    };
-  }, []);
-
-  const renderLayer = (items: ReturnType<typeof useMemo>['near'], depth: number) =>
-    items.map((item) => (
-      <motion.span
-        key={item.id}
-        className="absolute text-base font-light tracking-wide"
-        style={{
-          left: `${item.left}%`,
-          top: `${item.top}%`,
-          color: depth === 0 ? 'rgba(0,0,0,0.08)' : depth === 1 ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.03)',
-          filter: `blur(${item.blur}px)`,
-          fontSize: `${item.scale}rem`,
-          transform: `rotate(${item.rotation}deg) translateZ(0)`,
-        }}
-        animate={{
-          opacity: [item.opacity * 0.6, item.opacity, item.opacity * 0.6],
-          x: [0, item.driftX + parallax.x * 0.2, 0],
-          y: [0, item.driftY + parallax.y * 0.2, 0],
-        }}
-        transition={{
-          duration: item.duration,
-          repeat: Infinity,
-          ease: 'easeInOut',
-          delay: item.delay,
-        }}
-      >
-        {item.token}
-      </motion.span>
-    ));
-
-  return (
-    <div className="pointer-events-none absolute inset-0 z-[1] overflow-hidden">
-      {renderLayer(layers.far, 2)}
-      {renderLayer(layers.mid, 1)}
-      {renderLayer(layers.near, 0)}
-    </div>
   );
 }
 
