@@ -1947,6 +1947,47 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return { orders: [] };
       }
     }),
+  // Paginated orders list from DB for the current user (used by Inbox "Load more")
+  ordersList: protectedProcedure
+    .input(
+      z.object({
+        offset: z.number().min(0).default(0),
+        limit: z.number().min(1).max(50).default(10),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      // Fetch all connection IDs for this user
+      const connections = await prisma.connection.findMany({
+        where: { userId: ctx.userId },
+        select: { id: true },
+      });
+      const connectionIds = connections.map((c) => c.id);
+      if (connectionIds.length === 0) {
+        return { orders: [], hasMore: false };
+      }
+      // Page through orders by createdAt desc using offset/limit
+      const orders = await prisma.order.findMany({
+        where: { connectionId: { in: connectionIds } },
+        orderBy: { createdAt: 'desc' },
+        skip: input.offset,
+        take: input.limit + 1, // fetch one extra to detect hasMore
+        select: {
+          id: true,
+          shopifyId: true,
+          name: true,
+          email: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          shopDomain: true,
+          connectionId: true,
+        },
+      });
+      const hasMore = orders.length > input.limit;
+      const page = hasMore ? orders.slice(0, input.limit) : orders;
+      return { orders: page, hasMore };
+    }),
   getAnalytics: protectedProcedure.query(async ({ ctx }) => {
     try {
       // Get user's connections for scoping

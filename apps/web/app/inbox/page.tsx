@@ -177,14 +177,21 @@ export default function InboxPage() {
     },
   );
 
-  // Create aliases from inboxBootstrap to maintain existing code compatibility
-  const dbOrders = {
-    data: inboxBootstrap.data
-      ? { orders: inboxBootstrap.data.orders }
-      : undefined,
-    isLoading: inboxBootstrap.isLoading,
-    refetch: inboxBootstrap.refetch,
-  };
+  // Paginated orders list (DB) for "Load more"
+  const PAGE_SIZE = 10;
+  const [ordersOffset, setOrdersOffset] = useState(0);
+  const ordersPage = trpc.ordersList.useQuery(
+    { offset: ordersOffset, limit: PAGE_SIZE },
+    { keepPreviousData: true, staleTime: 30_000, refetchOnWindowFocus: false },
+  );
+  const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
+  useEffect(() => {
+    const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
+    setOrdersAccum((prev) =>
+      ordersOffset === 0 ? incoming : [...prev, ...incoming],
+    );
+  }, [ordersPage.data, ordersOffset]);
+  const hasMoreOrders = ordersPage.data?.hasMore ?? false;
   const unassigned = {
     data: unassignedQuery.data,
     isLoading: unassignedQuery.isLoading,
@@ -277,10 +284,7 @@ export default function InboxPage() {
     if (aiSuggestion?.reply && !draft) setDraft(aiSuggestion.reply);
   }, [aiSuggestion, draft]);
 
-  const orders = useMemo(
-    () => (dbOrders.data?.orders ?? []) as DbOrder[],
-    [dbOrders.data?.orders],
-  );
+  const orders = useMemo(() => ordersAccum, [ordersAccum]);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order.shopifyId === selectedOrderId) ?? null,
@@ -664,7 +668,7 @@ export default function InboxPage() {
                   </div>
                 </div>
                 <div className="divide-y divide-slate-200">
-                  {dbOrders.isLoading ? (
+                  {ordersPage.isLoading && ordersOffset === 0 ? (
                     <div className="space-y-2 p-4">
                       {[1, 2, 3, 4].map((key) => (
                         <OrderCardSkeleton key={key} />
@@ -723,8 +727,12 @@ export default function InboxPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="line-clamp-1 text-sm text-slate-600">
-                              {preview?.subject ||
+                            <p
+                              className={`text-sm text-slate-600 ${
+                                preview?.subject ? 'line-clamp-1' : ''
+                              }`}
+                            >
+                              {preview?.subject ??
                                 'Select to load latest email'}
                             </p>
                             <p className="mt-1 text-xs text-slate-500">
@@ -740,6 +748,22 @@ export default function InboxPage() {
                     </div>
                   )}
                 </div>
+                {linkedPreviews.length > 0 && (
+                  <div className="px-4 py-3">
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-full border-slate-200 text-sm text-slate-600"
+                      onClick={() => setOrdersOffset(orders.length)}
+                      disabled={ordersPage.isFetching || !hasMoreOrders}
+                    >
+                      {ordersPage.isFetching
+                        ? 'Loading…'
+                        : hasMoreOrders
+                          ? 'Load more'
+                          : 'No more orders'}
+                    </Button>
+                  </div>
+                )}
               </Card>
 
               <aside className="space-y-4">
