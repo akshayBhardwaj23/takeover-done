@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
+import { Input } from '../../../../@ai-ecom/api/components/ui/input';
 import {
   TrendingUp,
   TrendingDown,
@@ -27,17 +29,192 @@ import {
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 
+// Connection Modal Component
+function ConnectionModal({
+  isOpen,
+  onClose,
+  platform,
+  onConnect,
+  isConnecting,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  platform: 'meta' | 'google';
+  onConnect: (data: any) => void;
+  isConnecting: boolean;
+}) {
+  const [metaAccessToken, setMetaAccessToken] = useState('');
+  const [metaAdAccountId, setMetaAdAccountId] = useState('');
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleClientSecret, setGoogleClientSecret] = useState('');
+  const [googleRefreshToken, setGoogleRefreshToken] = useState('');
+  const [googleCustomerId, setGoogleCustomerId] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (platform === 'meta') {
+      onConnect({ accessToken: metaAccessToken, adAccountId: metaAdAccountId });
+    } else {
+      onConnect({
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        refreshToken: googleRefreshToken,
+        customerId: googleCustomerId,
+      });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-10">
+      <div
+        className="modal-overlay absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="modal-container relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+              Connect {platform === 'meta' ? 'Meta Ads' : 'Google Ads'}
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              Enter your API credentials
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="rounded-full border-slate-200 text-xs font-semibold text-slate-600"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6">
+          {platform === 'meta' ? (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Access Token
+                </label>
+                <Input
+                  type="password"
+                  value={metaAccessToken}
+                  onChange={(e) => setMetaAccessToken(e.target.value)}
+                  placeholder="Enter Meta Ads access token"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Get your access token from Meta Business Settings
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Ad Account ID
+                </label>
+                <Input
+                  value={metaAdAccountId}
+                  onChange={(e) => setMetaAdAccountId(e.target.value)}
+                  placeholder="act_123456789"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+                <p className="mt-1 text-xs text-slate-500">
+                  Format: act_ followed by your account ID
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Client ID
+                </label>
+                <Input
+                  value={googleClientId}
+                  onChange={(e) => setGoogleClientId(e.target.value)}
+                  placeholder="Enter Google Ads Client ID"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Client Secret
+                </label>
+                <Input
+                  type="password"
+                  value={googleClientSecret}
+                  onChange={(e) => setGoogleClientSecret(e.target.value)}
+                  placeholder="Enter Google Ads Client Secret"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Refresh Token
+                </label>
+                <Input
+                  type="password"
+                  value={googleRefreshToken}
+                  onChange={(e) => setGoogleRefreshToken(e.target.value)}
+                  placeholder="Enter Refresh Token"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-900">
+                  Customer ID
+                </label>
+                <Input
+                  value={googleCustomerId}
+                  onChange={(e) => setGoogleCustomerId(e.target.value)}
+                  placeholder="123-456-7890"
+                  required
+                  className="rounded-xl border-slate-200"
+                />
+              </div>
+            </div>
+          )}
+          <div className="mt-6 flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 rounded-full border-slate-200 text-slate-600"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1 rounded-full bg-slate-900 text-white hover:bg-black"
+              disabled={isConnecting}
+            >
+              {isConnecting ? 'Connecting...' : 'Connect'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Integration Card Component
 function IntegrationCard({
   name,
   isConnected,
   accountId,
   onConnect,
+  onDisconnect,
 }: {
   name: string;
   isConnected: boolean;
   accountId?: string;
   onConnect: () => void;
+  onDisconnect: () => void;
 }) {
   return (
     <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -69,16 +246,33 @@ function IntegrationCard({
           )}
         </div>
       </div>
-      <Button
-        onClick={onConnect}
-        className={`mt-4 w-full rounded-full ${
-          isConnected
-            ? 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            : 'bg-slate-900 text-white hover:bg-black'
-        }`}
-      >
-        {isConnected ? 'Manage Connection' : `Connect ${name}`}
-      </Button>
+      <div className="mt-4 flex gap-2">
+        {isConnected ? (
+          <>
+            <Button
+              onClick={onConnect}
+              variant="outline"
+              className="flex-1 rounded-full border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Update
+            </Button>
+            <Button
+              onClick={onDisconnect}
+              variant="outline"
+              className="rounded-full border-rose-200 text-rose-600 hover:bg-rose-50"
+            >
+              Disconnect
+            </Button>
+          </>
+        ) : (
+          <Button
+            onClick={onConnect}
+            className="w-full rounded-full bg-slate-900 text-white hover:bg-black"
+          >
+            Connect {name}
+          </Button>
+        )}
+      </div>
     </Card>
   );
 }
@@ -345,9 +539,8 @@ function ApprovalModal({
 }
 
 export default function AdvertisementsPage() {
-  const [metaConnected, setMetaConnected] = useState(false);
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [metaModalOpen, setMetaModalOpen] = useState(false);
+  const [googleModalOpen, setGoogleModalOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'meta' | 'google'>('all');
   const [flagLowROAS, setFlagLowROAS] = useState(false);
   const [adDescription, setAdDescription] = useState('');
@@ -356,10 +549,61 @@ export default function AdvertisementsPage() {
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [approvalPlatform, setApprovalPlatform] = useState<'meta' | 'google'>('meta');
 
-  // Simulate loading
-  useEffect(() => {
-    setTimeout(() => setIsLoading(false), 1000);
-  }, []);
+  // Fetch connections
+  const { data: connectionsData } = trpc.connections.useQuery();
+  const metaConnection = (connectionsData?.connections || []).find(
+    (c: any) => c.type === 'META_ADS',
+  );
+  const googleConnection = (connectionsData?.connections || []).find(
+    (c: any) => c.type === 'GOOGLE_ADS',
+  );
+
+  const metaConnected = !!metaConnection;
+  const googleConnected = !!googleConnection;
+  const metaAccountId = metaConnection?.metadata?.adAccountId as string | undefined;
+  const googleCustomerId = googleConnection?.metadata?.customerId as string | undefined;
+
+  // Fetch ad data
+  const { data: metaAdsData, isLoading: metaAdsLoading } = trpc.getMetaAdsData.useQuery(
+    undefined,
+    {
+      enabled: metaConnected,
+      refetchInterval: 60000, // Refetch every minute
+    },
+  );
+  const { data: googleAdsData, isLoading: googleAdsLoading } = trpc.getGoogleAdsData.useQuery(
+    undefined,
+    {
+      enabled: googleConnected,
+      refetchInterval: 60000,
+    },
+  );
+
+  // Connection mutations
+  const utils = (trpc as any).useUtils();
+  const connectMeta = trpc.connectMetaAds.useMutation({
+    onSuccess: () => {
+      setMetaModalOpen(false);
+      utils.connections.invalidate();
+      utils.getMetaAdsData.invalidate();
+    },
+  });
+  const connectGoogle = trpc.connectGoogleAds.useMutation({
+    onSuccess: () => {
+      setGoogleModalOpen(false);
+      utils.connections.invalidate();
+      utils.getGoogleAdsData.invalidate();
+    },
+  });
+  const disconnectAds = trpc.disconnectAdsConnection.useMutation({
+    onSuccess: () => {
+      utils.connections.invalidate();
+      utils.getMetaAdsData.invalidate();
+      utils.getGoogleAdsData.invalidate();
+    },
+  });
+
+  const isLoading = metaAdsLoading || googleAdsLoading;
 
   const performanceCards = [
     {
@@ -392,51 +636,32 @@ export default function AdvertisementsPage() {
     },
   ];
 
+  // Transform API data to campaigns format
   const campaigns = [
-    {
-      name: 'Summer Sale 2024',
+    ...(metaAdsData?.campaigns || []).map((campaign: any) => ({
+      name: campaign.name || 'Unnamed Campaign',
       platform: 'Meta' as const,
-      spend: '$2,450',
-      revenue: '$12,180',
-      roas: '4.97x',
-      ctr: '3.2%',
-      cpc: '$0.42',
-      cpm: '$8.50',
-      status: 'Active' as const,
-    },
-    {
-      name: 'Product Launch Campaign',
+      spend: campaign.spend ? `$${parseFloat(campaign.spend).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00',
+      revenue: 'N/A', // Meta API doesn't provide revenue directly
+      roas: campaign.spend && campaign.clicks ? `${(parseFloat(campaign.spend) / parseFloat(campaign.clicks)).toFixed(2)}x` : '0.00x',
+      ctr: campaign.ctr ? `${(parseFloat(campaign.ctr) * 100).toFixed(2)}%` : '0.00%',
+      cpc: campaign.cpc ? `$${parseFloat(campaign.cpc).toFixed(2)}` : '$0.00',
+      cpm: campaign.cpm ? `$${parseFloat(campaign.cpm).toFixed(2)}` : '$0.00',
+      status: (campaign.status === 'ACTIVE' || campaign.status === 'PAUSED') ? campaign.status : 'Active' as const,
+      id: campaign.id,
+    })),
+    ...(googleAdsData?.campaigns || []).map((campaign: any) => ({
+      name: campaign.name || 'Unnamed Campaign',
       platform: 'Google' as const,
-      spend: '$1,890',
-      revenue: '$9,450',
-      roas: '5.00x',
-      ctr: '4.1%',
-      cpc: '$0.58',
-      cpm: '$12.30',
-      status: 'Active' as const,
-    },
-    {
-      name: 'Retargeting - Abandoned Cart',
-      platform: 'Meta' as const,
-      spend: '$3,200',
-      revenue: '$8,960',
-      roas: '2.80x',
-      ctr: '2.1%',
-      cpc: '$0.35',
-      cpm: '$7.20',
-      status: 'Active' as const,
-    },
-    {
-      name: 'Brand Awareness Q2',
-      platform: 'Google' as const,
-      spend: '$1,240',
-      revenue: '$2,480',
-      roas: '2.00x',
-      ctr: '1.5%',
-      cpc: '$0.72',
-      cpm: '$15.80',
-      status: 'Paused' as const,
-    },
+      spend: campaign.cost ? `$${parseFloat(campaign.cost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00',
+      revenue: 'N/A',
+      roas: 'N/A',
+      ctr: campaign.ctr ? `${(parseFloat(campaign.ctr) * 100).toFixed(2)}%` : '0.00%',
+      cpc: campaign.average_cpc ? `$${parseFloat(campaign.average_cpc).toFixed(2)}` : '$0.00',
+      cpm: 'N/A',
+      status: campaign.status === 'ENABLED' ? 'Active' as const : 'Paused' as const,
+      id: campaign.id,
+    })),
   ];
 
   const recommendations = [
@@ -492,12 +717,37 @@ export default function AdvertisementsPage() {
     if (selectedPlatform !== 'all' && campaign.platform.toLowerCase() !== selectedPlatform) {
       return false;
     }
-    if (flagLowROAS) {
+    if (flagLowROAS && campaign.roas !== 'N/A') {
       const roasValue = parseFloat(campaign.roas.replace('x', ''));
       return roasValue < 3.0;
     }
     return true;
   });
+
+  const handleConnectMeta = (data: { accessToken: string; adAccountId: string }) => {
+    connectMeta.mutate(data);
+  };
+
+  const handleConnectGoogle = (data: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+    customerId: string;
+  }) => {
+    connectGoogle.mutate(data);
+  };
+
+  const handleDisconnectMeta = () => {
+    if (confirm('Are you sure you want to disconnect Meta Ads?')) {
+      disconnectAds.mutate({ type: 'META_ADS' });
+    }
+  };
+
+  const handleDisconnectGoogle = () => {
+    if (confirm('Are you sure you want to disconnect Google Ads?')) {
+      disconnectAds.mutate({ type: 'GOOGLE_ADS' });
+    }
+  };
 
   const handleGenerateAd = () => {
     if (!adDescription.trim()) return;
@@ -562,14 +812,16 @@ export default function AdvertisementsPage() {
             <IntegrationCard
               name="Meta Ads"
               isConnected={metaConnected}
-              accountId={metaConnected ? 'act_123456789' : undefined}
-              onConnect={() => setMetaConnected(!metaConnected)}
+              accountId={metaAccountId}
+              onConnect={() => setMetaModalOpen(true)}
+              onDisconnect={handleDisconnectMeta}
             />
             <IntegrationCard
               name="Google Ads"
               isConnected={googleConnected}
-              accountId={googleConnected ? '123-456-7890' : undefined}
-              onConnect={() => setGoogleConnected(!googleConnected)}
+              accountId={googleCustomerId}
+              onConnect={() => setGoogleModalOpen(true)}
+              onDisconnect={handleDisconnectGoogle}
             />
           </div>
         </section>
@@ -833,6 +1085,22 @@ export default function AdvertisementsPage() {
           </div>
         </section>
       </div>
+
+      {/* Connection Modals */}
+      <ConnectionModal
+        isOpen={metaModalOpen}
+        onClose={() => setMetaModalOpen(false)}
+        platform="meta"
+        onConnect={handleConnectMeta}
+        isConnecting={connectMeta.isPending}
+      />
+      <ConnectionModal
+        isOpen={googleModalOpen}
+        onClose={() => setGoogleModalOpen(false)}
+        platform="google"
+        onConnect={handleConnectGoogle}
+        isConnecting={connectGoogle.isPending}
+      />
 
       {/* Approval Modal */}
       <ApprovalModal
