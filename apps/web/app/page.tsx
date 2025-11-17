@@ -2038,7 +2038,11 @@ export default function HomePage() {
                       ))}
                     </ul>
                     <Link
-                      href="mailto:hi@zyyp.ai"
+                      href={
+                        type === 'ENTERPRISE'
+                          ? 'mailto:hi@zyyp.ai'
+                          : '/integrations'
+                      }
                       className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
                         isDark
                           ? 'bg-white text-slate-900 hover:bg-slate-100'
@@ -2180,12 +2184,10 @@ export default function HomePage() {
               Launch your inbox
             </Link>
             <a
-              href="https://cal.com/notus/demo"
+              href="/demo"
               className="rounded-full border border-white/30 px-10 py-3 text-sm font-semibold text-white transition hover:border-white"
-              target="_blank"
-              rel="noreferrer"
             >
-              Book a walkthrough
+              Live Demo
             </a>
           </div>
         </div>
