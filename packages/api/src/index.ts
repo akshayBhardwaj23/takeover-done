@@ -24,7 +24,7 @@ import {
   PLAN_PRICING,
   type Currency,
 } from './payments/currency';
-import { decryptSecure } from './crypto';
+import { decryptSecure, encryptSecure } from './crypto';
 import {
   sanitizeLimited,
   safeEmail,
@@ -3405,6 +3405,285 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         console.error('Error fetching playbook executions:', error);
         return { executions: [] };
       }
+    }),
+  // Meta Ads Integration
+  connectMetaAds: protectedProcedure
+    .input(
+      z.object({
+        accessToken: z.string().min(1, 'Access token is required'),
+        adAccountId: z.string().min(1, 'Ad account ID is required'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify token by making a test API call
+        const testResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${input.adAccountId}?fields=id,name,account_status&access_token=${input.accessToken}`,
+        );
+        if (!testResponse.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid access token or ad account ID',
+          });
+        }
+
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'META_ADS',
+          },
+        });
+
+        const encryptedToken = encryptSecure(input.accessToken);
+        const metadata = {
+          adAccountId: input.adAccountId,
+          connectedAt: new Date().toISOString(),
+        };
+
+        if (existing) {
+          // Update existing connection
+          const updated = await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: encryptedToken,
+              metadata,
+              updatedAt: new Date(),
+            },
+          });
+          await logEvent('ads.meta.connected', { adAccountId: input.adAccountId }, 'connection', ctx.userId);
+          return { connection: updated };
+        } else {
+          // Create new connection
+          const created = await prisma.connection.create({
+            data: {
+              userId: ctx.userId,
+              type: 'META_ADS',
+              accessToken: encryptedToken,
+              metadata,
+            },
+          });
+          await logEvent('ads.meta.connected', { adAccountId: input.adAccountId }, 'connection', ctx.userId);
+          return { connection: created };
+        }
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error connecting Meta Ads:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to connect Meta Ads',
+        });
+      }
+    }),
+  // Google Ads Integration
+  connectGoogleAds: protectedProcedure
+    .input(
+      z.object({
+        clientId: z.string().min(1, 'Client ID is required'),
+        clientSecret: z.string().min(1, 'Client secret is required'),
+        refreshToken: z.string().min(1, 'Refresh token is required'),
+        customerId: z.string().min(1, 'Customer ID is required'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify credentials by getting access token
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: input.clientId,
+            client_secret: input.clientSecret,
+            refresh_token: input.refreshToken,
+            grant_type: 'refresh_token',
+          }),
+        });
+
+        if (!tokenResponse.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid Google Ads credentials',
+          });
+        }
+
+        const tokenData = (await tokenResponse.json()) as { access_token: string };
+        
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'GOOGLE_ADS',
+          },
+        });
+
+        const encryptedAccessToken = encryptSecure(tokenData.access_token);
+        const encryptedRefreshToken = encryptSecure(input.refreshToken);
+        const metadata = {
+          clientId: input.clientId,
+          customerId: input.customerId,
+          connectedAt: new Date().toISOString(),
+        };
+
+        if (existing) {
+          // Update existing connection
+          const updated = await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              metadata,
+              updatedAt: new Date(),
+            },
+          });
+          await logEvent('ads.google.connected', { customerId: input.customerId }, 'connection', ctx.userId);
+          return { connection: updated };
+        } else {
+          // Create new connection
+          const created = await prisma.connection.create({
+            data: {
+              userId: ctx.userId,
+              type: 'GOOGLE_ADS',
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              metadata,
+            },
+          });
+          await logEvent('ads.google.connected', { customerId: input.customerId }, 'connection', ctx.userId);
+          return { connection: created };
+        }
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error connecting Google Ads:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to connect Google Ads',
+        });
+      }
+    }),
+  // Get Meta Ads Data
+  getMetaAdsData: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        },
+      });
+
+      if (!connection) {
+        return { campaigns: [], adsets: [] };
+      }
+
+      const accessToken = decryptSecure(connection.accessToken);
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const adAccountId = (metadata.adAccountId as string) || '';
+
+      if (!adAccountId) {
+        return { campaigns: [], adsets: [] };
+      }
+
+      // Fetch campaigns
+      const campaignsResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${adAccountId}/campaigns?fields=id,name,status,objective,spend,impressions,clicks,ctr,cpc,cpm&limit=50&access_token=${accessToken}`,
+      );
+
+      let campaigns: any[] = [];
+      if (campaignsResponse.ok) {
+        const campaignsData = (await campaignsResponse.json()) as { data: any[] };
+        campaigns = campaignsData.data || [];
+      }
+
+      // Fetch adsets
+      const adsetsResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${adAccountId}/adsets?fields=id,name,status,campaign_id,spend,impressions,clicks,ctr,cpc,cpm&limit=50&access_token=${accessToken}`,
+      );
+
+      let adsets: any[] = [];
+      if (adsetsResponse.ok) {
+        const adsetsData = (await adsetsResponse.json()) as { data: any[] };
+        adsets = adsetsData.data || [];
+      }
+
+      return { campaigns, adsets };
+    } catch (error: any) {
+      console.error('Error fetching Meta Ads data:', error);
+      return { campaigns: [], adsets: [] };
+    }
+  }),
+  // Get Google Ads Data
+  getGoogleAdsData: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ADS',
+        },
+      });
+
+      if (!connection) {
+        return { campaigns: [] };
+      }
+
+      const accessToken = decryptSecure(connection.accessToken);
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const customerId = (metadata.customerId as string) || '';
+
+      if (!customerId) {
+        return { campaigns: [] };
+      }
+
+      // Fetch campaigns using Google Ads API
+      // Note: This is a simplified version. Real implementation would use google-ads-api library
+      const query = `
+        SELECT 
+          campaign.id,
+          campaign.name,
+          campaign.status,
+          campaign.advertising_channel_type,
+          metrics.cost_micros,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.ctr,
+          metrics.average_cpc,
+          metrics.cost_micros / 1000000.0 as cost
+        FROM campaign
+        WHERE campaign.status != 'REMOVED'
+        ORDER BY metrics.impressions DESC
+        LIMIT 50
+      `;
+
+      // For now, return empty array. Real implementation would use Google Ads API client
+      // This requires the google-ads-api npm package
+      return { campaigns: [] };
+    } catch (error: any) {
+      console.error('Error fetching Google Ads data:', error);
+      return { campaigns: [] };
+    }
+  }),
+  // Disconnect Ads Connection
+  disconnectAdsConnection: protectedProcedure
+    .input(z.object({ type: z.enum(['META_ADS', 'GOOGLE_ADS']) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: input.type,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found',
+        });
+      }
+
+      await prisma.connection.delete({
+        where: { id: connection.id },
+      });
+
+      await logEvent(`ads.${input.type.toLowerCase()}.disconnected`, {}, 'connection', ctx.userId);
+      return { success: true };
     }),
 });
 

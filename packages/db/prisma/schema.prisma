@@ -199,6 +199,8 @@ enum ConnectionType {
   SHOPIFY
   GMAIL
   CUSTOM_EMAIL
+  META_ADS
+  GOOGLE_ADS
 }
 
 enum PlaybookCategory {
