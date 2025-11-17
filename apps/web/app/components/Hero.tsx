@@ -56,16 +56,16 @@ export default function Hero() {
     };
 
     const mobileOptimized = () => window.innerWidth < 640;
-    const randomVelocity = () => (Math.random() - 0.5) * (mobileOptimized() ? 0.15 : 0.25);
+    const randomVelocity = () => (Math.random() - 0.5) * (mobileOptimized() ? 0.18 : 0.27);
 
     configureCanvas();
 
     let nodes = Array.from({
-      length: mobileOptimized() ? 34 : 72,
+      length: mobileOptimized() ? 42 : 72,
     }).map(() => ({
       x: Math.random() * window.innerWidth,
       y: Math.random() * window.innerHeight,
-      radius: mobileOptimized() ? 1 + Math.random() * 1.2 : 1.2 + Math.random() * 1.5,
+      radius: mobileOptimized() ? 1.4 + Math.random() * 1.3 : 1.2 + Math.random() * 1.5,
       opacity: 0.12 + Math.random() * 0.08,
       vx: randomVelocity(),
       vy: randomVelocity(),
@@ -74,11 +74,11 @@ export default function Hero() {
     const handleResize = () => {
       configureCanvas();
       nodes = Array.from({
-        length: mobileOptimized() ? 34 : 72,
+        length: mobileOptimized() ? 42 : 72,
       }).map(() => ({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        radius: mobileOptimized() ? 1 + Math.random() * 1.2 : 1.2 + Math.random() * 1.5,
+        radius: mobileOptimized() ? 1.4 + Math.random() * 1.3 : 1.2 + Math.random() * 1.5,
         opacity: 0.12 + Math.random() * 0.08,
         vx: randomVelocity(),
         vy: randomVelocity(),
@@ -93,7 +93,7 @@ export default function Hero() {
       ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       const boundaryPadding = mobileOptimized() ? 12 : 20;
       const linkDistance = mobileOptimized() ? 110 : 160;
-      const strokeOpacity = mobileOptimized() ? 0.1 : 0.14;
+      const strokeOpacity = mobileOptimized() ? 0.25 : 0.14;
 
       nodes.forEach((n) => {
         n.x += n.vx;
@@ -119,7 +119,7 @@ export default function Hero() {
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
             ctx.strokeStyle = `rgba(0,0,0,${strokeOpacity})`;
-            ctx.lineWidth = mobileOptimized() ? 0.8 : 1;
+            ctx.lineWidth = mobileOptimized() ? 1.2 : 1;
             ctx.stroke();
           }
         }
@@ -143,7 +143,7 @@ export default function Hero() {
   return (
     <>
       <section
-        className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A]"
+        className="relative flex min-h-[900px] w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A] md:min-h-screen"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
@@ -265,10 +265,13 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
           transition={{ duration: 2.6, repeat: Infinity }}
         >
           <p className="font-semibold text-[#1A1A1A]">AI drafting reply…</p>
-          <p className="mt-4 whitespace-pre-line text-base text-[#1A1A1A]/80">
-            {text}
-            <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
-          </p>
+          <div className="relative mt-4 max-h-[220px] overflow-hidden">
+            <p className="whitespace-pre-line text-base leading-relaxed text-[#1A1A1A]/80">
+              {text}
+              <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
+            </p>
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/70 to-transparent" />
+          </div>
         </motion.div>
         <div className="flex flex-col gap-5">
           <motion.div
