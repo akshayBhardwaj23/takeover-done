@@ -638,7 +638,7 @@ const FALLBACK_PRICES: Record<PlanKey, { label: string; cadence: string }> = {
 
 const faqs = [
   {
-    question: 'What problem does the AI E-Commerce Support Assistant solve?',
+    question: 'What problem does ZYYP solve?',
     answer:
       'We centralize customer emails, Shopify order data, and AI replies in one workspace so your team resolves issues without juggling tools or copy-pasting order details.',
   },
@@ -655,7 +655,7 @@ const faqs = [
   {
     question: 'What channels do you support out of the box?',
     answer:
-      'Shopify, Gmail, Outlook, Slack, and Mailgun are supported today. More channels like Zendesk and Gorgias are on our roadmap.',
+      'Shopify, Mail, Slack, and Meta Ads are supported today. More channels like Zendesk and Gorgias are on our roadmap.',
   },
   {
     question: 'How is my customer data protected?',
@@ -1626,13 +1626,13 @@ export default function HomePage() {
             </div>
             <div className="flex flex-wrap gap-4">
               <Link
-                href="/usage"
+                href="/integrations"
                 className="rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold tracking-wide text-white transition hover:-translate-y-0.5 hover:bg-black"
               >
                 Explore the inbox
               </Link>
               <a
-                href="mailto:hello@notus.ai"
+                href="mailto:hi@zyyp.ai"
                 className="rounded-full border border-slate-900/10 px-7 py-3 text-sm font-semibold tracking-wide text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-900/20"
               >
                 Talk to us
@@ -2124,7 +2124,7 @@ export default function HomePage() {
             <p className="mt-4 text-lg text-slate-600">
               Find all your doubts and questions in one place. Still need help?{' '}
               <a
-                href="mailto:hello@notus.ai"
+                href="mailto:hi@zyyp.ai"
                 className="underline decoration-slate-300 underline-offset-4 transition hover:decoration-slate-500"
               >
                 Email our team
@@ -2169,9 +2169,8 @@ export default function HomePage() {
             Deliver five-star support without adding headcount
           </h2>
           <p className="max-w-3xl text-lg text-white/70">
-            Connect Shopify, sync your inbox, and let the AI E-Commerce Support
-            Assistant handle the repetitive work. Your team approves,
-            personalizes, and delivers delight.
+            Connect Shopify, sync your inbox, and let ZYYP handle the repetitive
+            work. Your team approves, personalizes, and delivers delight.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
