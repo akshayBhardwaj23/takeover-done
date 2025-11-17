@@ -13,6 +13,16 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [enableNeurons, setEnableNeurons] = useState(false);
+
+  useEffect(() => {
+    const update = () => {
+      setEnableNeurons(window.innerWidth >= 640);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useEffect(() => {
     let index = 0;
@@ -37,6 +47,8 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
+    if (!enableNeurons) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -136,21 +148,27 @@ export default function Hero() {
       window.removeEventListener('resize', handleResize);
       if (animationFrame) cancelAnimationFrame(animationFrame);
     };
-  }, []);
+  }, [enableNeurons]);
 
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <>
       <section
-        className="relative flex min-h-[900px] w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A] md:min-h-screen"
+        className="relative flex h-[900px] w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A] md:h-auto md:min-h-screen"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
         <div className="hero-bg absolute inset-0">
-          <canvas ref={canvasRef} id="neuronCanvas" className="absolute inset-0 h-full w-full pointer-events-none" />
+          {enableNeurons && (
+            <canvas
+              ref={canvasRef}
+              id="neuronCanvas"
+              className="absolute inset-0 h-full w-full pointer-events-none"
+            />
+          )}
         </div>
 
         <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
