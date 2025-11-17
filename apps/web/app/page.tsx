@@ -2038,7 +2038,7 @@ export default function HomePage() {
                       ))}
                     </ul>
                     <Link
-                      href="/integrations"
+                      href="mailto:hi@zyyp.ai"
                       className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
                         isDark
                           ? 'bg-white text-slate-900 hover:bg-slate-100'
@@ -2046,7 +2046,7 @@ export default function HomePage() {
                       }`}
                     >
                       {type === 'ENTERPRISE'
-                        ? 'Talk to sales'
+                        ? 'Talk to us'
                         : 'Start free trial'}
                     </Link>
                   </div>
