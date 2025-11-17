@@ -280,7 +280,7 @@ function AutomationShowcase() {
                   follow-up.
                 </p>
               </div>
-              <div className="grid grid-cols-3 gap-3 text-xs text-white/70">
+              <div className="grid grid-cols-1 gap-3 text-xs text-white/70 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-xl border border-white/10 bg-white/5 p-3">
                   <p className="uppercase tracking-[0.25em] text-white/40">
                     Audience
@@ -974,7 +974,7 @@ export default function HomePage() {
 
               {/* Scene 1 */}
               <div
-                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                className={`absolute inset-0 px-5 py-6 transition-all duration-600 sm:px-8 sm:py-8 lg:px-10 ${
                   activeScene === 0
                     ? 'translate-y-0 opacity-100'
                     : 'translate-y-6 opacity-0'
@@ -1009,7 +1009,7 @@ export default function HomePage() {
 
               {/* Scene 2 */}
               <div
-                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                className={`absolute inset-0 px-5 py-6 transition-all duration-600 sm:px-8 sm:py-8 lg:px-10 ${
                   activeScene === 1
                     ? 'translate-y-0 opacity-100'
                     : 'translate-y-6 opacity-0'
@@ -1052,7 +1052,7 @@ export default function HomePage() {
 
               {/* Scene 3 */}
               <div
-                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                className={`absolute inset-0 px-5 py-6 transition-all duration-600 sm:px-8 sm:py-8 lg:px-10 ${
                   activeScene === 2
                     ? 'translate-y-0 opacity-100'
                     : 'translate-y-6 opacity-0'
@@ -1099,7 +1099,7 @@ export default function HomePage() {
 
               {/* Scene 4 */}
               <div
-                className={`absolute inset-0 px-10 py-8 transition-all duration-600 ${
+                className={`absolute inset-0 px-5 py-6 transition-all duration-600 sm:px-8 sm:py-8 lg:px-10 ${
                   activeScene === 3
                     ? 'translate-y-0 opacity-100'
                     : 'translate-y-6 opacity-0'
@@ -1578,7 +1578,7 @@ export default function HomePage() {
 
       {/* How it works */}
       <section id="how-it-works" className="bg-slate-50 py-20">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <h2 className="text-3xl font-black text-slate-900 md:text-4xl">
               How the assistant works end-to-end
@@ -1796,7 +1796,7 @@ export default function HomePage() {
               );
             })}
           </div>
-          <div className="mt-16 grid gap-6 md:grid-cols-3">
+          <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
             {[
               {
                 title: 'Unified support inbox',
@@ -1841,7 +1841,7 @@ export default function HomePage() {
               process.
             </p>
           </div>
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+          <div className="mt-14 grid grid-cols-1 gap-6 md:grid-cols-3">
             {useCases.map((useCase) => (
               <div
                 key={useCase.title}
@@ -1859,7 +1859,7 @@ export default function HomePage() {
 
       {/* Benefits */}
       <section id="blog" className="bg-white py-20">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-6 lg:grid-cols-[1fr_1fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-slate-500">
               Benefits
@@ -1885,7 +1885,7 @@ export default function HomePage() {
                   </p>
                 </div>
               </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
                 {[
                   { label: 'Tickets triaged', value: '2,483 / wk' },
                   { label: 'Avg handle time', value: '4m 12s' },
@@ -1950,7 +1950,7 @@ export default function HomePage() {
               recommending and what your team approves.
             </p>
           </div>
-          <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {supportEvents.map((event) => (
               <div
                 key={event.id}
@@ -1984,7 +1984,7 @@ export default function HomePage() {
             </p>
           </div>
           {/* Pricing is sourced from the Pricing page config to stay consistent */}
-          <div className="mt-12 grid gap-8 md:grid-cols-4">
+          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">
             {(['STARTER', 'GROWTH', 'PRO', 'ENTERPRISE'] as PlanKey[]).map(
               (type) => {
                 const meta = PLAN_META[type];
@@ -2059,7 +2059,7 @@ export default function HomePage() {
 
       {/* Security */}
       <section className="bg-slate-900 py-20 text-white">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-6 lg:grid-cols-[1fr_1fr]">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.35em] text-white/60">
               For security first teams
