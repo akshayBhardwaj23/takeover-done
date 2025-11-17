@@ -42,38 +42,67 @@ export default function Hero() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    const configureCanvas = () => {
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(pixelRatio, pixelRatio);
     };
 
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+    const mobileOptimized = () => window.innerWidth < 640;
+    const randomVelocity = () => (Math.random() - 0.5) * (mobileOptimized() ? 0.15 : 0.25);
 
-    const randomVelocity = () => (Math.random() - 0.5) * 0.25;
+    configureCanvas();
 
-    let nodes = Array.from({ length: 72 }).map(() => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      radius: 1.2 + Math.random() * 1.5,
+    let nodes = Array.from({
+      length: mobileOptimized() ? 34 : 72,
+    }).map(() => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      radius: mobileOptimized() ? 1 + Math.random() * 1.2 : 1.2 + Math.random() * 1.5,
       opacity: 0.12 + Math.random() * 0.08,
       vx: randomVelocity(),
       vy: randomVelocity(),
     }));
 
+    const handleResize = () => {
+      configureCanvas();
+      nodes = Array.from({
+        length: mobileOptimized() ? 34 : 72,
+      }).map(() => ({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        radius: mobileOptimized() ? 1 + Math.random() * 1.2 : 1.2 + Math.random() * 1.5,
+        opacity: 0.12 + Math.random() * 0.08,
+        vx: randomVelocity(),
+        vy: randomVelocity(),
+      }));
+    };
+
+    window.addEventListener('resize', handleResize);
+
     let animationFrame: number;
 
     const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const boundaryPadding = mobileOptimized() ? 12 : 20;
+      const linkDistance = mobileOptimized() ? 110 : 160;
+      const strokeOpacity = mobileOptimized() ? 0.1 : 0.14;
 
       nodes.forEach((n) => {
         n.x += n.vx;
         n.y += n.vy;
 
-        if (n.x < -20) n.x = canvas.width + 20;
-        if (n.x > canvas.width + 20) n.x = -20;
-        if (n.y < -20) n.y = canvas.height + 20;
-        if (n.y > canvas.height + 20) n.y = -20;
+        if (n.x < -boundaryPadding) n.x = window.innerWidth + boundaryPadding;
+        if (n.x > window.innerWidth + boundaryPadding) n.x = -boundaryPadding;
+        if (n.y < -boundaryPadding) n.y = window.innerHeight + boundaryPadding;
+        if (n.y > window.innerHeight + boundaryPadding) n.y = -boundaryPadding;
 
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.radius, 0, 2 * Math.PI);
@@ -83,16 +112,17 @@ export default function Hero() {
       });
 
       nodes.forEach((a, i) => {
-        nodes.forEach((b, j) => {
-          if (i !== j && Math.hypot(a.x - b.x, a.y - b.y) < 160) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const b = nodes[j];
+          if (Math.hypot(a.x - b.x, a.y - b.y) < linkDistance) {
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
-            ctx.strokeStyle = 'rgba(0,0,0,0.14)';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = `rgba(0,0,0,${strokeOpacity})`;
+            ctx.lineWidth = mobileOptimized() ? 0.8 : 1;
             ctx.stroke();
           }
-        });
+        }
       });
 
       animationFrame = requestAnimationFrame(draw);
@@ -103,7 +133,7 @@ export default function Hero() {
     // no overlay labels active
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('resize', handleResize);
       if (animationFrame) cancelAnimationFrame(animationFrame);
     };
   }, []);
@@ -222,13 +252,13 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
   return (
     <motion.div
       id="live-demo"
-      className="w-full max-w-[115%] rounded-[24px] border border-white/70 bg-white/80 p-10 text-left text-[#1A1A1A] backdrop-blur-[20px] shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
+      className="w-full max-w-full rounded-[24px] border border-white/70 bg-white/85 px-5 py-6 text-left text-[#1A1A1A] backdrop-blur-[16px] shadow-[0_12px_40px_rgba(0,0,0,0.08)] sm:px-7 sm:py-8 lg:p-10"
       initial={{ opacity: 0, y: 40, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.8, ease: 'easeOut' }}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/60">Live drafter preview</p>
-      <div className="mt-6 grid gap-6 md:grid-cols-[1.15fr_0.95fr]">
+      <div className="mt-6 grid gap-5 md:grid-cols-[1.15fr_0.95fr]">
         <motion.div
           className="rounded-2xl border border-white/80 bg-white/85 p-6 text-sm leading-relaxed shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
           animate={{ opacity: [0.85, 1, 0.85] }}

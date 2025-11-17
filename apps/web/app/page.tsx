@@ -171,27 +171,27 @@ function AutomationShowcase() {
 
   const [sceneIndex, setSceneIndex] = useState(0);
   const [isScenePaused, setIsScenePaused] = useState(false);
-  const loopTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loopTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pauseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isScenePaused) return;
 
-    loopTimeoutRef.current = setTimeout(() => {
+    loopTimeoutRef.current = setInterval(() => {
       setSceneIndex((prev) => (prev + 1) % scenes.length);
     }, 4000);
 
     return () => {
       if (loopTimeoutRef.current) {
-        clearTimeout(loopTimeoutRef.current);
+        clearInterval(loopTimeoutRef.current);
         loopTimeoutRef.current = null;
       }
     };
-  }, [sceneIndex, isScenePaused, scenes.length]);
+  }, [isScenePaused, scenes.length]);
 
   useEffect(() => {
     return () => {
-      if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
+      if (loopTimeoutRef.current) clearInterval(loopTimeoutRef.current);
       if (pauseTimeoutRef.current) clearTimeout(pauseTimeoutRef.current);
     };
   }, []);
@@ -201,7 +201,7 @@ function AutomationShowcase() {
     setIsScenePaused(true);
 
     if (loopTimeoutRef.current) {
-      clearTimeout(loopTimeoutRef.current);
+      clearInterval(loopTimeoutRef.current);
       loopTimeoutRef.current = null;
     }
 
