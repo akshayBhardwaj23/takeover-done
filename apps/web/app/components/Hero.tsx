@@ -155,7 +155,7 @@ export default function Hero() {
   return (
     <>
       <section
-        className="relative flex w-full flex-col items-center justify-center overflow-hidden px-6 py-[120px] text-[#1A1A1A] min-h-[900px] md:py-[170px] md:min-h-screen"
+        className="relative flex w-full flex-col items-center justify-center overflow-hidden px-6 pt-[140px] pb-[80px] text-[#1A1A1A] min-h-[900px] md:pt-[170px] md:pb-[120px] md:min-h-screen"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
@@ -171,7 +171,7 @@ export default function Hero() {
           )}
         </div>
 
-        <div className="hero-content relative z-10 mt-6 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
+        <div className="hero-content relative z-10 mx-auto flex max-w-5xl flex-col items-center gap-7 text-center">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/70 shadow-[0_6px_20px_rgba(0,0,0,0.04)]">
             ZYYP AUTOPILOT
           </div>
@@ -278,17 +278,16 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
       <p className="text-xs font-semibold uppercase tracking-[0.35em] text-[#1A1A1A]/60">Live drafter preview</p>
       <div className="mt-6 grid gap-5 md:grid-cols-[1.15fr_0.95fr]">
         <motion.div
-          className="rounded-2xl border border-white/80 bg-white/85 p-6 text-sm leading-relaxed shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
+          className="flex flex-col rounded-2xl border border-white/80 bg-white/85 p-6 text-sm leading-relaxed shadow-[0_12px_40px_rgba(0,0,0,0.08)]"
           animate={{ opacity: [0.85, 1, 0.85] }}
           transition={{ duration: 2.6, repeat: Infinity }}
         >
           <p className="font-semibold text-[#1A1A1A]">AI drafting reply…</p>
-          <div className="relative mt-4 h-[220px] overflow-hidden sm:h-[260px]">
-            <p className="whitespace-pre-line text-base leading-relaxed text-[#1A1A1A]/80">
+          <div className="relative mt-4 h-[200px] overflow-y-auto overflow-x-hidden">
+            <p className="whitespace-pre-line text-base leading-relaxed text-[#1A1A1A]/80 pr-2">
               {text}
               <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
             </p>
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/70 to-transparent" />
           </div>
         </motion.div>
         <div className="flex flex-col gap-5">
