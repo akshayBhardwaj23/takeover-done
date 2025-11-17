@@ -13,7 +13,7 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [enableNeurons, setEnableNeurons] = useState(false);
+  const [enableNeurons, setEnableNeurons] = useState(true);
 
   useEffect(() => {
     const update = () => {
@@ -155,7 +155,7 @@ export default function Hero() {
   return (
     <>
       <section
-        className="relative flex h-[900px] w-full flex-col items-center justify-center overflow-hidden px-6 py-[170px] text-[#1A1A1A] md:h-auto md:min-h-screen"
+        className="relative flex w-full flex-col items-center justify-center overflow-hidden px-6 py-[120px] text-[#1A1A1A] min-h-[900px] md:py-[170px] md:min-h-screen"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
@@ -283,12 +283,12 @@ function LivePreviewPanel({ text, progress }: { text: string; progress: number }
           transition={{ duration: 2.6, repeat: Infinity }}
         >
           <p className="font-semibold text-[#1A1A1A]">AI drafting reply…</p>
-          <div className="relative mt-4 max-h-[220px] overflow-hidden">
+          <div className="relative mt-4 h-[220px] overflow-hidden sm:h-[260px]">
             <p className="whitespace-pre-line text-base leading-relaxed text-[#1A1A1A]/80">
               {text}
               <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
             </p>
-            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white via-white/70 to-transparent" />
+            <span className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-white via-white/70 to-transparent" />
           </div>
         </motion.div>
         <div className="flex flex-col gap-5">
