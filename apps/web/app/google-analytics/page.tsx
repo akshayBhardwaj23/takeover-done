@@ -23,8 +23,29 @@ function GoogleAnalyticsInner() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('7d');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
 
-  const connections = trpc.connections.useQuery();
-  const properties = trpc.getGoogleAnalyticsProperties.useQuery();
+  const connections = trpc.connections.useQuery(undefined, {
+    onError: (error) => {
+      console.error('[GA Page] Connections query error:', error);
+    },
+    onSuccess: (data) => {
+      console.log('[GA Page] Connections loaded:', {
+        total: data?.connections?.length || 0,
+        gaConnections: data?.connections?.filter((c: any) => c.type === 'GOOGLE_ANALYTICS').length || 0,
+      });
+    },
+  });
+  
+  const properties = trpc.getGoogleAnalyticsProperties.useQuery(undefined, {
+    onError: (error) => {
+      console.error('[GA Page] Properties query error:', error);
+    },
+    onSuccess: (data) => {
+      console.log('[GA Page] Properties loaded:', {
+        count: data?.properties?.length || 0,
+        properties: data?.properties?.map((p: any) => ({ id: p.propertyId, name: p.propertyName })),
+      });
+    },
+  });
   const updateProperty = trpc.updateGoogleAnalyticsProperty.useMutation({
     onSuccess: () => {
       // Refetch connections to get updated metadata
@@ -87,17 +108,41 @@ function GoogleAnalyticsInner() {
 
   // Debug logging
   useEffect(() => {
-    console.log('[GA Page] State:', {
+    const allConnections = connections.data?.connections || [];
+    const allConnectionTypes = allConnections.map((c: any) => c.type);
+    
+    console.log('[GA Page] Full State:', {
       selectedPropertyId,
       defaultPropertyId,
       effectivePropertyId,
-      hasConnections: gaConnections.length > 0,
+      connectionsLoading: connections.isLoading,
+      connectionsError: connections.error?.message,
+      totalConnections: allConnections.length,
+      allConnectionTypes,
+      gaConnectionsCount: gaConnections.length,
+      gaConnections: gaConnections.map((c: any) => ({ id: c.id, type: c.type, metadata: c.metadata })),
+      propertiesLoading: properties.isLoading,
+      propertiesError: properties.error?.message,
       propertiesCount: properties.data?.properties?.length || 0,
       analyticsStatus: analytics.status,
       analyticsError: analytics.error?.message,
-      isLoading: analytics.isLoading,
+      analyticsLoading: analytics.isLoading,
     });
-  }, [selectedPropertyId, defaultPropertyId, effectivePropertyId, gaConnections.length, properties.data?.properties?.length, analytics.status, analytics.error, analytics.isLoading]);
+  }, [
+    selectedPropertyId, 
+    defaultPropertyId, 
+    effectivePropertyId, 
+    connections.data, 
+    connections.isLoading,
+    connections.error,
+    gaConnections, 
+    properties.data, 
+    properties.isLoading,
+    properties.error,
+    analytics.status, 
+    analytics.error, 
+    analytics.isLoading
+  ]);
 
   // Handle property selection change
   const handlePropertyChange = (propertyId: string) => {

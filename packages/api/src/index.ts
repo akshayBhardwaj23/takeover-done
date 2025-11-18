@@ -3725,6 +3725,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {
+      console.log(
+        '[GA Properties API] Fetching properties for user:',
+        ctx.userId,
+      );
+
       const connection = await prisma.connection.findFirst({
         where: {
           userId: ctx.userId,
@@ -3733,18 +3738,35 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
 
       if (!connection) {
+        console.log('[GA Properties API] No GA connection found for user');
         return { properties: [] };
       }
+
+      console.log('[GA Properties API] Connection found:', {
+        connectionId: connection.id,
+        hasAccessToken: !!connection.accessToken,
+        hasRefreshToken: !!connection.refreshToken,
+        metadata: connection.metadata,
+      });
 
       const accessToken = decryptSecure(connection.accessToken);
       const refreshToken = connection.refreshToken
         ? connection.refreshToken
         : null;
 
+      console.log('[GA Properties API] Calling listGA4Properties...');
       const properties = await listGA4Properties(accessToken, refreshToken);
+      console.log('[GA Properties API] Properties fetched:', {
+        count: properties.length,
+        propertyIds: properties.map((p) => p.propertyId),
+      });
+
       return { properties };
     } catch (error: any) {
-      console.error('Error fetching GA4 properties:', error);
+      console.error('[GA Properties API] Error fetching GA4 properties:', {
+        error: error.message,
+        stack: error.stack,
+      });
       return { properties: [] };
     }
   }),
