@@ -71,10 +71,33 @@ function GoogleAnalyticsInner() {
     },
     { 
       enabled: !!effectivePropertyId,
-      retry: 2,
+      retry: 1,
       refetchOnWindowFocus: false,
+      onError: (error) => {
+        console.error('[GA Page] Analytics query error:', error);
+      },
+      onSuccess: (data) => {
+        console.log('[GA Page] Analytics data loaded:', { 
+          sessions: data.sessions, 
+          users: data.users 
+        });
+      },
     },
   );
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[GA Page] State:', {
+      selectedPropertyId,
+      defaultPropertyId,
+      effectivePropertyId,
+      hasConnections: gaConnections.length > 0,
+      propertiesCount: properties.data?.properties?.length || 0,
+      analyticsStatus: analytics.status,
+      analyticsError: analytics.error?.message,
+      isLoading: analytics.isLoading,
+    });
+  }, [selectedPropertyId, defaultPropertyId, effectivePropertyId, gaConnections.length, properties.data?.properties?.length, analytics.status, analytics.error, analytics.isLoading]);
 
   // Handle property selection change
   const handlePropertyChange = (propertyId: string) => {
@@ -151,7 +174,11 @@ function GoogleAnalyticsInner() {
     );
   }
 
+  // Show loading or waiting for property selection
   if (analytics.isLoading || !effectivePropertyId) {
+    const isWaitingForProperty = !effectivePropertyId && properties.isLoading;
+    const isWaitingForData = effectivePropertyId && analytics.isLoading;
+    
     return (
       <main className="min-h-screen bg-slate-100 py-28">
         <div className="mx-auto max-w-6xl space-y-8 px-6">
@@ -164,15 +191,26 @@ function GoogleAnalyticsInner() {
                 Google Analytics
               </h1>
               <p className="text-sm text-slate-500">
-                Website traffic and performance insights
+                {isWaitingForProperty 
+                  ? 'Loading available properties...' 
+                  : isWaitingForData 
+                    ? 'Loading analytics data...' 
+                    : 'Website traffic and performance insights'}
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <StatsCardSkeleton key={i} />
-            ))}
-          </div>
+          {isWaitingForProperty ? (
+            <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+              <p className="mt-4 text-sm text-slate-600">Loading Google Analytics properties...</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <StatsCardSkeleton key={i} />
+              ))}
+            </div>
+          )}
         </div>
       </main>
     );

@@ -3759,6 +3759,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     )
     .query(async ({ input, ctx }) => {
       try {
+        console.log('[GA API] Fetching analytics data:', {
+          userId: ctx.userId,
+          inputPropertyId: input.propertyId,
+          hasStartDate: !!input.startDate,
+          hasEndDate: !!input.endDate,
+        });
+
         const connection = await prisma.connection.findFirst({
           where: {
             userId: ctx.userId,
@@ -3767,6 +3774,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
 
         if (!connection) {
+          console.error('[GA API] No connection found for user:', ctx.userId);
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Google Analytics not connected',
@@ -3777,12 +3785,23 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const propertyId =
           input.propertyId || (metadata.propertyId as string) || '';
 
+        console.log('[GA API] Property ID:', {
+          inputPropertyId: input.propertyId,
+          metadataPropertyId: metadata.propertyId,
+          finalPropertyId: propertyId,
+        });
+
         if (!propertyId) {
+          console.error('[GA API] No property ID available');
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: 'No GA4 property ID specified',
+            message:
+              'No GA4 property ID specified. Please select a property from the dropdown.',
           });
         }
+
+        // Clean property ID - remove 'properties/' prefix if present
+        const cleanPropertyId = propertyId.replace(/^properties\//, '');
 
         // Default to last 7 days
         const endDate = input.endDate || new Date().toISOString().split('T')[0];
@@ -3792,22 +3811,37 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             .toISOString()
             .split('T')[0];
 
+        console.log('[GA API] Date range:', { startDate, endDate });
+
         const accessToken = decryptSecure(connection.accessToken);
         const refreshToken = connection.refreshToken
           ? connection.refreshToken
           : null;
 
+        console.log(
+          '[GA API] Calling fetchGA4Analytics with property ID:',
+          cleanPropertyId,
+        );
         const analyticsData = await fetchGA4Analytics(
-          propertyId,
+          cleanPropertyId,
           accessToken,
           refreshToken,
           startDate,
           endDate,
         );
 
+        console.log('[GA API] Analytics data fetched successfully:', {
+          sessions: analyticsData.sessions,
+          users: analyticsData.users,
+        });
+
         return analyticsData;
       } catch (error: any) {
-        console.error('Error fetching GA4 analytics:', error);
+        console.error('[GA API] Error fetching GA4 analytics:', {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+        });
         if (error instanceof TRPCError) {
           throw error;
         }
