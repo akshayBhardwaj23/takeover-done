@@ -113,7 +113,7 @@ function IntegrationsInner() {
   const disconnectGA = trpc.disconnectGoogleAnalytics.useMutation({
     onSuccess: () => {
       utils.connections.invalidate();
-      setDisconnectGADialogOpen(null);
+      setDisconnectGADialogOpen(false);
       toast.success('Google Analytics disconnected successfully');
     },
     onError: (error) => {
@@ -123,8 +123,11 @@ function IntegrationsInner() {
   const [shopInput, setShopInput] = useState('');
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
-  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<string | null>(null);
-  const [disconnectGADialogOpen, setDisconnectGADialogOpen] = useState<boolean>(false);
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<
+    string | null
+  >(null);
+  const [disconnectGADialogOpen, setDisconnectGADialogOpen] =
+    useState<boolean>(false);
   const [isConnectingShopify, setIsConnectingShopify] = useState(false);
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
@@ -270,7 +273,10 @@ function IntegrationsInner() {
             </div>
             <Badge className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
               <Sparkles className="h-3.5 w-3.5" />
-              {shopifyConnections.length + emailConnections.length + gaConnections.length} Active
+              {shopifyConnections.length +
+                emailConnections.length +
+                gaConnections.length}{' '}
+              Active
             </Badge>
           </header>
 
@@ -449,7 +455,9 @@ function IntegrationsInner() {
                                   <Dialog
                                     open={disconnectDialogOpen === c.id}
                                     onOpenChange={(open) =>
-                                      setDisconnectDialogOpen(open ? c.id : null)
+                                      setDisconnectDialogOpen(
+                                        open ? c.id : null,
+                                      )
                                     }
                                   >
                                     <DialogTrigger asChild>
@@ -480,12 +488,12 @@ function IntegrationsInner() {
                                           <span className="font-semibold text-slate-900">
                                             {deriveStoreName(c)}
                                           </span>
-                                          ? This will remove the store from your dashboard and stop
-                                          syncing new orders.
+                                          ? This will remove the store from your
+                                          dashboard and stop syncing new orders.
                                         </p>
                                         <p className="text-xs text-slate-500">
-                                          You can reconnect this store at any time from the
-                                          integrations page.
+                                          You can reconnect this store at any
+                                          time from the integrations page.
                                         </p>
                                       </div>
                                       <DialogFooter className="sm:justify-end">
@@ -494,7 +502,9 @@ function IntegrationsInner() {
                                             type="button"
                                             variant="outline"
                                             className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                                            onClick={() => setDisconnectDialogOpen(null)}
+                                            onClick={() =>
+                                              setDisconnectDialogOpen(null)
+                                            }
                                           >
                                             Cancel
                                           </Button>
@@ -502,7 +512,9 @@ function IntegrationsInner() {
                                             type="button"
                                             className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
                                             onClick={() => {
-                                              disconnectStore.mutate({ connectionId: c.id });
+                                              disconnectStore.mutate({
+                                                connectionId: c.id,
+                                              });
                                             }}
                                             disabled={disconnectStore.isPending}
                                           >
@@ -773,7 +785,8 @@ function IntegrationsInner() {
                       Google Analytics
                     </h2>
                     <p className="text-sm text-slate-500">
-                      Connect your GA4 property to view website analytics and insights.
+                      Connect your GA4 property to view website analytics and
+                      insights.
                     </p>
                   </div>
                   {gaConnections.length === 0 && (
@@ -804,14 +817,19 @@ function IntegrationsInner() {
                       <p className="font-semibold text-slate-700">
                         No Google Analytics connected yet
                       </p>
-                      <p>Connect your GA4 property to unlock website analytics.</p>
+                      <p>
+                        Connect your GA4 property to unlock website analytics.
+                      </p>
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-200">
                       {gaConnections.map((c) => {
-                        const metadata = (c.metadata as Record<string, unknown>) || {};
-                        const propertyName = (metadata.propertyName as string) || 'GA4 Property';
-                        const propertyId = (metadata.propertyId as string) || '';
+                        const metadata =
+                          (c.metadata as Record<string, unknown>) || {};
+                        const propertyName =
+                          (metadata.propertyName as string) || 'GA4 Property';
+                        const propertyId =
+                          (metadata.propertyId as string) || '';
                         return (
                           <div
                             key={c.id}
@@ -870,10 +888,12 @@ function IntegrationsInner() {
                                       <span className="font-semibold text-slate-900">
                                         {propertyName}
                                       </span>
-                                      ? This will remove the connection and stop syncing analytics data.
+                                      ? This will remove the connection and stop
+                                      syncing analytics data.
                                     </p>
                                     <p className="text-xs text-slate-500">
-                                      You can reconnect at any time from the integrations page.
+                                      You can reconnect at any time from the
+                                      integrations page.
                                     </p>
                                   </div>
                                   <DialogFooter className="sm:justify-end">
@@ -882,7 +902,9 @@ function IntegrationsInner() {
                                         type="button"
                                         variant="outline"
                                         className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                                        onClick={() => setDisconnectGADialogOpen(false)}
+                                        onClick={() =>
+                                          setDisconnectGADialogOpen(false)
+                                        }
                                       >
                                         Cancel
                                       </Button>
