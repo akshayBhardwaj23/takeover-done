@@ -121,40 +121,91 @@ export async function listGA4Properties(
     for (const account of accountsData.accounts) {
       const accountId = account.name.replace('accounts/', '');
       
-      const propertiesRes = await fetch(
-        `https://analyticsadmin.googleapis.com/v1beta/${account.name}/properties`,
-        {
-          headers: {
-            Authorization: `Bearer ${validToken}`,
+      try {
+        // Try the account-specific properties endpoint
+        const propertiesRes = await fetch(
+          `https://analyticsadmin.googleapis.com/v1beta/${account.name}/properties`,
+          {
+            headers: {
+              Authorization: `Bearer ${validToken}`,
+            },
           },
-        },
-      );
+        );
 
-      if (propertiesRes.ok) {
-        const propertiesData = (await propertiesRes.json()) as {
-          properties?: Array<{ name: string; displayName?: string }>;
-        };
+        if (propertiesRes.ok) {
+          const propertiesData = (await propertiesRes.json()) as {
+            properties?: Array<{ name: string; displayName?: string }>;
+          };
 
-        if (propertiesData.properties) {
-          console.log(`[GA] Found ${propertiesData.properties.length} properties in account ${accountId}`);
-          for (const property of propertiesData.properties) {
-            const propertyId = property.name.replace('properties/', '');
-            properties.push({
-              propertyId,
-              propertyName: property.displayName || propertyId,
-              accountId,
+          if (propertiesData.properties && propertiesData.properties.length > 0) {
+            console.log(`[GA] Found ${propertiesData.properties.length} properties in account ${accountId}`);
+            for (const property of propertiesData.properties) {
+              const propertyId = property.name.replace('properties/', '');
+              properties.push({
+                propertyId,
+                propertyName: property.displayName || propertyId,
+                accountId,
+              });
+            }
+          } else {
+            console.log(`[GA] No properties found in account ${accountId}`);
+          }
+        } else if (propertiesRes.status === 404) {
+          // 404 means this account doesn't have properties accessible via this endpoint
+          // Try listing all properties globally instead
+          console.log(`[GA] Account ${accountId} returned 404, trying global properties list...`);
+          
+          const globalPropertiesRes = await fetch(
+            'https://analyticsadmin.googleapis.com/v1beta/properties',
+            {
+              headers: {
+                Authorization: `Bearer ${validToken}`,
+              },
+            },
+          );
+
+          if (globalPropertiesRes.ok) {
+            const globalPropertiesData = (await globalPropertiesRes.json()) as {
+              properties?: Array<{ name: string; displayName?: string; parent?: string }>;
+            };
+
+            if (globalPropertiesData.properties) {
+              // Filter properties that belong to this account
+              const accountProperties = globalPropertiesData.properties.filter(
+                (prop) => prop.parent === account.name
+              );
+
+              if (accountProperties.length > 0) {
+                console.log(`[GA] Found ${accountProperties.length} properties for account ${accountId} via global list`);
+                for (const property of accountProperties) {
+                  const propertyId = property.name.replace('properties/', '');
+                  properties.push({
+                    propertyId,
+                    propertyName: property.displayName || propertyId,
+                    accountId,
+                  });
+                }
+              } else {
+                console.log(`[GA] No properties found for account ${accountId} in global list`);
+              }
+            }
+          } else {
+            const errorText = await globalPropertiesRes.text();
+            console.warn(`[GA] Global properties list also failed for account ${accountId}:`, {
+              status: globalPropertiesRes.status,
+              error: errorText.substring(0, 200),
             });
           }
         } else {
-          console.log(`[GA] No properties found in account ${accountId}`);
+          const errorText = await propertiesRes.text();
+          console.error(`[GA] Failed to fetch properties for account ${accountId}:`, {
+            status: propertiesRes.status,
+            statusText: propertiesRes.statusText,
+            error: errorText.substring(0, 200),
+          });
         }
-      } else {
-        const errorText = await propertiesRes.text();
-        console.error(`[GA] Failed to fetch properties for account ${accountId}:`, {
-          status: propertiesRes.status,
-          statusText: propertiesRes.statusText,
-          error: errorText,
-        });
+      } catch (error: any) {
+        console.error(`[GA] Error fetching properties for account ${accountId}:`, error.message);
       }
     }
 
