@@ -144,6 +144,57 @@ export async function GET(req: NextRequest) {
           } else {
             const errorText = await propertiesRes.text();
             results.tests.listProperties.error = errorText;
+            
+            // If 404, try global properties endpoint
+            if (propertiesRes.status === 404) {
+              console.log('Trying global properties endpoint...');
+              try {
+                const globalPropertiesRes = await fetch(
+                  'https://analyticsadmin.googleapis.com/v1beta/properties',
+                  {
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                  },
+                );
+
+                results.tests.listPropertiesGlobal = {
+                  status: globalPropertiesRes.status,
+                  statusText: globalPropertiesRes.statusText,
+                  ok: globalPropertiesRes.ok,
+                };
+
+                if (globalPropertiesRes.ok) {
+                  const globalPropertiesData = await globalPropertiesRes.json();
+                  results.tests.listPropertiesGlobal.data = globalPropertiesData;
+                  results.tests.listPropertiesGlobal.success = true;
+                  
+                  // Filter by account if we have properties
+                  if (globalPropertiesData.properties) {
+                    const accountProperties = globalPropertiesData.properties.filter(
+                      (prop: any) => prop.parent === accountName
+                    );
+                    results.tests.listPropertiesGlobal.filteredForAccount = {
+                      accountName,
+                      totalProperties: globalPropertiesData.properties.length,
+                      accountProperties: accountProperties.length,
+                      properties: accountProperties.map((p: any) => ({
+                        id: p.name.replace('properties/', ''),
+                        name: p.displayName,
+                        parent: p.parent,
+                      })),
+                    };
+                  }
+                } else {
+                  const errorText = await globalPropertiesRes.text();
+                  results.tests.listPropertiesGlobal.error = errorText.substring(0, 500);
+                }
+              } catch (globalError: any) {
+                results.tests.listPropertiesGlobal = {
+                  error: globalError.message,
+                };
+              }
+            }
           }
         }
       } else {
