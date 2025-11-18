@@ -1,0 +1,399 @@
+import { decryptSecure } from '@ai-ecom/api';
+
+export interface GA4Property {
+  propertyId: string;
+  propertyName: string;
+  accountId: string;
+}
+
+export interface GA4AnalyticsData {
+  sessions: number;
+  users: number;
+  pageViews: number;
+  bounceRate: number;
+  avgSessionDuration: number;
+  revenue?: number;
+  transactions?: number;
+  conversionRate?: number;
+  avgOrderValue?: number;
+  trafficSources: Array<{ source: string; medium: string; sessions: number }>;
+  topPages: Array<{ page: string; views: number }>;
+  trend: Array<{ date: string; sessions: number; users: number; revenue?: number }>;
+}
+
+/**
+ * Refresh Google OAuth access token using refresh token
+ */
+export async function refreshAccessToken(
+  refreshToken: string,
+): Promise<{ access_token: string; expires_in: number }> {
+  const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_ANALYTICS_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Google Analytics OAuth credentials');
+  }
+
+  const decryptedRefreshToken = decryptSecure(refreshToken);
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: decryptedRefreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Token refresh failed: ${errorText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Get valid access token, refreshing if necessary
+ */
+export async function getValidAccessToken(
+  accessToken: string,
+  refreshToken: string | null,
+): Promise<string> {
+  // Try to use existing token first (simple check - in production, check expiry)
+  // For now, we'll always try to refresh if refresh token exists
+  if (refreshToken) {
+    try {
+      const tokenData = await refreshAccessToken(refreshToken);
+      return tokenData.access_token;
+    } catch (error) {
+      console.warn('[GA] Token refresh failed, using existing token:', error);
+      return decryptSecure(accessToken);
+    }
+  }
+  return decryptSecure(accessToken);
+}
+
+/**
+ * List GA4 properties for authenticated user
+ */
+export async function listGA4Properties(
+  accessToken: string,
+  refreshToken: string | null,
+): Promise<GA4Property[]> {
+  const validToken = await getValidAccessToken(accessToken, refreshToken);
+
+  try {
+    // List accounts
+    const accountsRes = await fetch(
+      'https://analyticsadmin.googleapis.com/v1beta/accounts',
+      {
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+        },
+      },
+    );
+
+    if (!accountsRes.ok) {
+      throw new Error(`Failed to fetch accounts: ${accountsRes.statusText}`);
+    }
+
+    const accountsData = (await accountsRes.json()) as {
+      accounts?: Array<{ name: string; displayName?: string }>;
+    };
+
+    if (!accountsData.accounts || accountsData.accounts.length === 0) {
+      return [];
+    }
+
+    const properties: GA4Property[] = [];
+
+    // Fetch properties for each account
+    for (const account of accountsData.accounts) {
+      const accountId = account.name.replace('accounts/', '');
+      
+      const propertiesRes = await fetch(
+        `https://analyticsadmin.googleapis.com/v1beta/${account.name}/properties`,
+        {
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+          },
+        },
+      );
+
+      if (propertiesRes.ok) {
+        const propertiesData = (await propertiesRes.json()) as {
+          properties?: Array<{ name: string; displayName?: string }>;
+        };
+
+        if (propertiesData.properties) {
+          for (const property of propertiesData.properties) {
+            const propertyId = property.name.replace('properties/', '');
+            properties.push({
+              propertyId,
+              propertyName: property.displayName || propertyId,
+              accountId,
+            });
+          }
+        }
+      }
+    }
+
+    return properties;
+  } catch (error) {
+    console.error('[GA] Error listing properties:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch analytics data from GA4 Data API
+ */
+export async function fetchGA4Analytics(
+  propertyId: string,
+  accessToken: string,
+  refreshToken: string | null,
+  startDate: string,
+  endDate: string,
+): Promise<GA4AnalyticsData> {
+  const validToken = await getValidAccessToken(accessToken, refreshToken);
+
+  try {
+    // Fetch overview metrics
+    const overviewRes = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate, endDate }],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'activeUsers' },
+            { name: 'screenPageViews' },
+            { name: 'bounceRate' },
+            { name: 'averageSessionDuration' },
+          ],
+        }),
+      },
+    );
+
+    if (!overviewRes.ok) {
+      const errorText = await overviewRes.text();
+      throw new Error(`GA4 API error: ${errorText}`);
+    }
+
+    const overviewData = (await overviewRes.json()) as {
+      rows?: Array<{
+        metricValues: Array<{ value: string }>;
+      }>;
+    };
+
+    const row = overviewData.rows?.[0];
+    const metrics = row?.metricValues || [];
+
+    const sessions = parseInt(metrics[0]?.value || '0', 10);
+    const users = parseInt(metrics[1]?.value || '0', 10);
+    const pageViews = parseInt(metrics[2]?.value || '0', 10);
+    const bounceRate = parseFloat(metrics[3]?.value || '0');
+    const avgSessionDuration = parseFloat(metrics[4]?.value || '0');
+
+    // Fetch e-commerce metrics (if available)
+    let revenue = 0;
+    let transactions = 0;
+    let conversionRate = 0;
+    let avgOrderValue = 0;
+
+    try {
+      const ecommerceRes = await fetch(
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${validToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            dateRanges: [{ startDate, endDate }],
+            metrics: [
+              { name: 'totalRevenue' },
+              { name: 'transactions' },
+              { name: 'ecommercePurchases' },
+            ],
+          }),
+        },
+      );
+
+      if (ecommerceRes.ok) {
+        const ecommerceData = (await ecommerceRes.json()) as {
+          rows?: Array<{
+            metricValues: Array<{ value: string }>;
+          }>;
+        };
+        const ecommerceRow = ecommerceData.rows?.[0];
+        const ecommerceMetrics = ecommerceRow?.metricValues || [];
+        
+        revenue = parseFloat(ecommerceMetrics[0]?.value || '0');
+        transactions = parseInt(ecommerceMetrics[1]?.value || '0', 10);
+        const purchases = parseInt(ecommerceMetrics[2]?.value || '0', 10);
+        conversionRate = sessions > 0 ? (purchases / sessions) * 100 : 0;
+        avgOrderValue = transactions > 0 ? revenue / transactions : 0;
+      }
+    } catch (error) {
+      console.warn('[GA] E-commerce metrics not available:', error);
+    }
+
+    // Fetch traffic sources
+    const trafficRes = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+          metrics: [{ name: 'sessions' }],
+          limit: 10,
+        }),
+      },
+    );
+
+    const trafficSources: Array<{ source: string; medium: string; sessions: number }> = [];
+    if (trafficRes.ok) {
+      const trafficData = (await trafficRes.json()) as {
+        rows?: Array<{
+          dimensionValues: Array<{ value: string }>;
+          metricValues: Array<{ value: string }>;
+        }>;
+      };
+      
+      if (trafficData.rows) {
+        for (const row of trafficData.rows) {
+          trafficSources.push({
+            source: row.dimensionValues[0]?.value || 'direct',
+            medium: row.dimensionValues[1]?.value || 'none',
+            sessions: parseInt(row.metricValues[0]?.value || '0', 10),
+          });
+        }
+      }
+    }
+
+    // Fetch top pages
+    const pagesRes = await fetch(
+      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${validToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: 'pagePath' }],
+          metrics: [{ name: 'screenPageViews' }],
+          limit: 10,
+          orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+        }),
+      },
+    );
+
+    const topPages: Array<{ page: string; views: number }> = [];
+    if (pagesRes.ok) {
+      const pagesData = (await pagesRes.json()) as {
+        rows?: Array<{
+          dimensionValues: Array<{ value: string }>;
+          metricValues: Array<{ value: string }>;
+        }>;
+      };
+      
+      if (pagesData.rows) {
+        for (const row of pagesData.rows) {
+          topPages.push({
+            page: row.dimensionValues[0]?.value || '',
+            views: parseInt(row.metricValues[0]?.value || '0', 10),
+          });
+        }
+      }
+    }
+
+    // Fetch daily trend data
+    const trend: Array<{ date: string; sessions: number; users: number; revenue?: number }> = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+    for (let i = 0; i <= days; i++) {
+      const date = new Date(start);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+
+      try {
+        const dayRes = await fetch(
+          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${validToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              dateRanges: [{ startDate: dateStr, endDate: dateStr }],
+              metrics: [
+                { name: 'sessions' },
+                { name: 'activeUsers' },
+                { name: 'totalRevenue' },
+              ],
+            }),
+          },
+        );
+
+        if (dayRes.ok) {
+          const dayData = (await dayRes.json()) as {
+            rows?: Array<{
+              metricValues: Array<{ value: string }>;
+            }>;
+          };
+          const dayRow = dayData.rows?.[0];
+          const dayMetrics = dayRow?.metricValues || [];
+          
+          trend.push({
+            date: dateStr,
+            sessions: parseInt(dayMetrics[0]?.value || '0', 10),
+            users: parseInt(dayMetrics[1]?.value || '0', 10),
+            revenue: parseFloat(dayMetrics[2]?.value || '0'),
+          });
+        }
+      } catch (error) {
+        console.warn(`[GA] Failed to fetch trend for ${dateStr}:`, error);
+        trend.push({ date: dateStr, sessions: 0, users: 0 });
+      }
+    }
+
+    return {
+      sessions,
+      users,
+      pageViews,
+      bounceRate,
+      avgSessionDuration,
+      revenue,
+      transactions,
+      conversionRate,
+      avgOrderValue,
+      trafficSources,
+      topPages,
+      trend,
+    };
+  } catch (error) {
+    console.error('[GA] Error fetching analytics:', error);
+    throw error;
+  }
+}
+

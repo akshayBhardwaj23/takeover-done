@@ -34,6 +34,7 @@ import {
   Link as LinkIcon,
   ArrowRight,
   Trash2,
+  BarChart3,
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
@@ -109,10 +110,21 @@ function IntegrationsInner() {
       toast.error(error.message || 'Failed to disconnect store');
     },
   });
+  const disconnectGA = trpc.disconnectGoogleAnalytics.useMutation({
+    onSuccess: () => {
+      utils.connections.invalidate();
+      setDisconnectGADialogOpen(null);
+      toast.success('Google Analytics disconnected successfully');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to disconnect Google Analytics');
+    },
+  });
   const [shopInput, setShopInput] = useState('');
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<string | null>(null);
+  const [disconnectGADialogOpen, setDisconnectGADialogOpen] = useState<boolean>(false);
   const [isConnectingShopify, setIsConnectingShopify] = useState(false);
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
@@ -127,16 +139,35 @@ function IntegrationsInner() {
     const already = sp.get('already');
     const connected = sp.get('connected');
     const shopParam = sp.get('shop');
-
-    if (!shopParam) return;
+    const gaConnected = sp.get('ga_connected');
+    const gaError = sp.get('ga_error');
+    const gaProperty = sp.get('property');
 
     // Mark as shown immediately to prevent duplicates
     notificationShownRef.current = true;
 
-    if (already === '1') {
-      toast.success(`Store already connected: ${shopParam}`);
-    } else if (connected === '1') {
-      toast.success(`Store connected successfully: ${shopParam}`);
+    if (shopParam) {
+      if (already === '1') {
+        toast.success(`Store already connected: ${shopParam}`);
+      } else if (connected === '1') {
+        toast.success(`Store connected successfully: ${shopParam}`);
+      }
+    }
+
+    if (gaConnected === '1') {
+      toast.success(
+        gaProperty
+          ? `Google Analytics connected: ${gaProperty}`
+          : 'Google Analytics connected successfully',
+      );
+    }
+
+    if (gaError) {
+      if (gaError === 'connection_failed') {
+        toast.error('Failed to connect Google Analytics. Please try again.');
+      } else {
+        toast.error(`Google Analytics error: ${gaError}`);
+      }
     }
 
     // Clean up URL params after showing notification to prevent re-triggering
@@ -144,6 +175,9 @@ function IntegrationsInner() {
     newUrl.searchParams.delete('already');
     newUrl.searchParams.delete('connected');
     newUrl.searchParams.delete('shop');
+    newUrl.searchParams.delete('ga_connected');
+    newUrl.searchParams.delete('ga_error');
+    newUrl.searchParams.delete('property');
     router.replace(`${newUrl.pathname}${newUrl.search}` as any, {
       scroll: false,
     });
@@ -173,6 +207,10 @@ function IntegrationsInner() {
   );
   const emailConnections = useMemo(
     () => connections.filter((c) => c.type === 'CUSTOM_EMAIL'),
+    [connections],
+  );
+  const gaConnections = useMemo(
+    () => connections.filter((c) => c.type === 'GOOGLE_ANALYTICS'),
     [connections],
   );
   const activeAliases = useMemo(
@@ -232,7 +270,7 @@ function IntegrationsInner() {
             </div>
             <Badge className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white">
               <Sparkles className="h-3.5 w-3.5" />
-              {shopifyConnections.length + emailConnections.length} Active
+              {shopifyConnections.length + emailConnections.length + gaConnections.length} Active
             </Badge>
           </header>
 
@@ -725,6 +763,160 @@ function IntegrationsInner() {
                       <li>3. Forward support inbox to alias.</li>
                     </ol>
                   </div>
+                </div>
+              </section>
+
+              <section id="google-analytics" className="space-y-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Google Analytics
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Connect your GA4 property to view website analytics and insights.
+                    </p>
+                  </div>
+                  {gaConnections.length === 0 && (
+                    <Button
+                      className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
+                      size="sm"
+                      onClick={() => {
+                        window.location.href = '/api/google-analytics/install';
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Connect Google Analytics
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>Connected Properties</span>
+                    <span>{gaConnections.length} total</span>
+                  </div>
+                  {connectionsLoading ? (
+                    <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+                      <StatsCardSkeleton />
+                      <StatsCardSkeleton />
+                    </div>
+                  ) : gaConnections.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 p-10 text-center text-sm text-slate-500">
+                      <BarChart3 className="h-10 w-10 text-slate-300" />
+                      <p className="font-semibold text-slate-700">
+                        No Google Analytics connected yet
+                      </p>
+                      <p>Connect your GA4 property to unlock website analytics.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {gaConnections.map((c) => {
+                        const metadata = (c.metadata as Record<string, unknown>) || {};
+                        const propertyName = (metadata.propertyName as string) || 'GA4 Property';
+                        const propertyId = (metadata.propertyId as string) || '';
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-slate-800">
+                                {propertyName}
+                              </p>
+                              {propertyId && (
+                                <p className="text-xs text-slate-500">
+                                  Property ID: {propertyId}
+                                </p>
+                              )}
+                              {c.createdAt && (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  Connected{' '}
+                                  {new Date(c.createdAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                              <Badge className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                Active
+                              </Badge>
+                              <Dialog
+                                open={disconnectGADialogOpen}
+                                onOpenChange={setDisconnectGADialogOpen}
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="rounded-full border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                    disabled={disconnectGA.isPending}
+                                  >
+                                    <Trash2 className="mr-1.5 h-3 w-3" />
+                                    Disconnect
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent containerClassName="max-w-md sm:rounded-3xl">
+                                  <DialogHeader>
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                                        <Trash2 className="h-5 w-5" />
+                                      </div>
+                                      <DialogTitle className="text-xl">
+                                        Disconnect Google Analytics
+                                      </DialogTitle>
+                                    </div>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <p className="text-sm text-slate-600">
+                                      Are you sure you want to disconnect{' '}
+                                      <span className="font-semibold text-slate-900">
+                                        {propertyName}
+                                      </span>
+                                      ? This will remove the connection and stop syncing analytics data.
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      You can reconnect at any time from the integrations page.
+                                    </p>
+                                  </div>
+                                  <DialogFooter className="sm:justify-end">
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                        onClick={() => setDisconnectGADialogOpen(false)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
+                                        onClick={() => {
+                                          disconnectGA.mutate();
+                                        }}
+                                        disabled={disconnectGA.isPending}
+                                      >
+                                        {disconnectGA.isPending
+                                          ? 'Disconnecting...'
+                                          : 'Disconnect'}
+                                      </Button>
+                                    </div>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
+                                asChild
+                              >
+                                <a href="/google-analytics">
+                                  View Analytics
+                                  <ArrowRight className="ml-2 h-3 w-3" />
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </section>
             </div>

@@ -17,11 +17,19 @@ import {
   Zap,
   BarChart3,
   TrendingDown,
+  ArrowRight,
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 
 export default function AnalyticsPage() {
   const analytics = trpc.getAnalytics.useQuery();
+  const connections = trpc.connections.useQuery();
+  const gaData = trpc.getGoogleAnalyticsData.useQuery(
+    {},
+    {
+      enabled: !!connections.data?.connections.find((c: any) => c.type === 'GOOGLE_ANALYTICS'),
+    },
+  );
 
   if (analytics.isLoading) {
     return (
@@ -339,6 +347,80 @@ export default function AnalyticsPage() {
             </div>
           </Card>
         </div>
+
+        {gaData.data && (
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Google Analytics Summary
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Website traffic overview (last 7 days)
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  GA4 Data
+                </Badge>
+                <a
+                  href="/google-analytics"
+                  className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                >
+                  View Full Analytics
+                  <ArrowRight className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-4 grid-cols-1">
+              <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Sessions
+                </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {gaData.data.sessions.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Total sessions
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Users
+                </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {gaData.data.users.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Unique visitors
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Page Views
+                </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {gaData.data.pageViews.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Total views
+                </p>
+              </Card>
+              <Card className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Bounce Rate
+                </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {(gaData.data.bounceRate * 100).toFixed(1)}%
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Single-page sessions
+                </p>
+              </Card>
+            </div>
+          </Card>
+        )}
 
         <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

@@ -31,6 +31,11 @@ import {
   safeShopDomain,
   clampNumber,
 } from './validation';
+import {
+  listGA4Properties,
+  fetchGA4Analytics,
+  type GA4Property,
+} from './google-analytics';
 
 type Context = {
   session: any;
@@ -3432,7 +3437,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           where: {
             userId: ctx.userId,
             type: 'META_ADS',
-          },
+          } as any,
         });
 
         const encryptedToken = encryptSecure(input.accessToken);
@@ -3451,19 +3456,29 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               updatedAt: new Date(),
             },
           });
-          await logEvent('ads.meta.connected', { adAccountId: input.adAccountId }, 'connection', ctx.userId);
+          await logEvent(
+            'ads.meta.connected',
+            { adAccountId: input.adAccountId },
+            'connection',
+            ctx.userId,
+          );
           return { connection: updated };
         } else {
           // Create new connection
           const created = await prisma.connection.create({
             data: {
               userId: ctx.userId,
-              type: 'META_ADS',
+              type: 'META_ADS' as any,
               accessToken: encryptedToken,
               metadata,
             },
           });
-          await logEvent('ads.meta.connected', { adAccountId: input.adAccountId }, 'connection', ctx.userId);
+          await logEvent(
+            'ads.meta.connected',
+            { adAccountId: input.adAccountId },
+            'connection',
+            ctx.userId,
+          );
           return { connection: created };
         }
       } catch (error: any) {
@@ -3488,16 +3503,19 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     .mutation(async ({ input, ctx }) => {
       try {
         // Verify credentials by getting access token
-        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: input.clientId,
-            client_secret: input.clientSecret,
-            refresh_token: input.refreshToken,
-            grant_type: 'refresh_token',
-          }),
-        });
+        const tokenResponse = await fetch(
+          'https://oauth2.googleapis.com/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: input.clientId,
+              client_secret: input.clientSecret,
+              refresh_token: input.refreshToken,
+              grant_type: 'refresh_token',
+            }),
+          },
+        );
 
         if (!tokenResponse.ok) {
           throw new TRPCError({
@@ -3506,14 +3524,16 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           });
         }
 
-        const tokenData = (await tokenResponse.json()) as { access_token: string };
-        
+        const tokenData = (await tokenResponse.json()) as {
+          access_token: string;
+        };
+
         // Check if connection already exists
         const existing = await prisma.connection.findFirst({
           where: {
             userId: ctx.userId,
             type: 'GOOGLE_ADS',
-          },
+          } as any,
         });
 
         const encryptedAccessToken = encryptSecure(tokenData.access_token);
@@ -3535,20 +3555,30 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               updatedAt: new Date(),
             },
           });
-          await logEvent('ads.google.connected', { customerId: input.customerId }, 'connection', ctx.userId);
+          await logEvent(
+            'ads.google.connected',
+            { customerId: input.customerId },
+            'connection',
+            ctx.userId,
+          );
           return { connection: updated };
         } else {
           // Create new connection
           const created = await prisma.connection.create({
             data: {
               userId: ctx.userId,
-              type: 'GOOGLE_ADS',
+              type: 'GOOGLE_ADS' as any,
               accessToken: encryptedAccessToken,
               refreshToken: encryptedRefreshToken,
               metadata,
             },
           });
-          await logEvent('ads.google.connected', { customerId: input.customerId }, 'connection', ctx.userId);
+          await logEvent(
+            'ads.google.connected',
+            { customerId: input.customerId },
+            'connection',
+            ctx.userId,
+          );
           return { connection: created };
         }
       } catch (error: any) {
@@ -3567,7 +3597,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         where: {
           userId: ctx.userId,
           type: 'META_ADS',
-        },
+        } as any,
       });
 
       if (!connection) {
@@ -3589,7 +3619,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
       let campaigns: any[] = [];
       if (campaignsResponse.ok) {
-        const campaignsData = (await campaignsResponse.json()) as { data: any[] };
+        const campaignsData = (await campaignsResponse.json()) as {
+          data: any[];
+        };
         campaigns = campaignsData.data || [];
       }
 
@@ -3617,7 +3649,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         where: {
           userId: ctx.userId,
           type: 'GOOGLE_ADS',
-        },
+        } as any,
       });
 
       if (!connection) {
@@ -3668,7 +3700,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         where: {
           userId: ctx.userId,
           type: input.type,
-        },
+        } as any,
       });
 
       if (!connection) {
@@ -3682,9 +3714,137 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         where: { id: connection.id },
       });
 
-      await logEvent(`ads.${input.type.toLowerCase()}.disconnected`, {}, 'connection', ctx.userId);
+      await logEvent(
+        `ads.${input.type.toLowerCase()}.disconnected`,
+        {},
+        'connection',
+        ctx.userId,
+      );
       return { success: true };
     }),
+  // Get Google Analytics Properties
+  getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { properties: [] };
+      }
+
+      const accessToken = decryptSecure(connection.accessToken);
+      const refreshToken = connection.refreshToken
+        ? connection.refreshToken
+        : null;
+
+      const properties = await listGA4Properties(accessToken, refreshToken);
+      return { properties };
+    } catch (error: any) {
+      console.error('Error fetching GA4 properties:', error);
+      return { properties: [] };
+    }
+  }),
+  // Get Google Analytics Data
+  getGoogleAnalyticsData: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const connection = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'GOOGLE_ANALYTICS',
+          } as any,
+        });
+
+        if (!connection) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Google Analytics not connected',
+          });
+        }
+
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const propertyId =
+          input.propertyId || (metadata.propertyId as string) || '';
+
+        if (!propertyId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'No GA4 property ID specified',
+          });
+        }
+
+        // Default to last 7 days
+        const endDate = input.endDate || new Date().toISOString().split('T')[0];
+        const startDate =
+          input.startDate ||
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0];
+
+        const accessToken = decryptSecure(connection.accessToken);
+        const refreshToken = connection.refreshToken
+          ? connection.refreshToken
+          : null;
+
+        const analyticsData = await fetchGA4Analytics(
+          propertyId,
+          accessToken,
+          refreshToken,
+          startDate,
+          endDate,
+        );
+
+        return analyticsData;
+      } catch (error: any) {
+        console.error('Error fetching GA4 analytics:', error);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to fetch Google Analytics data',
+        });
+      }
+    }),
+  // Disconnect Google Analytics
+  disconnectGoogleAnalytics: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS',
+      } as any,
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics connection not found',
+      });
+    }
+
+    await prisma.connection.delete({
+      where: { id: connection.id },
+    });
+
+    await logEvent(
+      'google_analytics.disconnected',
+      {},
+      'connection',
+      ctx.userId,
+    );
+    return { success: true };
+  }),
 });
 
 export type AppRouter = typeof appRouter;

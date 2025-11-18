@@ -201,6 +201,7 @@ enum ConnectionType {
   CUSTOM_EMAIL
   META_ADS
   GOOGLE_ADS
+  GOOGLE_ANALYTICS
 }
 
 enum PlaybookCategory {
