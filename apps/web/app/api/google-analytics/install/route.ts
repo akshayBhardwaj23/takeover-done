@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 
 export async function GET(req: NextRequest) {
   const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID;
-  const redirectUri = process.env.GOOGLE_ANALYTICS_REDIRECT_URI || 
+  const redirectUri =
+    process.env.GOOGLE_ANALYTICS_REDIRECT_URI ||
     `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/google-analytics/callback`;
 
   if (!clientId) {
@@ -15,11 +16,9 @@ export async function GET(req: NextRequest) {
 
   // Generate state for CSRF protection
   const state = crypto.randomBytes(16).toString('hex');
-  
+
   // Google OAuth scopes
-  const scopes = encodeURIComponent(
-    'https://www.googleapis.com/auth/analytics.readonly'
-  );
+  const scopes = 'https://www.googleapis.com/auth/analytics.readonly';
 
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   authUrl.searchParams.set('client_id', clientId);
@@ -40,4 +39,3 @@ export async function GET(req: NextRequest) {
   });
   return res;
 }
-

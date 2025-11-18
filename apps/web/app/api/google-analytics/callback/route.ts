@@ -3,6 +3,7 @@ import { prisma, logEvent } from '@ai-ecom/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 import { encryptSecure } from '@ai-ecom/api';
+import * as Sentry from '@sentry/nextjs';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
     if (!tokenRes.ok) {
       const errorText = await tokenRes.text();
       console.error('[GA Callback] Token exchange failed:', errorText);
-      throw new Error('Token exchange failed');
+      throw new Error(`Token exchange failed: ${errorText}`);
     }
 
     const tokenData = (await tokenRes.json()) as {
@@ -74,11 +75,36 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
     }
 
-    const owner = await prisma.user.upsert({
-      where: { email: session.user.email },
-      create: { email: session.user.email, name: session.user.name ?? null },
-      update: {},
-    });
+    // Try to get or create user - handle database errors gracefully
+    let owner;
+    try {
+      owner = await prisma.user.upsert({
+        where: { email: session.user.email },
+        create: { email: session.user.email, name: session.user.name ?? null },
+        update: {},
+      });
+    } catch (dbError) {
+      const errorMessage = dbError instanceof Error ? dbError.message : 'Database error';
+      console.error('[GA Callback] Database error while upserting user:', errorMessage);
+      console.error('[GA Callback] Full error:', dbError);
+      
+      // Log to Sentry in production/staging
+      if (process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT === 'staging') {
+        Sentry.captureException(dbError, {
+          tags: { component: 'google-analytics-callback', operation: 'user-upsert' },
+          extra: { email: session.user.email },
+        });
+      }
+      
+      // Still redirect to success - OAuth worked, just database issue
+      const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
+      const url = new URL('/integrations', base);
+      url.searchParams.set('ga_connected', '1');
+      url.searchParams.set('ga_warning', 'database_unavailable');
+      const res = NextResponse.redirect(url);
+      res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
+      return res;
+    }
 
     // Fetch GA4 properties using Admin API
     // First, we need to list accounts, then properties
@@ -124,66 +150,104 @@ export async function GET(req: NextRequest) {
               propertyId = propertiesData.properties[0].name.replace('properties/', '');
               propertyName = propertiesData.properties[0].displayName || propertyId;
             }
+          } else {
+            const errorText = await propertiesRes.text();
+            console.warn('[GA Callback] Failed to fetch properties:', errorText);
           }
         }
+      } else {
+        const errorText = await accountsRes.text();
+        console.warn('[GA Callback] Failed to fetch accounts:', errorText);
       }
     } catch (error) {
       console.warn('[GA Callback] Failed to fetch GA4 properties', error);
       // Continue without property info - user can select later
     }
 
-    // Check if connection already exists for this user
-    const existing = await prisma.connection.findFirst({
-      where: {
-        userId: owner.id,
-        type: 'GOOGLE_ANALYTICS',
-      },
-    });
-
-    const metadata: Record<string, unknown> = {};
-    if (propertyId) {
-      metadata.propertyId = propertyId;
-    }
-    if (propertyName) {
-      metadata.propertyName = propertyName;
-    }
-    if (accountId) {
-      metadata.accountId = accountId;
-    }
-
-    if (existing) {
-      // Update existing connection
-      await prisma.connection.update({
-        where: { id: existing.id },
-        data: {
-          accessToken: encryptSecure(tokenData.access_token),
-          refreshToken: tokenData.refresh_token
-            ? encryptSecure(tokenData.refresh_token)
-            : existing.refreshToken,
-          metadata: metadata,
-        },
-      });
-    } else {
-      // Create new connection
-      await prisma.connection.create({
-        data: {
-          type: 'GOOGLE_ANALYTICS',
-          accessToken: encryptSecure(tokenData.access_token),
-          refreshToken: tokenData.refresh_token
-            ? encryptSecure(tokenData.refresh_token)
-            : null,
+    // Try to save connection - handle database errors gracefully
+    try {
+      // Check if connection already exists for this user
+      const existing = await prisma.connection.findFirst({
+        where: {
           userId: owner.id,
-          metadata: metadata,
+          type: 'GOOGLE_ANALYTICS' as any,
         },
       });
-    }
 
-    await logEvent(
-      'google_analytics.connected',
-      { userId: owner.id, propertyId },
-      'connection',
-      existing?.id || 'new',
-    );
+      const metadata: Record<string, unknown> = {};
+      if (propertyId) {
+        metadata.propertyId = propertyId;
+      }
+      if (propertyName) {
+        metadata.propertyName = propertyName;
+      }
+      if (accountId) {
+        metadata.accountId = accountId;
+      }
+
+      if (existing) {
+        // Update existing connection
+        await prisma.connection.update({
+          where: { id: existing.id },
+          data: {
+            accessToken: encryptSecure(tokenData.access_token),
+            refreshToken: tokenData.refresh_token
+              ? encryptSecure(tokenData.refresh_token)
+              : existing.refreshToken,
+            metadata: metadata,
+          },
+        });
+      } else {
+        // Create new connection
+        await prisma.connection.create({
+          data: {
+            type: 'GOOGLE_ANALYTICS' as any,
+            accessToken: encryptSecure(tokenData.access_token),
+            refreshToken: tokenData.refresh_token
+              ? encryptSecure(tokenData.refresh_token)
+              : null,
+            userId: owner.id,
+            metadata: metadata,
+          },
+        });
+      }
+
+      // Try to log event (non-critical, continue if it fails)
+      try {
+        await logEvent(
+          'google_analytics.connected',
+          { userId: owner.id, propertyId },
+          'connection',
+          existing?.id || 'new',
+        );
+      } catch (logError) {
+        console.warn('[GA Callback] Failed to log event:', logError);
+      }
+    } catch (dbError) {
+      const errorMessage = dbError instanceof Error ? dbError.message : 'Database error';
+      console.error('[GA Callback] Database error while saving connection:', errorMessage);
+      console.error('[GA Callback] Full error:', dbError);
+      
+      // Log to Sentry in production/staging
+      if (process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT === 'staging') {
+        Sentry.captureException(dbError, {
+          tags: { component: 'google-analytics-callback', operation: 'connection-save' },
+          extra: { userId: owner.id, hasTokens: !!tokenData.access_token },
+        });
+      }
+      
+      // Still redirect to success - OAuth worked, just database issue
+      const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
+      const url = new URL('/integrations', base);
+      url.searchParams.set('ga_connected', '1');
+      url.searchParams.set('ga_warning', 'database_unavailable');
+      if (propertyName) {
+        url.searchParams.set('property', propertyName);
+      }
+      const res = NextResponse.redirect(url);
+      res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
+      return res;
+    }
 
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
     const url = new URL('/integrations', base);
@@ -196,7 +260,18 @@ export async function GET(req: NextRequest) {
     res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
     return res;
   } catch (error) {
-    console.error('[GA Callback] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[GA Callback] Unexpected error:', errorMessage);
+    console.error('[GA Callback] Full error:', error);
+    
+    // Log to Sentry in production/staging
+    if (process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT === 'staging') {
+      Sentry.captureException(error, {
+        tags: { component: 'google-analytics-callback', operation: 'oauth-flow' },
+      });
+    }
+    
+    // Show generic error to user, details only in logs
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
     const url = new URL('/integrations', base);
     url.searchParams.set('ga_error', 'connection_failed');

@@ -166,11 +166,21 @@ function IntegrationsInner() {
     }
 
     if (gaError) {
+      // Don't show error details to users - they're logged in console/Sentry
       if (gaError === 'connection_failed') {
         toast.error('Failed to connect Google Analytics. Please try again.');
       } else {
-        toast.error(`Google Analytics error: ${gaError}`);
+        toast.error('Google Analytics connection error. Please try again.');
       }
+    }
+
+    // Handle warning (database unavailable but OAuth succeeded)
+    const gaWarning = sp.get('ga_warning');
+    if (gaWarning === 'database_unavailable') {
+      // Don't show warning to user - OAuth worked, just log it
+      console.warn(
+        '[Integrations] Google Analytics OAuth succeeded but database unavailable',
+      );
     }
 
     // Clean up URL params after showing notification to prevent re-triggering
@@ -181,6 +191,8 @@ function IntegrationsInner() {
     newUrl.searchParams.delete('ga_connected');
     newUrl.searchParams.delete('ga_error');
     newUrl.searchParams.delete('property');
+    newUrl.searchParams.delete('error_details');
+    newUrl.searchParams.delete('ga_warning');
     router.replace(`${newUrl.pathname}${newUrl.search}` as any, {
       scroll: false,
     });
