@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No GA connection found' }, { status: 404 });
     }
 
-    const accessToken = decryptSecure(connection.accessToken);
+    // Refresh token first to get a valid access token
+    let accessToken = decryptSecure(connection.accessToken);
     const refreshToken = connection.refreshToken
       ? decryptSecure(connection.refreshToken)
       : null;
@@ -47,6 +48,47 @@ export async function GET(req: NextRequest) {
       },
       tests: {},
     };
+
+    // Try to refresh token if we have refresh token
+    if (refreshToken) {
+      try {
+        const clientId = process.env.GOOGLE_ANALYTICS_CLIENT_ID;
+        const clientSecret = process.env.GOOGLE_ANALYTICS_CLIENT_SECRET;
+
+        if (clientId && clientSecret) {
+          const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: clientId,
+              client_secret: clientSecret,
+              refresh_token: refreshToken,
+              grant_type: 'refresh_token',
+            }),
+          });
+
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            accessToken = refreshData.access_token;
+            results.tokenRefresh = {
+              success: true,
+              message: 'Token refreshed before API calls',
+            };
+          } else {
+            const errorText = await refreshRes.text();
+            results.tokenRefresh = {
+              success: false,
+              error: errorText,
+            };
+          }
+        }
+      } catch (error: any) {
+        results.tokenRefresh = {
+          success: false,
+          error: error.message,
+        };
+      }
+    }
 
     // Test 1: List accounts
     try {

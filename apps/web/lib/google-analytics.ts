@@ -62,17 +62,36 @@ export async function getValidAccessToken(
   accessToken: string,
   refreshToken: string | null,
 ): Promise<string> {
-  // Try to use existing token first (simple check - in production, check expiry)
-  // For now, we'll always try to refresh if refresh token exists
+  // Always try to refresh if refresh token exists (tokens expire quickly)
   if (refreshToken) {
     try {
+      console.log('[GA] Refreshing access token...');
       const tokenData = await refreshAccessToken(refreshToken);
+      console.log('[GA] Token refreshed successfully');
       return tokenData.access_token;
     } catch (error) {
-      console.warn('[GA] Token refresh failed, using existing token:', error);
-      return decryptSecure(accessToken);
+      console.warn('[GA] Token refresh failed, trying existing token:', error);
+      // Fall back to existing token if refresh fails
+      const decryptedToken = decryptSecure(accessToken);
+      // Try to validate the existing token by making a test call
+      try {
+        const testRes = await fetch(
+          'https://analyticsadmin.googleapis.com/v1beta/accounts',
+          {
+            headers: { Authorization: `Bearer ${decryptedToken}` },
+          },
+        );
+        if (testRes.ok) {
+          console.log('[GA] Existing token is still valid');
+          return decryptedToken;
+        }
+        throw new Error('Existing token is invalid');
+      } catch {
+        throw new Error('Both token refresh and existing token failed');
+      }
     }
   }
+  // If no refresh token, use existing token
   return decryptSecure(accessToken);
 }
 
