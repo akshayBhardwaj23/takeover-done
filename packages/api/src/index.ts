@@ -3763,6 +3763,33 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           count: properties.length,
           propertyIds: properties.map((p) => p.propertyId),
         });
+
+        // If we got properties but metadata doesn't have propertyId, save the first one
+        if (properties.length > 0) {
+          const metadata =
+            (connection.metadata as Record<string, unknown>) || {};
+          const metadataPropertyId = metadata.propertyId as string | undefined;
+
+          if (!metadataPropertyId) {
+            // Save first property to metadata for future use
+            const firstProperty = properties[0];
+            console.log(
+              '[GA Properties API] Saving first property to metadata:',
+              firstProperty.propertyId,
+            );
+            await prisma.connection.update({
+              where: { id: connection.id },
+              data: {
+                metadata: {
+                  ...metadata,
+                  propertyId: firstProperty.propertyId,
+                  propertyName: firstProperty.propertyName,
+                  accountId: firstProperty.accountId,
+                },
+              },
+            });
+          }
+        }
       } catch (listError: any) {
         console.error('[GA Properties API] Error in listGA4Properties:', {
           error: listError.message,
@@ -3770,12 +3797,12 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
 
         // If we have a propertyId in metadata, return it as a fallback
-        const metadataPropertyId = (
-          connection.metadata as Record<string, unknown>
-        )?.propertyId as string | undefined;
-        const metadataPropertyName = (
-          connection.metadata as Record<string, unknown>
-        )?.propertyName as string | undefined;
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const metadataPropertyId = metadata.propertyId as string | undefined;
+        const metadataPropertyName = metadata.propertyName as
+          | string
+          | undefined;
+        const metadataAccountId = metadata.accountId as string | undefined;
 
         if (metadataPropertyId) {
           console.log(
@@ -3786,14 +3813,48 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             {
               propertyId: metadataPropertyId,
               propertyName: metadataPropertyName || metadataPropertyId,
-              accountId:
-                ((connection.metadata as Record<string, unknown>)
-                  ?.accountId as string) || '',
+              accountId: metadataAccountId || '',
             },
           ];
         } else {
-          // Re-throw the error if we don't have a fallback
-          throw listError;
+          // If we have accountId but no propertyId, try to fetch properties for that account
+          if (metadataAccountId) {
+            console.log(
+              '[GA Properties API] Attempting to fetch properties for account:',
+              metadataAccountId,
+            );
+            try {
+              const accountProperties = await listGA4Properties(
+                accessToken,
+                refreshToken,
+              );
+              if (accountProperties.length > 0) {
+                properties = accountProperties;
+                // Save first property to metadata
+                const firstProperty = properties[0];
+                await prisma.connection.update({
+                  where: { id: connection.id },
+                  data: {
+                    metadata: {
+                      ...metadata,
+                      propertyId: firstProperty.propertyId,
+                      propertyName: firstProperty.propertyName,
+                    },
+                  },
+                });
+              }
+            } catch (retryError: any) {
+              console.error(
+                '[GA Properties API] Retry also failed:',
+                retryError.message,
+              );
+            }
+          }
+
+          // If still no properties, re-throw the original error
+          if (properties.length === 0) {
+            throw listError;
+          }
         }
       }
 

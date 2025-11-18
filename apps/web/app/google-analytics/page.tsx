@@ -204,6 +204,41 @@ function GoogleAnalyticsInner() {
     );
   }
 
+  // Show error if properties query failed and we have no propertyId
+  if (properties.error && !defaultPropertyId && !selectedPropertyId) {
+    return (
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <Card className="mx-auto max-w-lg rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
+              <BarChart3 className="h-10 w-10 text-amber-500" />
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              Unable to load properties
+            </h2>
+            <p className="mt-3 text-sm text-slate-500">
+              {properties.error.message || 'Failed to fetch Google Analytics properties. Please try reconnecting.'}
+            </p>
+            <div className="mt-6 flex gap-3 justify-center">
+              <button
+                onClick={() => properties.refetch()}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
+              >
+                Retry
+              </button>
+              <a
+                href="/integrations"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-700 transition hover:bg-slate-50"
+              >
+                Reconnect
+              </a>
+            </div>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   // Show error state
   if (analytics.error) {
     const errorMessage = analytics.error instanceof Error 
