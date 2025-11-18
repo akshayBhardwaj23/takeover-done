@@ -3817,6 +3817,49 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
       }
     }),
+  // Update Google Analytics Property Selection
+  updateGoogleAnalyticsProperty: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string(),
+        propertyName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Google Analytics not connected',
+        });
+      }
+
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const updatedMetadata = {
+        ...metadata,
+        propertyId: input.propertyId,
+        propertyName:
+          input.propertyName ||
+          (typeof metadata.propertyName === 'string'
+            ? metadata.propertyName
+            : undefined),
+      };
+
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: updatedMetadata,
+        },
+      });
+
+      return { success: true };
+    }),
   // Disconnect Google Analytics
   disconnectGoogleAnalytics: protectedProcedure.mutation(async ({ ctx }) => {
     const connection = await prisma.connection.findFirst({

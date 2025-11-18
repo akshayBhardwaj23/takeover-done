@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
@@ -25,15 +25,33 @@ function GoogleAnalyticsInner() {
 
   const connections = trpc.connections.useQuery();
   const properties = trpc.getGoogleAnalyticsProperties.useQuery();
+  const updateProperty = trpc.updateGoogleAnalyticsProperty.useMutation({
+    onSuccess: () => {
+      // Refetch connections to get updated metadata
+      connections.refetch();
+    },
+  });
   
   const gaConnections =
     connections.data?.connections.filter((c: any) => c.type === 'GOOGLE_ANALYTICS') || [];
 
-  // Get property ID from first connection if not selected
+  // Get property ID from connection metadata or first available property
   const defaultPropertyId =
     gaConnections.length > 0
       ? ((gaConnections[0] as any).metadata as Record<string, unknown>)?.propertyId as string
       : '';
+
+  // Auto-select property: prefer saved one, then first from properties list, then default
+  useEffect(() => {
+    if (selectedPropertyId) return; // Already selected
+    
+    if (defaultPropertyId) {
+      setSelectedPropertyId(defaultPropertyId);
+    } else if (properties.data?.properties && properties.data.properties.length > 0) {
+      // Use first available property if no saved one
+      setSelectedPropertyId(properties.data.properties[0].propertyId);
+    }
+  }, [defaultPropertyId, properties.data?.properties, selectedPropertyId]);
 
   const effectivePropertyId = selectedPropertyId || defaultPropertyId;
 
@@ -51,13 +69,27 @@ function GoogleAnalyticsInner() {
       startDate,
       endDate,
     },
-    { enabled: !!effectivePropertyId },
+    { 
+      enabled: !!effectivePropertyId,
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
   );
 
-  // Auto-select first property if none selected
-  if (!selectedPropertyId && defaultPropertyId) {
-    setSelectedPropertyId(defaultPropertyId);
-  }
+  // Handle property selection change
+  const handlePropertyChange = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    // Update connection metadata with selected property
+    if (gaConnections.length > 0) {
+      const selectedProperty = properties.data?.properties?.find(p => p.propertyId === propertyId);
+      if (selectedProperty) {
+        updateProperty.mutate({
+          propertyId: selectedProperty.propertyId,
+          propertyName: selectedProperty.propertyName,
+        });
+      }
+    }
+  };
 
   if (gaConnections.length === 0) {
     return (
@@ -86,7 +118,40 @@ function GoogleAnalyticsInner() {
     );
   }
 
-  if (analytics.isLoading) {
+  // Show error state
+  if (analytics.error) {
+    const errorMessage = analytics.error instanceof Error 
+      ? analytics.error.message 
+      : typeof analytics.error === 'object' && analytics.error !== null && 'message' in analytics.error
+        ? String(analytics.error.message)
+        : 'Unable to fetch Google Analytics data. Please try again.';
+    
+    return (
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <Card className="mx-auto max-w-lg rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-200 bg-red-50">
+              <BarChart3 className="h-10 w-10 text-red-500" />
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              Failed to load analytics
+            </h2>
+            <p className="mt-3 text-sm text-slate-500">
+              {errorMessage}
+            </p>
+            <button
+              onClick={() => analytics.refetch()}
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
+            >
+              Retry
+            </button>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  if (analytics.isLoading || !effectivePropertyId) {
     return (
       <main className="min-h-screen bg-slate-100 py-28">
         <div className="mx-auto max-w-6xl space-y-8 px-6">
@@ -216,11 +281,12 @@ function GoogleAnalyticsInner() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {properties.data?.properties && properties.data.properties.length > 1 && (
+            {properties.data?.properties && properties.data.properties.length > 0 && (
               <select
                 value={selectedPropertyId}
-                onChange={(e) => setSelectedPropertyId(e.target.value)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                onChange={(e) => handlePropertyChange(e.target.value)}
+                disabled={updateProperty.isPending || properties.isLoading}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {properties.data.properties.map((prop) => (
                   <option key={prop.propertyId} value={prop.propertyId}>
