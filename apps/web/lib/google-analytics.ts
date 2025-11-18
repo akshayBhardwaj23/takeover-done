@@ -86,6 +86,7 @@ export async function listGA4Properties(
   const validToken = await getValidAccessToken(accessToken, refreshToken);
 
   try {
+    console.log('[GA] Listing accounts with token...');
     // List accounts
     const accountsRes = await fetch(
       'https://analyticsadmin.googleapis.com/v1beta/accounts',
@@ -97,7 +98,13 @@ export async function listGA4Properties(
     );
 
     if (!accountsRes.ok) {
-      throw new Error(`Failed to fetch accounts: ${accountsRes.statusText}`);
+      const errorText = await accountsRes.text();
+      console.error('[GA] Failed to fetch accounts:', {
+        status: accountsRes.status,
+        statusText: accountsRes.statusText,
+        error: errorText,
+      });
+      throw new Error(`Failed to fetch accounts: ${accountsRes.status} ${accountsRes.statusText} - ${errorText}`);
     }
 
     const accountsData = (await accountsRes.json()) as {
@@ -129,6 +136,7 @@ export async function listGA4Properties(
         };
 
         if (propertiesData.properties) {
+          console.log(`[GA] Found ${propertiesData.properties.length} properties in account ${accountId}`);
           for (const property of propertiesData.properties) {
             const propertyId = property.name.replace('properties/', '');
             properties.push({
@@ -137,7 +145,16 @@ export async function listGA4Properties(
               accountId,
             });
           }
+        } else {
+          console.log(`[GA] No properties found in account ${accountId}`);
         }
+      } else {
+        const errorText = await propertiesRes.text();
+        console.error(`[GA] Failed to fetch properties for account ${accountId}:`, {
+          status: propertiesRes.status,
+          statusText: propertiesRes.statusText,
+          error: errorText,
+        });
       }
     }
 

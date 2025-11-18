@@ -57,22 +57,40 @@ function GoogleAnalyticsInner() {
     connections.data?.connections.filter((c: any) => c.type === 'GOOGLE_ANALYTICS') || [];
 
   // Get property ID from connection metadata or first available property
-  const defaultPropertyId =
-    gaConnections.length > 0
-      ? ((gaConnections[0] as any).metadata as Record<string, unknown>)?.propertyId as string
-      : '';
+  const connectionMetadata = gaConnections.length > 0
+    ? ((gaConnections[0] as any).metadata as Record<string, unknown>)
+    : null;
+  
+  const defaultPropertyId = connectionMetadata?.propertyId as string | undefined || '';
 
-  // Auto-select property: prefer saved one, then first from properties list, then default
+  // Debug: Log metadata
+  useEffect(() => {
+    if (connectionMetadata) {
+      console.log('[GA Page] Connection metadata:', connectionMetadata);
+    }
+  }, [connectionMetadata]);
+
+  // Auto-select property: prefer saved one, then first from properties list
   useEffect(() => {
     if (selectedPropertyId) return; // Already selected
     
+    // First try saved property from metadata
     if (defaultPropertyId) {
+      console.log('[GA Page] Auto-selecting property from metadata:', defaultPropertyId);
       setSelectedPropertyId(defaultPropertyId);
-    } else if (properties.data?.properties && properties.data.properties.length > 0) {
-      // Use first available property if no saved one
-      setSelectedPropertyId(properties.data.properties[0].propertyId);
+      return;
     }
-  }, [defaultPropertyId, properties.data?.properties, selectedPropertyId]);
+    
+    // Then try first property from API
+    if (properties.data?.properties && properties.data.properties.length > 0) {
+      const firstPropertyId = properties.data.properties[0].propertyId;
+      console.log('[GA Page] Auto-selecting first property from API:', firstPropertyId);
+      setSelectedPropertyId(firstPropertyId);
+    } else if (properties.isLoading === false && !properties.error) {
+      // Properties query finished but returned 0 - this is a problem
+      console.warn('[GA Page] No properties available and none in metadata. Check server logs for errors.');
+    }
+  }, [defaultPropertyId, properties.data?.properties, properties.isLoading, properties.error, selectedPropertyId]);
 
   const effectivePropertyId = selectedPropertyId || defaultPropertyId;
 

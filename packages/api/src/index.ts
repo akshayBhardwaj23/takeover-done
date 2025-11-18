@@ -3755,11 +3755,47 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         : null;
 
       console.log('[GA Properties API] Calling listGA4Properties...');
-      const properties = await listGA4Properties(accessToken, refreshToken);
-      console.log('[GA Properties API] Properties fetched:', {
-        count: properties.length,
-        propertyIds: properties.map((p) => p.propertyId),
-      });
+      let properties: GA4Property[] = [];
+
+      try {
+        properties = await listGA4Properties(accessToken, refreshToken);
+        console.log('[GA Properties API] Properties fetched:', {
+          count: properties.length,
+          propertyIds: properties.map((p) => p.propertyId),
+        });
+      } catch (listError: any) {
+        console.error('[GA Properties API] Error in listGA4Properties:', {
+          error: listError.message,
+          stack: listError.stack,
+        });
+
+        // If we have a propertyId in metadata, return it as a fallback
+        const metadataPropertyId = (
+          connection.metadata as Record<string, unknown>
+        )?.propertyId as string | undefined;
+        const metadataPropertyName = (
+          connection.metadata as Record<string, unknown>
+        )?.propertyName as string | undefined;
+
+        if (metadataPropertyId) {
+          console.log(
+            '[GA Properties API] Using property from metadata as fallback:',
+            metadataPropertyId,
+          );
+          properties = [
+            {
+              propertyId: metadataPropertyId,
+              propertyName: metadataPropertyName || metadataPropertyId,
+              accountId:
+                ((connection.metadata as Record<string, unknown>)
+                  ?.accountId as string) || '',
+            },
+          ];
+        } else {
+          // Re-throw the error if we don't have a fallback
+          throw listError;
+        }
+      }
 
       return { properties };
     } catch (error: any) {
