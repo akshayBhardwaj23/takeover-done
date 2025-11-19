@@ -23,6 +23,7 @@ export default function Footer() {
   const pageLinks = [
     { href: '/', label: 'Home' },
     { href: '/about', label: 'About Us' },
+    { href: '/demo', label: 'Demo' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/faq', label: 'FAQ' },
   ] satisfies Array<{ href: Route; label: string }>;

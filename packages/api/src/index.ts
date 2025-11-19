@@ -24,13 +24,18 @@ import {
   PLAN_PRICING,
   type Currency,
 } from './payments/currency';
-import { decryptSecure } from './crypto';
+import { decryptSecure, encryptSecure } from './crypto';
 import {
   sanitizeLimited,
   safeEmail,
   safeShopDomain,
   clampNumber,
 } from './validation';
+import {
+  listGA4Properties,
+  fetchGA4Analytics,
+  type GA4Property,
+} from './google-analytics';
 
 type Context = {
   session: any;
@@ -3406,6 +3411,619 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return { executions: [] };
       }
     }),
+  // Meta Ads Integration
+  connectMetaAds: protectedProcedure
+    .input(
+      z.object({
+        accessToken: z.string().min(1, 'Access token is required'),
+        adAccountId: z.string().min(1, 'Ad account ID is required'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify token by making a test API call
+        const testResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${input.adAccountId}?fields=id,name,account_status&access_token=${input.accessToken}`,
+        );
+        if (!testResponse.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid access token or ad account ID',
+          });
+        }
+
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'META_ADS',
+          } as any,
+        });
+
+        const encryptedToken = encryptSecure(input.accessToken);
+        const metadata = {
+          adAccountId: input.adAccountId,
+          connectedAt: new Date().toISOString(),
+        };
+
+        if (existing) {
+          // Update existing connection
+          const updated = await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: encryptedToken,
+              metadata,
+              updatedAt: new Date(),
+            },
+          });
+          await logEvent(
+            'ads.meta.connected',
+            { adAccountId: input.adAccountId },
+            'connection',
+            ctx.userId,
+          );
+          return { connection: updated };
+        } else {
+          // Create new connection
+          const created = await prisma.connection.create({
+            data: {
+              userId: ctx.userId,
+              type: 'META_ADS' as any,
+              accessToken: encryptedToken,
+              metadata,
+            },
+          });
+          await logEvent(
+            'ads.meta.connected',
+            { adAccountId: input.adAccountId },
+            'connection',
+            ctx.userId,
+          );
+          return { connection: created };
+        }
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error connecting Meta Ads:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to connect Meta Ads',
+        });
+      }
+    }),
+  // Google Ads Integration
+  connectGoogleAds: protectedProcedure
+    .input(
+      z.object({
+        clientId: z.string().min(1, 'Client ID is required'),
+        clientSecret: z.string().min(1, 'Client secret is required'),
+        refreshToken: z.string().min(1, 'Refresh token is required'),
+        customerId: z.string().min(1, 'Customer ID is required'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify credentials by getting access token
+        const tokenResponse = await fetch(
+          'https://oauth2.googleapis.com/token',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              client_id: input.clientId,
+              client_secret: input.clientSecret,
+              refresh_token: input.refreshToken,
+              grant_type: 'refresh_token',
+            }),
+          },
+        );
+
+        if (!tokenResponse.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid Google Ads credentials',
+          });
+        }
+
+        const tokenData = (await tokenResponse.json()) as {
+          access_token: string;
+        };
+
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'GOOGLE_ADS',
+          } as any,
+        });
+
+        const encryptedAccessToken = encryptSecure(tokenData.access_token);
+        const encryptedRefreshToken = encryptSecure(input.refreshToken);
+        const metadata = {
+          clientId: input.clientId,
+          customerId: input.customerId,
+          connectedAt: new Date().toISOString(),
+        };
+
+        if (existing) {
+          // Update existing connection
+          const updated = await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              metadata,
+              updatedAt: new Date(),
+            },
+          });
+          await logEvent(
+            'ads.google.connected',
+            { customerId: input.customerId },
+            'connection',
+            ctx.userId,
+          );
+          return { connection: updated };
+        } else {
+          // Create new connection
+          const created = await prisma.connection.create({
+            data: {
+              userId: ctx.userId,
+              type: 'GOOGLE_ADS' as any,
+              accessToken: encryptedAccessToken,
+              refreshToken: encryptedRefreshToken,
+              metadata,
+            },
+          });
+          await logEvent(
+            'ads.google.connected',
+            { customerId: input.customerId },
+            'connection',
+            ctx.userId,
+          );
+          return { connection: created };
+        }
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('Error connecting Google Ads:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to connect Google Ads',
+        });
+      }
+    }),
+  // Get Meta Ads Data
+  getMetaAdsData: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { campaigns: [], adsets: [] };
+      }
+
+      const accessToken = decryptSecure(connection.accessToken);
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const adAccountId = (metadata.adAccountId as string) || '';
+
+      if (!adAccountId) {
+        return { campaigns: [], adsets: [] };
+      }
+
+      // Fetch campaigns
+      const campaignsResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${adAccountId}/campaigns?fields=id,name,status,objective,spend,impressions,clicks,ctr,cpc,cpm&limit=50&access_token=${accessToken}`,
+      );
+
+      let campaigns: any[] = [];
+      if (campaignsResponse.ok) {
+        const campaignsData = (await campaignsResponse.json()) as {
+          data: any[];
+        };
+        campaigns = campaignsData.data || [];
+      }
+
+      // Fetch adsets
+      const adsetsResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${adAccountId}/adsets?fields=id,name,status,campaign_id,spend,impressions,clicks,ctr,cpc,cpm&limit=50&access_token=${accessToken}`,
+      );
+
+      let adsets: any[] = [];
+      if (adsetsResponse.ok) {
+        const adsetsData = (await adsetsResponse.json()) as { data: any[] };
+        adsets = adsetsData.data || [];
+      }
+
+      return { campaigns, adsets };
+    } catch (error: any) {
+      console.error('Error fetching Meta Ads data:', error);
+      return { campaigns: [], adsets: [] };
+    }
+  }),
+  // Get Google Ads Data
+  getGoogleAdsData: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { campaigns: [] };
+      }
+
+      const accessToken = decryptSecure(connection.accessToken);
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const customerId = (metadata.customerId as string) || '';
+
+      if (!customerId) {
+        return { campaigns: [] };
+      }
+
+      // Fetch campaigns using Google Ads API
+      // Note: This is a simplified version. Real implementation would use google-ads-api library
+      const query = `
+        SELECT 
+          campaign.id,
+          campaign.name,
+          campaign.status,
+          campaign.advertising_channel_type,
+          metrics.cost_micros,
+          metrics.impressions,
+          metrics.clicks,
+          metrics.ctr,
+          metrics.average_cpc,
+          metrics.cost_micros / 1000000.0 as cost
+        FROM campaign
+        WHERE campaign.status != 'REMOVED'
+        ORDER BY metrics.impressions DESC
+        LIMIT 50
+      `;
+
+      // For now, return empty array. Real implementation would use Google Ads API client
+      // This requires the google-ads-api npm package
+      return { campaigns: [] };
+    } catch (error: any) {
+      console.error('Error fetching Google Ads data:', error);
+      return { campaigns: [] };
+    }
+  }),
+  // Disconnect Ads Connection
+  disconnectAdsConnection: protectedProcedure
+    .input(z.object({ type: z.enum(['META_ADS', 'GOOGLE_ADS']) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: input.type,
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found',
+        });
+      }
+
+      await prisma.connection.delete({
+        where: { id: connection.id },
+      });
+
+      await logEvent(
+        `ads.${input.type.toLowerCase()}.disconnected`,
+        {},
+        'connection',
+        ctx.userId,
+      );
+      return { success: true };
+    }),
+  // Get Google Analytics Properties
+  getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { properties: [] };
+      }
+
+      // Pass encrypted tokens - listGA4Properties will handle decryption and refresh via getValidAccessToken
+      const accessToken = connection.accessToken; // Keep encrypted
+      const refreshToken = connection.refreshToken; // Keep encrypted
+
+      let properties: GA4Property[] = [];
+
+      try {
+        // listGA4Properties will call getValidAccessToken which handles token refresh automatically
+        properties = await listGA4Properties(accessToken, refreshToken);
+
+        // If we got properties but metadata doesn't have propertyId, save the first one
+        if (properties.length > 0) {
+          const metadata =
+            (connection.metadata as Record<string, unknown>) || {};
+          const metadataPropertyId = metadata.propertyId as string | undefined;
+
+          if (!metadataPropertyId) {
+            // Save first property to metadata for future use
+            const firstProperty = properties[0];
+            await prisma.connection.update({
+              where: { id: connection.id },
+              data: {
+                metadata: {
+                  ...metadata,
+                  propertyId: firstProperty.propertyId,
+                  propertyName: firstProperty.propertyName,
+                  accountId: firstProperty.accountId,
+                },
+              },
+            });
+          }
+        }
+      } catch (listError: any) {
+        console.error('[GA Properties API] Error in listGA4Properties:', {
+          error: listError.message,
+          stack: listError.stack,
+        });
+
+        // If we have a propertyId in metadata, return it as a fallback
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const metadataPropertyId = metadata.propertyId as string | undefined;
+        const metadataPropertyName = metadata.propertyName as
+          | string
+          | undefined;
+        const metadataAccountId = metadata.accountId as string | undefined;
+
+        if (metadataPropertyId) {
+          properties = [
+            {
+              propertyId: metadataPropertyId,
+              propertyName: metadataPropertyName || metadataPropertyId,
+              accountId: metadataAccountId || '',
+            },
+          ];
+        } else {
+          // If we have accountId but no propertyId, try to fetch properties for that account
+          if (metadataAccountId) {
+            try {
+              const accountProperties = await listGA4Properties(
+                accessToken,
+                refreshToken,
+              );
+              if (accountProperties.length > 0) {
+                properties = accountProperties;
+                // Save first property to metadata
+                const firstProperty = properties[0];
+                await prisma.connection.update({
+                  where: { id: connection.id },
+                  data: {
+                    metadata: {
+                      ...metadata,
+                      propertyId: firstProperty.propertyId,
+                      propertyName: firstProperty.propertyName,
+                    },
+                  },
+                });
+              }
+            } catch (retryError: any) {
+              console.error(
+                '[GA Properties API] Retry also failed:',
+                retryError.message,
+              );
+            }
+          }
+
+          // If still no properties, re-throw the original error
+          if (properties.length === 0) {
+            throw listError;
+          }
+        }
+      }
+
+      return { properties };
+    } catch (error: any) {
+      console.error('[GA Properties API] Error fetching GA4 properties:', {
+        error: error.message,
+        stack: error.stack,
+        name: error.name,
+      });
+
+      // Re-throw the error so the client can see it
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error.message || 'Failed to fetch Google Analytics properties',
+        cause: error,
+      });
+    }
+  }),
+  // Get Google Analytics Data
+  getGoogleAnalyticsData: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        console.log('[GA API] Fetching analytics data:', {
+          userId: ctx.userId,
+          inputPropertyId: input.propertyId,
+          hasStartDate: !!input.startDate,
+          hasEndDate: !!input.endDate,
+        });
+
+        const connection = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'GOOGLE_ANALYTICS',
+          } as any,
+        });
+
+        if (!connection) {
+          console.error('[GA API] No connection found for user:', ctx.userId);
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Google Analytics not connected',
+          });
+        }
+
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const propertyId =
+          input.propertyId || (metadata.propertyId as string) || '';
+
+        if (!propertyId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'No GA4 property ID specified. Please select a property from the dropdown.',
+          });
+        }
+
+        // Clean property ID - remove 'properties/' prefix if present
+        const cleanPropertyId = propertyId.replace(/^properties\//, '');
+
+        // Default to last 7 days
+        const endDate = input.endDate || new Date().toISOString().split('T')[0];
+        const startDate =
+          input.startDate ||
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0];
+
+        // Pass encrypted tokens - fetchGA4Analytics will handle decryption and refresh
+        const accessToken = connection.accessToken; // Keep encrypted
+        const refreshToken = connection.refreshToken; // Keep encrypted
+
+        const analyticsData = await fetchGA4Analytics(
+          cleanPropertyId,
+          accessToken,
+          refreshToken,
+          startDate,
+          endDate,
+        );
+
+        return analyticsData;
+      } catch (error: any) {
+        console.error('[GA API] Error fetching GA4 analytics:', error.message);
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: error.message || 'Failed to fetch Google Analytics data',
+        });
+      }
+    }),
+  // Update Google Analytics Property Selection
+  updateGoogleAnalyticsProperty: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string(),
+        propertyName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Google Analytics not connected',
+        });
+      }
+
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      const updatedMetadata = {
+        ...metadata,
+        propertyId: input.propertyId,
+        propertyName:
+          input.propertyName ||
+          (typeof metadata.propertyName === 'string'
+            ? metadata.propertyName
+            : undefined),
+      };
+
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: updatedMetadata,
+        },
+      });
+
+      return { success: true };
+    }),
+  // Disconnect Google Analytics
+  disconnectGoogleAnalytics: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS',
+      } as any,
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics connection not found',
+      });
+    }
+
+    // Revoke OAuth tokens from Google before deleting the connection
+    if (connection.refreshToken) {
+      try {
+        const decryptedRefreshToken = decryptSecure(connection.refreshToken);
+
+        // Revoke the refresh token (this also invalidates the access token)
+        const revokeRes = await fetch('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            token: decryptedRefreshToken,
+          }),
+        });
+
+        if (!revokeRes.ok) {
+          const errorText = await revokeRes.text();
+          console.warn(
+            '[GA Disconnect] Failed to revoke tokens from Google:',
+            errorText,
+          );
+          // Continue with deletion even if revocation fails (token might already be invalid)
+        }
+      } catch (error: any) {
+        console.warn('[GA Disconnect] Error revoking tokens:', error.message);
+        // Continue with deletion even if revocation fails
+      }
+    }
+
+    // Delete the connection from database
+    await prisma.connection.delete({
+      where: { id: connection.id },
+    });
+
+    await logEvent(
+      'google_analytics.disconnected',
+      {},
+      'connection',
+      ctx.userId,
+    );
+    return { success: true };
+  }),
 });
 
 export type AppRouter = typeof appRouter;

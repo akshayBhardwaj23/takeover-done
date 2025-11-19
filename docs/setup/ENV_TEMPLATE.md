@@ -83,6 +83,17 @@ OPENAI_API_KEY=sk-proj-...
 SHOPIFY_API_KEY=...
 SHOPIFY_CLIENT_SECRET=...
 MAILGUN_API_KEY=...
+
+# ============================================
+# Google Analytics
+# ============================================
+# Get these from Google Cloud Console:
+# 1. Create OAuth 2.0 Client ID
+# 2. Add authorized redirect URI: http://localhost:3000/api/google-analytics/callback
+# 3. Enable Google Analytics API
+GOOGLE_ANALYTICS_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_ANALYTICS_CLIENT_SECRET=your-client-secret
+GOOGLE_ANALYTICS_REDIRECT_URI=http://localhost:3000/api/google-analytics/callback
 # ... other vars
 ```
 
