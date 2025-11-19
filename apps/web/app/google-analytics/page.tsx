@@ -36,13 +36,24 @@ function GoogleAnalyticsInner() {
   });
   
   const properties = trpc.getGoogleAnalyticsProperties.useQuery(undefined, {
+    retry: 2,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     onError: (error) => {
-      console.error('[GA Page] Properties query error:', error);
+      console.error('[GA Page] Properties query error:', {
+        message: error.message,
+        data: error.data,
+        cause: error.cause,
+      });
     },
     onSuccess: (data) => {
-      console.log('[GA Page] Properties loaded:', {
+      console.log('[GA Page] Properties loaded successfully:', {
         count: data?.properties?.length || 0,
-        properties: data?.properties?.map((p: any) => ({ id: p.propertyId, name: p.propertyName })),
+        properties: data?.properties?.map((p: any) => ({ 
+          id: p.propertyId, 
+          name: p.propertyName,
+          accountId: p.accountId,
+        })),
       });
     },
   });
@@ -166,24 +177,29 @@ function GoogleAnalyticsInner() {
 
   // Debug logging - only log when key values change, not on every render
   useEffect(() => {
+    // Only log if there's a meaningful change
     const allConnections = connections.data?.connections || [];
     const allConnectionTypes = allConnections.map((c: any) => c.type);
+    const propertiesCount = properties.data?.properties?.length || 0;
     
-    console.log('[GA Page] Full State:', {
+    // Only log if properties query has completed (success or error)
+    if (properties.isLoading) {
+      return; // Don't log while loading
+    }
+    
+    console.log('[GA Page] State Update:', {
       selectedPropertyId,
       defaultPropertyId,
       effectivePropertyId,
-      connectionsLoading: connections.isLoading,
-      connectionsError: connections.error?.message,
+      connectionsStatus: connections.isLoading ? 'loading' : connections.error ? 'error' : 'loaded',
       totalConnections: allConnections.length,
       allConnectionTypes,
       gaConnectionsCount: gaConnections.length,
-      propertiesLoading: properties.isLoading,
+      propertiesStatus: properties.isLoading ? 'loading' : properties.error ? 'error' : 'loaded',
+      propertiesCount,
       propertiesError: properties.error?.message,
-      propertiesCount: properties.data?.properties?.length || 0,
       analyticsStatus: analytics.status,
       analyticsError: analytics.error?.message,
-      analyticsLoading: analytics.isLoading,
     });
   }, [
     selectedPropertyId, 
@@ -191,13 +207,12 @@ function GoogleAnalyticsInner() {
     effectivePropertyId, 
     connections.isLoading,
     connections.error?.message,
-    gaConnections.length, // Use length instead of array reference
+    gaConnections.length,
     properties.isLoading,
     properties.error?.message,
     properties.data?.properties?.length,
     analytics.status, 
     analytics.error?.message, 
-    analytics.isLoading
   ]);
 
   // Handle property selection change

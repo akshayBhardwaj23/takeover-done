@@ -3749,16 +3749,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         metadata: connection.metadata,
       });
 
-      // Pass encrypted tokens - listGA4Properties will handle decryption and refresh
+      // Pass encrypted tokens - listGA4Properties will handle decryption and refresh via getValidAccessToken
       const accessToken = connection.accessToken; // Keep encrypted
       const refreshToken = connection.refreshToken; // Keep encrypted
 
       console.log(
-        '[GA Properties API] Calling listGA4Properties with encrypted tokens...',
+        '[GA Properties API] Calling listGA4Properties with encrypted tokens (will auto-refresh)...',
       );
       let properties: GA4Property[] = [];
 
       try {
+        // listGA4Properties will call getValidAccessToken which handles token refresh automatically
         properties = await listGA4Properties(accessToken, refreshToken);
         console.log('[GA Properties API] Properties fetched:', {
           count: properties.length,
@@ -3864,8 +3865,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       console.error('[GA Properties API] Error fetching GA4 properties:', {
         error: error.message,
         stack: error.stack,
+        name: error.name,
       });
-      return { properties: [] };
+
+      // Re-throw the error so the client can see it
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error.message || 'Failed to fetch Google Analytics properties',
+        cause: error,
+      });
     }
   }),
   // Get Google Analytics Data

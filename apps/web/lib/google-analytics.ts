@@ -69,29 +69,45 @@ export async function getValidAccessToken(
       const tokenData = await refreshAccessToken(refreshToken);
       console.log('[GA] Token refreshed successfully');
       return tokenData.access_token;
-    } catch (error) {
-      console.warn('[GA] Token refresh failed, trying existing token:', error);
+    } catch (error: any) {
+      console.warn('[GA] Token refresh failed:', {
+        message: error.message,
+        error: error,
+      });
+      
       // Fall back to existing token if refresh fails
-      const decryptedToken = decryptSecure(accessToken);
-      // Try to validate the existing token by making a test call
       try {
+        const decryptedToken = decryptSecure(accessToken);
+        console.log('[GA] Trying existing token...');
+        
+        // Try to validate the existing token by making a test call
         const testRes = await fetch(
           'https://analyticsadmin.googleapis.com/v1beta/accounts',
           {
             headers: { Authorization: `Bearer ${decryptedToken}` },
           },
         );
+        
         if (testRes.ok) {
           console.log('[GA] Existing token is still valid');
           return decryptedToken;
         }
-        throw new Error('Existing token is invalid');
-      } catch {
-        throw new Error('Both token refresh and existing token failed');
+        
+        const errorText = await testRes.text();
+        console.error('[GA] Existing token validation failed:', {
+          status: testRes.status,
+          error: errorText.substring(0, 200),
+        });
+        throw new Error(`Token validation failed: ${testRes.status} - ${errorText.substring(0, 100)}`);
+      } catch (validationError: any) {
+        console.error('[GA] Both token refresh and validation failed:', validationError.message);
+        throw new Error(`Token refresh and validation failed: ${error.message || 'Unknown error'}`);
       }
     }
   }
-  // If no refresh token, use existing token
+  
+  // If no refresh token, decrypt and use existing token
+  console.log('[GA] No refresh token, using existing token');
   return decryptSecure(accessToken);
 }
 
