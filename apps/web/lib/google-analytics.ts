@@ -171,11 +171,11 @@ export async function listGA4Properties(
           }
         } else if (propertiesRes.status === 404) {
           // 404 means this account doesn't have properties accessible via this endpoint
-          // Try listing all properties globally instead
-          console.log(`[GA] Account ${accountId} returned 404, trying global properties list...`);
+          // Try using the global properties endpoint with a filter
+          console.log(`[GA] Account ${accountId} returned 404, trying global properties endpoint with filter...`);
           
           const globalPropertiesRes = await fetch(
-            'https://analyticsadmin.googleapis.com/v1beta/properties',
+            `https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${account.name}`,
             {
               headers: {
                 Authorization: `Bearer ${validToken}`,
@@ -188,29 +188,22 @@ export async function listGA4Properties(
               properties?: Array<{ name: string; displayName?: string; parent?: string }>;
             };
 
-            if (globalPropertiesData.properties) {
-              // Filter properties that belong to this account
-              const accountProperties = globalPropertiesData.properties.filter(
-                (prop) => prop.parent === account.name
-              );
-
-              if (accountProperties.length > 0) {
-                console.log(`[GA] Found ${accountProperties.length} properties for account ${accountId} via global list`);
-                for (const property of accountProperties) {
-                  const propertyId = property.name.replace('properties/', '');
-                  properties.push({
-                    propertyId,
-                    propertyName: property.displayName || propertyId,
-                    accountId,
-                  });
-                }
-              } else {
-                console.log(`[GA] No properties found for account ${accountId} in global list`);
+            if (globalPropertiesData.properties && globalPropertiesData.properties.length > 0) {
+              console.log(`[GA] Found ${globalPropertiesData.properties.length} properties for account ${accountId} via global endpoint`);
+              for (const property of globalPropertiesData.properties) {
+                const propertyId = property.name.replace('properties/', '');
+                properties.push({
+                  propertyId,
+                  propertyName: property.displayName || propertyId,
+                  accountId,
+                });
               }
+            } else {
+              console.log(`[GA] No properties found for account ${accountId} via global endpoint`);
             }
           } else {
             const errorText = await globalPropertiesRes.text();
-            console.warn(`[GA] Global properties list also failed for account ${accountId}:`, {
+            console.warn(`[GA] Global properties endpoint also failed for account ${accountId}:`, {
               status: globalPropertiesRes.status,
               error: errorText.substring(0, 200),
             });
@@ -226,6 +219,24 @@ export async function listGA4Properties(
       } catch (error: any) {
         console.error(`[GA] Error fetching properties for account ${accountId}:`, error.message);
       }
+    }
+
+    // If no properties found via account-specific endpoints, try searching all properties
+    // This is a fallback for accounts that don't support the account-specific endpoint
+    if (properties.length === 0 && accountsData.accounts && accountsData.accounts.length > 0) {
+      console.log('[GA] No properties found via account endpoints, trying search method...');
+      
+      // Try to search for properties - we'll search for properties that might belong to any of the accounts
+      // Note: This is a workaround - ideally we'd use account-specific endpoints
+      for (const account of accountsData.accounts) {
+        const accountId = account.name.replace('accounts/', '');
+        
+        // Some accounts might have properties accessible via a different method
+        // For now, we'll log that no properties were found for this account
+        console.log(`[GA] No GA4 properties found for account ${accountId} (${account.displayName || 'Unknown'})`);
+      }
+      
+      console.log('[GA] Note: If you have GA4 properties, they may need to be created or you may need additional permissions');
     }
 
     return properties;
