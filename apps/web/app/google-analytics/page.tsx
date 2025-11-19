@@ -78,13 +78,41 @@ function GoogleAnalyticsInner() {
 
   // Auto-select property: prefer saved one, then first from properties list
   useEffect(() => {
-    if (selectedPropertyId) return; // Already selected
+    // Don't change if already selected and it's valid
+    if (selectedPropertyId) {
+      // Verify the selected property still exists in the list
+      if (properties.data?.properties) {
+        const propertyExists = properties.data.properties.some(
+          (p) => p.propertyId === selectedPropertyId
+        );
+        if (propertyExists) {
+          return; // Property is valid, keep it
+        }
+        // Property no longer exists, clear selection
+        console.log('[GA Page] Selected property no longer exists, clearing selection');
+        setSelectedPropertyId('');
+        return;
+      }
+      return; // Properties not loaded yet, keep current selection
+    }
     
     // First try saved property from metadata
     if (defaultPropertyId) {
-      console.log('[GA Page] Auto-selecting property from metadata:', defaultPropertyId);
-      setSelectedPropertyId(defaultPropertyId);
-      return;
+      // Verify it exists in the properties list
+      if (properties.data?.properties) {
+        const propertyExists = properties.data.properties.some(
+          (p) => p.propertyId === defaultPropertyId
+        );
+        if (propertyExists) {
+          console.log('[GA Page] Auto-selecting property from metadata:', defaultPropertyId);
+          setSelectedPropertyId(defaultPropertyId);
+          return;
+        }
+        console.log('[GA Page] Metadata property not found in list, will use first available');
+      } else if (!properties.isLoading) {
+        // Properties loaded but metadata property not found, use first available
+        console.log('[GA Page] Metadata property not in list, will select first available');
+      }
     }
     
     // Then try first property from API
@@ -92,12 +120,14 @@ function GoogleAnalyticsInner() {
       const firstPropertyId = properties.data.properties[0].propertyId;
       console.log('[GA Page] Auto-selecting first property from API:', firstPropertyId);
       setSelectedPropertyId(firstPropertyId);
-    } else if (properties.isLoading === false && !properties.error && properties.data?.properties?.length === 0) {
-      // Properties query finished but returned 0 - this is a problem
-      console.warn('[GA Page] No properties available and none in metadata. Check server logs for errors.');
+    } else if (properties.isLoading === false && !properties.error) {
+      if (properties.data?.properties?.length === 0) {
+        // Properties query finished but returned 0 - this is a problem
+        console.warn('[GA Page] No properties available and none in metadata. Check server logs for errors.');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultPropertyId, properties.data?.properties?.length, properties.isLoading, properties.error]);
+  }, [defaultPropertyId, properties.data?.properties, properties.isLoading, properties.error]);
 
   const effectivePropertyId = selectedPropertyId || defaultPropertyId;
 
@@ -116,16 +146,19 @@ function GoogleAnalyticsInner() {
       endDate,
     },
     { 
-      enabled: !!effectivePropertyId,
+      enabled: !!effectivePropertyId && effectivePropertyId.length > 0,
       retry: 1,
       refetchOnWindowFocus: false,
+      staleTime: 30000, // Consider data fresh for 30 seconds
+      gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
       onError: (error) => {
         console.error('[GA Page] Analytics query error:', error);
       },
       onSuccess: (data) => {
         console.log('[GA Page] Analytics data loaded:', { 
           sessions: data.sessions, 
-          users: data.users 
+          users: data.users,
+          propertyId: effectivePropertyId,
         });
       },
     },
@@ -278,10 +311,11 @@ function GoogleAnalyticsInner() {
   }
 
   // Show loading or waiting for property selection
-  if (analytics.isLoading || !effectivePropertyId) {
-    const isWaitingForProperty = !effectivePropertyId && properties.isLoading;
-    const isWaitingForData = effectivePropertyId && analytics.isLoading;
-    
+  // Only show loading if we're actually waiting for something
+  const isWaitingForProperty = !effectivePropertyId && (properties.isLoading || !properties.data);
+  const isWaitingForData = effectivePropertyId && analytics.isLoading && !analytics.error;
+  
+  if (isWaitingForProperty || isWaitingForData) {
     return (
       <main className="min-h-screen bg-slate-100 py-28">
         <div className="mx-auto max-w-6xl space-y-8 px-6">
@@ -314,6 +348,52 @@ function GoogleAnalyticsInner() {
               ))}
             </div>
           )}
+        </div>
+      </main>
+    );
+  }
+  
+  // If we have properties but no property selected and properties are loaded, show property selector
+  if (!effectivePropertyId && properties.data?.properties && properties.data.properties.length > 0) {
+    return (
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl space-y-8 px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <BarChart3 className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Google Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Website traffic and performance insights
+              </p>
+            </div>
+          </div>
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
+              <BarChart3 className="h-10 w-10 text-slate-500" />
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              Select a Property
+            </h2>
+            <p className="mt-3 text-sm text-slate-500">
+              Please select a Google Analytics property to view data.
+            </p>
+            <select
+              value={selectedPropertyId}
+              onChange={(e) => handlePropertyChange(e.target.value)}
+              className="mt-6 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            >
+              <option value="">Select a property...</option>
+              {properties.data.properties.map((prop) => (
+                <option key={prop.propertyId} value={prop.propertyId}>
+                  {prop.propertyName}
+                </option>
+              ))}
+            </select>
+          </Card>
         </div>
       </main>
     );
