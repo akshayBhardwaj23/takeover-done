@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useMemo } from 'react';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
@@ -53,15 +53,21 @@ function GoogleAnalyticsInner() {
     },
   });
   
-  const gaConnections =
-    connections.data?.connections.filter((c: any) => c.type === 'GOOGLE_ANALYTICS') || [];
+  // Memoize to prevent unnecessary re-renders
+  const gaConnections = useMemo(() => {
+    return connections.data?.connections.filter((c: any) => c.type === 'GOOGLE_ANALYTICS') || [];
+  }, [connections.data?.connections]);
 
   // Get property ID from connection metadata or first available property
-  const connectionMetadata = gaConnections.length > 0
-    ? ((gaConnections[0] as any).metadata as Record<string, unknown>)
-    : null;
+  const connectionMetadata = useMemo(() => {
+    return gaConnections.length > 0
+      ? ((gaConnections[0] as any).metadata as Record<string, unknown>)
+      : null;
+  }, [gaConnections]);
   
-  const defaultPropertyId = connectionMetadata?.propertyId as string | undefined || '';
+  const defaultPropertyId = useMemo(() => {
+    return connectionMetadata?.propertyId as string | undefined || '';
+  }, [connectionMetadata]);
 
   // Debug: Log metadata
   useEffect(() => {
@@ -86,11 +92,12 @@ function GoogleAnalyticsInner() {
       const firstPropertyId = properties.data.properties[0].propertyId;
       console.log('[GA Page] Auto-selecting first property from API:', firstPropertyId);
       setSelectedPropertyId(firstPropertyId);
-    } else if (properties.isLoading === false && !properties.error) {
+    } else if (properties.isLoading === false && !properties.error && properties.data?.properties?.length === 0) {
       // Properties query finished but returned 0 - this is a problem
       console.warn('[GA Page] No properties available and none in metadata. Check server logs for errors.');
     }
-  }, [defaultPropertyId, properties.data?.properties, properties.isLoading, properties.error, selectedPropertyId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultPropertyId, properties.data?.properties?.length, properties.isLoading, properties.error]);
 
   const effectivePropertyId = selectedPropertyId || defaultPropertyId;
 
@@ -124,7 +131,7 @@ function GoogleAnalyticsInner() {
     },
   );
 
-  // Debug logging
+  // Debug logging - only log when key values change, not on every render
   useEffect(() => {
     const allConnections = connections.data?.connections || [];
     const allConnectionTypes = allConnections.map((c: any) => c.type);
@@ -138,7 +145,6 @@ function GoogleAnalyticsInner() {
       totalConnections: allConnections.length,
       allConnectionTypes,
       gaConnectionsCount: gaConnections.length,
-      gaConnections: gaConnections.map((c: any) => ({ id: c.id, type: c.type, metadata: c.metadata })),
       propertiesLoading: properties.isLoading,
       propertiesError: properties.error?.message,
       propertiesCount: properties.data?.properties?.length || 0,
@@ -150,15 +156,14 @@ function GoogleAnalyticsInner() {
     selectedPropertyId, 
     defaultPropertyId, 
     effectivePropertyId, 
-    connections.data, 
     connections.isLoading,
-    connections.error,
-    gaConnections, 
-    properties.data, 
+    connections.error?.message,
+    gaConnections.length, // Use length instead of array reference
     properties.isLoading,
-    properties.error,
+    properties.error?.message,
+    properties.data?.properties?.length,
     analytics.status, 
-    analytics.error, 
+    analytics.error?.message, 
     analytics.isLoading
   ]);
 
