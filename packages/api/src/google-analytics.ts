@@ -62,17 +62,52 @@ export async function getValidAccessToken(
   accessToken: string,
   refreshToken: string | null,
 ): Promise<string> {
-  // Try to use existing token first (simple check - in production, check expiry)
-  // For now, we'll always try to refresh if refresh token exists
+  // Always try to refresh if refresh token exists (tokens expire quickly)
   if (refreshToken) {
     try {
+      console.log('[GA] Refreshing access token...');
       const tokenData = await refreshAccessToken(refreshToken);
+      console.log('[GA] Token refreshed successfully');
       return tokenData.access_token;
-    } catch (error) {
-      console.warn('[GA] Token refresh failed, using existing token:', error);
-      return decryptSecure(accessToken);
+    } catch (error: any) {
+      console.warn('[GA] Token refresh failed:', {
+        message: error.message,
+        error: error,
+      });
+      
+      // Fall back to existing token if refresh fails
+      try {
+        const decryptedToken = decryptSecure(accessToken);
+        console.log('[GA] Trying existing token...');
+        
+        // Try to validate the existing token by making a test call
+        const testRes = await fetch(
+          'https://analyticsadmin.googleapis.com/v1beta/accounts',
+          {
+            headers: { Authorization: `Bearer ${decryptedToken}` },
+          },
+        );
+        
+        if (testRes.ok) {
+          console.log('[GA] Existing token is still valid');
+          return decryptedToken;
+        }
+        
+        const errorText = await testRes.text();
+        console.error('[GA] Existing token validation failed:', {
+          status: testRes.status,
+          error: errorText.substring(0, 200),
+        });
+        throw new Error(`Token validation failed: ${testRes.status} - ${errorText.substring(0, 100)}`);
+      } catch (validationError: any) {
+        console.error('[GA] Both token refresh and validation failed:', validationError.message);
+        throw new Error(`Token refresh and validation failed: ${error.message || 'Unknown error'}`);
+      }
     }
   }
+  
+  // If no refresh token, decrypt and use existing token
+  console.log('[GA] No refresh token, using existing token');
   return decryptSecure(accessToken);
 }
 
@@ -86,6 +121,7 @@ export async function listGA4Properties(
   const validToken = await getValidAccessToken(accessToken, refreshToken);
 
   try {
+    console.log('[GA] Listing accounts with token...');
     // List accounts
     const accountsRes = await fetch(
       'https://analyticsadmin.googleapis.com/v1beta/accounts',
@@ -97,7 +133,13 @@ export async function listGA4Properties(
     );
 
     if (!accountsRes.ok) {
-      throw new Error(`Failed to fetch accounts: ${accountsRes.statusText}`);
+      const errorText = await accountsRes.text();
+      console.error('[GA] Failed to fetch accounts:', {
+        status: accountsRes.status,
+        statusText: accountsRes.statusText,
+        error: errorText,
+      });
+      throw new Error(`Failed to fetch accounts: ${accountsRes.status} ${accountsRes.statusText} - ${errorText}`);
     }
 
     const accountsData = (await accountsRes.json()) as {
@@ -105,8 +147,11 @@ export async function listGA4Properties(
     };
 
     if (!accountsData.accounts || accountsData.accounts.length === 0) {
+      console.log('[GA] No accounts found');
       return [];
     }
+
+    console.log(`[GA] Found ${accountsData.accounts.length} account(s)`);
 
     const properties: GA4Property[] = [];
 
@@ -114,33 +159,89 @@ export async function listGA4Properties(
     for (const account of accountsData.accounts) {
       const accountId = account.name.replace('accounts/', '');
       
-      const propertiesRes = await fetch(
-        `https://analyticsadmin.googleapis.com/v1beta/${account.name}/properties`,
-        {
-          headers: {
-            Authorization: `Bearer ${validToken}`,
+      try {
+        // Try the account-specific properties endpoint
+        const propertiesRes = await fetch(
+          `https://analyticsadmin.googleapis.com/v1beta/${account.name}/properties`,
+          {
+            headers: {
+              Authorization: `Bearer ${validToken}`,
+            },
           },
-        },
-      );
+        );
 
-      if (propertiesRes.ok) {
-        const propertiesData = (await propertiesRes.json()) as {
-          properties?: Array<{ name: string; displayName?: string }>;
-        };
+        if (propertiesRes.ok) {
+          const propertiesData = (await propertiesRes.json()) as {
+            properties?: Array<{ name: string; displayName?: string }>;
+          };
 
-        if (propertiesData.properties) {
-          for (const property of propertiesData.properties) {
-            const propertyId = property.name.replace('properties/', '');
-            properties.push({
-              propertyId,
-              propertyName: property.displayName || propertyId,
-              accountId,
+          if (propertiesData.properties && propertiesData.properties.length > 0) {
+            console.log(`[GA] Found ${propertiesData.properties.length} properties in account ${accountId}`);
+            for (const property of propertiesData.properties) {
+              const propertyId = property.name.replace('properties/', '');
+              properties.push({
+                propertyId,
+                propertyName: property.displayName || propertyId,
+                accountId,
+              });
+            }
+          } else {
+            console.log(`[GA] No properties found in account ${accountId}`);
+          }
+        } else if (propertiesRes.status === 404) {
+          // 404 means this account doesn't have properties accessible via this endpoint
+          // Try using the global properties endpoint with a filter
+          console.log(`[GA] Account ${accountId} returned 404, trying global properties endpoint with filter...`);
+          
+          const globalPropertiesRes = await fetch(
+            `https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${account.name}`,
+            {
+              headers: {
+                Authorization: `Bearer ${validToken}`,
+              },
+            },
+          );
+
+          if (globalPropertiesRes.ok) {
+            const globalPropertiesData = (await globalPropertiesRes.json()) as {
+              properties?: Array<{ name: string; displayName?: string; parent?: string }>;
+            };
+
+            if (globalPropertiesData.properties && globalPropertiesData.properties.length > 0) {
+              console.log(`[GA] Found ${globalPropertiesData.properties.length} properties for account ${accountId} via global endpoint`);
+              for (const property of globalPropertiesData.properties) {
+                const propertyId = property.name.replace('properties/', '');
+                properties.push({
+                  propertyId,
+                  propertyName: property.displayName || propertyId,
+                  accountId,
+                });
+              }
+            } else {
+              console.log(`[GA] No properties found for account ${accountId} via global endpoint`);
+            }
+          } else {
+            const errorText = await globalPropertiesRes.text();
+            console.warn(`[GA] Global properties endpoint also failed for account ${accountId}:`, {
+              status: globalPropertiesRes.status,
+              error: errorText.substring(0, 200),
             });
           }
+        } else {
+          const errorText = await propertiesRes.text();
+          console.error(`[GA] Failed to fetch properties for account ${accountId}:`, {
+            status: propertiesRes.status,
+            statusText: propertiesRes.statusText,
+            error: errorText.substring(0, 200),
+          });
         }
+      } catch (accountError: any) {
+        console.error(`[GA] Error processing account ${accountId}:`, accountError.message);
+        // Continue with next account
       }
     }
 
+    console.log(`[GA] Total properties found: ${properties.length}`);
     return properties;
   } catch (error) {
     console.error('[GA] Error listing properties:', error);
@@ -160,10 +261,13 @@ export async function fetchGA4Analytics(
 ): Promise<GA4AnalyticsData> {
   const validToken = await getValidAccessToken(accessToken, refreshToken);
 
+  // Clean propertyId (remove 'properties/' prefix if present)
+  const cleanPropertyId = propertyId.replace(/^properties\//, '');
+
   try {
     // Fetch overview metrics
     const overviewRes = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      `https://analyticsdata.googleapis.com/v1beta/properties/${cleanPropertyId}:runReport`,
       {
         method: 'POST',
         headers: {
@@ -211,7 +315,7 @@ export async function fetchGA4Analytics(
 
     try {
       const ecommerceRes = await fetch(
-        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+        `https://analyticsdata.googleapis.com/v1beta/properties/${cleanPropertyId}:runReport`,
         {
           method: 'POST',
           headers: {
@@ -250,7 +354,7 @@ export async function fetchGA4Analytics(
 
     // Fetch traffic sources
     const trafficRes = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      `https://analyticsdata.googleapis.com/v1beta/properties/${cleanPropertyId}:runReport`,
       {
         method: 'POST',
         headers: {
@@ -288,7 +392,7 @@ export async function fetchGA4Analytics(
 
     // Fetch top pages
     const pagesRes = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+      `https://analyticsdata.googleapis.com/v1beta/properties/${cleanPropertyId}:runReport`,
       {
         method: 'POST',
         headers: {
@@ -324,7 +428,7 @@ export async function fetchGA4Analytics(
       }
     }
 
-    // Fetch daily trend data (simplified - fetch last 7 days)
+    // Fetch daily trend data
     const trend: Array<{ date: string; sessions: number; users: number; revenue?: number }> = [];
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -339,7 +443,7 @@ export async function fetchGA4Analytics(
 
       try {
         const dayRes = await fetch(
-          `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+          `https://analyticsdata.googleapis.com/v1beta/properties/${cleanPropertyId}:runReport`,
           {
             method: 'POST',
             headers: {
@@ -398,4 +502,3 @@ export async function fetchGA4Analytics(
     throw error;
   }
 }
-

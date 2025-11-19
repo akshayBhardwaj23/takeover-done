@@ -3760,11 +3760,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
       try {
         // listGA4Properties will call getValidAccessToken which handles token refresh automatically
+        console.log('[GA Properties API] Starting listGA4Properties call...');
         properties = await listGA4Properties(accessToken, refreshToken);
-        console.log('[GA Properties API] Properties fetched:', {
+        console.log('[GA Properties API] Properties fetched successfully:', {
           count: properties.length,
           propertyIds: properties.map((p) => p.propertyId),
+          propertyNames: properties.map((p) => p.propertyName),
         });
+
+        if (properties.length === 0) {
+          console.warn(
+            '[GA Properties API] WARNING: listGA4Properties returned 0 properties. This might indicate:',
+          );
+          console.warn(
+            '[GA Properties API] - No GA4 properties exist for this account',
+          );
+          console.warn('[GA Properties API] - Token refresh failed silently');
+          console.warn('[GA Properties API] - API permissions issue');
+        }
 
         // If we got properties but metadata doesn't have propertyId, save the first one
         if (properties.length > 0) {

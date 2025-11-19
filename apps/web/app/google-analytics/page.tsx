@@ -31,6 +31,22 @@ function GoogleAnalyticsInner() {
     retry: 2,
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
+    onError: (error) => {
+      console.error('[GA Page] Properties query error:', {
+        message: error.message,
+        data: error.data,
+        code: error.data?.code,
+      });
+    },
+    onSuccess: (data) => {
+      console.log('[GA Page] Properties query success:', {
+        count: data?.properties?.length || 0,
+        properties: data?.properties?.map((p: any) => ({
+          id: p.propertyId,
+          name: p.propertyName,
+        })),
+      });
+    },
   });
 
   // Get GA connections
