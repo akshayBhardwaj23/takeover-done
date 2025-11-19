@@ -3749,12 +3749,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         metadata: connection.metadata,
       });
 
-      const accessToken = decryptSecure(connection.accessToken);
-      const refreshToken = connection.refreshToken
-        ? connection.refreshToken
-        : null;
+      // Pass encrypted tokens - listGA4Properties will handle decryption and refresh
+      const accessToken = connection.accessToken; // Keep encrypted
+      const refreshToken = connection.refreshToken; // Keep encrypted
 
-      console.log('[GA Properties API] Calling listGA4Properties...');
+      console.log(
+        '[GA Properties API] Calling listGA4Properties with encrypted tokens...',
+      );
       let properties: GA4Property[] = [];
 
       try {
@@ -3932,10 +3933,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         console.log('[GA API] Date range:', { startDate, endDate });
 
-        const accessToken = decryptSecure(connection.accessToken);
-        const refreshToken = connection.refreshToken
-          ? connection.refreshToken
-          : null;
+        // Pass encrypted tokens - fetchGA4Analytics will handle decryption and refresh
+        const accessToken = connection.accessToken; // Keep encrypted
+        const refreshToken = connection.refreshToken; // Keep encrypted
 
         console.log(
           '[GA API] Calling fetchGA4Analytics with property ID:',
