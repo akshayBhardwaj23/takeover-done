@@ -3725,11 +3725,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {
-      console.log(
-        '[GA Properties API] Fetching properties for user:',
-        ctx.userId,
-      );
-
       const connection = await prisma.connection.findFirst({
         where: {
           userId: ctx.userId,
@@ -3738,46 +3733,18 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
 
       if (!connection) {
-        console.log('[GA Properties API] No GA connection found for user');
         return { properties: [] };
       }
-
-      console.log('[GA Properties API] Connection found:', {
-        connectionId: connection.id,
-        hasAccessToken: !!connection.accessToken,
-        hasRefreshToken: !!connection.refreshToken,
-        metadata: connection.metadata,
-      });
 
       // Pass encrypted tokens - listGA4Properties will handle decryption and refresh via getValidAccessToken
       const accessToken = connection.accessToken; // Keep encrypted
       const refreshToken = connection.refreshToken; // Keep encrypted
 
-      console.log(
-        '[GA Properties API] Calling listGA4Properties with encrypted tokens (will auto-refresh)...',
-      );
       let properties: GA4Property[] = [];
 
       try {
         // listGA4Properties will call getValidAccessToken which handles token refresh automatically
-        console.log('[GA Properties API] Starting listGA4Properties call...');
         properties = await listGA4Properties(accessToken, refreshToken);
-        console.log('[GA Properties API] Properties fetched successfully:', {
-          count: properties.length,
-          propertyIds: properties.map((p) => p.propertyId),
-          propertyNames: properties.map((p) => p.propertyName),
-        });
-
-        if (properties.length === 0) {
-          console.warn(
-            '[GA Properties API] WARNING: listGA4Properties returned 0 properties. This might indicate:',
-          );
-          console.warn(
-            '[GA Properties API] - No GA4 properties exist for this account',
-          );
-          console.warn('[GA Properties API] - Token refresh failed silently');
-          console.warn('[GA Properties API] - API permissions issue');
-        }
 
         // If we got properties but metadata doesn't have propertyId, save the first one
         if (properties.length > 0) {
@@ -3788,10 +3755,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           if (!metadataPropertyId) {
             // Save first property to metadata for future use
             const firstProperty = properties[0];
-            console.log(
-              '[GA Properties API] Saving first property to metadata:',
-              firstProperty.propertyId,
-            );
             await prisma.connection.update({
               where: { id: connection.id },
               data: {
@@ -3820,10 +3783,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const metadataAccountId = metadata.accountId as string | undefined;
 
         if (metadataPropertyId) {
-          console.log(
-            '[GA Properties API] Using property from metadata as fallback:',
-            metadataPropertyId,
-          );
           properties = [
             {
               propertyId: metadataPropertyId,
@@ -3834,10 +3793,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         } else {
           // If we have accountId but no propertyId, try to fetch properties for that account
           if (metadataAccountId) {
-            console.log(
-              '[GA Properties API] Attempting to fetch properties for account:',
-              metadataAccountId,
-            );
             try {
               const accountProperties = await listGA4Properties(
                 accessToken,
@@ -3926,14 +3881,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const propertyId =
           input.propertyId || (metadata.propertyId as string) || '';
 
-        console.log('[GA API] Property ID:', {
-          inputPropertyId: input.propertyId,
-          metadataPropertyId: metadata.propertyId,
-          finalPropertyId: propertyId,
-        });
-
         if (!propertyId) {
-          console.error('[GA API] No property ID available');
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message:
@@ -3952,16 +3900,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             .toISOString()
             .split('T')[0];
 
-        console.log('[GA API] Date range:', { startDate, endDate });
-
         // Pass encrypted tokens - fetchGA4Analytics will handle decryption and refresh
         const accessToken = connection.accessToken; // Keep encrypted
         const refreshToken = connection.refreshToken; // Keep encrypted
 
-        console.log(
-          '[GA API] Calling fetchGA4Analytics with property ID:',
-          cleanPropertyId,
-        );
         const analyticsData = await fetchGA4Analytics(
           cleanPropertyId,
           accessToken,
@@ -3970,18 +3912,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           endDate,
         );
 
-        console.log('[GA API] Analytics data fetched successfully:', {
-          sessions: analyticsData.sessions,
-          users: analyticsData.users,
-        });
-
         return analyticsData;
       } catch (error: any) {
-        console.error('[GA API] Error fetching GA4 analytics:', {
-          error: error.message,
-          stack: error.stack,
-          code: error.code,
-        });
+        console.error('[GA API] Error fetching GA4 analytics:', error.message);
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -4064,11 +3997,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           }),
         });
 
-        if (revokeRes.ok) {
-          console.log(
-            '[GA Disconnect] Successfully revoked OAuth tokens from Google',
-          );
-        } else {
+        if (!revokeRes.ok) {
           const errorText = await revokeRes.text();
           console.warn(
             '[GA Disconnect] Failed to revoke tokens from Google:',

@@ -65,20 +65,12 @@ export async function getValidAccessToken(
   // Always try to refresh if refresh token exists (tokens expire quickly)
   if (refreshToken) {
     try {
-      console.log('[GA] Refreshing access token...');
       const tokenData = await refreshAccessToken(refreshToken);
-      console.log('[GA] Token refreshed successfully');
       return tokenData.access_token;
     } catch (error: any) {
-      console.warn('[GA] Token refresh failed:', {
-        message: error.message,
-        error: error,
-      });
-      
       // Fall back to existing token if refresh fails
       try {
         const decryptedToken = decryptSecure(accessToken);
-        console.log('[GA] Trying existing token...');
         
         // Try to validate the existing token by making a test call
         const testRes = await fetch(
@@ -89,12 +81,11 @@ export async function getValidAccessToken(
         );
         
         if (testRes.ok) {
-          console.log('[GA] Existing token is still valid');
           return decryptedToken;
         }
         
         const errorText = await testRes.text();
-        console.error('[GA] Existing token validation failed:', {
+        console.error('[GA] Token validation failed:', {
           status: testRes.status,
           error: errorText.substring(0, 200),
         });
@@ -107,7 +98,6 @@ export async function getValidAccessToken(
   }
   
   // If no refresh token, decrypt and use existing token
-  console.log('[GA] No refresh token, using existing token');
   return decryptSecure(accessToken);
 }
 
@@ -121,7 +111,6 @@ export async function listGA4Properties(
   const validToken = await getValidAccessToken(accessToken, refreshToken);
 
   try {
-    console.log('[GA] Listing accounts with token...');
     // List accounts
     const accountsRes = await fetch(
       'https://analyticsadmin.googleapis.com/v1beta/accounts',
@@ -147,11 +136,8 @@ export async function listGA4Properties(
     };
 
     if (!accountsData.accounts || accountsData.accounts.length === 0) {
-      console.log('[GA] No accounts found');
       return [];
     }
-
-    console.log(`[GA] Found ${accountsData.accounts.length} account(s)`);
 
     const properties: GA4Property[] = [];
 
@@ -176,7 +162,6 @@ export async function listGA4Properties(
           };
 
           if (propertiesData.properties && propertiesData.properties.length > 0) {
-            console.log(`[GA] Found ${propertiesData.properties.length} properties in account ${accountId}`);
             for (const property of propertiesData.properties) {
               const propertyId = property.name.replace('properties/', '');
               properties.push({
@@ -185,14 +170,10 @@ export async function listGA4Properties(
                 accountId,
               });
             }
-          } else {
-            console.log(`[GA] No properties found in account ${accountId}`);
           }
         } else if (propertiesRes.status === 404) {
           // 404 means this account doesn't have properties accessible via this endpoint
           // Try using the global properties endpoint with a filter
-          console.log(`[GA] Account ${accountId} returned 404, trying global properties endpoint with filter...`);
-          
           const globalPropertiesRes = await fetch(
             `https://analyticsadmin.googleapis.com/v1beta/properties?filter=parent:${account.name}`,
             {
@@ -208,7 +189,6 @@ export async function listGA4Properties(
             };
 
             if (globalPropertiesData.properties && globalPropertiesData.properties.length > 0) {
-              console.log(`[GA] Found ${globalPropertiesData.properties.length} properties for account ${accountId} via global endpoint`);
               for (const property of globalPropertiesData.properties) {
                 const propertyId = property.name.replace('properties/', '');
                 properties.push({
@@ -217,12 +197,10 @@ export async function listGA4Properties(
                   accountId,
                 });
               }
-            } else {
-              console.log(`[GA] No properties found for account ${accountId} via global endpoint`);
             }
           } else {
             const errorText = await globalPropertiesRes.text();
-            console.warn(`[GA] Global properties endpoint also failed for account ${accountId}:`, {
+            console.warn(`[GA] Global properties endpoint failed for account ${accountId}:`, {
               status: globalPropertiesRes.status,
               error: errorText.substring(0, 200),
             });
@@ -241,7 +219,6 @@ export async function listGA4Properties(
       }
     }
 
-    console.log(`[GA] Total properties found: ${properties.length}`);
     return properties;
   } catch (error) {
     console.error('[GA] Error listing properties:', error);
