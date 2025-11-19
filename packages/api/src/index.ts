@@ -4037,6 +4037,39 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
     }
 
+    // Revoke OAuth tokens from Google before deleting the connection
+    if (connection.refreshToken) {
+      try {
+        const decryptedRefreshToken = decryptSecure(connection.refreshToken);
+
+        // Revoke the refresh token (this also invalidates the access token)
+        const revokeRes = await fetch('https://oauth2.googleapis.com/revoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            token: decryptedRefreshToken,
+          }),
+        });
+
+        if (revokeRes.ok) {
+          console.log(
+            '[GA Disconnect] Successfully revoked OAuth tokens from Google',
+          );
+        } else {
+          const errorText = await revokeRes.text();
+          console.warn(
+            '[GA Disconnect] Failed to revoke tokens from Google:',
+            errorText,
+          );
+          // Continue with deletion even if revocation fails (token might already be invalid)
+        }
+      } catch (error: any) {
+        console.warn('[GA Disconnect] Error revoking tokens:', error.message);
+        // Continue with deletion even if revocation fails
+      }
+    }
+
+    // Delete the connection from database
     await prisma.connection.delete({
       where: { id: connection.id },
     });
