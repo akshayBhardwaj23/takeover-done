@@ -81,3 +81,68 @@ sequenceDiagram
 - Webhook signing (provider-specific): Mailgun-style signature supported via `MAILGUN_SIGNING_KEY`
 - `x-email-webhook-secret` header must match the per-tenant secret stored in `Connection.accessToken`
 - Provider credentials in env; encrypt at rest (future)
+
+### Google Analytics
+
+**Capabilities**
+
+- OAuth 2.0 integration with Google Analytics 4 (GA4)
+- Fetch GA4 properties for connected accounts
+- Display comprehensive analytics data:
+  - Sessions, Users, Page Views, Bounce Rate
+  - E-commerce metrics (Revenue, Transactions, Conversion Rate, AOV)
+  - Traffic sources and top pages
+  - Daily trend data
+  - Session metrics (avg duration, pages per session)
+- Support for multiple GA4 properties per account
+- Automatic token refresh and validation
+
+**Env keys**
+
+- `GOOGLE_ANALYTICS_CLIENT_ID` - OAuth 2.0 Client ID from Google Cloud Console
+- `GOOGLE_ANALYTICS_CLIENT_SECRET` - OAuth 2.0 Client Secret
+- Redirect URI must be configured in Google Cloud Console:
+  - Development: `http://localhost:3000/api/google-analytics/callback`
+  - Staging: `https://staging.zyyp.ai/api/google-analytics/callback`
+  - Production: `https://www.zyyp.ai/api/google-analytics/callback`
+
+**Sequence (install)**
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant Web as Next.js /integrations
+  participant G as Google OAuth
+  participant GA as Google Analytics API
+  participant DB as Prisma
+  U->>Web: Connect Google Analytics
+  Web->>G: Redirect to OAuth consent
+  G->>Web: Callback with code
+  Web->>G: Exchange code for tokens
+  Web->>GA: Fetch GA4 properties
+  Web->>DB: Create Connection(type: GOOGLE_ANALYTICS, tokens encrypted)
+  Web-->>U: Redirect to /integrations?ga_connected=1
+```
+
+**OAuth Scopes**
+
+- `https://www.googleapis.com/auth/analytics.readonly` - Read-only access to Google Analytics data
+
+**Token Management**
+
+- Access tokens are automatically refreshed when expired
+- Refresh tokens are stored encrypted in the database
+- Tokens are revoked from Google when disconnecting
+
+**API Usage**
+
+- Uses Google Analytics Admin API (`/v1beta/accounts`, `/v1beta/properties`) to list properties
+- Uses Google Analytics Data API (`/v1beta/properties/{propertyId}:runReport`) to fetch metrics
+- Handles 404 errors gracefully with fallback to global properties endpoint
+- Supports multiple accounts per user
+
+**Security**
+
+- OAuth tokens encrypted at rest using `encryptSecure`
+- Automatic token refresh prevents expired token errors
+- Token revocation on disconnect removes access from Google account

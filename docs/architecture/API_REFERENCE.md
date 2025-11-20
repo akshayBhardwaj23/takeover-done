@@ -32,6 +32,15 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
   - Returns AI support analytics metrics including response time, customer satisfaction, and 7-day email volume trend
 - `getShopifyAnalytics({ shop })` → `{ totalOrders, ordersThisWeek, ordersThisMonth, totalRevenue, revenueThisWeek, revenueThisMonth, averageOrderValue, currency, totalCustomers, newCustomersThisWeek, ordersFulfilled, ordersPending, topProducts, revenueTrend }`
   - Returns Shopify business analytics for a specific store including revenue, orders, and customer metrics
+- `getGoogleAnalyticsProperties()` → `{ properties: Array<{ propertyId, propertyName, accountId }> }`
+  - Returns all GA4 properties available for the authenticated user
+  - Automatically refreshes OAuth tokens if needed
+  - Falls back to metadata property if API call fails
+- `getGoogleAnalyticsData({ propertyId?, startDate?, endDate? })` → `{ sessions, users, pageViews, bounceRate, avgSessionDuration, revenue?, transactions?, conversionRate?, avgOrderValue?, trafficSources, topPages, trend }`
+  - Returns comprehensive Google Analytics data for the specified property and date range
+  - Defaults to last 7 days if dates not provided
+  - Uses property from connection metadata if `propertyId` not provided
+  - Includes e-commerce metrics if available
 - `getUserProfile()` → `{ user, stores }`
   - Returns current user profile and connected Shopify stores with support email configuration
 - `getAggregatedInsights({ shop? })` → `{ shopifyMetrics, emailMetrics }`
@@ -64,6 +73,15 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
   - Clones any playbook (including defaults) for customization
 - `getPlaybookExecutions({ playbookId?, limit? })` → `{ executions }`
   - Returns execution history for playbooks
+
+**Google Analytics:**
+
+- `updateGoogleAnalyticsProperty({ propertyId, propertyName? })` → `{ success }`
+  - Updates the selected GA4 property in connection metadata
+  - Used when user switches between multiple properties
+- `disconnectGoogleAnalytics()` → `{ success }`
+  - Revokes OAuth tokens from Google and deletes the connection
+  - Removes access from user's Google account
 
 **Payment Management:**
 
@@ -203,6 +221,17 @@ type OrderDetail = OrderSummary & {
 
 - `POST /api/ai/generate-insight`
   - Generates AI-powered business insights from analytics data
+
+**Google Analytics Integration:**
+
+- `GET /api/google-analytics/install`
+  - Initiates Google OAuth 2.0 flow for Google Analytics
+  - Redirects to Google consent screen with required scopes
+- `GET /api/google-analytics/callback?code=...&state=...`
+  - Handles OAuth callback from Google
+  - Exchanges authorization code for access and refresh tokens
+  - Fetches GA4 properties and stores connection in database
+  - Redirects to `/integrations?ga_connected=1` on success
 
 **Inngest:**
 

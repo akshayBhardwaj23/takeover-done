@@ -46,7 +46,7 @@ ai-ecom-tool/
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI
 - **Backend**: tRPC, Prisma ORM, PostgreSQL
 - **Auth**: NextAuth.js (Google OAuth)
-- **Integrations**: Shopify OAuth, Mailgun (email), OpenAI (AI suggestions)
+- **Integrations**: Shopify OAuth, Mailgun (email), OpenAI (AI suggestions), Google Analytics 4
 - **Infrastructure**: Cloudflare Tunnel, Inngest (background jobs), Upstash Redis (optional)
 - **Monitoring**: Sentry (error tracking)
 
@@ -61,9 +61,10 @@ ai-ecom-tool/
 - ✅ Real-time order sync from Shopify
 - ✅ Real email sending via Mailgun API
 - ✅ Toast notifications and loading states for better UX
-- ✅ **Dual Analytics Dashboards**:
+- ✅ **Triple Analytics Dashboards**:
   - AI Support Analytics (response time, ROI, customer satisfaction, volume trends)
   - Shopify Business Analytics (revenue, orders, customers, AOV, growth metrics)
+  - Google Analytics 4 (sessions, users, page views, bounce rate, e-commerce metrics, traffic sources, top pages)
 - ✅ Skeleton loaders for improved perceived performance
 - ✅ Background job processing (Inngest - serverless, event-driven)
 - ✅ Per-store email aliases with rotation and disable features

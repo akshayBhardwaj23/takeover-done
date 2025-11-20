@@ -88,13 +88,16 @@ MAILGUN_API_KEY=...
 # Google Analytics
 # ============================================
 # Get these from Google Cloud Console:
-# 1. Create OAuth 2.0 Client ID
-# 2. Add authorized redirect URI: http://localhost:3000/api/google-analytics/callback
-# 3. Enable Google Analytics API
+# 1. Create OAuth 2.0 Client ID (or use separate client for GA)
+# 2. Add authorized redirect URIs:
+#    - Development: http://localhost:3000/api/google-analytics/callback
+#    - Staging: https://staging.zyyp.ai/api/google-analytics/callback
+#    - Production: https://www.zyyp.ai/api/google-analytics/callback
+# 3. Enable Google Analytics Admin API and Google Analytics Data API
+# 4. Note: You can use a different Google account for GA than the one used for login
 GOOGLE_ANALYTICS_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_ANALYTICS_CLIENT_SECRET=your-client-secret
-GOOGLE_ANALYTICS_REDIRECT_URI=http://localhost:3000/api/google-analytics/callback
-# ... other vars
+# Note: Redirect URI is automatically constructed, no need to set GOOGLE_ANALYTICS_REDIRECT_URI
 ```
 
 ### Step 3: Configure Worker (`apps/worker/.env`)
