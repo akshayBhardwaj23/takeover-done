@@ -58,7 +58,7 @@ Payment integration, pricing strategy, and cost analysis.
 
 Third-party service integrations.
 
-- **[Integrations Guide](./integrations/INTEGRATIONS.md)** - Shopify, email, and other integrations
+- **[Integrations Guide](./integrations/INTEGRATIONS.md)** - Shopify, email, Google Analytics, and other integrations
 - **[Mailgun Setup](./integrations/MAILGUN_SETUP.md)** - Email sending configuration
 
 ### 🛠️ [Operations](./operations/)

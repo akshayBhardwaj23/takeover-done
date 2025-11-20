@@ -104,7 +104,30 @@ function GoogleAnalyticsInner() {
     }
   };
 
-  // No connection
+  // Show loading state while checking for connections
+  if (connections.isLoading) {
+    return (
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl space-y-8 px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <BarChart3 className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+              <p className="text-sm text-slate-500">Loading...</p>
+            </div>
+          </div>
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+            <p className="mt-4 text-sm text-slate-600">Checking for Google Analytics connection...</p>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // No connection (only show this after connections query has completed)
   if (gaConnections.length === 0) {
     return (
       <main className="min-h-screen bg-slate-100 py-28">
