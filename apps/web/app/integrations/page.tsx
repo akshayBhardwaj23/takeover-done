@@ -39,8 +39,6 @@ import {
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
 
-export const dynamic = 'force-dynamic';
-
 type ConnectionSummary = {
   id: string;
   type: string;
@@ -77,15 +75,17 @@ function IntegrationsInner() {
   const { data, isLoading: connectionsLoading } = trpc.connections.useQuery(
     undefined,
     {
-      staleTime: 60_000, // Cache for 60 seconds
+      staleTime: 120_000, // Cache for 2 minutes
       refetchOnWindowFocus: false,
       refetchOnMount: false, // Don't refetch if data exists
+      refetchOnReconnect: false,
     },
   );
   const emailHealth = trpc.emailHealth.useQuery(undefined, {
-    staleTime: 30_000, // Cache for 30 seconds (health data changes less frequently)
+    staleTime: 120_000, // Cache for 2 minutes
     refetchOnWindowFocus: false,
     refetchOnMount: false, // Don't refetch if data exists
+    refetchOnReconnect: false,
   });
   const utils = (trpc as any).useUtils();
   const createAlias = trpc.createEmailAlias.useMutation({
@@ -120,6 +120,16 @@ function IntegrationsInner() {
       toast.error(error.message || 'Failed to disconnect Google Analytics');
     },
   });
+  const disconnectMetaAds = trpc.disconnectMetaAds.useMutation({
+    onSuccess: () => {
+      utils.connections.invalidate();
+      setDisconnectMetaAdsDialogOpen(false);
+      toast.success('Meta Ads disconnected successfully');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to disconnect Meta Ads');
+    },
+  });
   const [shopInput, setShopInput] = useState('');
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
@@ -127,6 +137,8 @@ function IntegrationsInner() {
     string | null
   >(null);
   const [disconnectGADialogOpen, setDisconnectGADialogOpen] =
+    useState<boolean>(false);
+  const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] =
     useState<boolean>(false);
   const [isConnectingShopify, setIsConnectingShopify] = useState(false);
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
@@ -145,6 +157,9 @@ function IntegrationsInner() {
     const gaConnected = sp.get('ga_connected');
     const gaError = sp.get('ga_error');
     const gaProperty = sp.get('property');
+    const metaAdsConnected = sp.get('meta_ads_connected');
+    const metaAdsError = sp.get('meta_ads_error');
+    const metaAdsAccount = sp.get('account');
 
     // Mark as shown immediately to prevent duplicates
     notificationShownRef.current = true;
@@ -174,6 +189,23 @@ function IntegrationsInner() {
       }
     }
 
+    if (metaAdsConnected === '1') {
+      toast.success(
+        metaAdsAccount
+          ? `Meta Ads connected: ${metaAdsAccount}`
+          : 'Meta Ads connected successfully',
+      );
+    }
+
+    if (metaAdsError) {
+      // Don't show error details to users - they're logged in console/Sentry
+      if (metaAdsError === 'connection_failed') {
+        toast.error('Failed to connect Meta Ads. Please try again.');
+      } else {
+        toast.error('Meta Ads connection error. Please try again.');
+      }
+    }
+
     // Handle warning (database unavailable but OAuth succeeded)
     const gaWarning = sp.get('ga_warning');
     if (gaWarning === 'database_unavailable') {
@@ -193,6 +225,10 @@ function IntegrationsInner() {
     newUrl.searchParams.delete('property');
     newUrl.searchParams.delete('error_details');
     newUrl.searchParams.delete('ga_warning');
+    newUrl.searchParams.delete('meta_ads_connected');
+    newUrl.searchParams.delete('meta_ads_error');
+    newUrl.searchParams.delete('account');
+    newUrl.searchParams.delete('meta_ads_warning');
     router.replace(`${newUrl.pathname}${newUrl.search}` as any, {
       scroll: false,
     });
@@ -226,6 +262,10 @@ function IntegrationsInner() {
   );
   const gaConnections = useMemo(
     () => connections.filter((c) => c.type === 'GOOGLE_ANALYTICS'),
+    [connections],
+  );
+  const metaAdsConnections = useMemo(
+    () => connections.filter((c) => c.type === 'META_ADS'),
     [connections],
   );
   const activeAliases = useMemo(
@@ -287,7 +327,8 @@ function IntegrationsInner() {
               <Sparkles className="h-3.5 w-3.5" />
               {shopifyConnections.length +
                 emailConnections.length +
-                gaConnections.length}{' '}
+                gaConnections.length +
+                metaAdsConnections.length}{' '}
               Active
             </Badge>
           </header>
@@ -953,6 +994,171 @@ function IntegrationsInner() {
                   )}
                 </div>
               </section>
+
+              <section id="meta-ads" className="space-y-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Meta Ads
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Connect your Meta Ads account to view ad performance and
+                      insights.
+                    </p>
+                  </div>
+                  {metaAdsConnections.length === 0 && (
+                    <Button
+                      className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
+                      size="sm"
+                      onClick={() => {
+                        window.location.href = '/api/meta-ads/install';
+                      }}
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Connect Meta Ads
+                    </Button>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>Connected Accounts</span>
+                    <span>{metaAdsConnections.length} total</span>
+                  </div>
+                  {connectionsLoading ? (
+                    <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2">
+                      <StatsCardSkeleton />
+                      <StatsCardSkeleton />
+                    </div>
+                  ) : metaAdsConnections.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 p-10 text-center text-sm text-slate-500">
+                      <BarChart3 className="h-10 w-10 text-slate-300" />
+                      <p className="font-semibold text-slate-700">
+                        No Meta Ads connected yet
+                      </p>
+                      <p>
+                        Connect your Meta Ads account to unlock ad analytics.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-200">
+                      {metaAdsConnections.map((c) => {
+                        const metadata =
+                          (c.metadata as Record<string, unknown>) || {};
+                        const adAccountName =
+                          (metadata.adAccountName as string) ||
+                          'Meta Ads Account';
+                        const adAccountId =
+                          (metadata.adAccountId as string) || '';
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-slate-800">
+                                {adAccountName}
+                              </p>
+                              {adAccountId && (
+                                <p className="text-xs text-slate-500">
+                                  Account ID: {adAccountId}
+                                </p>
+                              )}
+                              {c.createdAt && (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  Connected{' '}
+                                  {new Date(c.createdAt).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                              <Badge className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                Active
+                              </Badge>
+                              <Dialog
+                                open={disconnectMetaAdsDialogOpen}
+                                onOpenChange={setDisconnectMetaAdsDialogOpen}
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="rounded-full border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                    disabled={disconnectMetaAds.isPending}
+                                  >
+                                    <Trash2 className="mr-1.5 h-3 w-3" />
+                                    Disconnect
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent containerClassName="max-w-md sm:rounded-3xl">
+                                  <DialogHeader>
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-100 text-red-600">
+                                        <Trash2 className="h-5 w-5" />
+                                      </div>
+                                      <DialogTitle className="text-xl">
+                                        Disconnect Meta Ads
+                                      </DialogTitle>
+                                    </div>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <p className="text-sm text-slate-600">
+                                      Are you sure you want to disconnect{' '}
+                                      <span className="font-semibold text-slate-900">
+                                        {adAccountName}
+                                      </span>
+                                      ? This will remove the connection and stop
+                                      syncing ad data.
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      You can reconnect at any time from the
+                                      integrations page.
+                                    </p>
+                                  </div>
+                                  <DialogFooter className="sm:justify-end">
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-full border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                                        onClick={() =>
+                                          setDisconnectMetaAdsDialogOpen(false)
+                                        }
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        className="rounded-full bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700"
+                                        onClick={() => {
+                                          disconnectMetaAds.mutate();
+                                        }}
+                                        disabled={disconnectMetaAds.isPending}
+                                      >
+                                        {disconnectMetaAds.isPending
+                                          ? 'Disconnecting...'
+                                          : 'Disconnect'}
+                                      </Button>
+                                    </div>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
+                                asChild
+                              >
+                                <a href="/meta-ads">
+                                  View Analytics
+                                  <ArrowRight className="ml-2 h-3 w-3" />
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
           </div>
         </div>
@@ -965,10 +1171,21 @@ export default function IntegrationsPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
-          <div className="text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
-            <p className="mt-4 text-slate-600">Loading integrations...</p>
+        <main className="min-h-screen bg-slate-100 py-28 lg:py-32">
+          <div className="mx-auto max-w-6xl space-y-10 px-6">
+            <div className="h-20 w-64 animate-pulse rounded-2xl bg-slate-200" />
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-xl">
+              <div className="space-y-10 p-8">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="h-32 animate-pulse rounded-2xl bg-slate-100"
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </main>
       }
