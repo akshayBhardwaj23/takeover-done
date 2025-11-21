@@ -13,13 +13,17 @@ export default function Header() {
   const { data: emailUsage } = trpc.checkEmailLimit.useQuery(undefined, {
     enabled: isAuthed,
     refetchInterval: 60000,
+    staleTime: 30_000, // Cache for 30 seconds
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
   const { data: connectionsData, isLoading: connectionsLoading } =
     trpc.connections.useQuery(undefined, {
       enabled: isAuthed,
-      staleTime: 60_000,
+      staleTime: 120_000, // Cache for 2 minutes
       refetchOnWindowFocus: false,
       refetchOnMount: false, // Don't refetch if data exists in cache
+      refetchOnReconnect: false,
     });
 
   const isTrial = emailUsage?.trial?.isTrial;
