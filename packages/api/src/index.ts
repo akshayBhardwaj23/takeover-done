@@ -1964,10 +1964,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       z.object({
         offset: z.number().min(0).default(0),
         limit: z.number().min(1).max(50).default(10),
+        cursor: z.string().optional(), // Optional cursor for better pagination
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Fetch all connection IDs for this user
+      // Fetch all connection IDs for this user (cached by index)
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
         select: { id: true },
@@ -1976,28 +1977,67 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       if (connectionIds.length === 0) {
         return { orders: [], hasMore: false };
       }
-      // Page through orders by createdAt desc using offset/limit
-      const orders = await prisma.order.findMany({
-        where: { connectionId: { in: connectionIds } },
-        orderBy: { createdAt: 'desc' },
-        skip: input.offset,
-        take: input.limit + 1, // fetch one extra to detect hasMore
-        select: {
-          id: true,
-          shopifyId: true,
-          name: true,
-          email: true,
-          totalAmount: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          shopDomain: true,
-          connectionId: true,
-        },
-      });
+
+      // Optimized: Use cursor-based pagination when cursor is provided
+      // Otherwise fall back to offset (for backward compatibility)
+      const take = input.limit + 1; // fetch one extra to detect hasMore
+
+      let orders;
+      if (input.cursor) {
+        // Cursor-based pagination (faster for large datasets)
+        orders = await prisma.order.findMany({
+          where: {
+            connectionId: { in: connectionIds },
+            createdAt: { lt: new Date(input.cursor) }, // Less than cursor date
+          },
+          orderBy: { createdAt: 'desc' },
+          take,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
+        });
+      } else {
+        // Offset-based pagination (for backward compatibility)
+        // Note: skip is slow for large offsets, but we keep it for compatibility
+        orders = await prisma.order.findMany({
+          where: { connectionId: { in: connectionIds } },
+          orderBy: { createdAt: 'desc' },
+          skip: input.offset,
+          take,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
+        });
+      }
+
       const hasMore = orders.length > input.limit;
       const page = hasMore ? orders.slice(0, input.limit) : orders;
-      return { orders: page, hasMore };
+
+      // Return cursor for next page (last order's createdAt as ISO string)
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1].createdAt.toISOString()
+          : null;
+
+      return { orders: page, hasMore, nextCursor };
     }),
   getAnalytics: protectedProcedure.query(async ({ ctx }) => {
     try {

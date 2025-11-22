@@ -57,11 +57,12 @@ export type PlanType = keyof typeof PLAN_LIMITS;
 
 /**
  * Get or create a subscription for a user
+ * Optimized: Don't load usageRecords unless needed
  */
 export async function ensureSubscription(userId: string) {
   const existing = await prisma.subscription.findUnique({
     where: { userId },
-    include: { usageRecords: true },
+    // Removed include: { usageRecords: true } - not needed here, saves query time
   });
 
   if (existing) {
@@ -71,7 +72,7 @@ export async function ensureSubscription(userId: string) {
         return prisma.subscription.update({
           where: { id: existing.id },
           data: { status: 'expired' },
-          include: { usageRecords: true },
+          // Removed include: { usageRecords: true } - not needed here
         });
       }
     }
@@ -96,10 +97,19 @@ export async function ensureSubscription(userId: string) {
 
 /**
  * Get current usage record for a subscription in the current billing period
+ * Optimized: Use indexed queries and reduce database round trips
  */
 export async function getCurrentUsageRecord(subscriptionId: string) {
+  // Fetch subscription and current period info in one query
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
+    select: {
+      id: true,
+      planType: true,
+      status: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
+    },
   });
 
   if (!subscription) {
@@ -113,6 +123,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
   // Check if we're within the current billing period
   if (now >= periodStart && now <= periodEnd) {
     // Get or create usage record for this period
+    // Use findUnique with composite key (indexed) - much faster
     let usageRecord = await prisma.usageRecord.findUnique({
       where: {
         subscriptionId_periodStart: {
@@ -139,15 +150,20 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
   } else {
     if (subscription.planType === 'TRIAL') {
       if (subscription.status === 'active') {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: 'expired' },
-        });
+        // Update in background, don't wait
+        prisma.subscription
+          .update({
+            where: { id: subscription.id },
+            data: { status: 'expired' },
+          })
+          .catch((err) => console.error('Failed to expire trial:', err));
       }
 
+      // Use indexed query: subscriptionId + periodStart (desc) - limit to 1
       const latestRecord = await prisma.usageRecord.findFirst({
         where: { subscriptionId },
         orderBy: { periodStart: 'desc' },
+        take: 1, // Only need the latest one
       });
 
       if (!latestRecord) {
