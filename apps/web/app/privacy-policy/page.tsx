@@ -31,6 +31,49 @@ You can request deletion at any time by emailing privacy@zyyp.ai.`,
     body: `You have the right to access, update, export, or delete your data.
 We comply with GDPR, CCPA, and applicable Indian data regulations.`,
   },
+  {
+    title: '6. Google Analytics Integration',
+    body: `When you connect your Google Analytics account to Zyyp, we access and use the following Google user data:
+
+Data Accessed:
+We access read-only Google Analytics 4 (GA4) data including:
+- GA4 property information (property ID, property name, account ID)
+- Website analytics metrics (sessions, users, page views, bounce rate, average session duration)
+- E-commerce metrics (revenue, transactions, conversion rate, average order value) if enabled in your GA4 property
+- Traffic source data (referral sources, medium, session counts)
+- Top performing pages (page paths and view counts)
+- Daily trend data (sessions, users, and revenue over time)
+
+We do NOT access:
+- Personally identifiable information (PII) about your website visitors
+- Individual user browsing behavior or history
+- Account-level settings or configurations beyond property listings
+- Data from other Google services (Gmail, Google Ads, etc.) unless explicitly connected separately
+
+How We Use This Data:
+We use Google Analytics data solely to:
+- Display analytics dashboards and reports within your Zyyp account
+- Provide insights about your website traffic and performance
+- Enable you to view aggregated analytics data alongside your Shopify and support metrics
+- Generate trend visualizations and comparative analytics
+
+The data is used exclusively to provide the analytics visualization features you have requested. We do not use this data for advertising, marketing, or any purpose other than displaying it to you within the Zyyp platform.
+
+Data Sharing and Disclosure:
+We do NOT share, transfer, or disclose your Google Analytics data to any third parties. The data is:
+- Stored securely in our encrypted database
+- Accessible only to you (the authenticated user who connected the account)
+- Never sold, rented, or shared with advertisers, data brokers, or other services
+- Not used for any purpose other than displaying it to you in your dashboard
+
+Data Access Control:
+- Only the user who connected their Google Analytics account can view the data
+- OAuth tokens are encrypted at rest and automatically refreshed when needed
+- You can disconnect your Google Analytics account at any time, which will revoke access and delete stored tokens
+- All API calls to Google Analytics are made on your behalf using OAuth 2.0 with read-only permissions
+
+If you have questions about our use of Google Analytics data, please contact privacy@zyyp.ai.`,
+  },
 ];
 
 export default function PrivacyPolicyPage() {
