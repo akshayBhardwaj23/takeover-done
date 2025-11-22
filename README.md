@@ -16,15 +16,22 @@ See [docs/operations/RUNBOOK.md](./docs/operations/RUNBOOK.md)
 
 **📖 [Full Documentation Index](./docs/README.md)** - All documentation organized by category
 
+### 🎯 Main Reference Document
+
+**👉 [PRD (Product Requirements Document)](./docs/planning/PRD.md)** - **This is the primary reference document for all features and functionality of the application.** It contains a comprehensive list of all implemented features, integrations, analytics dashboards, automation playbooks, subscription plans, and more.
+
 ### Quick Links
 
 - **[Development Setup](./docs/setup/DEVELOPMENT_SETUP.md)** - Team member setup guide
 - **[Architecture](./docs/architecture/ARCHITECTURE.md)** - Technical architecture
+- **[Project Overview](./docs/architecture/PROJECT_OVERVIEW.md)** - Project structure and current status
 - **[Deployment Guide](./docs/deployment/README.md)** - Production deployment
 - **[Runbook](./docs/operations/RUNBOOK.md)** - Operations and deployment guide
 - **[API Reference](./docs/architecture/API_REFERENCE.md)** - tRPC API documentation
 - **[Roadmap](./docs/planning/ROADMAP.md)** - Feature roadmap and todos
-- **[PRD](./docs/planning/PRD.md)** - Product Requirements Document
+- **[PRD](./docs/planning/PRD.md)** - **Product Requirements Document (Main Reference)**
+- **[Integrations Guide](./docs/integrations/INTEGRATIONS.md)** - All integrations (Shopify, Mailgun, Google Analytics, Meta Ads)
+- **[Playbooks Documentation](./docs/PLAYBOOKS.md)** - Automation playbooks guide
 - **[Mailgun Setup](./docs/integrations/MAILGUN_SETUP.md)** - Mailgun email configuration guide
 
 ## 🏗️ Architecture
@@ -45,12 +52,15 @@ ai-ecom-tool/
 
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI
 - **Backend**: tRPC, Prisma ORM, PostgreSQL
-- **Auth**: NextAuth.js (Google OAuth)
-- **Integrations**: Shopify OAuth, Mailgun (email), OpenAI (AI suggestions), Google Analytics 4
+- **Auth**: NextAuth.js (Google OAuth), Shopify OAuth, Google Analytics OAuth, Meta Ads OAuth
+- **Integrations**: Shopify Admin API, Mailgun (email), OpenAI (AI suggestions), Google Analytics 4, Meta Ads (Facebook Ads)
+- **Payments**: Razorpay (subscription management)
 - **Infrastructure**: Cloudflare Tunnel, Inngest (background jobs), Upstash Redis (optional)
 - **Monitoring**: Sentry (error tracking)
 
 ## 🌟 Key Features
+
+### Core Support Features
 
 - ✅ Shopify OAuth integration
 - ✅ Custom email ingestion (Mailgun)
@@ -60,15 +70,40 @@ ai-ecom-tool/
 - ✅ Per-store email aliases with rotation and disable features
 - ✅ Real-time order sync from Shopify
 - ✅ Real email sending via Mailgun API
-- ✅ Toast notifications and loading states for better UX
-- ✅ **Triple Analytics Dashboards**:
-  - AI Support Analytics (response time, ROI, customer satisfaction, volume trends)
-  - Shopify Business Analytics (revenue, orders, customers, AOV, growth metrics)
-  - Google Analytics 4 (sessions, users, page views, bounce rate, e-commerce metrics, traffic sources, top pages)
-- ✅ Skeleton loaders for improved perceived performance
-- ✅ Background job processing (Inngest - serverless, event-driven)
-- ✅ Per-store email aliases with rotation and disable features
 - ✅ Store support email configuration (per-store support email and store name)
+
+### Analytics & Insights
+
+- ✅ **AI Support Analytics Dashboard**: Response time, ROI, customer satisfaction, volume trends
+- ✅ **Shopify Business Analytics Dashboard**: Revenue, orders, customers, AOV, growth metrics
+- ✅ **Google Analytics 4 Dashboard**: Sessions, users, page views, bounce rate, e-commerce metrics, traffic sources, top pages
+- ✅ **Meta Ads Dashboard**: Spend, impressions, clicks, CTR, CPC, CPM, conversions, ROAS, CPA, reach, frequency, campaign breakdowns
+
+### Automation & Workflows
+
+- ✅ **Automation Playbooks**: No-code builder with 6-step wizard
+- ✅ **8 Default Playbooks**: Pre-configured templates across 6 categories (Refund/Return, Marketing, Fulfillment, Support, Inventory, Custom)
+- ✅ **AI-Powered Execution**: Automatic execution based on confidence scores
+- ✅ **Approval Workflows**: Manual approval option before execution
+- ✅ **Real-time Triggers**: Shopify events, email intents, scheduled tasks
+- ✅ **Execution History**: Track all playbook runs and results
+
+### Subscription & Billing
+
+- ✅ **Multiple Subscription Plans**: TRIAL, STARTER, GROWTH, PRO, ENTERPRISE
+- ✅ **Razorpay Payment Integration**: Secure payment processing
+- ✅ **Usage Tracking & Limits**: Per-plan limits for emails, AI requests, stores
+- ✅ **Upgrade Prompts**: Automatic notifications when approaching limits
+- ✅ **Subscription Management**: View status, upgrade, cancel subscriptions
+- ✅ **Multi-Currency Support**: Automatic currency detection and pricing
+
+### Infrastructure & UX
+
+- ✅ Background job processing (Inngest - serverless, event-driven)
+- ✅ Toast notifications and loading states for better UX
+- ✅ Skeleton loaders for improved perceived performance
+- ✅ Rate limiting (API, AI, Email, Webhooks)
+- ✅ Complete data isolation by userId (multi-tenancy)
 
 ## 🔐 Environment Setup
 

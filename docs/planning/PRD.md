@@ -80,8 +80,10 @@
 ### 🔁 Integrations
 
 - ✅ Shopify OAuth
-- ✅ Email Integration
+- ✅ Email Integration (Mailgun)
 - ✅ Shopify Webhooks (orders, refunds, fulfillments)
+- ✅ Google Analytics 4 (GA4) - OAuth integration, property listing, comprehensive analytics data
+- ✅ Meta Ads (Facebook Ads) - OAuth integration, ad account management, performance insights
 
 ### ⚡ Smart Actions
 
@@ -99,11 +101,75 @@
 - Confidence threshold for auto-action
 - Escalation rules (e.g., refund > ₹2000 → manual)
 
+### 📊 Analytics & Insights
+
+- **AI Support Analytics Dashboard**:
+  - Response time metrics
+  - ROI calculations
+  - Customer satisfaction tracking
+  - Volume trends (7-day, 30-day)
+  - Automation rates
+
+- **Shopify Business Analytics Dashboard**:
+  - Revenue metrics
+  - Order counts and trends
+  - Customer analytics
+  - Average Order Value (AOV)
+  - Growth metrics
+
+- **Google Analytics 4 Dashboard**:
+  - Sessions, Users, Page Views
+  - Bounce Rate
+  - E-commerce metrics (Revenue, Transactions, Conversion Rate, AOV)
+  - Traffic sources
+  - Top pages
+  - Daily trend visualizations
+
+- **Meta Ads Dashboard**:
+  - Spend, Impressions, Clicks
+  - CTR, CPC, CPM
+  - Conversions and conversion value
+  - ROAS (Return on Ad Spend) and CPA
+  - Reach and Frequency
+  - Campaign and ad set breakdowns
+  - Daily trend data
+
+### 🤖 Automation Playbooks
+
+- **No-Code Playbook Builder**: 6-step wizard to create automation workflows
+- **8 Default Playbooks** across 6 categories:
+  - Refund/Return (auto-refund damaged products, auto-exchange size issues)
+  - Marketing (re-engage inactive customers, cart abandonment recovery)
+  - Fulfillment (delayed order escalation, VIP customer fast-track)
+  - Support (auto-respond to negative reviews, route urgent inquiries)
+  - Inventory (low stock alerts, auto-restock notifications)
+  - Custom (build any workflow)
+- **AI-Powered Execution**: Automatic execution based on confidence scores
+- **Approval Workflows**: Manual approval option before execution
+- **Real-time Triggers**: Shopify events, email intents, scheduled tasks
+- **Execution History**: Track all playbook runs and results
+
+### 💳 Subscription & Billing
+
+- **Multiple Subscription Plans**:
+  - TRIAL (free trial period)
+  - STARTER (basic features)
+  - GROWTH (mid-tier features)
+  - PRO (advanced features)
+  - ENTERPRISE (unlimited features)
+- **Razorpay Payment Integration**: Secure payment processing
+- **Usage Tracking & Limits**: Per-plan limits for emails, AI requests, stores
+- **Upgrade Prompts**: Automatic notifications when approaching limits
+- **Subscription Management**: View status, upgrade, cancel subscriptions
+- **Multi-Currency Support**: Automatic currency detection and pricing
+
 ### 📊 Logs & History
 
 - Every thread, reply, and action logged.
 - Filter by date / action / AI confidence.
 - Export CSV.
+- Usage history tracking
+- Account activity logs
 
 ---
 
@@ -122,13 +188,15 @@
 | Layer      | Tech                                                  |
 | ---------- | ----------------------------------------------------- |
 | Frontend   | Next.js (App Router), TypeScript, Tailwind, Shadcn UI |
-| Backend    | tRPC or NestJS, Node.js                               |
+| Backend    | tRPC, Node.js                                         |
 | Database   | PostgreSQL (Prisma ORM)                               |
 | Queue      | Inngest (serverless, event-driven) / Upstash Redis (optional) |
-| Auth       | Auth.js (Shopify + Google OAuth)                      |
+| Auth       | NextAuth.js (Google OAuth), Shopify OAuth, Google Analytics OAuth, Meta Ads OAuth |
 | AI         | OpenAI GPT-4o-mini (production)                     |
+| Payments   | Razorpay (subscription management)                    |
+| Integrations | Shopify Admin API, Mailgun (email), Google Analytics 4 API, Meta Ads API |
 | Deployment | Vercel + Supabase/Railway                             |
-| Monitoring | Sentry, Pino logs                                     |
+| Monitoring | Sentry (error tracking), Pino logs                    |
 
 ---
 
@@ -157,7 +225,7 @@ Customer Email → Dashboard integration → AI Parser
 
 ✅ Orders with status
 
-✅ Connection (Shopify / Gmail tokens)
+✅ Connection (Shopify / Email / Google Analytics / Meta Ads tokens)
 
 ✅ Thread
 
@@ -168,6 +236,14 @@ Customer Email → Dashboard integration → AI Parser
 ✅ Action
 
 ✅ Event
+
+✅ Playbook (automation workflows)
+
+✅ PlaybookExecution (playbook run history)
+
+✅ Subscription (user subscription plans)
+
+✅ Usage (usage tracking and limits)
 
 ---
 
@@ -245,17 +321,30 @@ Customer Email → Dashboard integration → AI Parser
 
 ✅ Documentation & setup guides
 
-✅ Analytics dashboards (AI Support Analytics + Shopify Business Analytics)
+✅ Analytics dashboards (AI Support Analytics + Shopify Business Analytics + Google Analytics 4 + Meta Ads)
 
 ✅ Background job processing (Inngest for async email processing)
 
 ✅ Per-store email aliases and support email configuration
 
+✅ Automation Playbooks system (no-code builder, 8 default playbooks, AI-powered execution)
+
+✅ Payment integration (Razorpay with multiple subscription plans)
+
+✅ Usage tracking and limits (per-plan quotas, upgrade prompts)
+
+✅ Google Analytics 4 integration (OAuth, property listing, comprehensive analytics)
+
+✅ Meta Ads integration (OAuth, ad account management, performance insights)
+
 ---
 
 ## 🔮 **15. Future Enhancements**
 
-- ✅ Analytics dashboard (COMPLETE - AI Support Analytics + Shopify Business Analytics)
+- ✅ Analytics dashboard (COMPLETE - AI Support Analytics + Shopify Business Analytics + Google Analytics 4 + Meta Ads)
+- ✅ Automation Playbooks (COMPLETE - No-code builder with 8 default playbooks)
+- ✅ Payment & Subscriptions (COMPLETE - Razorpay integration with multiple plans)
+- ✅ Usage Tracking (COMPLETE - Per-plan limits and tracking)
 - ☐ Slack notifications
 - ☐ WhatsApp integration
 - ☐ Multi-brand management
@@ -265,6 +354,10 @@ Customer Email → Dashboard integration → AI Parser
 - ☐ Basic audit UI (actions/events timeline per order)
 - ☐ Smart templates, tone control, multi-language support
 - ☐ SLA timers, reminders, collision prevention
+- ☐ Visual flow builder for playbooks (drag-and-drop)
+- ☐ A/B testing for playbook variations
+- ☐ Advanced analytics per playbook
+- ☐ Playbook templates marketplace
 
 ---
 
