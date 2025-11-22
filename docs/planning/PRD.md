@@ -185,18 +185,18 @@
 
 ## 🧱 **7. Tech Stack**
 
-| Layer      | Tech                                                  |
-| ---------- | ----------------------------------------------------- |
-| Frontend   | Next.js (App Router), TypeScript, Tailwind, Shadcn UI |
-| Backend    | tRPC, Node.js                                         |
-| Database   | PostgreSQL (Prisma ORM)                               |
-| Queue      | Inngest (serverless, event-driven) / Upstash Redis (optional) |
-| Auth       | NextAuth.js (Google OAuth), Shopify OAuth, Google Analytics OAuth, Meta Ads OAuth |
-| AI         | OpenAI GPT-4o-mini (production)                     |
-| Payments   | Razorpay (subscription management)                    |
-| Integrations | Shopify Admin API, Mailgun (email), Google Analytics 4 API, Meta Ads API |
-| Deployment | Vercel + Supabase/Railway                             |
-| Monitoring | Sentry (error tracking), Pino logs                    |
+| Layer        | Tech                                                                              |
+| ------------ | --------------------------------------------------------------------------------- |
+| Frontend     | Next.js (App Router), TypeScript, Tailwind, Shadcn UI                             |
+| Backend      | tRPC, Node.js                                                                     |
+| Database     | PostgreSQL (Prisma ORM)                                                           |
+| Queue        | Inngest (serverless, event-driven) / Upstash Redis (optional)                     |
+| Auth         | NextAuth.js (Google OAuth), Shopify OAuth, Google Analytics OAuth, Meta Ads OAuth |
+| AI           | OpenAI GPT-4o-mini (production)                                                   |
+| Payments     | Razorpay (subscription management)                                                |
+| Integrations | Shopify Admin API, Mailgun (email), Google Analytics 4 API, Meta Ads API          |
+| Deployment   | Vercel + Supabase/Railway                                                         |
+| Monitoring   | Sentry (error tracking), Pino logs                                                |
 
 ---
 

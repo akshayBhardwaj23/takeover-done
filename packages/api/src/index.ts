@@ -36,6 +36,12 @@ import {
   fetchGA4Analytics,
   type GA4Property,
 } from './google-analytics';
+import {
+  listAdAccounts,
+  fetchMetaAdsInsights,
+  type MetaAdAccount,
+  type MetaAdsInsights,
+} from './meta-ads';
 
 type Context = {
   session: any;
@@ -3722,6 +3728,241 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       );
       return { success: true };
     }),
+  // Get Meta Ads Accounts
+  getMetaAdsAccounts: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { accounts: [] };
+      }
+
+      // Pass encrypted tokens - listAdAccounts will handle decryption and refresh
+      const accessToken = connection.accessToken; // Keep encrypted
+      const refreshToken = connection.refreshToken; // Keep encrypted (exchange token)
+
+      let accounts: MetaAdAccount[] = [];
+
+      try {
+        accounts = await listAdAccounts(accessToken, refreshToken);
+
+        // If we got accounts but metadata doesn't have adAccountId, save the first one
+        if (accounts.length > 0) {
+          const metadata =
+            (connection.metadata as Record<string, unknown>) || {};
+          const metadataAdAccountId = metadata.adAccountId as
+            | string
+            | undefined;
+
+          if (!metadataAdAccountId) {
+            // Save first account to metadata for future use
+            const firstAccount = accounts[0];
+            await prisma.connection.update({
+              where: { id: connection.id },
+              data: {
+                metadata: {
+                  ...metadata,
+                  adAccountId: firstAccount.adAccountId,
+                  adAccountName: firstAccount.adAccountName,
+                },
+              },
+            });
+          }
+        }
+      } catch (listError: any) {
+        console.error('[Meta Ads Accounts API] Error in listAdAccounts:', {
+          error: listError.message,
+          stack: listError.stack,
+        });
+
+        // If we have an adAccountId in metadata, return it as a fallback
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const metadataAdAccountId = metadata.adAccountId as string | undefined;
+        const metadataAdAccountName = metadata.adAccountName as
+          | string
+          | undefined;
+
+        if (metadataAdAccountId) {
+          accounts = [
+            {
+              adAccountId: metadataAdAccountId,
+              adAccountName: metadataAdAccountName || metadataAdAccountId,
+              accountStatus: 1, // Assume active
+            },
+          ];
+        }
+      }
+
+      return { accounts };
+    } catch (error: any) {
+      console.error('[Meta Ads Accounts API] Error:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error.message || 'Failed to fetch Meta Ads accounts',
+      });
+    }
+  }),
+  // Get Meta Ads Insights
+  getMetaAdsInsights: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const connection = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'META_ADS',
+          } as any,
+        });
+
+        if (!connection) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Meta Ads not connected',
+          });
+        }
+
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const adAccountId =
+          input.adAccountId || (metadata.adAccountId as string) || '';
+
+        if (!adAccountId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'No ad account selected. Please select an ad account first.',
+          });
+        }
+
+        // Default to last 7 days if not specified
+        const endDate = input.endDate || new Date().toISOString().split('T')[0];
+        const startDate =
+          input.startDate ||
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0];
+
+        // Pass encrypted tokens - fetchMetaAdsInsights will handle decryption and refresh
+        const accessToken = connection.accessToken; // Keep encrypted
+        const refreshToken = connection.refreshToken; // Keep encrypted (exchange token)
+
+        const insights = await fetchMetaAdsInsights(
+          adAccountId,
+          accessToken,
+          refreshToken,
+          startDate,
+          endDate,
+        );
+
+        return insights;
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[Meta Ads Insights API] Error:', error);
+
+        // Handle specific error cases
+        let errorCode:
+          | 'UNAUTHORIZED'
+          | 'TOO_MANY_REQUESTS'
+          | 'BAD_REQUEST'
+          | 'INTERNAL_SERVER_ERROR' = 'INTERNAL_SERVER_ERROR';
+        let errorMessage = error.message || 'Failed to fetch Meta Ads insights';
+
+        if (errorMessage.includes('expired') || errorMessage.includes('190')) {
+          errorCode = 'UNAUTHORIZED';
+          errorMessage =
+            'Access token has expired. Please reconnect your Meta Ads account.';
+        } else if (
+          errorMessage.includes('rate limit') ||
+          errorMessage.includes('10')
+        ) {
+          errorCode = 'TOO_MANY_REQUESTS';
+          errorMessage =
+            'Rate limit exceeded. Please try again in a few minutes.';
+        } else if (
+          errorMessage.includes('permission') ||
+          errorMessage.includes('200')
+        ) {
+          errorCode = 'UNAUTHORIZED';
+          errorMessage =
+            'Invalid permissions. Please reconnect with proper permissions (ads_read required).';
+        }
+
+        throw new TRPCError({
+          code: errorCode,
+          message: errorMessage,
+        });
+      }
+    }),
+  // Update Meta Ads Account Selection
+  updateMetaAdsAccount: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().min(1, 'Ad account ID is required'),
+        adAccountName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: {
+            ...metadata,
+            adAccountId: input.adAccountId,
+            adAccountName: input.adAccountName || input.adAccountId,
+          },
+        },
+      });
+
+      return { success: true };
+    }),
+  // Disconnect Meta Ads
+  disconnectMetaAds: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'META_ADS',
+      } as any,
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Meta Ads connection not found',
+      });
+    }
+
+    await prisma.connection.delete({
+      where: { id: connection.id },
+    });
+
+    await logEvent('meta_ads.disconnected', {}, 'connection', ctx.userId);
+    return { success: true };
+  }),
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {

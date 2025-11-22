@@ -98,6 +98,9 @@ model Order {
   actions      Action[]
   messages     Message[]
   connection   Connection @relation(fields: [connectionId], references: [id])
+
+  @@index([connectionId])
+  @@index([connectionId, createdAt])
 }
 
 model Thread {
@@ -109,6 +112,8 @@ model Thread {
   connectionId  String
   messages      Message[]
   connection    Connection @relation(fields: [connectionId], references: [id])
+
+  @@index([connectionId])
 }
 
 model Message {
