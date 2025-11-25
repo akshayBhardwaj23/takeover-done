@@ -462,6 +462,7 @@ function IntegrationsInner() {
                     <h2 className="text-xl font-semibold text-slate-900">
                       Shopify
                     </h2>
+                    
                     <p className="text-sm text-slate-500">
                       Connect your Shopify store to sync orders and automate support.
                     </p>
@@ -487,7 +488,9 @@ function IntegrationsInner() {
                         <Plus className="mr-2 h-4 w-4" /> Connect Store
                       </Button>
                     </DialogTrigger>
-                  <div className="rounded-2xl border border-slate-200">
+                  </Dialog>
+                </div>
+                <div className="rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <span>Connected Stores</span>
                       <span>{shopifyConnections.length} total</span>

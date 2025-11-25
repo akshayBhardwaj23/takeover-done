@@ -44,6 +44,7 @@ import {
   type MetaAdsInsights,
 } from './meta-ads';
 
+import { ShopifyClient } from './services/shopify';
 type Context = {
   session: any;
   userId: string | null;
@@ -314,6 +315,60 @@ ${quotedLines}`;
 }
 
 export { encryptSecure, decryptSecure } from './crypto';
+
+async function syncShopifyData(connectionId: string, userId: string) {
+  try {
+    const credentials = await getShopifyApiCredentials(connectionId, userId);
+    if (!credentials) return;
+
+    const client = new ShopifyClient(
+      credentials.shopUrl,
+      credentials.accessToken,
+    );
+
+    // Fetch last 50 orders to start
+    const orders = await client.getOrders(50);
+
+    for (const order of orders) {
+      const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
+
+      await prisma.order.upsert({
+        where: { shopifyId: String(order.id) },
+        create: {
+          shopifyId: String(order.id),
+          status: order.financial_status,
+          email: order.email || order.customer?.email,
+          totalAmount,
+          name: order.name,
+          shopDomain: credentials.shopUrl.replace('https://', ''),
+          connectionId,
+          createdAt: new Date(order.created_at),
+        },
+        update: {
+          status: order.financial_status,
+          email: order.email || order.customer?.email,
+          totalAmount,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    await logEvent(
+      'shopify.sync.completed',
+      { count: orders.length, shop: credentials.shopUrl },
+      'connection',
+      connectionId,
+    );
+  } catch (error) {
+    console.error('Failed to sync Shopify data:', error);
+    await logEvent(
+      'shopify.sync.failed',
+      { error: String(error) },
+      'connection',
+      connectionId,
+    );
+  }
+}
 
 export const appRouter = t.router({
   // Public endpoints (no auth required)
@@ -842,6 +897,9 @@ export const appRouter = t.router({
           'connection',
           connection.id,
         );
+
+        // Trigger initial sync
+        void syncShopifyData(connection.id, ctx.userId).catch(console.error);
 
         return {
           connectionId: connection.id,

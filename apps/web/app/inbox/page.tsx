@@ -54,6 +54,7 @@ type DbOrder = {
   totalAmount: number;
   status: string;
   createdAt: string;
+  pendingEmailCount?: number;
 };
 
 type MessagePreview = {
@@ -686,7 +687,12 @@ export default function InboxPage() {
                             selectedOrderId === order.shopifyId
                               ? 'bg-slate-50'
                               : 'hover:bg-slate-50/60'
-                          } ${isReplied ? 'opacity-60' : ''}`}
+                          } ${isReplied ? 'opacity-60' : ''} ${
+                            order.pendingEmailCount &&
+                            order.pendingEmailCount > 0
+                              ? 'border-l-4 border-l-emerald-500'
+                              : ''
+                          }`}
                         >
                           <div className="flex items-center gap-2">
                             {isReplied && (
@@ -726,18 +732,25 @@ export default function InboxPage() {
                               )?.fulfillmentStatus ?? '—'}
                             </p>
                           </div>
-                          <div>
-                            <p
-                              className={`text-sm text-slate-600 ${
-                                preview?.subject ? 'line-clamp-1' : ''
-                              }`}
-                            >
-                              {preview?.subject ??
-                                'Select to load latest email'}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {relativeTime(preview?.createdAt)}
-                            </p>
+                          <div className="flex items-center gap-2">
+                            {order.pendingEmailCount &&
+                              order.pendingEmailCount > 0 && (
+                                <div className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                              )}
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {order.pendingEmailCount &&
+                                order.pendingEmailCount > 0
+                                  ? `${order.pendingEmailCount} ${order.pendingEmailCount === 1 ? 'email' : 'emails'} pending reply`
+                                  : (preview?.subject ?? 'No pending emails')}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {order.pendingEmailCount &&
+                                order.pendingEmailCount > 0
+                                  ? 'Needs attention'
+                                  : relativeTime(preview?.createdAt)}
+                              </p>
+                            </div>
                           </div>
                         </button>
                       );
