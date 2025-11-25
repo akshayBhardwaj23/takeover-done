@@ -5,7 +5,17 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-export const prisma: PrismaClient = global.prisma ?? new PrismaClient();
+// Optimize Prisma for serverless (Vercel) environments
+// Connection pooling is critical for performance on free tier
+// Note: Connection pooling is handled by DATABASE_URL (use pooler URL in production)
+export const prisma: PrismaClient =
+  global.prisma ??
+  new PrismaClient({
+    log:
+      process.env.NODE_ENV === 'development'
+        ? (['error', 'warn'] as const)
+        : (['error'] as const),
+  });
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
 export { logEvent } from './logger.js';
 export * from './usage.js';

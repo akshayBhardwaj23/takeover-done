@@ -43,8 +43,6 @@ function ConnectionModal({
   onConnect: (data: any) => void;
   isConnecting: boolean;
 }) {
-  const [metaAccessToken, setMetaAccessToken] = useState('');
-  const [metaAdAccountId, setMetaAdAccountId] = useState('');
   const [googleClientId, setGoogleClientId] = useState('');
   const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [googleRefreshToken, setGoogleRefreshToken] = useState('');
@@ -52,18 +50,87 @@ function ConnectionModal({
 
   if (!isOpen) return null;
 
+  // Meta Ads uses OAuth flow - redirect to install page
+  if (platform === 'meta') {
+    return (
+      <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-10">
+        <div
+          className="modal-overlay absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <div className="modal-container relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+                Connect Meta Ads
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
+                OAuth Authentication
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="rounded-full border-slate-200 text-xs font-semibold text-slate-600"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                To connect your Meta Ads account, you'll be redirected to Meta's authorization page to securely grant access.
+              </p>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-blue-900 mb-1">How it works:</p>
+                    <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Click "Connect via OAuth" below</li>
+                      <li>Log in to your Meta account</li>
+                      <li>Grant permissions to access your ad accounts</li>
+                      <li>You'll be redirected back to Zyyp</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-slate-200 px-6 py-4">
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 rounded-full border-slate-200 text-slate-600"
+                onClick={onClose}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 rounded-full bg-slate-900 text-white hover:bg-black"
+                onClick={() => {
+                  window.location.href = '/api/meta-ads/install';
+                }}
+              >
+                Connect via OAuth
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (platform === 'meta') {
-      onConnect({ accessToken: metaAccessToken, adAccountId: metaAdAccountId });
-    } else {
-      onConnect({
-        clientId: googleClientId,
-        clientSecret: googleClientSecret,
-        refreshToken: googleRefreshToken,
-        customerId: googleCustomerId,
-      });
-    }
+    onConnect({
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+      refreshToken: googleRefreshToken,
+      customerId: googleCustomerId,
+    });
   };
 
   return (
@@ -91,41 +158,8 @@ function ConnectionModal({
           </Button>
         </div>
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6">
-          {platform === 'meta' ? (
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-900">
-                  Access Token
-                </label>
-                <Input
-                  type="password"
-                  value={metaAccessToken}
-                  onChange={(e) => setMetaAccessToken(e.target.value)}
-                  placeholder="Enter Meta Ads access token"
-                  required
-                  className="rounded-xl border-slate-200"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Get your access token from Meta Business Settings
-                </p>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-900">
-                  Ad Account ID
-                </label>
-                <Input
-                  value={metaAdAccountId}
-                  onChange={(e) => setMetaAdAccountId(e.target.value)}
-                  placeholder="act_123456789"
-                  required
-                  className="rounded-xl border-slate-200"
-                />
-                <p className="mt-1 text-xs text-slate-500">
-                  Format: act_ followed by your account ID
-                </p>
-              </div>
-            </div>
-          ) : (
+          {/* Meta Ads now uses OAuth flow - handled above */}
+          {platform !== 'meta' && (
             <div className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-slate-900">
@@ -571,6 +605,21 @@ export default function AdvertisementsPage() {
       refetchInterval: 60000, // Refetch every minute
     },
   );
+
+  // Fetch Meta Ads insights for real performance metrics
+  const metaInsights = trpc.getMetaAdsInsights.useQuery(
+    {
+      adAccountId: metaAccountId,
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+    },
+    {
+      enabled: metaConnected && !!metaAccountId,
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 30000,
+    }
+  );
   const { data: googleAdsData, isLoading: googleAdsLoading } = trpc.getGoogleAdsData.useQuery(
     undefined,
     {
@@ -603,52 +652,150 @@ export default function AdvertisementsPage() {
     },
   });
 
-  const isLoading = metaAdsLoading || googleAdsLoading;
+  const isLoading = metaAdsLoading || googleAdsLoading || metaInsights.isLoading;
 
-  const performanceCards = [
+  // Get previous week for comparison
+  const previousWeekInsights = trpc.getMetaAdsInsights.useQuery(
     {
-      title: 'ROAS (last 7 days)',
-      value: '4.2x',
-      change: '+12% vs last week',
-      icon: DollarSign,
-      trend: 'up' as const,
+      adAccountId: metaAccountId,
+      startDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     },
     {
-      title: 'Top Performing Campaign',
-      value: 'Summer Sale',
-      change: 'ROAS: 5.8x',
-      icon: Target,
-      trend: 'up' as const,
-    },
-    {
-      title: 'Highest Wasted Spend',
-      value: '$1,240',
-      change: 'Campaign #4',
-      icon: TrendingDown,
-      trend: 'down' as const,
-    },
-    {
-      title: 'Estimated Weekly Revenue Impact',
-      value: '+$8.2K',
-      change: 'Based on AI recommendations',
-      icon: TrendingUp,
-      trend: 'up' as const,
-    },
-  ];
+      enabled: metaConnected && !!metaAccountId,
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 30000,
+    }
+  );
 
-  // Transform API data to campaigns format
+  // Transform API data to campaigns format using insights API data if available
+  const metaInsightsData = metaInsights.data;
+  
+  // Calculate performance cards from real data
+  const performanceCards = (() => {
+    if (isLoading || !metaInsightsData || !metaConnected) {
+      // Return loading placeholders
+      return [
+        {
+          title: 'ROAS (last 7 days)',
+          value: '—',
+          change: 'Loading...',
+          icon: DollarSign,
+          trend: 'up' as const,
+          isLoading: true,
+        },
+        {
+          title: 'Top Performing Campaign',
+          value: '—',
+          change: 'Loading...',
+          icon: Target,
+          trend: 'up' as const,
+          isLoading: true,
+        },
+        {
+          title: 'Total Spend',
+          value: '—',
+          change: 'Loading...',
+          icon: TrendingDown,
+          trend: 'down' as const,
+          isLoading: true,
+        },
+        {
+          title: 'Total Conversions',
+          value: '—',
+          change: 'Loading...',
+          icon: TrendingUp,
+          trend: 'up' as const,
+          isLoading: true,
+        },
+      ];
+    }
+
+    const insights = metaInsightsData;
+    const prevInsights = previousWeekInsights.data;
+    
+    // Calculate ROAS change
+    const roas = insights.roas || 0;
+    const prevRoas = prevInsights?.roas || 0;
+    const roasChange = prevRoas > 0 ? ((roas - prevRoas) / prevRoas * 100) : 0;
+    
+    // Get top campaign
+    const topCampaign = insights.campaigns && insights.campaigns.length > 0
+      ? insights.campaigns[0]
+      : null;
+    
+    // Calculate highest wasted spend (low ROAS campaigns)
+    const lowRoasCampaigns = insights.campaigns?.filter(
+      (c) => c.roas !== undefined && c.roas < 2.0 && c.spend > 0
+    ) || [];
+    const highestWasted = lowRoasCampaigns.length > 0
+      ? lowRoasCampaigns.sort((a, b) => b.spend - a.spend)[0]
+      : null;
+
+    return [
+      {
+        title: 'ROAS (last 7 days)',
+        value: roas > 0 ? `${roas.toFixed(2)}x` : 'N/A',
+        change: roasChange !== 0 
+          ? `${roasChange > 0 ? '+' : ''}${roasChange.toFixed(1)}% vs last week`
+          : 'No change',
+        icon: DollarSign,
+        trend: roasChange >= 0 ? 'up' as const : 'down' as const,
+        isLoading: false,
+      },
+      {
+        title: 'Top Performing Campaign',
+        value: topCampaign?.name || 'N/A',
+        change: topCampaign?.roas ? `ROAS: ${topCampaign.roas.toFixed(2)}x` : 'N/A',
+        icon: Target,
+        trend: 'up' as const,
+        isLoading: false,
+      },
+      {
+        title: 'Total Spend',
+        value: `$${insights.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        change: highestWasted ? `Low ROAS: ${highestWasted.name}` : 'All campaigns performing well',
+        icon: DollarSign,
+        trend: highestWasted ? 'down' as const : 'up' as const,
+        isLoading: false,
+      },
+      {
+        title: 'Total Conversions',
+        value: insights.conversions?.toLocaleString() || '0',
+        change: insights.conversionValue 
+          ? `$${insights.conversionValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} revenue`
+          : 'No conversions',
+        icon: TrendingUp,
+        trend: 'up' as const,
+        isLoading: false,
+      },
+    ];
+  })();
   const campaigns = [
-    ...(metaAdsData?.campaigns || []).map((campaign: any) => ({
-      name: campaign.name || 'Unnamed Campaign',
-      platform: 'Meta' as const,
-      spend: campaign.spend ? `$${parseFloat(campaign.spend).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00',
-      revenue: 'N/A', // Meta API doesn't provide revenue directly
-      roas: campaign.spend && campaign.clicks ? `${(parseFloat(campaign.spend) / parseFloat(campaign.clicks)).toFixed(2)}x` : '0.00x',
-      ctr: campaign.ctr ? `${(parseFloat(campaign.ctr) * 100).toFixed(2)}%` : '0.00%',
-      cpc: campaign.cpc ? `$${parseFloat(campaign.cpc).toFixed(2)}` : '$0.00',
-      cpm: campaign.cpm ? `$${parseFloat(campaign.cpm).toFixed(2)}` : '$0.00',
-      status: (campaign.status === 'ACTIVE' || campaign.status === 'PAUSED') ? campaign.status : 'Active' as const,
-      id: campaign.id,
+    ...((metaInsightsData?.campaigns || metaAdsData?.campaigns || []).map((campaign: any) => {
+      // Use insights data if available, otherwise fall back to basic campaign data
+      const spend = campaign.spend || parseFloat(campaign.spend || '0');
+      const impressions = campaign.impressions || parseInt(campaign.impressions || '0', 10);
+      const clicks = campaign.clicks || parseInt(campaign.clicks || '0', 10);
+      const ctr = campaign.ctr !== undefined ? campaign.ctr : (impressions > 0 ? clicks / impressions : 0);
+      const cpc = campaign.cpc || (clicks > 0 ? spend / clicks : 0);
+      const cpm = campaign.cpm || (impressions > 0 ? (spend / impressions) * 1000 : 0);
+      const conversionValue = campaign.conversionValue || 0;
+      const roas = spend > 0 && conversionValue > 0 ? conversionValue / spend : undefined;
+
+      return {
+        name: campaign.name || 'Unnamed Campaign',
+        platform: 'Meta' as const,
+        spend: `$${spend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        revenue: conversionValue > 0 ? `$${conversionValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A',
+        roas: roas !== undefined ? `${roas.toFixed(2)}x` : 'N/A',
+        ctr: `${(ctr * 100).toFixed(2)}%`,
+        cpc: `$${cpc.toFixed(2)}`,
+        cpm: `$${cpm.toFixed(2)}`,
+        status: (campaign.status === 'ACTIVE' || campaign.status === 'PAUSED') ? campaign.status : 'Active' as const,
+        id: campaign.id,
+      };
     })),
     ...(googleAdsData?.campaigns || []).map((campaign: any) => ({
       name: campaign.name || 'Unnamed Campaign',
@@ -664,26 +811,61 @@ export default function AdvertisementsPage() {
     })),
   ];
 
-  const recommendations = [
-    {
-      title: 'Pause Campaign #4 — Low ROAS',
-      description: 'Campaign "Brand Awareness Q2" has ROAS of 2.0x, below threshold of 3.0x',
-      icon: '📉',
-      action: 'Pause campaign to reallocate budget',
-    },
-    {
-      title: 'Increase budget for Campaign #2 by 15%',
-      description: 'High-performing campaign showing strong conversion signals',
-      icon: '📈',
-      action: 'Increase daily budget from $90 to $103.50',
-    },
-    {
-      title: 'Update creative for Ad Set C — fatigue detected',
-      description: 'CTR dropped 18% over last 3 days, suggesting creative fatigue',
-      icon: '⚡',
-      action: 'Generate new creative variations',
-    },
-  ];
+  // Generate real recommendations from Meta Ads insights
+  const recommendations = (() => {
+    if (!metaInsightsData || isLoading) return [];
+    
+    const recs = [];
+    const lowRoasThreshold = 2.0;
+    const highRoasThreshold = 4.0;
+
+    // Find low ROAS campaigns
+    const lowRoasCampaigns = metaInsightsData.campaigns?.filter(
+      (c) => c.roas !== undefined && c.roas < lowRoasThreshold && c.spend > 50
+    ) || [];
+    
+    if (lowRoasCampaigns.length > 0) {
+      const worst = lowRoasCampaigns.sort((a, b) => a.roas! - b.roas!)[0];
+      recs.push({
+        title: `Pause ${worst.name} — Low ROAS`,
+        description: `Campaign has ROAS of ${worst.roas?.toFixed(2)}x, below threshold of ${lowRoasThreshold}x`,
+        icon: '📉',
+        action: 'Pause campaign to reallocate budget',
+      });
+    }
+
+    // Find high-performing campaigns
+    const highRoasCampaigns = metaInsightsData.campaigns?.filter(
+      (c) => c.roas !== undefined && c.roas > highRoasThreshold && c.spend > 0
+    ) || [];
+    
+    if (highRoasCampaigns.length > 0) {
+      const best = highRoasCampaigns.sort((a, b) => b.roas! - a.roas!)[0];
+      const suggestedIncrease = Math.min(best.spend * 0.15, 100); // Max 15% or $100
+      recs.push({
+        title: `Increase budget for ${best.name} by ${(suggestedIncrease / best.spend * 100).toFixed(0)}%`,
+        description: `High-performing campaign showing ROAS of ${best.roas?.toFixed(2)}x`,
+        icon: '📈',
+        action: `Increase daily budget by $${suggestedIncrease.toFixed(2)}`,
+      });
+    }
+
+    // Check for declining CTR (would need trend data, simplified here)
+    const decliningCTRCampaigns = metaInsightsData.campaigns?.filter(
+      (c) => c.ctr < 0.01 && c.impressions > 1000 // Less than 1% CTR with decent impressions
+    ) || [];
+    
+    if (decliningCTRCampaigns.length > 0) {
+      recs.push({
+        title: `Update creative for campaigns with low CTR`,
+        description: `${decliningCTRCampaigns.length} campaign(s) showing CTR below 1%, suggesting creative fatigue`,
+        icon: '⚡',
+        action: 'Generate new creative variations',
+      });
+    }
+
+    return recs.slice(0, 3); // Limit to 3 recommendations
+  })();
 
   const alerts = [
     {
@@ -724,8 +906,9 @@ export default function AdvertisementsPage() {
     return true;
   });
 
-  const handleConnectMeta = (data: { accessToken: string; adAccountId: string }) => {
-    connectMeta.mutate(data);
+  // Meta Ads now uses OAuth, so this redirects instead
+  const handleConnectMeta = () => {
+    window.location.href = '/api/meta-ads/install';
   };
 
   const handleConnectGoogle = (data: {
@@ -1092,7 +1275,7 @@ export default function AdvertisementsPage() {
         onClose={() => setMetaModalOpen(false)}
         platform="meta"
         onConnect={handleConnectMeta}
-        isConnecting={connectMeta.isPending}
+        isConnecting={false}
       />
       <ConnectionModal
         isOpen={googleModalOpen}

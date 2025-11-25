@@ -25,6 +25,7 @@ import {
   type Currency,
 } from './payments/currency';
 import { decryptSecure, encryptSecure } from './crypto';
+import crypto from 'node:crypto';
 import {
   sanitizeLimited,
   safeEmail,
@@ -36,7 +37,14 @@ import {
   fetchGA4Analytics,
   type GA4Property,
 } from './google-analytics';
+import {
+  listAdAccounts,
+  fetchMetaAdsInsights,
+  type MetaAdAccount,
+  type MetaAdsInsights,
+} from './meta-ads';
 
+import { ShopifyClient } from './services/shopify';
 type Context = {
   session: any;
   userId: string | null;
@@ -197,6 +205,54 @@ async function resolveStoreName(
   return STORE_DEFAULT_NAME;
 }
 
+/**
+ * Get Shopify API credentials from connection
+ * Supports both OAuth tokens and custom app credentials
+ */
+async function getShopifyApiCredentials(
+  connectionId: string,
+  userId: string,
+): Promise<{ shopUrl: string; accessToken: string } | null> {
+  const connection = await prisma.connection.findFirst({
+    where: {
+      id: connectionId,
+      userId,
+      type: 'SHOPIFY',
+    },
+    select: {
+      shopDomain: true,
+      accessToken: true,
+      metadata: true,
+    },
+  });
+
+  if (!connection) return null;
+
+  const metadata = (connection.metadata as Record<string, unknown>) || {};
+  const subdomain = metadata.subdomain as string | undefined;
+  const connectionMethod = metadata.connectionMethod as string | undefined;
+
+  // If custom app connection, use subdomain
+  if (connectionMethod === 'custom_app' && subdomain) {
+    const accessToken = decryptSecure(connection.accessToken);
+    return {
+      shopUrl: `https://${subdomain}.myshopify.com`,
+      accessToken,
+    };
+  }
+
+  // Otherwise, use OAuth token with shop domain
+  if (connection.shopDomain) {
+    const accessToken = decryptSecure(connection.accessToken);
+    return {
+      shopUrl: `https://${connection.shopDomain}`,
+      accessToken,
+    };
+  }
+
+  return null;
+}
+
 function ensureSignature(text: string, signatureBlock: string): string {
   const trimmedSignature = signatureBlock.trim();
   if (!trimmedSignature) return text;
@@ -259,6 +315,60 @@ ${quotedLines}`;
 }
 
 export { encryptSecure, decryptSecure } from './crypto';
+
+async function syncShopifyData(connectionId: string, userId: string) {
+  try {
+    const credentials = await getShopifyApiCredentials(connectionId, userId);
+    if (!credentials) return;
+
+    const client = new ShopifyClient(
+      credentials.shopUrl,
+      credentials.accessToken,
+    );
+
+    // Fetch last 50 orders to start
+    const orders = await client.getOrders(50);
+
+    for (const order of orders) {
+      const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
+
+      await prisma.order.upsert({
+        where: { shopifyId: String(order.id) },
+        create: {
+          shopifyId: String(order.id),
+          status: order.financial_status,
+          email: order.email || order.customer?.email,
+          totalAmount,
+          name: order.name,
+          shopDomain: credentials.shopUrl.replace('https://', ''),
+          connectionId,
+          createdAt: new Date(order.created_at),
+        },
+        update: {
+          status: order.financial_status,
+          email: order.email || order.customer?.email,
+          totalAmount,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    await logEvent(
+      'shopify.sync.completed',
+      { count: orders.length, shop: credentials.shopUrl },
+      'connection',
+      connectionId,
+    );
+  } catch (error) {
+    console.error('Failed to sync Shopify data:', error);
+    await logEvent(
+      'shopify.sync.failed',
+      { error: String(error) },
+      'connection',
+      connectionId,
+    );
+  }
+}
 
 export const appRouter = t.router({
   // Public endpoints (no auth required)
@@ -599,6 +709,244 @@ export const appRouter = t.router({
       );
 
       return { ok: true, shopDomain };
+    }),
+  createWebhookConnection: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string().min(3),
+        storeName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cleanShop = safeShopDomain(input.shopDomain);
+      if (!cleanShop) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid shop domain',
+        });
+      }
+
+      // Check if connection already exists
+      const existing = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      if (existing) {
+        // Return existing webhook URL
+        const webhookUrl = (existing.metadata as any)?.webhookUrl;
+        if (webhookUrl) {
+          return {
+            connectionId: existing.id,
+            webhookUrl,
+            shopDomain: cleanShop,
+          };
+        }
+      }
+
+      // Generate unique webhook URL
+      const webhookToken = crypto.randomBytes(32).toString('hex');
+      // Use SHOPIFY_APP_URL if available, otherwise construct from NEXT_PUBLIC_APP_URL
+      const baseUrl =
+        process.env.SHOPIFY_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'https://www.zyyp.ai';
+      const webhookUrl = `${baseUrl}/api/webhooks/shopify/${webhookToken}`;
+
+      const metadata: Record<string, unknown> = {
+        webhookUrl,
+        webhookToken,
+        connectionMethod: 'webhook',
+        lastWebhookReceived: null,
+      };
+
+      if (input.storeName) {
+        metadata.storeName = input.storeName.trim();
+      }
+
+      const connection = existing
+        ? await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              metadata: metadata as any,
+              shopDomain: cleanShop,
+            },
+            select: { id: true },
+          })
+        : await prisma.connection.create({
+            data: {
+              type: 'SHOPIFY' as any,
+              accessToken: encryptSecure('webhook-only'), // Placeholder, no API access
+              shopDomain: cleanShop,
+              userId: ctx.userId,
+              metadata: metadata as any,
+            },
+            select: { id: true },
+          });
+
+      await logEvent(
+        'shopify.webhook.connection.created',
+        { shop: cleanShop },
+        'connection',
+        connection.id,
+      );
+
+      return {
+        connectionId: connection.id,
+        webhookUrl,
+        shopDomain: cleanShop,
+      };
+    }),
+  createCustomAppConnection: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string().min(3),
+        subdomain: z.string().min(1),
+        accessToken: z.string().min(1),
+        storeName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cleanShop = safeShopDomain(input.shopDomain);
+      if (!cleanShop) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid shop domain',
+        });
+      }
+
+      // Validate subdomain format
+      const subdomain = input.subdomain.trim().toLowerCase();
+      if (!/^[a-z0-9-]+$/.test(subdomain)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid subdomain format',
+        });
+      }
+
+      // Verify access token by making a test API call
+      try {
+        const testUrl = `https://${subdomain}.myshopify.com/admin/api/2024-10/shop.json`;
+        const testRes = await fetch(testUrl, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': input.accessToken,
+          },
+        });
+
+        if (!testRes.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid access token or subdomain',
+          });
+        }
+
+        const shopData = (await testRes.json()) as {
+          shop?: { name?: string | null };
+        };
+        const fetchedStoreName = shopData?.shop?.name;
+
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            shopDomain: cleanShop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
+        });
+
+        const metadata: Record<string, unknown> = {
+          subdomain,
+          connectionMethod: 'custom_app',
+        };
+
+        if (input.storeName || fetchedStoreName) {
+          metadata.storeName = (input.storeName || fetchedStoreName)?.trim();
+        }
+
+        const connection = existing
+          ? await prisma.connection.update({
+              where: { id: existing.id },
+              data: {
+                accessToken: encryptSecure(input.accessToken),
+                shopDomain: cleanShop,
+                metadata: {
+                  ...((existing.metadata as Record<string, unknown>) || {}),
+                  ...metadata,
+                } as any,
+              },
+              select: { id: true },
+            })
+          : await prisma.connection.create({
+              data: {
+                type: 'SHOPIFY' as any,
+                accessToken: encryptSecure(input.accessToken),
+                shopDomain: cleanShop,
+                userId: ctx.userId,
+                metadata: metadata as any,
+              },
+              select: { id: true },
+            });
+
+        await logEvent(
+          'shopify.custom_app.connection.created',
+          { shop: cleanShop },
+          'connection',
+          connection.id,
+        );
+
+        // Trigger initial sync
+        void syncShopifyData(connection.id, ctx.userId).catch(console.error);
+
+        return {
+          connectionId: connection.id,
+          shopDomain: cleanShop,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to verify credentials',
+        });
+      }
+    }),
+  getWebhookUrl: protectedProcedure
+    .input(z.object({ connectionId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+          shopDomain: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const webhookUrl = (connection.metadata as any)?.webhookUrl;
+      const lastWebhookReceived = (connection.metadata as any)
+        ?.lastWebhookReceived;
+
+      return {
+        webhookUrl: webhookUrl || null,
+        lastWebhookReceived: lastWebhookReceived || null,
+        shopDomain: connection.shopDomain,
+      };
     }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
@@ -960,7 +1308,54 @@ export const appRouter = t.router({
         canSendEmail(ctx.userId),
       ]);
 
-      return { orders, unassigned: unassignedMessages, emailLimit };
+      // Calculate pending email counts for each order (optimized: single query)
+      const orderIds = orders.map((o) => o.id);
+      const allMessages =
+        orderIds.length > 0
+          ? await prisma.message.findMany({
+              where: { orderId: { in: orderIds } },
+              orderBy: { createdAt: 'desc' },
+              select: { orderId: true, direction: true },
+            })
+          : [];
+
+      // Group messages by orderId
+      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+      for (const msg of allMessages) {
+        if (msg.orderId) {
+          if (!messagesByOrder.has(msg.orderId)) {
+            messagesByOrder.set(msg.orderId, []);
+          }
+          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+        }
+      }
+
+      // Calculate pending counts for each order
+      const pendingCountsMap = new Map<string, number>();
+      for (const orderId of orderIds) {
+        const messages = messagesByOrder.get(orderId) ?? [];
+        let pendingCount = 0;
+        for (const msg of messages) {
+          if (msg.direction === 'OUTBOUND') {
+            break; // Stop counting once we hit an OUTBOUND
+          } else if (msg.direction === 'INBOUND') {
+            pendingCount++;
+          }
+        }
+        pendingCountsMap.set(orderId, pendingCount);
+      }
+
+      // Add pending email counts to orders
+      const ordersWithPending = orders.map((order) => ({
+        ...order,
+        pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
+      }));
+
+      return {
+        orders: ordersWithPending,
+        unassigned: unassignedMessages,
+        emailLimit,
+      };
     }),
   orderGet: protectedProcedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
@@ -986,11 +1381,18 @@ export const appRouter = t.router({
             message: 'Shop access denied',
           });
         }
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to get API credentials',
+          });
+        }
         const resp = await fetch(
-          `https://${cleanShop}/admin/api/2024-07/orders/${input.orderId}.json`,
+          `${credentials.shopUrl}/admin/api/2024-10/orders/${input.orderId}.json`,
           {
             headers: {
-              'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+              'X-Shopify-Access-Token': credentials.accessToken,
             },
           },
         );
@@ -1870,10 +2272,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           });
         }
 
-        const url = `https://${input.shop}/admin/api/2024-07/orders/${input.orderId}.json`;
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          return { ok: false, error: 'Failed to get API credentials' };
+        }
+        const url = `${credentials.shopUrl}/admin/api/2024-10/orders/${input.orderId}.json`;
         const resp = await fetch(url, {
           headers: {
-            'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+            'X-Shopify-Access-Token': credentials.accessToken,
           },
         });
         if (!resp.ok)
@@ -1958,10 +2364,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       z.object({
         offset: z.number().min(0).default(0),
         limit: z.number().min(1).max(50).default(10),
+        cursor: z.string().optional(), // Optional cursor for better pagination
       }),
     )
     .query(async ({ input, ctx }) => {
-      // Fetch all connection IDs for this user
+      // Fetch all connection IDs for this user (cached by index)
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
         select: { id: true },
@@ -1970,28 +2377,110 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       if (connectionIds.length === 0) {
         return { orders: [], hasMore: false };
       }
-      // Page through orders by createdAt desc using offset/limit
-      const orders = await prisma.order.findMany({
-        where: { connectionId: { in: connectionIds } },
-        orderBy: { createdAt: 'desc' },
-        skip: input.offset,
-        take: input.limit + 1, // fetch one extra to detect hasMore
-        select: {
-          id: true,
-          shopifyId: true,
-          name: true,
-          email: true,
-          totalAmount: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          shopDomain: true,
-          connectionId: true,
-        },
-      });
+
+      // Optimized: Use cursor-based pagination when cursor is provided
+      // Otherwise fall back to offset (for backward compatibility)
+      const take = input.limit + 1; // fetch one extra to detect hasMore
+
+      let orders;
+      if (input.cursor) {
+        // Cursor-based pagination (faster for large datasets)
+        orders = await prisma.order.findMany({
+          where: {
+            connectionId: { in: connectionIds },
+            createdAt: { lt: new Date(input.cursor) }, // Less than cursor date
+          },
+          orderBy: { createdAt: 'desc' },
+          take,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
+        });
+      } else {
+        // Offset-based pagination (for backward compatibility)
+        // Note: skip is slow for large offsets, but we keep it for compatibility
+        orders = await prisma.order.findMany({
+          where: { connectionId: { in: connectionIds } },
+          orderBy: { createdAt: 'desc' },
+          skip: input.offset,
+          take,
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+            shopDomain: true,
+            connectionId: true,
+          },
+        });
+      }
+
       const hasMore = orders.length > input.limit;
       const page = hasMore ? orders.slice(0, input.limit) : orders;
-      return { orders: page, hasMore };
+
+      // Calculate pending email counts for each order (optimized: single query)
+      const orderIds = page.map((o) => o.id);
+      const allMessages =
+        orderIds.length > 0
+          ? await prisma.message.findMany({
+              where: { orderId: { in: orderIds } },
+              orderBy: { createdAt: 'desc' },
+              select: { orderId: true, direction: true },
+            })
+          : [];
+
+      // Group messages by orderId
+      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+      for (const msg of allMessages) {
+        if (msg.orderId) {
+          if (!messagesByOrder.has(msg.orderId)) {
+            messagesByOrder.set(msg.orderId, []);
+          }
+          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+        }
+      }
+
+      // Calculate pending counts for each order
+      const pendingCountsMap = new Map<string, number>();
+      for (const orderId of orderIds) {
+        const messages = messagesByOrder.get(orderId) ?? [];
+        let pendingCount = 0;
+        for (const msg of messages) {
+          if (msg.direction === 'OUTBOUND') {
+            break; // Stop counting once we hit an OUTBOUND
+          } else if (msg.direction === 'INBOUND') {
+            pendingCount++;
+          }
+        }
+        pendingCountsMap.set(orderId, pendingCount);
+      }
+
+      // Add pending email counts to orders
+      const ordersWithPending = page.map((order) => ({
+        ...order,
+        pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
+      }));
+
+      // Return cursor for next page (last order's createdAt as ISO string)
+      const nextCursor =
+        hasMore && page.length > 0
+          ? page[page.length - 1].createdAt.toISOString()
+          : null;
+
+      return { orders: ordersWithPending, hasMore, nextCursor };
     }),
   getAnalytics: protectedProcedure.query(async ({ ctx }) => {
     try {
@@ -3722,6 +4211,241 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       );
       return { success: true };
     }),
+  // Get Meta Ads Accounts
+  getMetaAdsAccounts: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        return { accounts: [] };
+      }
+
+      // Pass encrypted tokens - listAdAccounts will handle decryption and refresh
+      const accessToken = connection.accessToken; // Keep encrypted
+      const refreshToken = connection.refreshToken; // Keep encrypted (exchange token)
+
+      let accounts: MetaAdAccount[] = [];
+
+      try {
+        accounts = await listAdAccounts(accessToken, refreshToken);
+
+        // If we got accounts but metadata doesn't have adAccountId, save the first one
+        if (accounts.length > 0) {
+          const metadata =
+            (connection.metadata as Record<string, unknown>) || {};
+          const metadataAdAccountId = metadata.adAccountId as
+            | string
+            | undefined;
+
+          if (!metadataAdAccountId) {
+            // Save first account to metadata for future use
+            const firstAccount = accounts[0];
+            await prisma.connection.update({
+              where: { id: connection.id },
+              data: {
+                metadata: {
+                  ...metadata,
+                  adAccountId: firstAccount.adAccountId,
+                  adAccountName: firstAccount.adAccountName,
+                },
+              },
+            });
+          }
+        }
+      } catch (listError: any) {
+        console.error('[Meta Ads Accounts API] Error in listAdAccounts:', {
+          error: listError.message,
+          stack: listError.stack,
+        });
+
+        // If we have an adAccountId in metadata, return it as a fallback
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const metadataAdAccountId = metadata.adAccountId as string | undefined;
+        const metadataAdAccountName = metadata.adAccountName as
+          | string
+          | undefined;
+
+        if (metadataAdAccountId) {
+          accounts = [
+            {
+              adAccountId: metadataAdAccountId,
+              adAccountName: metadataAdAccountName || metadataAdAccountId,
+              accountStatus: 1, // Assume active
+            },
+          ];
+        }
+      }
+
+      return { accounts };
+    } catch (error: any) {
+      console.error('[Meta Ads Accounts API] Error:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: error.message || 'Failed to fetch Meta Ads accounts',
+      });
+    }
+  }),
+  // Get Meta Ads Insights
+  getMetaAdsInsights: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const connection = await prisma.connection.findFirst({
+          where: {
+            userId: ctx.userId,
+            type: 'META_ADS',
+          } as any,
+        });
+
+        if (!connection) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Meta Ads not connected',
+          });
+        }
+
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+        const adAccountId =
+          input.adAccountId || (metadata.adAccountId as string) || '';
+
+        if (!adAccountId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'No ad account selected. Please select an ad account first.',
+          });
+        }
+
+        // Default to last 7 days if not specified
+        const endDate = input.endDate || new Date().toISOString().split('T')[0];
+        const startDate =
+          input.startDate ||
+          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            .toISOString()
+            .split('T')[0];
+
+        // Pass encrypted tokens - fetchMetaAdsInsights will handle decryption and refresh
+        const accessToken = connection.accessToken; // Keep encrypted
+        const refreshToken = connection.refreshToken; // Keep encrypted (exchange token)
+
+        const insights = await fetchMetaAdsInsights(
+          adAccountId,
+          accessToken,
+          refreshToken,
+          startDate,
+          endDate,
+        );
+
+        return insights;
+      } catch (error: any) {
+        if (error instanceof TRPCError) throw error;
+        console.error('[Meta Ads Insights API] Error:', error);
+
+        // Handle specific error cases
+        let errorCode:
+          | 'UNAUTHORIZED'
+          | 'TOO_MANY_REQUESTS'
+          | 'BAD_REQUEST'
+          | 'INTERNAL_SERVER_ERROR' = 'INTERNAL_SERVER_ERROR';
+        let errorMessage = error.message || 'Failed to fetch Meta Ads insights';
+
+        if (errorMessage.includes('expired') || errorMessage.includes('190')) {
+          errorCode = 'UNAUTHORIZED';
+          errorMessage =
+            'Access token has expired. Please reconnect your Meta Ads account.';
+        } else if (
+          errorMessage.includes('rate limit') ||
+          errorMessage.includes('10')
+        ) {
+          errorCode = 'TOO_MANY_REQUESTS';
+          errorMessage =
+            'Rate limit exceeded. Please try again in a few minutes.';
+        } else if (
+          errorMessage.includes('permission') ||
+          errorMessage.includes('200')
+        ) {
+          errorCode = 'UNAUTHORIZED';
+          errorMessage =
+            'Invalid permissions. Please reconnect with proper permissions (ads_read required).';
+        }
+
+        throw new TRPCError({
+          code: errorCode,
+          message: errorMessage,
+        });
+      }
+    }),
+  // Update Meta Ads Account Selection
+  updateMetaAdsAccount: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().min(1, 'Ad account ID is required'),
+        adAccountName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: {
+            ...metadata,
+            adAccountId: input.adAccountId,
+            adAccountName: input.adAccountName || input.adAccountId,
+          },
+        },
+      });
+
+      return { success: true };
+    }),
+  // Disconnect Meta Ads
+  disconnectMetaAds: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'META_ADS',
+      } as any,
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Meta Ads connection not found',
+      });
+    }
+
+    await prisma.connection.delete({
+      where: { id: connection.id },
+    });
+
+    await logEvent('meta_ads.disconnected', {}, 'connection', ctx.userId);
+    return { success: true };
+  }),
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {

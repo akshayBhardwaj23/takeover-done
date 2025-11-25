@@ -57,11 +57,12 @@ export type PlanType = keyof typeof PLAN_LIMITS;
 
 /**
  * Get or create a subscription for a user
+ * Optimized: Don't load usageRecords unless needed
  */
 export async function ensureSubscription(userId: string) {
   const existing = await prisma.subscription.findUnique({
     where: { userId },
-    include: { usageRecords: true },
+    // Removed include: { usageRecords: true } - not needed here, saves query time
   });
 
   if (existing) {
@@ -71,7 +72,7 @@ export async function ensureSubscription(userId: string) {
         return prisma.subscription.update({
           where: { id: existing.id },
           data: { status: 'expired' },
-          include: { usageRecords: true },
+          // Removed include: { usageRecords: true } - not needed here
         });
       }
     }
@@ -96,10 +97,19 @@ export async function ensureSubscription(userId: string) {
 
 /**
  * Get current usage record for a subscription in the current billing period
+ * Optimized: Use indexed queries and reduce database round trips
  */
 export async function getCurrentUsageRecord(subscriptionId: string) {
+  // Fetch subscription and current period info in one query
   const subscription = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
+    select: {
+      id: true,
+      planType: true,
+      status: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
+    },
   });
 
   if (!subscription) {
@@ -113,6 +123,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
   // Check if we're within the current billing period
   if (now >= periodStart && now <= periodEnd) {
     // Get or create usage record for this period
+    // Use findUnique with composite key (indexed) - much faster
     let usageRecord = await prisma.usageRecord.findUnique({
       where: {
         subscriptionId_periodStart: {
@@ -139,15 +150,20 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
   } else {
     if (subscription.planType === 'TRIAL') {
       if (subscription.status === 'active') {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: 'expired' },
-        });
+        // Update in background, don't wait
+        prisma.subscription
+          .update({
+            where: { id: subscription.id },
+            data: { status: 'expired' },
+          })
+          .catch((err) => console.error('Failed to expire trial:', err));
       }
 
+      // Use indexed query: subscriptionId + periodStart (desc) - limit to 1
       const latestRecord = await prisma.usageRecord.findFirst({
         where: { subscriptionId },
         orderBy: { periodStart: 'desc' },
+        take: 1, // Only need the latest one
       });
 
       if (!latestRecord) {
@@ -179,10 +195,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
  */
 export async function incrementEmailSent(userId: string) {
   const subscription = await ensureSubscription(userId);
-  if (
-    subscription.planType === 'TRIAL' &&
-    subscription.status === 'expired'
-  ) {
+  if (subscription.planType === 'TRIAL' && subscription.status === 'expired') {
     throw new Error('Trial expired. Cannot send more emails.');
   }
   const usageRecord = await getCurrentUsageRecord(subscription.id);
@@ -233,6 +246,7 @@ export async function incrementAISuggestion(userId: string) {
 
 /**
  * Check if user can send email based on plan limits
+ * Optimized: Combine subscription and usage record queries where possible
  */
 export async function canSendEmail(userId: string): Promise<{
   allowed: boolean;
@@ -248,14 +262,78 @@ export async function canSendEmail(userId: string): Promise<{
     daysRemaining: number | null;
   };
 }> {
+  // Optimized: Get subscription first (single query)
   const subscription = await ensureSubscription(userId);
-  const usageRecord = await getCurrentUsageRecord(subscription.id);
   const planLimits = PLAN_LIMITS[subscription.planType];
+  const now = new Date();
+  const isTrial = subscription.planType === 'TRIAL';
+  const periodStart = subscription.currentPeriodStart;
+  const periodEnd = subscription.currentPeriodEnd;
+
+  // Check if we're within the current billing period
+  const isWithinPeriod = now >= periodStart && now <= periodEnd;
+
+  // Optimized: Get usage record in single query using composite key
+  let usageRecord;
+  if (isWithinPeriod) {
+    // Try to get existing usage record (indexed lookup - fast)
+    usageRecord = await prisma.usageRecord.findUnique({
+      where: {
+        subscriptionId_periodStart: {
+          subscriptionId: subscription.id,
+          periodStart,
+        },
+      },
+    });
+
+    // Create if doesn't exist (only happens once per period)
+    if (!usageRecord) {
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart,
+          periodEnd,
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  } else {
+    // Period expired - get latest record (indexed query with limit)
+    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
+      // Update in background, don't wait
+      prisma.subscription
+        .update({
+          where: { id: subscription.id },
+          data: { status: 'expired' },
+        })
+        .catch((err) => console.error('Failed to expire trial:', err));
+    }
+
+    usageRecord = await prisma.usageRecord.findFirst({
+      where: { subscriptionId: subscription.id },
+      orderBy: { periodStart: 'desc' },
+      take: 1,
+    });
+
+    if (!usageRecord) {
+      // Fallback: create a new record
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart: periodEnd,
+          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000), // +30 days
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  }
 
   const limit = planLimits.emailsPerMonth;
   const current = usageRecord.emailsSent;
-  const now = new Date();
-  const isTrial = subscription.planType === 'TRIAL';
   const endsAt = isTrial ? subscription.currentPeriodEnd : null;
   const expired = isTrial ? now > subscription.currentPeriodEnd : false;
   const daysRemaining =
@@ -353,11 +431,7 @@ export async function getUsageSummary(userId: string) {
     status: subscription.status,
     storesLimit: planLimits.stores,
     emailsRemaining:
-      limit === -1
-        ? -1
-        : isTrial && expired
-          ? 0
-          : Math.max(0, limit - current),
+      limit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, limit - current),
     trial: {
       isTrial,
       expired,

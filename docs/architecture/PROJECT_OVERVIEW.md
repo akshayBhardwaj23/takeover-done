@@ -42,7 +42,9 @@ An AI-powered E‑Commerce Support Assistant for Shopify store owners. It centra
 - Shopify Admin API + Webhooks
 - Mailgun (email sending/receiving)
 - OpenAI GPT-4o-mini (AI suggestions)
-- Razorpay (payments)
+- Google Analytics 4 (OAuth, property listing, analytics data)
+- Meta Ads / Facebook Ads (OAuth, ad account management, performance insights)
+- Razorpay (payments and subscriptions)
 
 **Monitoring:**
 - Sentry (error tracking)
@@ -155,7 +157,7 @@ Basics of implementations by area:
 
 ### Current Status (Production Ready)
 
-**Core Features (Complete):**
+**Core Support Features (Complete):**
 - ✅ Real email delivery via Mailgun API
 - ✅ Email ingestion via Mailgun webhooks
 - ✅ Unified inbox with email threads and order matching
@@ -164,24 +166,35 @@ Basics of implementations by area:
 - ✅ Per-store email aliases and support email configuration
 
 **Analytics & Insights (Complete):**
-- ✅ AI Support Analytics dashboard (response time, ROI, customer satisfaction)
-- ✅ Shopify Business Analytics dashboard (revenue, orders, customers, AOV)
-- ✅ 7-day trend visualizations
+- ✅ AI Support Analytics dashboard (response time, ROI, customer satisfaction, volume trends)
+- ✅ Shopify Business Analytics dashboard (revenue, orders, customers, AOV, growth metrics)
+- ✅ Google Analytics 4 dashboard (sessions, users, page views, bounce rate, e-commerce metrics, traffic sources, top pages)
+- ✅ Meta Ads dashboard (spend, impressions, clicks, CTR, CPC, CPM, conversions, ROAS, CPA, reach, frequency, campaign breakdowns)
+- ✅ 7-day and 30-day trend visualizations
 - ✅ Real-time metrics and aggregated insights
-
-**Subscription & Billing (Complete):**
-- ✅ Razorpay payment integration
-- ✅ Multiple subscription plans (STARTER, GROWTH, PRO, ENTERPRISE, TRIAL)
-- ✅ Usage tracking and enforcement
-- ✅ Upgrade prompts and limit notifications
-- ✅ Webhook handling for payment events
 
 **Automation Playbooks (Complete):**
 - ✅ No-code playbook builder (6-step wizard)
-- ✅ 8 default playbooks across 6 categories
+- ✅ 8 default playbooks across 6 categories (Refund/Return, Marketing, Fulfillment, Support, Inventory, Custom)
 - ✅ AI-powered execution with confidence thresholds
 - ✅ Manual approval workflows
 - ✅ Execution history tracking
+- ✅ Real-time triggers (Shopify events, email intents, scheduled tasks)
+
+**Subscription & Billing (Complete):**
+- ✅ Razorpay payment integration
+- ✅ Multiple subscription plans (TRIAL, STARTER, GROWTH, PRO, ENTERPRISE)
+- ✅ Usage tracking and enforcement (emails, AI requests, stores)
+- ✅ Upgrade prompts and limit notifications
+- ✅ Webhook handling for payment events
+- ✅ Multi-currency support (automatic detection and pricing)
+
+**Integrations (Complete):**
+- ✅ Shopify OAuth and Admin API
+- ✅ Mailgun email integration
+- ✅ Google Analytics 4 OAuth and API
+- ✅ Meta Ads OAuth and Graph API
+- ✅ Razorpay payment gateway
 
 **Security & Multi-Tenancy (Complete):**
 - ✅ Complete data isolation by userId
@@ -189,3 +202,4 @@ Basics of implementations by area:
 - ✅ HMAC verification for Shopify webhooks
 - ✅ Signature verification for Mailgun webhooks
 - ✅ Encrypted OAuth tokens and secrets
+- ✅ State parameter for CSRF protection in OAuth flows
