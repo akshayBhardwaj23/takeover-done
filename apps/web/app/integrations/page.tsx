@@ -456,17 +456,20 @@ function IntegrationsInner() {
                 </div>
               </div>
 
-              <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
-                <section id="shopify" className="space-y-6">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold text-slate-900">
-                        Shopify
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                        Connect stores to sync orders and automate support.
-                      </p>
-                    </div>
+              <section id="shopify" className="space-y-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      Shopify
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Connect your Shopify store to sync orders and automate support.
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Choose webhook method to receive orders, or custom app for full API access.
+                    </p>
+                  </div>
+                  <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
                     <DialogTrigger asChild>
                       <Button
                         className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
@@ -484,7 +487,6 @@ function IntegrationsInner() {
                         <Plus className="mr-2 h-4 w-4" /> Connect Store
                       </Button>
                     </DialogTrigger>
-                  </div>
                   <div className="rounded-2xl border border-slate-200">
                     <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <span>Connected Stores</span>
@@ -496,12 +498,19 @@ function IntegrationsInner() {
                         <StatsCardSkeleton />
                       </div>
                     ) : shopifyConnections.length === 0 ? (
-                      <div className="flex flex-col items-center gap-3 p-10 text-center text-sm text-slate-500">
+                      <div className="flex flex-col items-center gap-4 p-10 text-center">
                         <Store className="h-10 w-10 text-slate-300" />
-                        <p className="font-semibold text-slate-700">
-                          No stores connected yet
-                        </p>
-                        <p>Connect your first store to unlock analytics.</p>
+                        <div className="space-y-2">
+                          <p className="font-semibold text-slate-700">
+                            No stores connected yet
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            Click "Connect Store" above to get started.
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            Choose webhook method for receiving orders, or custom app for full API access.
+                          </p>
+                        </div>
                       </div>
                     ) : (
                       <div className="divide-y divide-slate-200">
@@ -693,6 +702,7 @@ function IntegrationsInner() {
                   </div>
                 </section>
 
+              <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
                 <DialogContent containerClassName="max-w-2xl sm:rounded-3xl">
                   <DialogHeader>
                     <div className="flex items-center gap-3">
@@ -732,6 +742,31 @@ function IntegrationsInner() {
                     >
                       Custom App (Full Access)
                     </button>
+                  </div>
+                  
+                  {/* Method Description */}
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    {connectionTab === 'webhook' ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          Webhook Method
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          Receive order data automatically from Shopify. You'll add a webhook URL in your Shopify admin. 
+                          <strong className="text-slate-900"> Best for: Receiving orders and customer data.</strong>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-900">
+                          Custom App Method
+                        </p>
+                        <p className="text-xs text-slate-600">
+                          Full API access to create/update orders, fulfillments, and refunds. Requires creating a custom app in Shopify admin.
+                          <strong className="text-slate-900"> Best for: Full automation and order management.</strong>
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Webhook Connection Form */}
@@ -870,10 +905,25 @@ function IntegrationsInner() {
                   {/* Custom App Connection Form */}
                   {connectionTab === 'custom_app' && (
                     <form onSubmit={onSubmitCustomApp} className="space-y-4 pt-4">
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <p className="text-xs text-amber-800">
-                          <strong>Note:</strong> This method requires creating a custom app in your Shopify admin. 
-                          This gives full API access to update orders, create fulfillments, and more.
+                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <p className="text-xs text-blue-800">
+                          <strong>How to get your credentials:</strong>
+                        </p>
+                        <ol className="mt-2 space-y-1 text-xs text-blue-700">
+                          <li>1. Go to your Shopify admin → Settings → Apps and sales channels</li>
+                          <li>2. Click "Develop apps" → "Create an app"</li>
+                          <li>3. Configure Admin API access scopes (read_orders, write_orders, etc.)</li>
+                          <li>4. Install the app and copy the Admin API access token</li>
+                        </ol>
+                        <p className="mt-2 text-xs text-blue-600">
+                          <a 
+                            href="https://help.shopify.com/en/manual/apps/app-types/custom-apps" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="underline hover:text-blue-800"
+                          >
+                            Learn more about custom apps →
+                          </a>
                         </p>
                       </div>
                       
@@ -910,7 +960,7 @@ function IntegrationsInner() {
                           className="h-11"
                         />
                         <p className="mt-1 text-xs text-slate-500">
-                          If your store URL is "https://demo.myshopify.com", enter "demo"
+                          If your store URL is "https://demo.myshopify.com", enter "demo" (without .myshopify.com)
                         </p>
                       </div>
                       
@@ -930,7 +980,7 @@ function IntegrationsInner() {
                           className="h-11 font-mono"
                         />
                         <p className="mt-1 text-xs text-slate-500">
-                          Get this from: Apps → Develop apps → Create an app → Admin API access token
+                          Found in: Your custom app → API credentials → Admin API access token (starts with "shpat_")
                         </p>
                       </div>
                       
