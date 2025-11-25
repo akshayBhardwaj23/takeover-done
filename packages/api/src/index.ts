@@ -25,6 +25,7 @@ import {
   type Currency,
 } from './payments/currency';
 import { decryptSecure, encryptSecure } from './crypto';
+import crypto from 'node:crypto';
 import {
   sanitizeLimited,
   safeEmail,
@@ -201,6 +202,54 @@ async function resolveStoreName(
   }
 
   return STORE_DEFAULT_NAME;
+}
+
+/**
+ * Get Shopify API credentials from connection
+ * Supports both OAuth tokens and custom app credentials
+ */
+async function getShopifyApiCredentials(
+  connectionId: string,
+  userId: string,
+): Promise<{ shopUrl: string; accessToken: string } | null> {
+  const connection = await prisma.connection.findFirst({
+    where: {
+      id: connectionId,
+      userId,
+      type: 'SHOPIFY',
+    },
+    select: {
+      shopDomain: true,
+      accessToken: true,
+      metadata: true,
+    },
+  });
+
+  if (!connection) return null;
+
+  const metadata = (connection.metadata as Record<string, unknown>) || {};
+  const subdomain = metadata.subdomain as string | undefined;
+  const connectionMethod = metadata.connectionMethod as string | undefined;
+
+  // If custom app connection, use subdomain
+  if (connectionMethod === 'custom_app' && subdomain) {
+    const accessToken = decryptSecure(connection.accessToken);
+    return {
+      shopUrl: `https://${subdomain}.myshopify.com`,
+      accessToken,
+    };
+  }
+
+  // Otherwise, use OAuth token with shop domain
+  if (connection.shopDomain) {
+    const accessToken = decryptSecure(connection.accessToken);
+    return {
+      shopUrl: `https://${connection.shopDomain}`,
+      accessToken,
+    };
+  }
+
+  return null;
 }
 
 function ensureSignature(text: string, signatureBlock: string): string {
@@ -606,6 +655,241 @@ export const appRouter = t.router({
 
       return { ok: true, shopDomain };
     }),
+  createWebhookConnection: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string().min(3),
+        storeName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cleanShop = safeShopDomain(input.shopDomain);
+      if (!cleanShop) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid shop domain',
+        });
+      }
+
+      // Check if connection already exists
+      const existing = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      if (existing) {
+        // Return existing webhook URL
+        const webhookUrl = (existing.metadata as any)?.webhookUrl;
+        if (webhookUrl) {
+          return {
+            connectionId: existing.id,
+            webhookUrl,
+            shopDomain: cleanShop,
+          };
+        }
+      }
+
+      // Generate unique webhook URL
+      const webhookToken = crypto.randomBytes(32).toString('hex');
+      // Use SHOPIFY_APP_URL if available, otherwise construct from NEXT_PUBLIC_APP_URL
+      const baseUrl =
+        process.env.SHOPIFY_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'https://www.zyyp.ai';
+      const webhookUrl = `${baseUrl}/api/webhooks/shopify/${webhookToken}`;
+
+      const metadata: Record<string, unknown> = {
+        webhookUrl,
+        webhookToken,
+        connectionMethod: 'webhook',
+        lastWebhookReceived: null,
+      };
+
+      if (input.storeName) {
+        metadata.storeName = input.storeName.trim();
+      }
+
+      const connection = existing
+        ? await prisma.connection.update({
+            where: { id: existing.id },
+            data: {
+              metadata: metadata as any,
+              shopDomain: cleanShop,
+            },
+            select: { id: true },
+          })
+        : await prisma.connection.create({
+            data: {
+              type: 'SHOPIFY' as any,
+              accessToken: encryptSecure('webhook-only'), // Placeholder, no API access
+              shopDomain: cleanShop,
+              userId: ctx.userId,
+              metadata: metadata as any,
+            },
+            select: { id: true },
+          });
+
+      await logEvent(
+        'shopify.webhook.connection.created',
+        { shop: cleanShop },
+        'connection',
+        connection.id,
+      );
+
+      return {
+        connectionId: connection.id,
+        webhookUrl,
+        shopDomain: cleanShop,
+      };
+    }),
+  createCustomAppConnection: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string().min(3),
+        subdomain: z.string().min(1),
+        accessToken: z.string().min(1),
+        storeName: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const cleanShop = safeShopDomain(input.shopDomain);
+      if (!cleanShop) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid shop domain',
+        });
+      }
+
+      // Validate subdomain format
+      const subdomain = input.subdomain.trim().toLowerCase();
+      if (!/^[a-z0-9-]+$/.test(subdomain)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid subdomain format',
+        });
+      }
+
+      // Verify access token by making a test API call
+      try {
+        const testUrl = `https://${subdomain}.myshopify.com/admin/api/2024-10/shop.json`;
+        const testRes = await fetch(testUrl, {
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': input.accessToken,
+          },
+        });
+
+        if (!testRes.ok) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid access token or subdomain',
+          });
+        }
+
+        const shopData = (await testRes.json()) as {
+          shop?: { name?: string | null };
+        };
+        const fetchedStoreName = shopData?.shop?.name;
+
+        // Check if connection already exists
+        const existing = await prisma.connection.findFirst({
+          where: {
+            shopDomain: cleanShop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
+        });
+
+        const metadata: Record<string, unknown> = {
+          subdomain,
+          connectionMethod: 'custom_app',
+        };
+
+        if (input.storeName || fetchedStoreName) {
+          metadata.storeName = (input.storeName || fetchedStoreName)?.trim();
+        }
+
+        const connection = existing
+          ? await prisma.connection.update({
+              where: { id: existing.id },
+              data: {
+                accessToken: encryptSecure(input.accessToken),
+                shopDomain: cleanShop,
+                metadata: {
+                  ...((existing.metadata as Record<string, unknown>) || {}),
+                  ...metadata,
+                } as any,
+              },
+              select: { id: true },
+            })
+          : await prisma.connection.create({
+              data: {
+                type: 'SHOPIFY' as any,
+                accessToken: encryptSecure(input.accessToken),
+                shopDomain: cleanShop,
+                userId: ctx.userId,
+                metadata: metadata as any,
+              },
+              select: { id: true },
+            });
+
+        await logEvent(
+          'shopify.custom_app.connection.created',
+          { shop: cleanShop },
+          'connection',
+          connection.id,
+        );
+
+        return {
+          connectionId: connection.id,
+          shopDomain: cleanShop,
+        };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to verify credentials',
+        });
+      }
+    }),
+  getWebhookUrl: protectedProcedure
+    .input(z.object({ connectionId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+          shopDomain: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const webhookUrl = (connection.metadata as any)?.webhookUrl;
+      const lastWebhookReceived = (connection.metadata as any)
+        ?.lastWebhookReceived;
+
+      return {
+        webhookUrl: webhookUrl || null,
+        lastWebhookReceived: lastWebhookReceived || null,
+        shopDomain: connection.shopDomain,
+      };
+    }),
   rotateAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -966,7 +1250,54 @@ export const appRouter = t.router({
         canSendEmail(ctx.userId),
       ]);
 
-      return { orders, unassigned: unassignedMessages, emailLimit };
+      // Calculate pending email counts for each order (optimized: single query)
+      const orderIds = orders.map((o) => o.id);
+      const allMessages =
+        orderIds.length > 0
+          ? await prisma.message.findMany({
+              where: { orderId: { in: orderIds } },
+              orderBy: { createdAt: 'desc' },
+              select: { orderId: true, direction: true },
+            })
+          : [];
+
+      // Group messages by orderId
+      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+      for (const msg of allMessages) {
+        if (msg.orderId) {
+          if (!messagesByOrder.has(msg.orderId)) {
+            messagesByOrder.set(msg.orderId, []);
+          }
+          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+        }
+      }
+
+      // Calculate pending counts for each order
+      const pendingCountsMap = new Map<string, number>();
+      for (const orderId of orderIds) {
+        const messages = messagesByOrder.get(orderId) ?? [];
+        let pendingCount = 0;
+        for (const msg of messages) {
+          if (msg.direction === 'OUTBOUND') {
+            break; // Stop counting once we hit an OUTBOUND
+          } else if (msg.direction === 'INBOUND') {
+            pendingCount++;
+          }
+        }
+        pendingCountsMap.set(orderId, pendingCount);
+      }
+
+      // Add pending email counts to orders
+      const ordersWithPending = orders.map((order) => ({
+        ...order,
+        pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
+      }));
+
+      return {
+        orders: ordersWithPending,
+        unassigned: unassignedMessages,
+        emailLimit,
+      };
     }),
   orderGet: protectedProcedure
     .input(z.object({ shop: z.string(), orderId: z.string() }))
@@ -992,11 +1323,18 @@ export const appRouter = t.router({
             message: 'Shop access denied',
           });
         }
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Failed to get API credentials',
+          });
+        }
         const resp = await fetch(
-          `https://${cleanShop}/admin/api/2024-07/orders/${input.orderId}.json`,
+          `${credentials.shopUrl}/admin/api/2024-10/orders/${input.orderId}.json`,
           {
             headers: {
-              'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+              'X-Shopify-Access-Token': credentials.accessToken,
             },
           },
         );
@@ -1876,10 +2214,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           });
         }
 
-        const url = `https://${input.shop}/admin/api/2024-07/orders/${input.orderId}.json`;
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          return { ok: false, error: 'Failed to get API credentials' };
+        }
+        const url = `${credentials.shopUrl}/admin/api/2024-10/orders/${input.orderId}.json`;
         const resp = await fetch(url, {
           headers: {
-            'X-Shopify-Access-Token': decryptSecure(conn.accessToken),
+            'X-Shopify-Access-Token': credentials.accessToken,
           },
         });
         if (!resp.ok)
@@ -2031,13 +2373,56 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       const hasMore = orders.length > input.limit;
       const page = hasMore ? orders.slice(0, input.limit) : orders;
 
+      // Calculate pending email counts for each order (optimized: single query)
+      const orderIds = page.map((o) => o.id);
+      const allMessages =
+        orderIds.length > 0
+          ? await prisma.message.findMany({
+              where: { orderId: { in: orderIds } },
+              orderBy: { createdAt: 'desc' },
+              select: { orderId: true, direction: true },
+            })
+          : [];
+
+      // Group messages by orderId
+      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+      for (const msg of allMessages) {
+        if (msg.orderId) {
+          if (!messagesByOrder.has(msg.orderId)) {
+            messagesByOrder.set(msg.orderId, []);
+          }
+          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+        }
+      }
+
+      // Calculate pending counts for each order
+      const pendingCountsMap = new Map<string, number>();
+      for (const orderId of orderIds) {
+        const messages = messagesByOrder.get(orderId) ?? [];
+        let pendingCount = 0;
+        for (const msg of messages) {
+          if (msg.direction === 'OUTBOUND') {
+            break; // Stop counting once we hit an OUTBOUND
+          } else if (msg.direction === 'INBOUND') {
+            pendingCount++;
+          }
+        }
+        pendingCountsMap.set(orderId, pendingCount);
+      }
+
+      // Add pending email counts to orders
+      const ordersWithPending = page.map((order) => ({
+        ...order,
+        pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
+      }));
+
       // Return cursor for next page (last order's createdAt as ISO string)
       const nextCursor =
         hasMore && page.length > 0
           ? page[page.length - 1].createdAt.toISOString()
           : null;
 
-      return { orders: page, hasMore, nextCursor };
+      return { orders: ordersWithPending, hasMore, nextCursor };
     }),
   getAnalytics: protectedProcedure.query(async ({ ctx }) => {
     try {

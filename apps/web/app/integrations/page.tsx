@@ -131,6 +131,11 @@ function IntegrationsInner() {
     },
   });
   const [shopInput, setShopInput] = useState('');
+  const [storeNameInput, setStoreNameInput] = useState('');
+  const [subdomainInput, setSubdomainInput] = useState('');
+  const [accessTokenInput, setAccessTokenInput] = useState('');
+  const [connectionTab, setConnectionTab] = useState<'webhook' | 'custom_app'>('webhook');
+  const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<
@@ -141,6 +146,37 @@ function IntegrationsInner() {
   const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] =
     useState<boolean>(false);
   const [isConnectingShopify, setIsConnectingShopify] = useState(false);
+  const [showShopifyDialog, setShowShopifyDialog] = useState(false);
+  
+  const createWebhookConnection = trpc.createWebhookConnection.useMutation({
+    onSuccess: (data) => {
+      setWebhookUrl(data.webhookUrl);
+      utils.connections.invalidate();
+      setIsConnectingShopify(false);
+      toast.success(`Webhook connection created for ${data.shopDomain}`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to create webhook connection');
+      setIsConnectingShopify(false);
+    },
+  });
+  
+  const createCustomAppConnection = trpc.createCustomAppConnection.useMutation({
+    onSuccess: (data) => {
+      utils.connections.invalidate();
+      setShowShopifyDialog(false);
+      setShopInput('');
+      setSubdomainInput('');
+      setAccessTokenInput('');
+      setStoreNameInput('');
+      setIsConnectingShopify(false);
+      toast.success(`Store connected successfully: ${data.shopDomain}`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to connect store');
+      setIsConnectingShopify(false);
+    },
+  });
   const connections: ConnectionSummary[] = ((data as any)?.connections ??
     []) as ConnectionSummary[];
 
@@ -234,7 +270,7 @@ function IntegrationsInner() {
     });
   }, [sp, router, toast]); // Only re-run if search params actually change
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function onSubmitWebhook(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const domain = shopInput.trim().toLowerCase();
     if (!domain) return;
@@ -246,9 +282,45 @@ function IntegrationsInner() {
       return;
     }
     setIsConnectingShopify(true);
-    // Redirect to Shopify OAuth
-    (window as any).location.href =
-      `/api/shopify/install?shop=${encodeURIComponent(domain)}`;
+    createWebhookConnection.mutate({
+      shopDomain: domain,
+      storeName: storeNameInput.trim() || undefined,
+    });
+  }
+  
+  function onSubmitCustomApp(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const domain = shopInput.trim().toLowerCase();
+    const subdomain = subdomainInput.trim().toLowerCase();
+    const accessToken = accessTokenInput.trim();
+    
+    if (!domain || !subdomain || !accessToken) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+    
+    const exists = connections.some(
+      (c) => (c.shopDomain ?? '').toLowerCase() === domain,
+    );
+    if (exists) {
+      toast.error('This store is already connected.');
+      return;
+    }
+    
+    setIsConnectingShopify(true);
+    createCustomAppConnection.mutate({
+      shopDomain: domain,
+      subdomain,
+      accessToken,
+      storeName: storeNameInput.trim() || undefined,
+    });
+  }
+  
+  function copyWebhookUrl() {
+    if (webhookUrl) {
+      navigator.clipboard.writeText(webhookUrl);
+      toast.success('Webhook URL copied to clipboard!');
+    }
   }
 
   // Memoize filtered connections to prevent unnecessary recalculations
@@ -384,7 +456,7 @@ function IntegrationsInner() {
                 </div>
               </div>
 
-              <Dialog>
+              <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
                 <section id="shopify" className="space-y-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -399,6 +471,15 @@ function IntegrationsInner() {
                       <Button
                         className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-black"
                         size="sm"
+                        onClick={() => {
+                          setShowShopifyDialog(true);
+                          setConnectionTab('webhook');
+                          setWebhookUrl(null);
+                          setShopInput('');
+                          setStoreNameInput('');
+                          setSubdomainInput('');
+                          setAccessTokenInput('');
+                        }}
                       >
                         <Plus className="mr-2 h-4 w-4" /> Connect Store
                       </Button>
@@ -479,14 +560,26 @@ function IntegrationsInner() {
                                   <p className="text-xs text-slate-500">
                                     {c.shopDomain ?? '(unknown)'}
                                   </p>
-                                  {c.createdAt && (
-                                    <p className="mt-1 text-xs text-slate-400">
-                                      Connected{' '}
-                                      {new Date(
-                                        c.createdAt,
-                                      ).toLocaleDateString()}
-                                    </p>
-                                  )}
+                                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                                    {c.metadata?.connectionMethod === 'webhook' && (
+                                      <Badge className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                        Webhook Only
+                                      </Badge>
+                                    )}
+                                    {c.metadata?.connectionMethod === 'custom_app' && (
+                                      <Badge className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                                        Full API Access
+                                      </Badge>
+                                    )}
+                                    {c.createdAt && (
+                                      <span className="text-xs text-slate-400">
+                                        Connected{' '}
+                                        {new Date(
+                                          c.createdAt,
+                                        ).toLocaleDateString()}
+                                      </span>
+                                    )}
+                                  </div>
                                 </>
                               )}
                             </div>
@@ -600,7 +693,7 @@ function IntegrationsInner() {
                   </div>
                 </section>
 
-                <DialogContent containerClassName="max-w-md sm:rounded-3xl">
+                <DialogContent containerClassName="max-w-2xl sm:rounded-3xl">
                   <DialogHeader>
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
@@ -611,49 +704,271 @@ function IntegrationsInner() {
                       </DialogTitle>
                     </div>
                   </DialogHeader>
-                  <form className="space-y-4" onSubmit={onSubmit}>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700">
-                        Store Domain
-                      </label>
-                      <Input
-                        type="text"
-                        name="shop"
-                        placeholder="your-shop.myshopify.com"
-                        required
-                        value={shopInput}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          setShopInput((e as any).target.value)
-                        }
-                        className="h-11"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
-                      disabled={isConnectingShopify}
+                  
+                  {/* Connection Method Tabs */}
+                  <div className="flex gap-2 border-b border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConnectionTab('webhook');
+                        setWebhookUrl(null);
+                      }}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        connectionTab === 'webhook'
+                          ? 'border-b-2 border-slate-900 text-slate-900'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
                     >
-                      {isConnectingShopify ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Connecting...
-                        </>
+                      Webhook (Receive Data)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConnectionTab('custom_app')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        connectionTab === 'custom_app'
+                          ? 'border-b-2 border-slate-900 text-slate-900'
+                          : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      Custom App (Full Access)
+                    </button>
+                  </div>
+
+                  {/* Webhook Connection Form */}
+                  {connectionTab === 'webhook' && (
+                    <div className="space-y-4 pt-4">
+                      {!webhookUrl ? (
+                        <form onSubmit={onSubmitWebhook} className="space-y-4">
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-slate-700">
+                              Store Domain
+                            </label>
+                            <Input
+                              type="text"
+                              name="shop"
+                              placeholder="your-shop.myshopify.com"
+                              required
+                              value={shopInput}
+                              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                setShopInput((e as any).target.value)
+                              }
+                              className="h-11"
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                              Enter your full Shopify store domain
+                            </p>
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-slate-700">
+                              Store Name (Optional)
+                            </label>
+                            <Input
+                              type="text"
+                              name="storeName"
+                              placeholder="My Store"
+                              value={storeNameInput}
+                              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                setStoreNameInput((e as any).target.value)
+                              }
+                              className="h-11"
+                            />
+                          </div>
+                          <Button
+                            type="submit"
+                            className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                            disabled={isConnectingShopify}
+                          >
+                            {isConnectingShopify ? (
+                              <>
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                                Creating...
+                              </>
+                            ) : (
+                              <>
+                                Generate Webhook URL
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </>
+                            )}
+                          </Button>
+                        </form>
                       ) : (
-                        <>
-                          Continue to Shopify
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
+                        <div className="space-y-4">
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <p className="mb-2 text-sm font-medium text-slate-700">
+                              Your Webhook URL
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="text"
+                                value={webhookUrl}
+                                readOnly
+                                className="h-10 font-mono text-xs"
+                              />
+                              <Button
+                                type="button"
+                                onClick={copyWebhookUrl}
+                                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+                              >
+                                <Copy className="mr-2 h-4 w-4" />
+                                Copy
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                            <p className="mb-3 text-sm font-semibold text-blue-900">
+                              Setup Instructions
+                            </p>
+                            <ol className="space-y-2 text-xs text-blue-800">
+                              <li className="flex gap-2">
+                                <span className="font-semibold">1.</span>
+                                <span>Log in to your Shopify admin panel</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">2.</span>
+                                <span>Navigate to Settings → Notifications</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">3.</span>
+                                <span>In the Webhooks section, click "Create webhook"</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">4.</span>
+                                <span>Select "orders/create" as the event type</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">5.</span>
+                                <span>Choose JSON format</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">6.</span>
+                                <span>Paste the webhook URL above into the URL field</span>
+                              </li>
+                              <li className="flex gap-2">
+                                <span className="font-semibold">7.</span>
+                                <span>Select the latest API version and click "Save webhook"</span>
+                              </li>
+                            </ol>
+                          </div>
+                          
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setWebhookUrl(null);
+                              setShopInput('');
+                              setStoreNameInput('');
+                            }}
+                            className="w-full rounded-full border border-slate-200 bg-white py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            Create Another Connection
+                          </Button>
+                        </div>
                       )}
-                    </Button>
-                  </form>
-                  <DialogFooter className="sm:justify-start">
-                    <p className="text-xs text-slate-500">
-                      💡 <strong>Tip:</strong> Use your full shop domain, e.g.,{' '}
-                      <code className="rounded bg-slate-100 px-1 py-0.5">
-                        dev-yourshop.myshopify.com
-                      </code>
-                    </p>
-                  </DialogFooter>
+                    </div>
+                  )}
+
+                  {/* Custom App Connection Form */}
+                  {connectionTab === 'custom_app' && (
+                    <form onSubmit={onSubmitCustomApp} className="space-y-4 pt-4">
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-xs text-amber-800">
+                          <strong>Note:</strong> This method requires creating a custom app in your Shopify admin. 
+                          This gives full API access to update orders, create fulfillments, and more.
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Store Domain
+                        </label>
+                        <Input
+                          type="text"
+                          name="shop"
+                          placeholder="your-shop.myshopify.com"
+                          required
+                          value={shopInput}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                            setShopInput((e as any).target.value)
+                          }
+                          className="h-11"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Subdomain
+                        </label>
+                        <Input
+                          type="text"
+                          name="subdomain"
+                          placeholder="your-shop"
+                          required
+                          value={subdomainInput}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                            setSubdomainInput((e as any).target.value)
+                          }
+                          className="h-11"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">
+                          If your store URL is "https://demo.myshopify.com", enter "demo"
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Access Token
+                        </label>
+                        <Input
+                          type="password"
+                          name="accessToken"
+                          placeholder="shpat_xxxxxxxxxxxxx"
+                          required
+                          value={accessTokenInput}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                            setAccessTokenInput((e as any).target.value)
+                          }
+                          className="h-11 font-mono"
+                        />
+                        <p className="mt-1 text-xs text-slate-500">
+                          Get this from: Apps → Develop apps → Create an app → Admin API access token
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
+                          Store Name (Optional)
+                        </label>
+                        <Input
+                          type="text"
+                          name="storeName"
+                          placeholder="My Store"
+                          value={storeNameInput}
+                          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                            setStoreNameInput((e as any).target.value)
+                          }
+                          className="h-11"
+                        />
+                      </div>
+                      
+                      <Button
+                        type="submit"
+                        className="w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                        disabled={isConnectingShopify}
+                      >
+                        {isConnectingShopify ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            Connect Store
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </form>
+                  )}
                 </DialogContent>
               </Dialog>
 

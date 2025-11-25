@@ -69,10 +69,10 @@ model UsageRecord {
 model Connection {
   id           String         @id @default(cuid())
   type         ConnectionType
-  accessToken  String
+  accessToken  String         // OAuth token or custom app access token (encrypted)
   refreshToken String?
   shopDomain   String?
-  metadata     Json?
+  metadata     Json?          // Can store: storeName, supportEmail, webhookUrl, subdomain, lastWebhookReceived, connectionMethod
   userId       String
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
