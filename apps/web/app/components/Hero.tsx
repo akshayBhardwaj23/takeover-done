@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 
 const EMAIL_TEXT = `Hey Jordan,
@@ -13,15 +13,39 @@ We detected a shipping delay on Order #48291, so I already queued an express res
 export default function Hero() {
   const [typedPreview, setTypedPreview] = useState('');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
   const [enableNeurons, setEnableNeurons] = useState(true);
+  const [isInView, setIsInView] = useState(true);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (!containerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInView(entry.isIntersecting);
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     const update = () => {
-      setEnableNeurons(window.innerWidth >= 640);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setEnableNeurons(window.innerWidth >= 640);
+      }, 100);
     };
     update();
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -47,7 +71,7 @@ export default function Hero() {
   }, []);
 
   useEffect(() => {
-    if (!enableNeurons) return;
+    if (!enableNeurons || shouldReduceMotion || !isInView) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -147,31 +171,30 @@ export default function Hero() {
 
     draw();
 
-    // no overlay labels active
-
     return () => {
       window.removeEventListener('resize', handleResize);
       if (animationFrame) cancelAnimationFrame(animationFrame);
     };
-  }, [enableNeurons]);
+  }, [enableNeurons, shouldReduceMotion, isInView]);
 
   const previewProgress = typedPreview.length / EMAIL_TEXT.length;
 
   return (
     <>
       <section
-        className="relative flex w-full flex-col items-center justify-center overflow-hidden px-6 pt-[140px] pb-[80px] text-[#1A1A1A] min-h-[900px] md:pt-[170px] md:pb-[120px] md:min-h-screen"
+        ref={containerRef}
+        className="relative flex min-h-[900px] w-full flex-col items-center justify-center overflow-hidden px-6 pb-[80px] pt-[140px] text-[#1A1A1A] md:min-h-screen md:pb-[120px] md:pt-[170px]"
         style={{
           background: 'linear-gradient(180deg,#FFFFFF 0%,#F6F7F9 100%)',
           fontFamily: '"General Sans","Inter Tight",sans-serif',
         }}
       >
         <div className="hero-bg absolute inset-0">
-          {enableNeurons && (
+          {enableNeurons && !shouldReduceMotion && (
             <canvas
               ref={canvasRef}
               id="neuronCanvas"
-              className="absolute inset-0 h-full w-full pointer-events-none"
+              className="pointer-events-none absolute inset-0 h-full w-full"
             />
           )}
         </div>
@@ -310,7 +333,7 @@ function LivePreviewPanel({
         >
           <p className="font-semibold text-[#1A1A1A]">AI drafting reply…</p>
           <div className="relative mt-4 h-[200px] overflow-y-auto overflow-x-hidden">
-            <p className="whitespace-pre-line text-base leading-relaxed text-[#1A1A1A]/80 pr-2">
+            <p className="whitespace-pre-line pr-2 text-base leading-relaxed text-[#1A1A1A]/80">
               {text}
               <span className="ml-1 inline-block h-5 w-[2px] animate-pulse bg-[#1A1A1A]/60" />
             </p>

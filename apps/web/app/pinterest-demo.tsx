@@ -56,11 +56,7 @@ export default function PinterestDemo() {
           <h2 className="text-4xl font-bold text-white mb-8">
             Pinterest × WGMI Integration
           </h2>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto mb-12">
-            This hybrid design combines Pinterest's clean, minimal aesthetic with WGMI's 
-            futuristic 3D modular approach. The result is a unique visual language that 
-            balances accessibility with cutting-edge design.
-          </p>
+          <p className="text-sm text-slate-500">You&apos;re all caught up! Here&apos;s what we found for you.</p>
           
           <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
