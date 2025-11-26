@@ -30,15 +30,11 @@ import {
   CheckCircle2,
   Plus,
   Sparkles,
-  Link as LinkIcon,
-  ArrowRight,
   Trash2,
   BarChart3,
-  AlertCircle,
   ExternalLink,
   Settings2,
 } from 'lucide-react';
-import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
 
 type ConnectionSummary = {
@@ -373,26 +369,44 @@ function IntegrationsInner() {
     }
   };
 
+  const activeSteps = [
+    shopifyConnections.length > 0,
+    emailConnections.length > 0,
+    gaConnections.length > 0,
+    metaAdsConnections.length > 0,
+  ].filter(Boolean).length;
+  const progress = (activeSteps / 4) * 100;
+
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <main className="min-h-screen bg-white text-zinc-900">
-        <div className="mx-auto max-w-[1400px] px-6 py-12 lg:py-24">
-          <header className="mb-20 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
-            <div className="max-w-2xl">
-              <h1 className="text-5xl font-bold tracking-tight text-zinc-900">
+      <main className="min-h-screen bg-zinc-50/50 text-zinc-900">
+        <div className="mx-auto max-w-7xl px-6 py-10">
+          {/* Setup Progress */}
+          {progress < 100 && (
+            <div className="mb-8 overflow-hidden rounded-full bg-zinc-100">
+              <div
+                className="h-1 bg-gradient-to-r from-zinc-900 to-zinc-600 transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+
+          <header className="mb-10 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
                 Integrations
               </h1>
-              <p className="mt-6 text-xl text-zinc-500">
+              <p className="mt-2 text-sm text-zinc-500">
                 Manage your connections and configure automations.
               </p>
             </div>
-            <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-zinc-50 px-5 py-2.5">
-              <div className="flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-2.5 w-2.5 animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+            <div className="flex items-center gap-3 rounded-full border border-zinc-200 bg-white px-4 py-1.5 shadow-sm">
+              <div className="flex h-2 w-2">
+                <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
               </div>
-              <span className="text-sm font-medium text-zinc-600">
+              <span className="text-xs font-medium text-zinc-600">
                 {shopifyConnections.length +
                   emailConnections.length +
                   gaConnections.length +
@@ -402,56 +416,56 @@ function IntegrationsInner() {
             </div>
           </header>
 
-          <div className="mb-24 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="group relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-8 transition-all hover:border-zinc-300">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900 transition-colors group-hover:bg-zinc-100">
-                <Store className="h-6 w-6" />
+          {/* Stat Bar */}
+          <div className="mb-10 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 shadow-sm lg:grid-cols-4">
+            <div className="group flex items-center gap-4 bg-white p-4 transition-colors hover:bg-zinc-50">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 group-hover:bg-zinc-100 group-hover:text-zinc-900">
+                <Store className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-500">
-                  Connected Stores
-                </p>
-                <p className="text-3xl font-bold tracking-tight text-zinc-900">
+              <div>
+                <p className="text-xl font-bold text-zinc-900">
                   {connectionsLoading ? '—' : shopifyConnections.length}
                 </p>
+                <p className="text-xs font-medium text-zinc-500">
+                  Connected Stores
+                </p>
               </div>
             </div>
 
-            <div className="group relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-8 transition-all hover:border-zinc-300">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900 transition-colors group-hover:bg-zinc-100">
-                <Mail className="h-6 w-6" />
+            <div className="group flex items-center gap-4 bg-white p-4 transition-colors hover:bg-zinc-50">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 group-hover:bg-zinc-100 group-hover:text-zinc-900">
+                <Mail className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-500">
-                  Email Aliases
-                </p>
-                <p className="text-3xl font-bold tracking-tight text-zinc-900">
+              <div>
+                <p className="text-xl font-bold text-zinc-900">
                   {connectionsLoading ? '—' : emailConnections.length}
                 </p>
+                <p className="text-xs font-medium text-zinc-500">
+                  Email Aliases
+                </p>
               </div>
             </div>
 
-            <div className="group relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-8 transition-all hover:border-zinc-300">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900 transition-colors group-hover:bg-zinc-100">
-                <CheckCircle2 className="h-6 w-6" />
+            <div className="group flex items-center gap-4 bg-white p-4 transition-colors hover:bg-zinc-50">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 group-hover:bg-zinc-100 group-hover:text-zinc-900">
+                <CheckCircle2 className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-500">
-                  Active Routes
-                </p>
-                <p className="text-3xl font-bold tracking-tight text-zinc-900">
+              <div>
+                <p className="text-xl font-bold text-zinc-900">
                   {connectionsLoading ? '—' : activeAliases}
                 </p>
+                <p className="text-xs font-medium text-zinc-500">
+                  Active Routes
+                </p>
               </div>
             </div>
 
-            <div className="group relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-8 transition-all hover:border-zinc-300">
-              <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900 transition-colors group-hover:bg-zinc-100">
-                <BarChart3 className="h-6 w-6" />
+            <div className="group flex items-center gap-4 bg-white p-4 transition-colors hover:bg-zinc-50">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 group-hover:bg-zinc-100 group-hover:text-zinc-900">
+                <BarChart3 className="h-5 w-5" />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-zinc-500">Last Sync</p>
-                <p className="text-3xl font-bold tracking-tight text-zinc-900">
+              <div>
+                <p className="text-xl font-bold text-zinc-900">
                   {emailHealth.data?.lastInboundAt
                     ? new Date(
                         emailHealth.data.lastInboundAt as any,
@@ -461,642 +475,628 @@ function IntegrationsInner() {
                       })
                     : '—'}
                 </p>
+                <p className="text-xs font-medium text-zinc-500">Last Sync</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-8">
             {/* Shopify Section */}
-            <section id="shopify">
-              <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  Commerce Platform
-                </h2>
-                <Dialog
-                  open={showShopifyDialog}
-                  onOpenChange={setShowShopifyDialog}
-                >
-                  <DialogTrigger asChild>
-                    <Button
-                      className="rounded-full bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800"
-                      onClick={() => {
-                        setShowShopifyDialog(true);
-                        setConnectionTab('webhook');
-                        setWebhookUrl(null);
-                        setShopInput('');
-                        setStoreNameInput('');
-                        setSubdomainInput('');
-                        setAccessTokenInput('');
-                      }}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {/* Commerce Module */}
+              <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900">
+                        <Store className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-zinc-900">
+                          Commerce
+                        </h3>
+                        <p className="text-xs text-zinc-500">
+                          Shopify stores & data
+                        </p>
+                      </div>
+                    </div>
+                    <Dialog
+                      open={showShopifyDialog}
+                      onOpenChange={setShowShopifyDialog}
                     >
-                      <Plus className="mr-2 h-4 w-4" /> Connect Store
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
-              </div>
-
-              {connectionsLoading ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-64 animate-pulse rounded-3xl bg-zinc-100"
-                    />
-                  ))}
-                </div>
-              ) : shopifyConnections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 py-24 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-200">
-                    <Store className="h-8 w-8 text-zinc-400" />
+                      <DialogTrigger asChild>
+                        <button
+                          className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+                          onClick={() => {
+                            setShowShopifyDialog(true);
+                            setConnectionTab('webhook');
+                            setWebhookUrl(null);
+                            setShopInput('');
+                            setStoreNameInput('');
+                            setSubdomainInput('');
+                            setAccessTokenInput('');
+                          }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Connect
+                        </button>
+                      </DialogTrigger>
+                    </Dialog>
                   </div>
-                  <h3 className="mt-6 text-lg font-semibold text-zinc-900">
-                    No stores connected
-                  </h3>
-                  <p className="mt-2 max-w-sm text-zinc-500">
-                    Connect your Shopify store to start syncing orders and
-                    automating customer support.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {shopifyConnections.map((c) => (
-                    <div
-                      key={c.id}
-                      className="group relative flex flex-col justify-between rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300"
-                    >
-                      <div className="mb-6 flex items-start justify-between">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900">
+
+                  <div className="space-y-3">
+                    {connectionsLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="h-16 animate-pulse rounded-xl bg-zinc-50"
+                          />
+                        ))}
+                      </div>
+                    ) : shopifyConnections.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-50 text-zinc-400">
                           <Store className="h-6 w-6" />
                         </div>
-                        <Badge
-                          variant="secondary"
-                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-                        >
-                          Active
-                        </Badge>
+                        <p className="mt-3 text-sm font-medium text-zinc-900">
+                          No stores connected
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Connect your store to sync orders
+                        </p>
                       </div>
-
-                      <div>
-                        {editingStoreId === c.id ? (
-                          <form
-                            className="mb-4 flex flex-col gap-2"
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              handleStoreNameSave();
-                            }}
-                          >
-                            <Input
-                              value={storeNameDraft}
-                              onChange={(event) =>
-                                setStoreNameDraft(event.target.value)
+                    ) : (
+                      shopifyConnections.map((c) => (
+                        <div
+                          key={c.id}
+                          className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 transition-colors hover:bg-zinc-50"
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+                              <Store className="h-4 w-4 text-zinc-700" />
+                            </div>
+                            <div className="min-w-0">
+                              {editingStoreId === c.id ? (
+                                <form
+                                  className="flex gap-2"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    handleStoreNameSave();
+                                  }}
+                                >
+                                  <Input
+                                    value={storeNameDraft}
+                                    onChange={(event) =>
+                                      setStoreNameDraft(event.target.value)
+                                    }
+                                    className="h-7 w-32 text-xs"
+                                    autoFocus
+                                    onBlur={cancelEditStore}
+                                    disabled={isSavingStoreName}
+                                  />
+                                </form>
+                              ) : (
+                                <p className="truncate text-sm font-medium text-zinc-900">
+                                  {deriveStoreName(c)}
+                                </p>
+                              )}
+                              <p className="truncate text-xs text-zinc-500">
+                                {c.shopDomain}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-zinc-400 hover:text-zinc-600"
+                              onClick={() => beginEditStore(c)}
+                            >
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Dialog
+                              open={disconnectDialogOpen === c.id}
+                              onOpenChange={(open) =>
+                                setDisconnectDialogOpen(open ? c.id : null)
                               }
-                              placeholder="Enter store name"
-                              autoFocus
-                              disabled={isSavingStoreName}
-                              className="h-9"
-                            />
-                            <div className="flex gap-2">
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-zinc-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Disconnect Store</DialogTitle>
+                                </DialogHeader>
+                                <div className="py-4 text-sm text-gray-600">
+                                  Are you sure you want to disconnect{' '}
+                                  <span className="font-semibold text-gray-900">
+                                    {deriveStoreName(c)}
+                                  </span>
+                                  ? This will stop all data syncing.
+                                </div>
+                                <DialogFooter>
+                                  <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                      setDisconnectDialogOpen(null)
+                                    }
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() =>
+                                      disconnectStore.mutate({
+                                        connectionId: c.id,
+                                      })
+                                    }
+                                    disabled={disconnectStore.isPending}
+                                  >
+                                    {disconnectStore.isPending
+                                      ? 'Disconnecting...'
+                                      : 'Disconnect'}
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Communication Module */}
+              <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-zinc-900">
+                          Communication
+                        </h3>
+                        <p className="text-xs text-zinc-500">
+                          Email aliases & routing
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+                      onClick={() => {
+                        const email = (session as any)?.user?.email;
+                        if (!email) {
+                          toast.warning('Please sign in first.');
+                          return;
+                        }
+                        const firstShop = connections.find(
+                          (c) => c.type === 'SHOPIFY',
+                        )?.shopDomain;
+                        if (!firstShop) {
+                          toast.warning('Connect a Shopify store first.');
+                          return;
+                        }
+                        createAlias.mutate({
+                          userEmail: email,
+                          domain:
+                            (process.env
+                              .NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
+                            'mail.example.com',
+                          shop: firstShop,
+                        });
+                      }}
+                      disabled={createAlias.isPending}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {createAlias.isPending ? 'Creating...' : 'Create Alias'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {connectionsLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="h-16 animate-pulse rounded-xl bg-zinc-50"
+                          />
+                        ))}
+                      </div>
+                    ) : emailConnections.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-50 text-zinc-400">
+                          <Mail className="h-6 w-6" />
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-zinc-900">
+                          No aliases created
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Create an alias to forward emails
+                        </p>
+                      </div>
+                    ) : (
+                      emailConnections.map((c) => {
+                        const disabled = (c as any)?.metadata?.disabled;
+                        const alias = (c as any)?.metadata?.alias;
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 transition-colors hover:bg-zinc-50"
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+                                <Mail className="h-4 w-4 text-zinc-700" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-zinc-900">
+                                  {alias ?? '(pending)'}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                                      disabled
+                                        ? 'bg-zinc-100 text-zinc-500'
+                                        : 'bg-emerald-50 text-emerald-700'
+                                    }`}
+                                  >
+                                    {disabled ? 'Disabled' : 'Active'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
                               <Button
-                                type="submit"
-                                size="sm"
-                                className="h-8 flex-1 rounded-full bg-zinc-900 text-xs text-white"
-                                disabled={isSavingStoreName}
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-400 hover:text-zinc-600"
+                                onClick={async () => {
+                                  if (!alias) return;
+                                  try {
+                                    await navigator.clipboard.writeText(alias);
+                                    toast.success('Alias copied!');
+                                  } catch {
+                                    toast.error('Copy failed');
+                                  }
+                                }}
                               >
-                                Save
+                                <Copy className="h-3.5 w-3.5" />
                               </Button>
                               <Button
-                                type="button"
                                 variant="ghost"
-                                size="sm"
-                                className="h-8 flex-1 rounded-full text-xs"
-                                onClick={cancelEditStore}
-                                disabled={isSavingStoreName}
+                                size="icon"
+                                className="h-7 w-7 text-zinc-400 hover:text-zinc-600"
+                                onClick={() => rotateAlias.mutate({ id: c.id })}
+                                disabled={rotateAlias.isPending}
                               >
-                                Cancel
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-7 w-7 ${
+                                  disabled
+                                    ? 'text-zinc-400 hover:text-emerald-600'
+                                    : 'text-zinc-400 hover:text-zinc-600'
+                                }`}
+                                onClick={() =>
+                                  setAliasStatus.mutate({
+                                    id: c.id,
+                                    disabled: !disabled,
+                                  })
+                                }
+                                disabled={setAliasStatus.isPending}
+                              >
+                                <Power className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                          </form>
-                        ) : (
-                          <div className="mb-6">
-                            <h3 className="text-lg font-bold text-zinc-900">
-                              {deriveStoreName(c)}
-                            </h3>
-                            <p className="text-sm text-zinc-500">
-                              {c.shopDomain}
-                            </p>
                           </div>
-                        )}
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                        <div className="flex items-center gap-2">
-                          {editingStoreId !== c.id && (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-                                onClick={() => beginEditStore(c)}
-                              >
-                                Rename
-                              </Button>
+              {/* Analytics Module */}
+              <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900">
+                        <BarChart3 className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-zinc-900">
+                          Analytics
+                        </h3>
+                        <p className="text-xs text-zinc-500">
+                          Google Analytics 4
+                        </p>
+                      </div>
+                    </div>
+                    {gaConnections.length === 0 && (
+                      <button
+                        className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+                        onClick={() => {
+                          window.location.href =
+                            '/api/google-analytics/install';
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Connect
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    {connectionsLoading ? (
+                      <div className="space-y-3">
+                        {[1].map((i) => (
+                          <div
+                            key={i}
+                            className="h-16 animate-pulse rounded-xl bg-zinc-50"
+                          />
+                        ))}
+                      </div>
+                    ) : gaConnections.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-50 text-zinc-400">
+                          <BarChart3 className="h-6 w-6" />
+                        </div>
+                        <p className="mt-3 text-sm font-medium text-zinc-900">
+                          No analytics connected
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Track website traffic
+                        </p>
+                      </div>
+                    ) : (
+                      gaConnections.map((c) => {
+                        const metadata =
+                          (c.metadata as Record<string, unknown>) || {};
+                        const propertyName =
+                          (metadata.propertyName as string) || 'GA4 Property';
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 transition-colors hover:bg-zinc-50"
+                          >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+                                <BarChart3 className="h-4 w-4 text-zinc-700" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-zinc-900">
+                                  {propertyName}
+                                </p>
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                  Active
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
                               <Dialog
-                                open={disconnectDialogOpen === c.id}
-                                onOpenChange={(open) =>
-                                  setDisconnectDialogOpen(open ? c.id : null)
-                                }
+                                open={disconnectGADialogOpen}
+                                onOpenChange={setDisconnectGADialogOpen}
                               >
                                 <DialogTrigger asChild>
                                   <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-100"
-                                    disabled={disconnectStore.isPending}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-zinc-400 hover:text-red-600"
                                   >
-                                    Disconnect
+                                    <Trash2 className="h-3.5 w-3.5" />
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent>
                                   <DialogHeader>
-                                    <DialogTitle>Disconnect Store</DialogTitle>
+                                    <DialogTitle>
+                                      Disconnect Analytics
+                                    </DialogTitle>
                                   </DialogHeader>
                                   <div className="py-4 text-sm text-gray-600">
                                     Are you sure you want to disconnect{' '}
                                     <span className="font-semibold text-gray-900">
-                                      {deriveStoreName(c)}
+                                      {propertyName}
                                     </span>
-                                    ? This will stop all data syncing.
+                                    ?
                                   </div>
                                   <DialogFooter>
                                     <Button
                                       variant="outline"
                                       onClick={() =>
-                                        setDisconnectDialogOpen(null)
+                                        setDisconnectGADialogOpen(false)
                                       }
                                     >
                                       Cancel
                                     </Button>
                                     <Button
                                       variant="destructive"
-                                      onClick={() =>
-                                        disconnectStore.mutate({
-                                          connectionId: c.id,
-                                        })
-                                      }
-                                      disabled={disconnectStore.isPending}
+                                      onClick={() => disconnectGA.mutate()}
+                                      disabled={disconnectGA.isPending}
                                     >
-                                      {disconnectStore.isPending
-                                        ? 'Disconnecting...'
-                                        : 'Disconnect'}
+                                      Disconnect
                                     </Button>
                                   </DialogFooter>
                                 </DialogContent>
                               </Dialog>
                               <Button
-                                size="sm"
-                                className="h-9 flex-1 rounded-full bg-zinc-900 text-xs font-medium text-white hover:bg-zinc-800"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-400 hover:text-zinc-600"
                                 asChild
                               >
                                 <a
-                                  href={`/inbox?shop=${encodeURIComponent(c.shopDomain ?? '')}`}
+                                  href="/google-analytics"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                 >
-                                  Inbox
+                                  <ExternalLink className="h-3.5 w-3.5" />
                                 </a>
                               </Button>
-                            </>
-                          )}
-                        </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Advertising Module */}
+              <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div>
+                  <div className="mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-zinc-900">
+                          Advertising
+                        </h3>
+                        <p className="text-xs text-zinc-500">Meta Ads</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Email Section */}
-            <section id="email">
-              <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  Communication
-                </h2>
-                <Button
-                  className="rounded-full bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800"
-                  onClick={() => {
-                    const email = (session as any)?.user?.email;
-                    if (!email) {
-                      toast.warning('Please sign in first.');
-                      return;
-                    }
-                    const firstShop = connections.find(
-                      (c) => c.type === 'SHOPIFY',
-                    )?.shopDomain;
-                    if (!firstShop) {
-                      toast.warning('Connect a Shopify store first.');
-                      return;
-                    }
-                    createAlias.mutate({
-                      userEmail: email,
-                      domain:
-                        (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
-                        'mail.example.com',
-                      shop: firstShop,
-                    });
-                  }}
-                  disabled={createAlias.isPending}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {createAlias.isPending ? 'Creating…' : 'Create Alias'}
-                </Button>
-              </div>
-
-              {connectionsLoading ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-64 animate-pulse rounded-3xl bg-zinc-100"
-                    />
-                  ))}
-                </div>
-              ) : emailConnections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 py-24 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-200">
-                    <Mail className="h-8 w-8 text-zinc-400" />
-                  </div>
-                  <h3 className="mt-6 text-lg font-semibold text-zinc-900">
-                    No aliases created
-                  </h3>
-                  <p className="mt-2 max-w-sm text-zinc-500">
-                    Create an email alias to start forwarding your support
-                    emails to Zyyp.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {emailConnections.map((c) => {
-                    const disabled = (c as any)?.metadata?.disabled;
-                    const alias = (c as any)?.metadata?.alias;
-                    const shopDomain = (c as any)?.metadata?.shopDomain;
-                    return (
-                      <div
-                        key={c.id}
-                        className="group relative flex flex-col justify-between rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300"
+                    {metaAdsConnections.length === 0 && (
+                      <button
+                        className="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900"
+                        onClick={() => {
+                          window.location.href = '/api/meta-ads/install';
+                        }}
                       >
-                        <div className="mb-6 flex items-start justify-between">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900">
-                            <Mail className="h-6 w-6" />
-                          </div>
-                          <Badge
-                            variant={disabled ? 'secondary' : 'outline'}
-                            className={`rounded-full px-3 py-1 text-xs font-medium ${
-                              disabled
-                                ? 'bg-zinc-100 text-zinc-500'
-                                : 'bg-emerald-50 text-emerald-700'
-                            }`}
-                          >
-                            {disabled ? 'Disabled' : 'Active'}
-                          </Badge>
-                        </div>
+                        <Plus className="h-3.5 w-3.5" />
+                        Connect
+                      </button>
+                    )}
+                  </div>
 
-                        <div className="mb-6">
-                          <h3 className="break-all text-lg font-bold text-zinc-900">
-                            {alias ?? '(pending)'}
-                          </h3>
-                          {shopDomain && (
-                            <p className="mt-1 text-sm text-zinc-500">
-                              Routing to: {String(shopDomain)}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {alias && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(alias);
-                                  toast.success('Alias copied!');
-                                } catch {
-                                  toast.error('Copy failed');
-                                }
-                              }}
-                            >
-                              <Copy className="mr-1.5 h-3 w-3" /> Copy
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-                            onClick={() => rotateAlias.mutate({ id: c.id })}
-                            disabled={rotateAlias.isPending}
-                          >
-                            <RefreshCw className="mr-1.5 h-3 w-3" />
-                            Rotate
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className={`h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium hover:bg-zinc-50 ${
-                              disabled ? 'text-emerald-600' : 'text-zinc-600'
-                            }`}
-                            onClick={() =>
-                              setAliasStatus.mutate({
-                                id: c.id,
-                                disabled: !disabled,
-                              })
-                            }
-                            disabled={setAliasStatus.isPending}
-                          >
-                            <Power className="mr-1.5 h-3 w-3" />
-                            {disabled ? 'Enable' : 'Disable'}
-                          </Button>
-                        </div>
+                  <div className="space-y-3">
+                    {connectionsLoading ? (
+                      <div className="space-y-3">
+                        {[1].map((i) => (
+                          <div
+                            key={i}
+                            className="h-16 animate-pulse rounded-xl bg-zinc-50"
+                          />
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* Google Analytics Section */}
-            <section id="google-analytics">
-              <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  Analytics
-                </h2>
-                {gaConnections.length === 0 && (
-                  <Button
-                    className="rounded-full bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800"
-                    onClick={() => {
-                      window.location.href = '/api/google-analytics/install';
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> Connect GA4
-                  </Button>
-                )}
-              </div>
-
-              {connectionsLoading ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-64 animate-pulse rounded-3xl bg-zinc-100"
-                    />
-                  ))}
-                </div>
-              ) : gaConnections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 py-24 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-200">
-                    <BarChart3 className="h-8 w-8 text-zinc-400" />
-                  </div>
-                  <h3 className="mt-6 text-lg font-semibold text-zinc-900">
-                    No analytics connected
-                  </h3>
-                  <p className="mt-2 max-w-sm text-zinc-500">
-                    Connect your Google Analytics 4 property to see website
-                    traffic alongside your orders.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {gaConnections.map((c) => {
-                    const metadata =
-                      (c.metadata as Record<string, unknown>) || {};
-                    const propertyName =
-                      (metadata.propertyName as string) || 'GA4 Property';
-                    const propertyId = (metadata.propertyId as string) || '';
-                    return (
-                      <div
-                        key={c.id}
-                        className="group relative flex flex-col justify-between rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300"
-                      >
-                        <div className="mb-6 flex items-start justify-between">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900">
-                            <BarChart3 className="h-6 w-6" />
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-                          >
-                            Active
-                          </Badge>
+                    ) : metaAdsConnections.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-50 text-zinc-400">
+                          <Sparkles className="h-6 w-6" />
                         </div>
-
-                        <div className="mb-6">
-                          <h3 className="text-lg font-bold text-zinc-900">
-                            {propertyName}
-                          </h3>
-                          {propertyId && (
-                            <p className="mt-1 text-sm text-zinc-500">
-                              Property ID: {propertyId}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Dialog
-                            open={disconnectGADialogOpen}
-                            onOpenChange={setDisconnectGADialogOpen}
+                        <p className="mt-3 text-sm font-medium text-zinc-900">
+                          No ads connected
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Track campaign performance
+                        </p>
+                      </div>
+                    ) : (
+                      metaAdsConnections.map((c) => {
+                        const metadata =
+                          (c.metadata as Record<string, unknown>) || {};
+                        const adAccountName =
+                          (metadata.adAccountName as string) ||
+                          'Meta Ads Account';
+                        return (
+                          <div
+                            key={c.id}
+                            className="flex items-center justify-between rounded-xl border border-zinc-100 bg-zinc-50/50 p-3 transition-colors hover:bg-zinc-50"
                           >
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-100"
-                                disabled={disconnectGA.isPending}
-                              >
-                                Disconnect
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Disconnect Analytics</DialogTitle>
-                              </DialogHeader>
-                              <div className="py-4 text-sm text-gray-600">
-                                Are you sure you want to disconnect{' '}
-                                <span className="font-semibold text-gray-900">
-                                  {propertyName}
-                                </span>
-                                ?
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
+                                <Sparkles className="h-4 w-4 text-zinc-700" />
                               </div>
-                              <DialogFooter>
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    setDisconnectGADialogOpen(false)
-                                  }
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => disconnectGA.mutate()}
-                                  disabled={disconnectGA.isPending}
-                                >
-                                  Disconnect
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                          <Button
-                            size="sm"
-                            className="h-9 flex-1 rounded-full bg-zinc-900 text-xs font-medium text-white hover:bg-zinc-800"
-                            asChild
-                          >
-                            <a href="/google-analytics">
-                              View Dashboard
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-
-            {/* Meta Ads Section */}
-            <section id="meta-ads">
-              <div className="mb-8 flex items-center justify-between">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  Advertising
-                </h2>
-                {metaAdsConnections.length === 0 && (
-                  <Button
-                    className="rounded-full bg-zinc-900 px-6 text-sm font-medium text-white hover:bg-zinc-800"
-                    onClick={() => {
-                      window.location.href = '/api/meta-ads/install';
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> Connect Meta Ads
-                  </Button>
-                )}
-              </div>
-
-              {connectionsLoading ? (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="h-64 animate-pulse rounded-3xl bg-zinc-100"
-                    />
-                  ))}
-                </div>
-              ) : metaAdsConnections.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 py-24 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-zinc-200">
-                    <Sparkles className="h-8 w-8 text-zinc-400" />
-                  </div>
-                  <h3 className="mt-6 text-lg font-semibold text-zinc-900">
-                    No ads connected
-                  </h3>
-                  <p className="mt-2 max-w-sm text-zinc-500">
-                    Connect your Meta Ads account to track campaign performance
-                    directly in Zyyp.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {metaAdsConnections.map((c) => {
-                    const metadata =
-                      (c.metadata as Record<string, unknown>) || {};
-                    const adAccountName =
-                      (metadata.adAccountName as string) ||
-                      'Meta Ads Account';
-                    const adAccountId =
-                      (metadata.adAccountId as string) || '';
-                    return (
-                      <div
-                        key={c.id}
-                        className="group relative flex flex-col justify-between rounded-3xl border border-zinc-200 bg-white p-6 transition-all hover:border-zinc-300"
-                      >
-                        <div className="mb-6 flex items-start justify-between">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-900">
-                            <Sparkles className="h-6 w-6" />
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
-                          >
-                            Active
-                          </Badge>
-                        </div>
-
-                        <div className="mb-6">
-                          <h3 className="text-lg font-bold text-zinc-900">
-                            {adAccountName}
-                          </h3>
-                          {adAccountId && (
-                            <p className="mt-1 text-sm text-zinc-500">
-                              Account ID: {adAccountId}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Dialog
-                            open={disconnectMetaAdsDialogOpen}
-                            onOpenChange={setDisconnectMetaAdsDialogOpen}
-                          >
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-9 flex-1 rounded-full border-zinc-200 text-xs font-medium text-red-600 hover:bg-red-50 hover:border-red-100"
-                                disabled={disconnectMetaAds.isPending}
-                              >
-                                Disconnect
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Disconnect Meta Ads</DialogTitle>
-                              </DialogHeader>
-                              <div className="py-4 text-sm text-gray-600">
-                                Are you sure you want to disconnect{' '}
-                                <span className="font-semibold text-gray-900">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-zinc-900">
                                   {adAccountName}
+                                </p>
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                  Active
                                 </span>
-                                ?
                               </div>
-                              <DialogFooter>
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    setDisconnectMetaAdsDialogOpen(false)
-                                  }
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Dialog
+                                open={disconnectMetaAdsDialogOpen}
+                                onOpenChange={setDisconnectMetaAdsDialogOpen}
+                              >
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-zinc-400 hover:text-red-600"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>
+                                      Disconnect Meta Ads
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="py-4 text-sm text-gray-600">
+                                    Are you sure you want to disconnect{' '}
+                                    <span className="font-semibold text-gray-900">
+                                      {adAccountName}
+                                    </span>
+                                    ?
+                                  </div>
+                                  <DialogFooter>
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        setDisconnectMetaAdsDialogOpen(false)
+                                      }
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      onClick={() => disconnectMetaAds.mutate()}
+                                      disabled={disconnectMetaAds.isPending}
+                                    >
+                                      Disconnect
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-400 hover:text-zinc-600"
+                                asChild
+                              >
+                                <a
+                                  href="/meta-ads"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
                                 >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => disconnectMetaAds.mutate()}
-                                  disabled={disconnectMetaAds.isPending}
-                                >
-                                  Disconnect
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                          <Button
-                            size="sm"
-                            className="h-9 flex-1 rounded-full bg-zinc-900 text-xs font-medium text-white hover:bg-zinc-800"
-                            asChild
-                          >
-                            <a href="/meta-ads">
-                              View Dashboard
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              )}
-            </section>
+              </div>
+            </div>
           </div>
 
           {/* Shopify Connect Dialog */}
@@ -1152,12 +1152,13 @@ function IntegrationsInner() {
                     <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-700">
                       <p className="font-bold">Webhook Connection</p>
                       <p className="mt-1 opacity-90">
-                        If your store URL is &quot;https://demo.myshopify.com&quot;,
-                        enter &quot;demo&quot; (without .myshopify.com)
+                        If your store URL is
+                        &quot;https://demo.myshopify.com&quot;, enter
+                        &quot;demo&quot; (without .myshopify.com)
                       </p>
                       <p className="mt-1 opacity-90">
-                        Best for receiving order data. You&apos;ll need to add a URL
-                        to your Shopify admin settings.
+                        Best for receiving order data. You&apos;ll need to add a
+                        URL to your Shopify admin settings.
                       </p>
                     </div>
 
