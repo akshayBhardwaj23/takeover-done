@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { aiLimiter, checkRateLimit } from '../../../../lib/rate-limit';
 
 export const runtime = 'edge';
 
@@ -106,6 +107,17 @@ function simpleHeuristicParse(prompt: string): ParsedPlaybook {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting check (IP-based)
+    const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+    const rateLimitResult = await checkRateLimit(aiLimiter, ip, 10, 60000);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      );
+    }
+
     const { prompt, context } = await req.json();
 
     if (!prompt || typeof prompt !== 'string') {

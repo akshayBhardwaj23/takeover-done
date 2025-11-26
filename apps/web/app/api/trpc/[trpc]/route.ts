@@ -1,6 +1,7 @@
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
+import { apiLimiter, checkRateLimit } from '../../../../lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,21 @@ const handler = async (
   );
 
   try {
+    // Rate limiting check (IP-based)
+    const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+    const rateLimitResult = await checkRateLimit(apiLimiter, ip, 100, 60000);
+
+    if (!rateLimitResult.success) {
+      console.warn(`[tRPC] Rate limit exceeded for IP: ${ip}`);
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+        {
+          status: 429,
+          headers: { 'content-type': 'application/json' },
+        }
+      );
+    }
+
     // Request size guard (1MB) for API calls
     const contentLength = request.headers.get('content-length');
     if (contentLength && parseInt(contentLength) > 1024 * 1024) {
