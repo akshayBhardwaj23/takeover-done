@@ -320,8 +320,17 @@ export { encryptSecure, decryptSecure } from './crypto';
 
 async function syncShopifyData(connectionId: string, userId: string) {
   try {
+    console.log(
+      `[Shopify Sync] Starting sync for connectionId: ${connectionId}, userId: ${userId}`,
+    );
+
     const credentials = await getShopifyApiCredentials(connectionId, userId);
-    if (!credentials) return;
+    if (!credentials) {
+      console.log(
+        `[Shopify Sync] No credentials found for connectionId: ${connectionId}`,
+      );
+      return;
+    }
 
     const client = new ShopifyClient(
       credentials.shopUrl,
@@ -330,6 +339,9 @@ async function syncShopifyData(connectionId: string, userId: string) {
 
     // Fetch last 100 orders on initial sync (including historical orders beyond 60 days)
     const orders = await client.getOrders(100, { includeHistorical: true });
+    console.log(
+      `[Shopify Sync] Fetched ${orders.length} orders from Shopify API for ${credentials.shopUrl}`,
+    );
 
     for (const order of orders) {
       const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
@@ -355,6 +367,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
       });
     }
 
+    console.log(
+      `[Shopify Sync] Successfully synced ${orders.length} orders for connectionId: ${connectionId}`,
+    );
+
     await logEvent(
       'shopify.sync.completed',
       { count: orders.length, shop: credentials.shopUrl },
@@ -362,7 +378,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
       connectionId,
     );
   } catch (error) {
-    console.error('Failed to sync Shopify data:', error);
+    console.error('[Shopify Sync] Failed to sync Shopify data:', error);
     await logEvent(
       'shopify.sync.failed',
       { error: String(error) },
@@ -2498,6 +2514,19 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         select: { id: true },
       });
       const connectionIds = connections.map((c) => c.id);
+
+      // Debug: Log connection IDs and total order count
+      console.log(
+        `[ordersList] User ${ctx.userId} has ${connectionIds.length} connections:`,
+        connectionIds,
+      );
+      const totalOrdersInDb = await prisma.order.count({
+        where: { connectionId: { in: connectionIds } },
+      });
+      console.log(
+        `[ordersList] Total orders for user's connections: ${totalOrdersInDb}`,
+      );
+
       if (connectionIds.length === 0) {
         return { orders: [], hasMore: false };
       }
