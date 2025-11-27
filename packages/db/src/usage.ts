@@ -13,21 +13,21 @@ export const PLAN_LIMITS = {
   STARTER: {
     emailsPerMonth: 500,
     aiRepliesLimit: 500, // Match emails limit
-    emailsReceivedLimit: -1, // Unlimited on paid plans
+    emailsReceivedLimit: 500, // 500 incoming emails per month
     stores: 1,
     name: 'Starter',
   },
   GROWTH: {
     emailsPerMonth: 2500,
     aiRepliesLimit: 2500, // Match emails limit
-    emailsReceivedLimit: -1, // Unlimited on paid plans
+    emailsReceivedLimit: 2500, // 2,500 incoming emails per month
     stores: 3,
     name: 'Growth',
   },
   PRO: {
     emailsPerMonth: 10000,
     aiRepliesLimit: 10000, // Match emails limit
-    emailsReceivedLimit: -1, // Unlimited on paid plans
+    emailsReceivedLimit: 10000, // 10,000 incoming emails per month
     stores: 10,
     name: 'Pro',
   },
@@ -688,8 +688,10 @@ export async function getUsageSummary(userId: string) {
 
   const limit = planLimits.emailsPerMonth;
   const aiLimit = planLimits.aiRepliesLimit;
+  const emailsReceivedLimit = planLimits.emailsReceivedLimit;
   const current = usageRecord.emailsSent;
   const aiCurrent = usageRecord.aiSuggestions;
+  const emailsReceivedCurrent = usageRecord.emailsReceived;
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
   const expired = isTrial ? now > subscription.currentPeriodEnd : false;
@@ -709,21 +711,30 @@ export async function getUsageSummary(userId: string) {
     (limit === -1 || current < limit) && !(isTrial && expired);
   const canUseAIMore =
     (aiLimit === -1 || aiCurrent < aiLimit) && !(isTrial && expired);
+  const canReceiveMore =
+    (emailsReceivedLimit === -1 || emailsReceivedCurrent < emailsReceivedLimit) &&
+    !(isTrial && expired);
 
   return {
     planType: subscription.planType,
     planName: planLimits.name,
     emailsSent: current,
-    emailsReceived: usageRecord.emailsReceived,
+    emailsReceived: emailsReceivedCurrent,
     aiSuggestions: aiCurrent,
     emailLimit: limit,
     aiLimit: aiLimit,
+    emailsReceivedLimit: emailsReceivedLimit,
     emailUsagePercentage:
       limit === -1 ? 0 : Math.round((current / limit) * 10000) / 100,
     aiUsagePercentage:
       aiLimit === -1 ? 0 : Math.round((aiCurrent / aiLimit) * 10000) / 100,
+    emailsReceivedUsagePercentage:
+      emailsReceivedLimit === -1
+        ? 0
+        : Math.round((emailsReceivedCurrent / emailsReceivedLimit) * 10000) / 100,
     canSendEmail: canSendMore,
     canUseAI: canUseAIMore,
+    canReceiveEmail: canReceiveMore,
     periodStart: usageRecord.periodStart,
     periodEnd: usageRecord.periodEnd,
     status: subscription.status,
@@ -732,6 +743,12 @@ export async function getUsageSummary(userId: string) {
       limit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, limit - current),
     aiRemaining:
       aiLimit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, aiLimit - aiCurrent),
+    emailsReceivedRemaining:
+      emailsReceivedLimit === -1
+        ? -1
+        : isTrial && expired
+          ? 0
+          : Math.max(0, emailsReceivedLimit - emailsReceivedCurrent),
     trial: {
       isTrial,
       expired,
