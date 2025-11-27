@@ -90,6 +90,8 @@ model Order {
   status       String
   email        String?
   totalAmount  Int
+  currency     String     @default("INR")  // Currency code from Shopify (USD, INR, etc.)
+  customerName String?    // Customer full name for display
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   shopDomain   String?

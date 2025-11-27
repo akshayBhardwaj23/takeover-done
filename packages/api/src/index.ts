@@ -345,6 +345,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
 
     for (const order of orders) {
       const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
+      const customerName = order.customer
+        ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() ||
+          null
+        : null;
 
       await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
@@ -353,6 +357,8 @@ async function syncShopifyData(connectionId: string, userId: string) {
           status: order.financial_status,
           email: order.email || order.customer?.email,
           totalAmount,
+          currency: order.currency || 'INR',
+          customerName,
           name: order.name,
           shopDomain: credentials.shopUrl.replace('https://', ''),
           connectionId,
@@ -362,6 +368,8 @@ async function syncShopifyData(connectionId: string, userId: string) {
           status: order.financial_status,
           email: order.email || order.customer?.email,
           totalAmount,
+          currency: order.currency || 'INR',
+          customerName,
           updatedAt: new Date(),
         },
       });
@@ -1392,6 +1400,8 @@ export const appRouter = t.router({
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -2551,6 +2561,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -2572,6 +2584,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,

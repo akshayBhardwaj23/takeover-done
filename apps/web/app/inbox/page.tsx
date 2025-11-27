@@ -48,6 +48,8 @@ type DbOrder = {
   name?: string | null;
   email?: string | null;
   totalAmount: number;
+  currency?: string | null;
+  customerName?: string | null;
   status: string;
   createdAt: string;
   pendingEmailCount?: number;
@@ -79,10 +81,12 @@ type EmailMessage = {
 // UTILS
 // =============================================================================
 
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(cents: number, currencyCode: string = 'INR') {
+  const code = currencyCode || 'INR';
+  const locale = code === 'INR' ? 'en-IN' : 'en-US';
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'USD',
+    currency: code,
     maximumFractionDigits: 2,
   }).format(cents / 100);
 }
@@ -859,7 +863,9 @@ export default function InboxPage() {
                                 </span>
                               </div>
                               <p className="text-xs text-stone-600 truncate mb-1">
-                                {order.email || 'No email'}
+                                {order.customerName ||
+                                  order.email ||
+                                  'No customer info'}
                               </p>
                               <div className="flex items-center gap-2">
                                 <Badge
@@ -868,7 +874,10 @@ export default function InboxPage() {
                                   {order.status}
                                 </Badge>
                                 <span className="text-xs text-stone-500">
-                                  {formatCurrency(order.totalAmount)}
+                                  {formatCurrency(
+                                    order.totalAmount,
+                                    order.currency || 'INR',
+                                  )}
                                 </span>
                               </div>
 
@@ -1343,7 +1352,10 @@ export default function InboxPage() {
                               </div>
                               <div className="flex items-center justify-between text-xs text-stone-500">
                                 <span>
-                                  {formatCurrency(linkedOrder.totalAmount)}
+                                  {formatCurrency(
+                                    linkedOrder.totalAmount,
+                                    linkedOrder.currency || 'INR',
+                                  )}
                                 </span>
                                 <span>
                                   {relativeTime(linkedOrder.createdAt)}
@@ -1446,6 +1458,9 @@ export default function InboxPage() {
                                       ordersAccum.find(
                                         (o) => o.shopifyId === selectedOrderId,
                                       )?.totalAmount || 0,
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.currency || 'INR',
                                     )}
                                   </span>
                                 </div>
@@ -1453,10 +1468,14 @@ export default function InboxPage() {
                                   <span className="text-stone-500">
                                     Customer
                                   </span>
-                                  <span className="text-stone-900">
+                                  <span className="text-stone-900 text-right max-w-[180px] truncate">
                                     {ordersAccum.find(
                                       (o) => o.shopifyId === selectedOrderId,
-                                    )?.email || 'N/A'}
+                                    )?.customerName ||
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.email ||
+                                      'N/A'}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
