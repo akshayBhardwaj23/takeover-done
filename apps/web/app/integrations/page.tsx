@@ -145,15 +145,25 @@ function IntegrationsInner() {
   );
 
   const connections = data?.connections || [];
-  const shopifyConnections = connections.filter((c: any) => c.type === 'SHOPIFY');
-  const emailConnections = connections.filter((c: any) => c.type === 'EMAIL');
-  const gaConnections = connections.filter((c: any) => c.type === 'GOOGLE_ANALYTICS');
-  const metaAdsConnections = connections.filter((c: any) => c.type === 'META_ADS');
+  const shopifyConnections = connections.filter(
+    (c: any) => c.type === 'SHOPIFY',
+  );
+  const emailConnections = connections.filter(
+    (c: any) => c.type === 'CUSTOM_EMAIL',
+  );
+  const gaConnections = connections.filter(
+    (c: any) => c.type === 'GOOGLE_ANALYTICS',
+  );
+  const metaAdsConnections = connections.filter(
+    (c: any) => c.type === 'META_ADS',
+  );
   const utils = trpc.useContext();
 
   // State for Shopify Dialog
   const [showShopifyDialog, setShowShopifyDialog] = useState(false);
-  const [connectionTab, setConnectionTab] = useState<'webhook' | 'custom_app'>('webhook');
+  const [connectionTab, setConnectionTab] = useState<'webhook' | 'custom_app'>(
+    'webhook',
+  );
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
   const [shopInput, setShopInput] = useState('');
   const [storeNameInput, setStoreNameInput] = useState('');
@@ -163,9 +173,12 @@ function IntegrationsInner() {
   // State for Edit/Disconnect
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [storeNameDraft, setStoreNameDraft] = useState('');
-  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<string | null>(null);
+  const [disconnectDialogOpen, setDisconnectDialogOpen] = useState<
+    string | null
+  >(null);
   const [disconnectGADialogOpen, setDisconnectGADialogOpen] = useState(false);
-  const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] = useState(false);
+  const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] =
+    useState(false);
 
   // Mutations
   const createWebhook = trpc.shopify.createWebhook.useMutation({
@@ -242,12 +255,15 @@ function IntegrationsInner() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const isConnectingShopify = createWebhook.isPending || createCustomApp.isPending;
+  const isConnectingShopify =
+    createWebhook.isPending || createCustomApp.isPending;
   const isSavingStoreName = updateStoreName.isPending;
 
   // --- State ---
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'connected' | 'disconnected'>('all');
+  const [activeTab, setActiveTab] = useState<
+    'all' | 'connected' | 'disconnected'
+  >('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   // --- Helpers ---
@@ -308,7 +324,8 @@ function IntegrationsInner() {
         id: 'shopify-placeholder',
         type: 'SHOPIFY',
         name: 'Shopify',
-        description: 'Offers tools for online stores, order syncing, and customer management.',
+        description:
+          'Offers tools for online stores, order syncing, and customer management.',
         category: 'Sales & Marketing Tools',
         status: 'disconnected',
         icon: Store,
@@ -364,7 +381,8 @@ function IntegrationsInner() {
         id: 'email-placeholder',
         type: 'EMAIL',
         name: 'Email Aliases',
-        description: 'Create email aliases to route support emails through Zyyp.',
+        description:
+          'Create email aliases to route support emails through Zyyp.',
         category: 'Communication & Collaboration',
         status: 'disconnected',
         icon: Mail,
@@ -392,7 +410,8 @@ function IntegrationsInner() {
         id: 'ga4-placeholder',
         type: 'GA4',
         name: 'Google Analytics',
-        description: 'Connect your GA4 property to see website traffic alongside orders.',
+        description:
+          'Connect your GA4 property to see website traffic alongside orders.',
         category: 'Analytics',
         status: 'disconnected',
         icon: BarChart3,
@@ -404,9 +423,10 @@ function IntegrationsInner() {
 
   const filteredIntegrations = useMemo(() => {
     return unifiedIntegrations.filter((item) => {
-      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            item.description.toLowerCase().includes(searchQuery.toLowerCase());
-      
+      const matchesSearch =
+        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.toLowerCase());
+
       if (!matchesSearch) return false;
 
       if (activeTab === 'connected') return item.status === 'connected';
@@ -460,14 +480,18 @@ function IntegrationsInner() {
           toast.warning('Please sign in first.');
           return;
         }
-        const firstShop = connections.find((c: any) => c.type === 'SHOPIFY')?.shopDomain;
+        const firstShop = connections.find(
+          (c: any) => c.type === 'SHOPIFY',
+        )?.shopDomain;
         if (!firstShop) {
           toast.warning('Connect a Shopify store first.');
           return;
         }
         createAlias.mutate({
           userEmail: email,
-          domain: (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) || 'mail.example.com',
+          domain:
+            (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
+            'mail.example.com',
           shop: firstShop,
         });
       } else if (item.type === 'GA4') {
@@ -481,13 +505,15 @@ function IntegrationsInner() {
     // Details Action
     if (item.type === 'SHOPIFY') {
       if (item.originalObject?.shopDomain) {
-        router.push(`/inbox?shop=${encodeURIComponent(item.originalObject.shopDomain)}`);
+        router.push(
+          `/inbox?shop=${encodeURIComponent(item.originalObject.shopDomain)}`,
+        );
       }
     } else if (item.type === 'EMAIL') {
-       if (item.originalObject?.metadata?.alias) {
-         navigator.clipboard.writeText(item.originalObject.metadata.alias);
-         toast.success('Alias copied to clipboard');
-       }
+      if (item.originalObject?.metadata?.alias) {
+        navigator.clipboard.writeText(item.originalObject.metadata.alias);
+        toast.success('Alias copied to clipboard');
+      }
     } else if (item.type === 'GA4') {
       router.push('/google-analytics');
     } else if (item.type === 'META_ADS') {
@@ -571,7 +597,8 @@ function IntegrationsInner() {
                       : 'text-zinc-500 hover:text-zinc-700'
                   }`}
                 >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)} {tab === 'all' && 'Applications'}
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}{' '}
+                  {tab === 'all' && 'Applications'}
                 </button>
               ))}
             </div>
@@ -591,9 +618,12 @@ function IntegrationsInner() {
             {Object.entries(groupedIntegrations).map(([category, items]) => (
               <div key={category}>
                 <div className="mb-4">
-                  <h2 className="text-lg font-bold text-zinc-900">{category}</h2>
+                  <h2 className="text-lg font-bold text-zinc-900">
+                    {category}
+                  </h2>
                   <p className="text-sm text-zinc-500">
-                    Enhancing the efficiency and effectiveness of your {category.toLowerCase().split(' ')[0]} activities
+                    Enhancing the efficiency and effectiveness of your{' '}
+                    {category.toLowerCase().split(' ')[0]} activities
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -620,7 +650,7 @@ function IntegrationsInner() {
       </main>
 
       {/* Dialogs (Preserved Logic) */}
-      
+
       {/* Shopify Connect Dialog */}
       <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
         <DialogContent className="max-w-xl border-zinc-200 p-0 sm:rounded-3xl">
@@ -784,8 +814,8 @@ function IntegrationsInner() {
                     access token (starts with &quot;shpat_&quot;)
                   </p>
                   <p className="mt-1 opacity-90">
-                    Provides full API access for advanced automation.
-                    Requires creating a custom app in Shopify.
+                    Provides full API access for advanced automation. Requires
+                    creating a custom app in Shopify.
                   </p>
                 </div>
 
@@ -858,22 +888,30 @@ function IntegrationsInner() {
       {/* Disconnect Dialogs */}
       <Dialog
         open={!!disconnectDialogOpen}
-        onOpenChange={(open) => setDisconnectDialogOpen(open ? disconnectDialogOpen : null)}
+        onOpenChange={(open) =>
+          setDisconnectDialogOpen(open ? disconnectDialogOpen : null)
+        }
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Disconnect Store</DialogTitle>
           </DialogHeader>
           <div className="py-4 text-sm text-gray-600">
-            Are you sure you want to disconnect this store? This will stop all data syncing.
+            Are you sure you want to disconnect this store? This will stop all
+            data syncing.
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDisconnectDialogOpen(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setDisconnectDialogOpen(null)}
+            >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => disconnectStore.mutate({ connectionId: disconnectDialogOpen! })}
+              onClick={() =>
+                disconnectStore.mutate({ connectionId: disconnectDialogOpen! })
+              }
               disabled={disconnectStore.isPending}
             >
               {disconnectStore.isPending ? 'Disconnecting...' : 'Disconnect'}
@@ -882,7 +920,10 @@ function IntegrationsInner() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={disconnectGADialogOpen} onOpenChange={setDisconnectGADialogOpen}>
+      <Dialog
+        open={disconnectGADialogOpen}
+        onOpenChange={setDisconnectGADialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Disconnect Analytics</DialogTitle>
@@ -891,7 +932,10 @@ function IntegrationsInner() {
             Are you sure you want to disconnect Google Analytics?
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDisconnectGADialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDisconnectGADialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
@@ -905,7 +949,10 @@ function IntegrationsInner() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={disconnectMetaAdsDialogOpen} onOpenChange={setDisconnectMetaAdsDialogOpen}>
+      <Dialog
+        open={disconnectMetaAdsDialogOpen}
+        onOpenChange={setDisconnectMetaAdsDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Disconnect Meta Ads</DialogTitle>
@@ -914,7 +961,10 @@ function IntegrationsInner() {
             Are you sure you want to disconnect Meta Ads?
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDisconnectMetaAdsDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setDisconnectMetaAdsDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button
