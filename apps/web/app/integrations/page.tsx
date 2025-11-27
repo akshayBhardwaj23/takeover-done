@@ -851,9 +851,29 @@ function IntegrationsInner() {
           <DialogHeader>
             <DialogTitle>Disconnect Store</DialogTitle>
           </DialogHeader>
-          <div className="py-4 text-sm text-gray-600">
-            Are you sure you want to disconnect this store? This will stop all
-            data syncing.
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-gray-600">
+              Are you sure you want to disconnect this store? This will stop all
+              data syncing and remove all stored data from Zyyp.
+            </p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-medium text-amber-900 mb-2">
+                Important: Remove Custom App from Shopify
+              </p>
+              <p className="text-xs text-amber-800">
+                After disconnecting, you should also delete the Custom App from
+                your Shopify Admin to fully revoke access:
+              </p>
+              <ol className="mt-2 ml-4 list-decimal space-y-1 text-xs text-amber-800">
+                <li>
+                  Go to Shopify Admin → Settings → Apps and sales channels
+                </li>
+                <li>Click &quot;Develop apps&quot;</li>
+                <li>
+                  Find your &quot;Zyyp Integration&quot; app and delete it
+                </li>
+              </ol>
+            </div>
           </div>
           <DialogFooter>
             <Button
