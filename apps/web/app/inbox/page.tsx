@@ -1,16 +1,8 @@
 'use client';
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  Fragment,
-  useRef,
-  useCallback,
-} from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { trpc } from '../../lib/trpc';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
-import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
 import { ScrollArea } from '../../../../@ai-ecom/api/components/ui/scroll-area';
 import { Separator } from '../../../../@ai-ecom/api/components/ui/separator';
@@ -24,27 +16,31 @@ import {
   Sparkles,
   MessageSquare,
   Inbox,
-  Zap,
-  ArrowRight,
+  Search,
+  MoreVertical,
   Clock,
+  ChevronDown,
+  Paperclip,
+  Smile,
+  ArrowRight,
+  X,
+  User,
+  Phone,
+  AtSign,
+  FileText,
+  ExternalLink,
+  ShoppingBag,
   DollarSign,
-  ListChecks,
+  Calendar,
+  Bell,
+  BellOff,
 } from 'lucide-react';
-import {
-  OrderCardSkeleton,
-  OrderDetailSkeleton,
-  EmailCardSkeleton,
-  UnassignedEmailSkeleton,
-} from '../../components/SkeletonLoaders';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
 
-const STATUS_COLORS: Record<string, string> = {
-  FULFILLED: 'border-emerald-100 bg-emerald-50 text-emerald-600',
-  REFUNDED: 'border-rose-100 bg-rose-50 text-rose-600',
-  PENDING: 'border-amber-100 bg-amber-50 text-amber-600',
-  default: 'border-slate-200 bg-slate-50 text-slate-500',
-};
+// =============================================================================
+// TYPES
+// =============================================================================
 
 type DbOrder = {
   id: string;
@@ -57,15 +53,7 @@ type DbOrder = {
   pendingEmailCount?: number;
 };
 
-type MessagePreview = {
-  id: string;
-  subject?: string;
-  body?: string;
-  createdAt?: string;
-  direction?: string;
-};
-
-type UnassignedMessage = {
+type EmailMessage = {
   id: string;
   from: string;
   to: string;
@@ -74,6 +62,7 @@ type UnassignedMessage = {
   direction?: string;
   subject?: string;
   snippet?: string;
+  orderId?: string | null;
   thread?: {
     subject?: string;
   } | null;
@@ -86,6 +75,10 @@ type UnassignedMessage = {
   } | null;
 };
 
+// =============================================================================
+// UTILS
+// =============================================================================
+
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -95,14 +88,47 @@ function formatCurrency(cents: number) {
 }
 
 function relativeTime(date: string | undefined) {
-  if (!date) return '—';
+  if (!date) return '';
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.round(diff / 60000);
   if (mins <= 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `${mins}m`;
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days`;
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatDateHeader(date: string) {
+  const d = new Date(date);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+  if (d.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  }
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function formatTime(date: string) {
+  return new Date(date).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 const extractEmailAddress = (value?: string | null): string | null => {
@@ -111,27 +137,124 @@ const extractEmailAddress = (value?: string | null): string | null => {
   return match ? match[1].toLowerCase() : null;
 };
 
+function getInitials(
+  name: string | undefined | null,
+  email: string | undefined | null,
+): string {
+  if (name) {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.slice(0, 2).toUpperCase();
+  }
+  return 'UN';
+}
+
+function getSenderName(email: string): string {
+  const localPart = email.split('@')[0];
+  return localPart
+    .replace(/[._-]/g, ' ')
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+const AVATAR_COLORS = [
+  'bg-violet-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-emerald-500',
+  'bg-sky-500',
+  'bg-fuchsia-500',
+  'bg-orange-500',
+  'bg-teal-500',
+];
+
+function getAvatarColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  FULFILLED: 'bg-emerald-100 text-emerald-700',
+  REFUNDED: 'bg-rose-100 text-rose-700',
+  PENDING: 'bg-amber-100 text-amber-700',
+  default: 'bg-slate-100 text-slate-600',
+};
+
+// =============================================================================
+// SKELETON COMPONENTS
+// =============================================================================
+
+function EmailListSkeleton() {
+  return (
+    <div className="space-y-1 p-2">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 rounded-xl p-3 animate-pulse"
+        >
+          <div className="h-11 w-11 rounded-full bg-stone-200" />
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-24 rounded bg-stone-200" />
+              <div className="h-3 w-10 rounded bg-stone-200" />
+            </div>
+            <div className="h-3 w-40 rounded bg-stone-200" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ConversationSkeleton() {
+  return (
+    <div className="flex flex-col h-full p-6 animate-pulse">
+      <div className="flex items-center justify-center py-4">
+        <div className="h-6 w-32 rounded-full bg-stone-200" />
+      </div>
+      <div className="flex-1 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-full bg-stone-200" />
+            <div className="space-y-2">
+              <div className="h-3 w-20 rounded bg-stone-200" />
+              <div className="h-20 w-64 rounded-2xl bg-stone-200" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
+
 export default function InboxPage() {
   const toast = useToast();
   const [shop, setShop] = useState('');
-  const [view, setView] = useState<'orders' | 'unlinked'>('orders');
+  const [view, setView] = useState<'inbox' | 'orders'>('inbox');
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [selectedUnlinkedId, setSelectedUnlinkedId] = useState<string | null>(
-    null,
-  );
-  const [messagePreviewByOrder, setMessagePreviewByOrder] = useState<
-    Record<string, MessagePreview>
-  >({});
   const [draft, setDraft] = useState('');
-  const [unlinkedSuggestion, setUnlinkedSuggestion] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [repliedOrderIds, setRepliedOrderIds] = useState<Set<string>>(
-    new Set(),
-  );
   const [repliedMessageIds, setRepliedMessageIds] = useState<Set<string>>(
     new Set(),
   );
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     return () => {
       if (refreshTimer.current) {
@@ -146,45 +269,36 @@ export default function InboxPage() {
     if (s) setShop(s);
   }, []);
 
-  const recentOrders = trpc.ordersRecent.useQuery(
-    { shop: shop || '', limit: 10 },
-    {
-      enabled: !!shop,
-      staleTime: 60_000,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false, // Don't refetch if data exists
-    },
-  );
-  // Split into critical (orders) and secondary (unassigned) queries for progressive loading
-  // Orders load first (critical), then unassigned messages (secondary)
-  const inboxBootstrap = trpc.inboxBootstrap.useQuery(
-    { ordersTake: 25 }, // Don't fetch unassigned in bootstrap (omit unassignedTake to satisfy schema)
-    {
-      staleTime: 60_000,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false, // Don't refetch if data exists
-    },
-  );
+  // =============================================================================
+  // DATA FETCHING
+  // =============================================================================
 
-  // Separate query for unassigned messages - loads after orders (progressive loading)
-  const unassignedQuery = trpc.unassignedInbound.useQuery(
-    { take: 20 }, // Reduced from 40 to 20 for faster initial load
+  const inboxBootstrap = trpc.inboxBootstrap.useQuery(
+    { ordersTake: 25 },
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
-      // Only fetch after orders have loaded (or immediately if orders already cached)
+    },
+  );
+
+  const unassignedQuery = trpc.unassignedInbound.useQuery(
+    { take: 50 },
+    {
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
       enabled: !inboxBootstrap.isLoading || !!inboxBootstrap.data,
     },
   );
 
-  // Paginated orders list (DB) for "Load more"
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 20;
   const [ordersOffset, setOrdersOffset] = useState(0);
   const ordersPage = trpc.ordersList.useQuery(
     { offset: ordersOffset, limit: PAGE_SIZE },
     { keepPreviousData: true, staleTime: 30_000, refetchOnWindowFocus: false },
   );
+
   const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
   useEffect(() => {
     const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
@@ -192,58 +306,53 @@ export default function InboxPage() {
       ordersOffset === 0 ? incoming : [...prev, ...incoming],
     );
   }, [ordersPage.data, ordersOffset]);
-  const hasMoreOrders = ordersPage.data?.hasMore ?? false;
-  const unassigned = {
-    data: unassignedQuery.data,
-    isLoading: unassignedQuery.isLoading,
-    refetch: unassignedQuery.refetch,
-  };
-  const emailLimit = {
-    data: inboxBootstrap.data?.emailLimit,
-    isLoading: inboxBootstrap.isLoading,
-    refetch: inboxBootstrap.refetch,
-  };
 
-  const messages = trpc.messagesByOrder.useQuery(
+  const hasMoreOrders = ordersPage.data?.hasMore ?? false;
+
+  // Messages for selected order (when viewing order detail)
+  const orderMessages = trpc.messagesByOrder.useQuery(
     { shopifyOrderId: selectedOrderId ?? '' },
     {
       enabled: !!selectedOrderId,
-      staleTime: 30_000, // Cache messages for 30s
+      staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
   );
+
+  // Get order detail
   const orderDetail = trpc.orderGet.useQuery(
     { shop: shop || '', orderId: selectedOrderId || '' },
     {
       enabled: !!shop && !!selectedOrderId,
-      staleTime: 60_000, // Cache order details for 60s
+      staleTime: 60_000,
       refetchOnWindowFocus: false,
     },
   );
+
+  // =============================================================================
+  // MUTATIONS
+  // =============================================================================
 
   const suggest = trpc.aiSuggestReply.useMutation();
   const createAction = trpc.actionCreate.useMutation();
   const approveSend = trpc.actionApproveAndSend.useMutation();
   const refreshOrder = trpc.refreshOrderFromShopify.useMutation({
     onSuccess: () => {
-      inboxBootstrap.refetch(); // Single refetch updates all data
+      inboxBootstrap.refetch();
       orderDetail.refetch();
       toast.success('Order synced from Shopify');
     },
   });
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
     onSuccess: (data: any) => {
-      // Backend may return { ok: false, error } with 200 status for non-TRPC errors
       if (!data?.ok) {
-        const message = data?.error || 'Failed to send reply'; // Show backend error if present
-        toast.error(message);
-        // Still refresh usage/unassigned to keep UI accurate
+        toast.error(data?.error || 'Failed to send reply');
         unassignedQuery.refetch();
         inboxBootstrap.refetch();
         return;
       }
-      unassignedQuery.refetch(); // Refetch unassigned messages
-      inboxBootstrap.refetch(); // Refetch email limit
+      unassignedQuery.refetch();
+      inboxBootstrap.refetch();
       toast.success('Reply sent successfully');
     },
     onError: (error) => {
@@ -252,116 +361,78 @@ export default function InboxPage() {
         error.message?.includes('Email limit')
       ) {
         toast.error(error.message || 'Email limit reached.');
-        emailLimit.refetch();
+        inboxBootstrap.refetch();
       } else {
         toast.error('Failed to send reply');
       }
     },
   });
 
-  const aiSuggestion = useMemo(() => {
-    const suggestion = (messages.data?.messages as any[] | undefined)?.find(
-      (message) => message.aiSuggestion?.proposedAction,
+  // =============================================================================
+  // COMPUTED DATA
+  // =============================================================================
+
+  // Combine all emails for the email list view
+  const allEmails = useMemo(() => {
+    const unassigned = (unassignedQuery.data?.messages ?? []) as EmailMessage[];
+    const bootstrapUnassigned = (inboxBootstrap.data?.unassigned ??
+      []) as EmailMessage[];
+
+    // Combine and dedupe
+    const emailMap = new Map<string, EmailMessage>();
+    [...unassigned, ...bootstrapUnassigned].forEach((email) => {
+      if (!emailMap.has(email.id)) {
+        emailMap.set(email.id, email);
+      }
+    });
+
+    // Sort by date descending
+    return Array.from(emailMap.values()).sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
-    return suggestion?.aiSuggestion;
-  }, [messages.data]);
+  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
 
-  useEffect(() => {
-    if (!selectedOrderId || !messages.data?.messages?.length) return;
-    const latest = messages.data.messages[0] as any;
-    setMessagePreviewByOrder((prev) => ({
-      ...prev,
-      [selectedOrderId]: {
-        id: latest.id,
-        subject: latest.thread?.subject ?? latest.subject,
-        body: latest.body,
-        createdAt: latest.createdAt,
-        direction: latest.direction,
-      },
-    }));
-  }, [selectedOrderId, messages.data]);
+  // Filter emails by search
+  const filteredEmails = useMemo(() => {
+    if (!searchQuery.trim()) return allEmails;
+    const q = searchQuery.toLowerCase();
+    return allEmails.filter(
+      (email) =>
+        email.from?.toLowerCase().includes(q) ||
+        email.subject?.toLowerCase().includes(q) ||
+        email.body?.toLowerCase().includes(q),
+    );
+  }, [allEmails, searchQuery]);
 
-  useEffect(() => {
-    if (aiSuggestion?.reply && !draft) setDraft(aiSuggestion.reply);
-  }, [aiSuggestion, draft]);
-
-  const orders = useMemo(() => ordersAccum, [ordersAccum]);
-
-  const selectedOrder = useMemo(
-    () => orders.find((order) => order.shopifyId === selectedOrderId) ?? null,
-    [orders, selectedOrderId],
-  );
-
+  // Selected email data
   const selectedEmail = useMemo(() => {
-    if (!messages.data?.messages?.length) return null;
-    const inbound = (messages.data.messages as any[]).find(
-      (msg) => msg.direction === 'INBOUND',
+    if (!selectedEmailId) return null;
+    return allEmails.find((e) => e.id === selectedEmailId) ?? null;
+  }, [selectedEmailId, allEmails]);
+
+  // Find linked order for selected email
+  const linkedOrder = useMemo(() => {
+    if (!selectedEmail) return null;
+    const senderEmail = extractEmailAddress(selectedEmail.from);
+    if (!senderEmail) return null;
+    return (
+      ordersAccum.find(
+        (order) => extractEmailAddress(order.email) === senderEmail,
+      ) ?? null
     );
-    return inbound ?? (messages.data.messages as any[])[0] ?? null;
-  }, [messages.data]);
+  }, [selectedEmail, ordersAccum]);
 
-  const selectedUnlinkedEmail = useMemo<UnassignedMessage | null>(() => {
-    if (!selectedUnlinkedId) return null;
-    const messages =
-      (unassigned.data?.messages as UnassignedMessage[] | undefined) ?? [];
-    return messages.find((msg) => msg.id === selectedUnlinkedId) ?? null;
-  }, [selectedUnlinkedId, unassigned.data?.messages]);
+  const emailLimit = {
+    data: inboxBootstrap.data?.emailLimit,
+    isLoading: inboxBootstrap.isLoading,
+    refetch: inboxBootstrap.refetch,
+  };
 
-  const metrics = useMemo(() => {
-    const openTickets = orders.length;
-    const refundRate = `${Math.max(0, Math.round(((recentOrders.data?.orders?.length ?? 0) / 50) * 1000) / 10)}%`;
-    const avgExecution = recentOrders.data?.orders?.length ? '12.4s' : '—';
-    return [
-      {
-        title: 'Active orders',
-        value: openTickets.toString(),
-        icon: <Inbox className="h-4 w-4 text-slate-400" />,
-        change: '+8%',
-      },
-      {
-        title: 'Task success rate',
-        value: `${Math.max(0, 100 - (emailLimit.data?.percentage ?? 0)).toFixed(1)}%`,
-        icon: <CheckCircle className="h-4 w-4 text-emerald-400" />,
-        change: '+4%',
-      },
-      {
-        title: 'Avg execution time',
-        value: avgExecution,
-        icon: <Clock className="h-4 w-4 text-sky-400" />,
-        change: '-12%',
-      },
-      {
-        title: 'Unmatched emails',
-        value: (unassigned.data?.messages?.length ?? 0).toString(),
-        icon: <Mail className="h-4 w-4 text-rose-400" />,
-        change: '+2%',
-      },
-    ];
-  }, [
-    orders.length,
-    recentOrders.data?.orders,
-    emailLimit.data?.percentage,
-    unassigned.data?.messages?.length,
-  ]);
+  // =============================================================================
+  // HANDLERS
+  // =============================================================================
 
-  const linkedPreviews = useMemo(() => {
-    if (!orders.length)
-      return [] as Array<{ order: DbOrder; preview: MessagePreview | null }>;
-    return orders.map((order) => ({
-      order,
-      preview: messagePreviewByOrder[order.shopifyId] ?? null,
-    }));
-  }, [orders, messagePreviewByOrder]);
-
-  const handleSelectOrder = useCallback((order: DbOrder) => {
-    setSelectedOrderId(order.shopifyId);
-    setSelectedUnlinkedId(null);
-    setUnlinkedSuggestion(null);
-    setDraft('');
-    setView('orders');
-  }, []);
-
-  // Helper function to clean placeholder text from AI suggestions
   const cleanPlaceholders = (text: string): string => {
     return text
       .replace(/\[Your Name\]/gi, '')
@@ -377,42 +448,49 @@ export default function InboxPage() {
       .trim();
   };
 
-  const handleGenerateAi = async (message: any, order?: DbOrder) => {
-    const inboundCandidate =
-      message?.direction === 'INBOUND' ? message : (message ?? selectedEmail);
-    if (!inboundCandidate) {
-      toast.info('No inbound email to analyse.');
+  const handleSelectEmail = useCallback((email: EmailMessage) => {
+    setSelectedEmailId(email.id);
+    setSelectedOrderId(null);
+    setDraft(
+      email.aiSuggestion?.reply
+        ? cleanPlaceholders(email.aiSuggestion.reply)
+        : '',
+    );
+  }, []);
+
+  const handleSelectOrder = useCallback((order: DbOrder) => {
+    setSelectedOrderId(order.shopifyId);
+    setSelectedEmailId(null);
+    setDraft('');
+  }, []);
+
+  const handleGenerateAi = async () => {
+    if (!selectedEmail) {
+      toast.info('No email selected.');
       return;
     }
+
     const fallbackSummary =
-      message?.subject ||
-      message?.snippet ||
-      message?.body ||
+      selectedEmail.subject ||
+      selectedEmail.snippet ||
+      selectedEmail.body ||
       'Customer inquiry';
-    const orderSummary = order
-      ? orderDetail.data?.order?.name ||
-        order.name ||
-        `Order ${order.shopifyId}`
-      : fallbackSummary;
-    const customerEmail = order?.email ?? inboundCandidate.from;
+    const customerEmail = selectedEmail.from;
+
     try {
       const response = await suggest.mutateAsync({
-        customerMessage: inboundCandidate.body || 'Customer inquiry',
-        orderSummary,
+        customerMessage: selectedEmail.body || 'Customer inquiry',
+        orderSummary: linkedOrder?.name || fallbackSummary,
         tone: 'friendly',
         customerEmail,
-        orderId: order?.shopifyId ?? '',
+        orderId: linkedOrder?.shopifyId ?? '',
       });
-      if (!order) {
-        setUnlinkedSuggestion(response as any);
-      } else {
-        setUnlinkedSuggestion(null);
-      }
-      // Clean placeholders from the generated suggestion
+
       const cleanedSuggestion = cleanPlaceholders(
         (response as any).suggestion ?? '',
       );
       setDraft(cleanedSuggestion);
+      toast.success('AI reply generated');
     } catch (error: any) {
       toast.error(error.message ?? 'Failed to generate AI reply');
     }
@@ -425,105 +503,94 @@ export default function InboxPage() {
     }
     setIsRefreshing(true);
     try {
-      const tasks: Array<Promise<unknown>> = [
-        inboxBootstrap.refetch(), // Refetch orders and email limit
-        unassignedQuery.refetch(), // Refetch unassigned messages
-      ];
-      if (shop) {
-        tasks.push(recentOrders.refetch());
-      }
-      if (selectedOrderId) {
-        tasks.push(messages.refetch());
-        if (shop) {
-          tasks.push(orderDetail.refetch());
-        }
-      }
-      await Promise.all(tasks);
-      toast.success('Inbox data refreshed');
+      await Promise.all([inboxBootstrap.refetch(), unassignedQuery.refetch()]);
+      toast.success('Inbox refreshed');
     } catch (error: any) {
-      toast.error(error?.message ?? 'Failed to refresh data');
+      toast.error(error?.message ?? 'Failed to refresh');
     } finally {
       refreshTimer.current = setTimeout(() => {
         setIsRefreshing(false);
       }, 400);
     }
-  }, [
-    shop,
-    selectedOrderId,
-    inboxBootstrap.refetch,
-    unassignedQuery.refetch,
-    recentOrders.refetch,
-    messages.refetch,
-    orderDetail.refetch,
-  ]);
+  }, [inboxBootstrap, unassignedQuery, toast]);
 
   const handleSendReply = async () => {
-    if (!selectedEmail || !selectedOrder) return;
-    const inboundEmail = extractEmailAddress(selectedEmail.from);
-    const orderEmail = extractEmailAddress(selectedOrder.email);
-    const recipientEmail = inboundEmail ?? orderEmail;
+    if (!selectedEmail || !draft.trim()) return;
+
+    const recipientEmail = extractEmailAddress(selectedEmail.from);
+    if (!recipientEmail) {
+      toast.error('No valid recipient email found.');
+      return;
+    }
+
+    if (emailLimit.data && !emailLimit.data.allowed) {
+      toast.error(
+        `Email limit reached (${emailLimit.data.current}/${emailLimit.data.limit}). Please upgrade.`,
+      );
+      return;
+    }
+
+    try {
+      await sendUnassignedReply.mutateAsync({
+        messageId: selectedEmail.id,
+        replyBody: draft,
+      });
+
+      setRepliedMessageIds((prev) => new Set(prev).add(selectedEmail.id));
+      setDraft('');
+
+      // Auto-select next email
+      const currentIndex = filteredEmails.findIndex(
+        (e) => e.id === selectedEmail.id,
+      );
+      const nextEmail = filteredEmails[currentIndex + 1];
+      if (nextEmail) {
+        handleSelectEmail(nextEmail);
+      }
+    } catch (error: any) {
+      toast.error(error.message ?? 'Failed to send reply');
+    }
+  };
+
+  const handleSendOrderReply = async () => {
+    if (!selectedOrderId || !draft.trim()) return;
+
+    const order = ordersAccum.find((o) => o.shopifyId === selectedOrderId);
+    if (!order) return;
+
+    const recipientEmail = extractEmailAddress(order.email);
     if (!recipientEmail) {
       toast.error('No valid recipient email found for this order.');
       return;
     }
+
     if (emailLimit.data && !emailLimit.data.allowed) {
-      toast.error(
-        `Email limit reached (${emailLimit.data.current}/${emailLimit.data.limit}). Please upgrade to continue.`,
-      );
+      toast.error(`Email limit reached. Please upgrade.`);
       return;
     }
-    const currentOrderId = selectedOrder.shopifyId;
+
     try {
       const action = await createAction.mutateAsync({
         shop,
-        shopifyOrderId: selectedOrder.shopifyId,
+        shopifyOrderId: order.shopifyId,
         email: recipientEmail,
         type: 'INFO_REQUEST',
         note: 'Manual approval',
         draft,
       });
+
       const result = await approveSend.mutateAsync({
         actionId: action.actionId,
         to: recipientEmail,
-        subject: selectedEmail.subject ?? `Re: ${selectedOrder.name}`,
+        subject: `Re: ${order.name || 'Your Order'}`,
         body: draft,
       });
+
       if (result.ok) {
-        // Mark this order as replied
-        setRepliedOrderIds((prev) => new Set(prev).add(currentOrderId));
-
-        if ((result as any).stub)
-          toast.warning('Reply logged (Mailgun not configured)');
-        else toast.success('Reply sent successfully');
-
-        // Refetch data to get updated messages
-        const [ordersResult] = await Promise.all([
-          inboxBootstrap.refetch(), // Single refetch updates orders, unassigned, and emailLimit
-          messages.refetch(),
-        ]);
-
-        // Find next order that needs a reply (use updated repliedOrderIds)
-        const updatedRepliedIds = new Set([...repliedOrderIds, currentOrderId]);
-        const allOrders = (ordersResult.data?.orders ?? []) as DbOrder[];
-        const nextOrder = allOrders.find(
-          (order) =>
-            order.shopifyId !== currentOrderId &&
-            !updatedRepliedIds.has(order.shopifyId),
-        );
-
-        if (nextOrder) {
-          // Move to next order
-          setSelectedOrderId(nextOrder.shopifyId);
-          setDraft('');
-          setUnlinkedSuggestion(null);
-        } else {
-          // No more orders needing replies - close modal and clear draft
-          setSelectedOrderId(null);
-          setSelectedUnlinkedId(null);
-          setDraft('');
-          setUnlinkedSuggestion(null);
-          toast.success('All emails have been replied to!');
-        }
+        toast.success('Reply sent successfully');
+        setDraft('');
+        inboxBootstrap.refetch();
+        orderMessages.refetch();
       } else {
         toast.error(`Failed to send: ${(result as any).error}`);
       }
@@ -532,808 +599,995 @@ export default function InboxPage() {
     }
   };
 
-  const handleSendUnlinkedReply = async (message: any) => {
-    const currentMessageId = message.id;
-    try {
-      await sendUnassignedReply.mutateAsync({
-        messageId: message.id,
-        replyBody: draft || message.aiSuggestion?.reply || '',
-      });
-
-      // Mark this message as replied
-      setRepliedMessageIds((prev) => new Set(prev).add(currentMessageId));
-
-      // Refetch unassigned messages
-      const messagesResult = await unassignedQuery.refetch();
-
-      // Find next unassigned message that needs a reply (use updated repliedMessageIds)
-      const updatedRepliedMessageIds = new Set([
-        ...repliedMessageIds,
-        currentMessageId,
-      ]);
-      const allMessages = (messagesResult.data?.messages ??
-        []) as UnassignedMessage[];
-      const nextMessage = allMessages.find(
-        (msg) =>
-          msg.id !== currentMessageId && !updatedRepliedMessageIds.has(msg.id),
-      );
-
-      if (nextMessage) {
-        // Move to next message
-        setSelectedUnlinkedId(nextMessage.id);
-        setDraft('');
-        setUnlinkedSuggestion(null);
-      } else {
-        // No more messages needing replies - close modal and clear draft
-        setSelectedUnlinkedId(null);
-        setSelectedOrderId(null);
-        setDraft('');
-        setUnlinkedSuggestion(null);
-        toast.success('All unassigned emails have been replied to!');
-      }
-    } catch (error: any) {
-      toast.error(error.message ?? 'Reply failed');
-    }
-  };
+  // =============================================================================
+  // RENDER
+  // =============================================================================
 
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
-      <div className="min-h-screen bg-white pt-32 md:pt-36">
-        <header className="relative border-b border-slate-200/70 bg-white">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-slate-900 to-slate-700 text-sm font-bold text-white">
-                ZY
-              </div>
-              <div>
-                <p className="text-xs text-slate-500">Zyyp</p>
-                <p className="text-sm font-semibold tracking-tight text-slate-900">
-                  Support AI Dashboard
-                </p>
+
+      <div className="min-h-screen bg-[#f8f6f3] pt-20">
+        {/* Top Bar */}
+        <div className="fixed top-16 left-0 right-0 z-40 bg-[#f8f6f3] border-b border-stone-200/60">
+          <div className="flex items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-6">
+              {/* Tab Switcher */}
+              <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-sm">
+                <button
+                  onClick={() => setView('inbox')}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                    view === 'inbox'
+                      ? 'bg-stone-900 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Inbox className="h-4 w-4" />
+                  Inbox
+                  {allEmails.length > 0 && (
+                    <span
+                      className={`ml-1 rounded-full px-2 py-0.5 text-xs ${
+                        view === 'inbox' ? 'bg-white/20' : 'bg-stone-100'
+                      }`}
+                    >
+                      {allEmails.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setView('orders')}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                    view === 'orders'
+                      ? 'bg-stone-900 text-white shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <ShoppingBag className="h-4 w-4" />
+                  Orders
+                  {ordersAccum.length > 0 && (
+                    <span
+                      className={`ml-1 rounded-full px-2 py-0.5 text-xs ${
+                        view === 'orders' ? 'bg-white/20' : 'bg-stone-100'
+                      }`}
+                    >
+                      {ordersAccum.length}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-3 text-sm">
+
+            <div className="flex items-center gap-3">
+              {/* Email Usage */}
+              {emailLimit.data && (
+                <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm shadow-sm">
+                  <Mail className="h-4 w-4 text-stone-400" />
+                  <span className="text-stone-600">
+                    {emailLimit.data.current}/{emailLimit.data.limit}
+                  </span>
+                  <div className="h-2 w-16 rounded-full bg-stone-100 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 transition-all"
+                      style={{
+                        width: `${Math.min(100, emailLimit.data.percentage)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Refresh Button */}
               <Button
                 variant="outline"
-                className="rounded-full border-slate-200 text-xs text-slate-600"
+                size="sm"
                 onClick={handleRefreshAll}
                 disabled={isRefreshing}
+                className="rounded-lg border-stone-200 bg-white text-stone-600 hover:bg-stone-50 shadow-sm"
               >
-                <span className="flex items-center gap-2">
-                  <RefreshCw
-                    className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-                  />
-                  {isRefreshing ? 'Refreshing…' : 'Refresh'}
-                </span>
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+                {isRefreshing ? 'Refreshing' : 'Refresh'}
               </Button>
             </div>
           </div>
-        </header>
-
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-6 inline-flex rounded-2xl border border-slate-200 bg-white p-1 text-sm shadow-sm">
-            {(['orders', 'unlinked'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => {
-                  setView(tab);
-                  if (tab === 'unlinked') setSelectedOrderId(null);
-                }}
-                className={`rounded-xl px-4 py-2 font-semibold transition ${
-                  view === tab
-                    ? 'bg-slate-900 text-white shadow'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-              >
-                {tab === 'orders' ? 'Orders' : 'Unmatched emails'}
-              </button>
-            ))}
-          </div>
-
-          <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {metrics.map((metric) => (
-              <Card
-                key={metric.title}
-                className="flex flex-col gap-2 border border-slate-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  <span>{metric.title}</span>
-                  {metric.icon}
-                </div>
-                <p className="text-2xl font-semibold text-slate-900">
-                  {metric.value}
-                </p>
-                <span className="text-xs text-emerald-500">
-                  {metric.change}
-                </span>
-              </Card>
-            ))}
-          </section>
-
-          {view === 'orders' ? (
-            <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-              <Card className="border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Orders
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <ListChecks className="h-4 w-4" />
-                    synced{' '}
-                    {recentOrders.isLoading
-                      ? 'loading…'
-                      : `${recentOrders.data?.orders?.length ?? 0}`}{' '}
-                    records
-                  </div>
-                </div>
-                <div className="divide-y divide-slate-200">
-                  {ordersPage.isLoading && ordersOffset === 0 ? (
-                    <div className="space-y-2 p-4">
-                      {[1, 2, 3, 4].map((key) => (
-                        <OrderCardSkeleton key={key} />
-                      ))}
-                    </div>
-                  ) : linkedPreviews.length ? (
-                    linkedPreviews.map(({ order, preview }) => {
-                      const isReplied = repliedOrderIds.has(order.shopifyId);
-                      return (
-                        <button
-                          key={order.shopifyId}
-                          type="button"
-                          onClick={() => handleSelectOrder(order)}
-                          className={`grid w-full grid-cols-[1.2fr,1.4fr,1fr,1fr] items-center gap-3 px-4 py-4 text-left transition ${
-                            selectedOrderId === order.shopifyId
-                              ? 'bg-slate-50'
-                              : 'hover:bg-slate-50/60'
-                          } ${isReplied ? 'opacity-60' : ''} ${
-                            order.pendingEmailCount &&
-                            order.pendingEmailCount > 0
-                              ? 'border-l-4 border-l-emerald-500'
-                              : ''
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            {isReplied && (
-                              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                            )}
-                            <div>
-                              <div className="font-semibold tracking-tight text-slate-900">
-                                {order.name || `#${order.shopifyId}`}
-                              </div>
-                              <div className="text-xs text-slate-500">
-                                {new Date(order.createdAt).toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-600">
-                              {order.email ?? 'No email'}
-                            </p>
-                            <p className="mt-1 inline-flex items-center gap-2 text-xs text-slate-500">
-                              <DollarSign className="h-3 w-3" />
-                              {formatCurrency(order.totalAmount)}
-                            </p>
-                          </div>
-                          <div>
-                            <Badge
-                              className={`text-xs font-semibold ${
-                                STATUS_COLORS[
-                                  order.status as keyof typeof STATUS_COLORS
-                                ] ?? STATUS_COLORS.default
-                              }`}
-                            >
-                              {order.status || 'PENDING'}
-                            </Badge>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {recentOrders.data?.orders?.find(
-                                (o: any) => o.id === order.shopifyId,
-                              )?.fulfillmentStatus ?? '—'}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {order.pendingEmailCount &&
-                              order.pendingEmailCount > 0 && (
-                                <div className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                              )}
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">
-                                {order.pendingEmailCount &&
-                                order.pendingEmailCount > 0
-                                  ? `${order.pendingEmailCount} ${order.pendingEmailCount === 1 ? 'email' : 'emails'} pending reply`
-                                  : (preview?.subject ?? 'No pending emails')}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {order.pendingEmailCount &&
-                                order.pendingEmailCount > 0
-                                  ? 'Needs attention'
-                                  : relativeTime(preview?.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div className="p-8 text-center text-sm text-slate-500">
-                      Connect your Shopify store to populate orders.
-                    </div>
-                  )}
-                </div>
-                {linkedPreviews.length > 0 && (
-                  <div className="px-4 py-3">
-                    <Button
-                      variant="outline"
-                      className="w-full rounded-full border-slate-200 text-sm text-slate-600"
-                      onClick={() => setOrdersOffset(orders.length)}
-                      disabled={ordersPage.isFetching || !hasMoreOrders}
-                    >
-                      {ordersPage.isFetching
-                        ? 'Loading…'
-                        : hasMoreOrders
-                          ? 'Load more'
-                          : 'No more orders'}
-                    </Button>
-                  </div>
-                )}
-              </Card>
-
-              <aside className="space-y-4">
-                <Card className="border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="flex items-center justify-between text-sm text-slate-500">
-                    <span>Live status</span>
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-600">
-                      Active
-                    </span>
-                  </div>
-                  <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {orders.length}
-                  </p>
-                  <p className="text-xs text-slate-500">Orders available</p>
-                </Card>
-                <Card className="border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Unmatched emails</div>
-                  <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {unassigned.data?.messages?.length ?? 0}
-                  </p>
-                  <p className="text-xs text-slate-500">Need triage</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4 w-full rounded-full border-slate-200 text-xs text-slate-600"
-                    onClick={() => setView('unlinked')}
-                  >
-                    Review now
-                  </Button>
-                </Card>
-                <Card className="border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Email usage</div>
-                  <p className="mt-4 text-3xl font-semibold text-slate-900">
-                    {emailLimit.data
-                      ? `${emailLimit.data.current}/${emailLimit.data.limit}`
-                      : '—'}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Messages sent this period
-                  </p>
-                  {emailLimit.data && !emailLimit.data.allowed && (
-                    <UpgradePrompt
-                      usagePercentage={emailLimit.data.percentage}
-                      currentUsage={emailLimit.data.current}
-                      limit={emailLimit.data.limit}
-                      planName={
-                        emailLimit.data.planType
-                          ? emailLimit.data.planType
-                              .toLowerCase()
-                              .replace(/^\w/, (c) => c.toUpperCase())
-                          : 'Current'
-                      }
-                      variant="inline"
-                      isTrial={emailLimit.data.trial?.isTrial ?? false}
-                      trialExpired={emailLimit.data.trial?.expired ?? false}
-                      trialDaysRemaining={
-                        emailLimit.data.trial?.daysRemaining ?? null
-                      }
-                    />
-                  )}
-                </Card>
-              </aside>
-            </div>
-          ) : (
-            <Card className="border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div className="text-sm font_semibold text-slate-900">
-                  Unmatched emails
-                </div>
-                <div className="text-xs text-slate-500">
-                  {unassigned.data?.messages?.length ?? 0} awaiting mapping
-                </div>
-              </div>
-              <div className="divide-y divide-slate-200">
-                {unassigned.isLoading ? (
-                  <div className="space-y-4 p-4">
-                    {[1, 2, 3].map((key) => (
-                      <UnassignedEmailSkeleton key={key} />
-                    ))}
-                  </div>
-                ) : (unassigned.data?.messages ?? []).length ? (
-                  (
-                    (unassigned.data?.messages ?? []) as UnassignedMessage[]
-                  ).map((message) => {
-                    const isReplied = repliedMessageIds.has(message.id);
-                    return (
-                      <div
-                        key={message.id}
-                        className={`grid grid-cols-[2fr,1fr,1fr] items-center gap-3 px-4 py-4 ${isReplied ? 'opacity-60' : ''}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {isReplied && (
-                            <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                          )}
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {message.subject ?? 'No subject'}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              From: {message.from}
-                            </p>
-                            <p className="mt-2 line-clamp-2 text-xs text-slate-500">
-                              {message.body}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {new Date(message.createdAt).toLocaleString()}
-                        </div>
-                        <div className="flex flex-col gap-2 text-xs">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="rounded-full border-slate-200 text-slate-600"
-                            onClick={() => {
-                              setSelectedUnlinkedId(message.id);
-                              setSelectedOrderId(null);
-                              setUnlinkedSuggestion(
-                                message.aiSuggestion ?? null,
-                              );
-                              setDraft(message.aiSuggestion?.reply ?? '');
-                            }}
-                          >
-                            Preview
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="rounded-full bg-slate-900 text-white"
-                            disabled={sendUnassignedReply.isPending}
-                            onClick={() => handleSendUnlinkedReply(message)}
-                          >
-                            {sendUnassignedReply.isPending
-                              ? 'Sending…'
-                              : 'Send AI reply'}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center text-sm text-slate-500">
-                    All emails are mapped. Great job! 🎉
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
         </div>
-      </div>
 
-      {(selectedOrder || selectedUnlinkedEmail) && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center px-4 py-10">
-          <div
-            className="modal-overlay absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
-            onClick={() => {
-              setSelectedOrderId(null);
-              setSelectedUnlinkedId(null);
-              setDraft('');
-              setUnlinkedSuggestion(null);
-            }}
-          />
-          <div className="modal-container relative z-10 flex h-full w-full max-w-6xl min-h-[70vh] flex-col overflow-hidden rounded-[2.25rem] border border-slate-200 bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
-                  Inspector
-                </p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">
-                  {selectedOrder
-                    ? (selectedOrder.name ?? `#${selectedOrder.shopifyId}`)
-                    : (selectedUnlinkedEmail?.subject ??
-                      selectedUnlinkedEmail?.thread?.subject ??
-                      'Unmatched email')}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {new Date(
-                    selectedOrder
-                      ? selectedOrder.createdAt
-                      : (selectedUnlinkedEmail?.createdAt ?? Date.now()),
-                  ).toLocaleString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {selectedOrder && (
-                  <Badge
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      STATUS_COLORS[
-                        selectedOrder.status as keyof typeof STATUS_COLORS
-                      ] ?? STATUS_COLORS.default
-                    }`}
-                  >
-                    {selectedOrder.status}
-                  </Badge>
-                )}
-                <Button
-                  variant="outline"
-                  className="rounded-full border-slate-200 text-xs font-semibold text-slate-600"
-                  onClick={() => {
-                    setSelectedOrderId(null);
-                    setSelectedUnlinkedId(null);
-                    setDraft('');
-                    setUnlinkedSuggestion(null);
-                  }}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-6">
-              {selectedOrder && (
-                <div className="space-y-5">
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between text-sm text-slate-500">
-                      <span>Order details</span>
-                      <Badge
-                        className={`text-xs font-semibold ${
-                          STATUS_COLORS[
-                            selectedOrder.status as keyof typeof STATUS_COLORS
-                          ] ?? STATUS_COLORS.default
-                        }`}
-                      >
-                        {selectedOrder.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm text-slate-600">
-                      <div className="flex items-center justify-between">
-                        <span>Order ID</span>
-                        <span className="font-semibold text-slate-900">
-                          {selectedOrder.name ?? `#${selectedOrder.shopifyId}`}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Email</span>
-                        <span>{selectedOrder.email ?? 'Unavailable'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Placed</span>
-                        <span>
-                          {new Date(selectedOrder.createdAt).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span>Total</span>
-                        <span className="font-semibold text-slate-900">
-                          {formatCurrency(selectedOrder.totalAmount)}
-                        </span>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      className="mt-4 w-full rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black"
-                      onClick={() =>
-                        refreshOrder.mutate({
-                          shop,
-                          orderId: selectedOrderId ?? '',
-                        })
+        {/* Main Content */}
+        <div className="pt-16 px-4 pb-6">
+          <div className="mx-auto max-w-[1600px]">
+            <div className="flex gap-4 h-[calc(100vh-180px)]">
+              {/* ============================================================= */}
+              {/* LEFT PANEL - Email/Order List */}
+              {/* ============================================================= */}
+              <div className="w-80 flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+                {/* Search Header */}
+                <div className="p-4 border-b border-stone-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-stone-900">
+                      {view === 'inbox' ? 'All Inbox' : 'All Orders'}
+                    </span>
+                    <button className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700">
+                      Newest
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                    <input
+                      type="text"
+                      placeholder={
+                        view === 'inbox'
+                          ? 'Search messages...'
+                          : 'Search orders...'
                       }
-                      disabled={refreshOrder.isPending}
-                    >
-                      <RefreshCw
-                        className={`mr-2 h-4 w-4 ${
-                          refreshOrder.isPending ? 'animate-spin' : ''
-                        }`}
-                      />
-                      {refreshOrder.isPending
-                        ? 'Syncing…'
-                        : 'Refresh from Shopify'}
-                    </Button>
-                  </Card>
-
-                  {orderDetail.isLoading && <OrderDetailSkeleton />}
-
-                  {orderDetail.data?.order && (
-                    <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                      <div className="text-sm font-semibold text-slate-900">
-                        Items
-                      </div>
-                      <div className="mt-3 space-y-3">
-                        {(orderDetail.data.order.lineItems ?? []).map(
-                          (item: any) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center justify-between text-sm text-slate-600"
-                            >
-                              <div>
-                                <p className="font-semibold text-slate-900">
-                                  {item.title}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  Qty {item.quantity}
-                                </p>
-                              </div>
-                              <span>{item.price}</span>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    </Card>
-                  )}
-
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-slate-900">
-                        AI suggestion
-                      </div>
-                      {aiSuggestion && (
-                        <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
-                          {Math.round((aiSuggestion.confidence ?? 0) * 100)}%
-                          confidence
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-3 text-sm text-slate-600">
-                      {aiSuggestion?.rationale ??
-                        'Select "Generate AI reply" to analyse the latest customer email.'}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                      <Button
-                        size="sm"
-                        className="rounded-full bg-slate-900 text-white"
-                        onClick={() =>
-                          handleGenerateAi(selectedEmail, selectedOrder)
-                        }
-                        disabled={suggest.isPending}
-                      >
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full border-slate-200 text-slate-600"
-                        onClick={() =>
-                          setDraft(
-                            cleanPlaceholders(aiSuggestion?.reply ?? draft),
-                          )
-                        }
-                      >
-                        Use suggestion
-                      </Button>
-                    </div>
-                  </Card>
-
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="mb-2 text-sm font-semibold text-slate-900">
-                      Reply draft
-                    </div>
-                    <textarea
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      rows={10}
-                      placeholder="AI generated reply will appear here."
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full rounded-xl bg-stone-50 border-0 py-2.5 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-200"
                     />
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
-                        onClick={handleSendReply}
-                        disabled={
-                          !draft ||
-                          createAction.isPending ||
-                          approveSend.isPending
-                        }
-                      >
-                        {createAction.isPending || approveSend.isPending ? (
-                          <>
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                            Sending…
-                          </>
-                        ) : (
-                          <>
-                            Send email
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-slate-200 text-sm text-slate-600"
-                      >
-                        Copy
-                      </Button>
-                    </div>
-                  </Card>
+                  </div>
+                </div>
 
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <MessageSquare className="h-4 w-4" /> Thread
+                {/* List */}
+                <ScrollArea className="flex-1">
+                  {view === 'inbox' ? (
+                    // Email List
+                    unassignedQuery.isLoading ? (
+                      <EmailListSkeleton />
+                    ) : filteredEmails.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
+                          <Inbox className="h-6 w-6 text-stone-400" />
+                        </div>
+                        <p className="text-sm font-medium text-stone-900">
+                          No emails found
+                        </p>
+                        <p className="text-xs text-stone-500 mt-1">
+                          {searchQuery
+                            ? 'Try a different search'
+                            : 'Your inbox is empty'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-stone-50">
+                        {filteredEmails.map((email) => {
+                          const isReplied = repliedMessageIds.has(email.id);
+                          const isSelected = selectedEmailId === email.id;
+                          const senderName = getSenderName(email.from);
+                          const hasAiSuggestion = !!email.aiSuggestion?.reply;
+
+                          return (
+                            <button
+                              key={email.id}
+                              onClick={() => handleSelectEmail(email)}
+                              className={`w-full flex items-start gap-3 p-4 text-left transition-all hover:bg-stone-50 ${
+                                isSelected ? 'bg-stone-100' : ''
+                              } ${isReplied ? 'opacity-60' : ''}`}
+                            >
+                              {/* Avatar */}
+                              <div
+                                className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(email.from)}`}
+                              >
+                                {getInitials(null, email.from)}
+                              </div>
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <span className="text-sm font-semibold text-stone-900 truncate">
+                                    {senderName}
+                                  </span>
+                                  <span className="text-xs text-stone-500 flex-shrink-0 ml-2">
+                                    {relativeTime(email.createdAt)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-stone-600 truncate mb-1">
+                                  {email.subject || 'No subject'}
+                                </p>
+                                <p className="text-xs text-stone-500 line-clamp-1">
+                                  {email.snippet || email.body?.slice(0, 80)}
+                                </p>
+
+                                {/* Indicators */}
+                                <div className="flex items-center gap-2 mt-2">
+                                  {hasAiSuggestion && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
+                                      <Sparkles className="h-3 w-3" />
+                                      AI ready
+                                    </span>
+                                  )}
+                                  {isReplied && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                                      <CheckCircle className="h-3 w-3" />
+                                      Replied
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
+                  ) : // Order List
+                  ordersPage.isLoading && ordersOffset === 0 ? (
+                    <EmailListSkeleton />
+                  ) : ordersAccum.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
+                        <ShoppingBag className="h-6 w-6 text-stone-400" />
+                      </div>
+                      <p className="text-sm font-medium text-stone-900">
+                        No orders found
+                      </p>
+                      <p className="text-xs text-stone-500 mt-1">
+                        Connect your Shopify store
+                      </p>
                     </div>
-                    <div className="mt-3 space-y-3">
-                      {(messages.data?.messages ?? []).length ? (
-                        (messages.data?.messages as any[]).map((message) => (
-                          <Fragment key={message.id}>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <div className="flex items-center justify-between text-xs text-slate-500">
-                                <Badge
-                                  className={`border ${
-                                    message.direction === 'INBOUND'
-                                      ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
-                                      : 'border-sky-100 bg-sky-50 text-sky-600'
-                                  }`}
-                                >
-                                  {message.direction}
-                                </Badge>
-                                <span>
-                                  {new Date(message.createdAt).toLocaleString()}
+                  ) : (
+                    <div className="divide-y divide-stone-50">
+                      {ordersAccum.map((order) => {
+                        const isSelected = selectedOrderId === order.shopifyId;
+                        const hasPendingEmails =
+                          order.pendingEmailCount &&
+                          order.pendingEmailCount > 0;
+
+                        return (
+                          <button
+                            key={order.shopifyId}
+                            onClick={() => handleSelectOrder(order)}
+                            className={`w-full flex items-start gap-3 p-4 text-left transition-all hover:bg-stone-50 ${
+                              isSelected ? 'bg-stone-100' : ''
+                            }`}
+                          >
+                            {/* Avatar */}
+                            <div
+                              className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(order.email || order.shopifyId)}`}
+                            >
+                              {getInitials(order.name, order.email)}
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <span className="text-sm font-semibold text-stone-900 truncate">
+                                  {order.name ||
+                                    `Order ${order.shopifyId.slice(-6)}`}
+                                </span>
+                                <span className="text-xs text-stone-500 flex-shrink-0 ml-2">
+                                  {relativeTime(order.createdAt)}
                                 </span>
                               </div>
-                              <Separator className="my-2 bg-slate-200" />
-                              <p className="text-sm text-slate-600 whitespace-pre-wrap">
-                                {message.body}
+                              <p className="text-xs text-stone-600 truncate mb-1">
+                                {order.email || 'No email'}
                               </p>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  className={`text-xs ${STATUS_COLORS[order.status] || STATUS_COLORS.default}`}
+                                >
+                                  {order.status}
+                                </Badge>
+                                <span className="text-xs text-stone-500">
+                                  {formatCurrency(order.totalAmount)}
+                                </span>
+                              </div>
+
+                              {/* Email indicator */}
+                              {hasPendingEmails && (
+                                <div className="flex items-center gap-1 mt-2">
+                                  <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
+                                  <span className="text-xs text-orange-600">
+                                    {order.pendingEmailCount} email
+                                    {(order.pendingEmailCount ?? 0) > 1
+                                      ? 's'
+                                      : ''}{' '}
+                                    pending
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                          </Fragment>
-                        ))
-                      ) : (
-                        <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                          No emails linked yet. Generate a reply to get started.
-                        </p>
+                          </button>
+                        );
+                      })}
+
+                      {/* Load More */}
+                      {hasMoreOrders && (
+                        <div className="p-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full rounded-xl"
+                            onClick={() => setOrdersOffset(ordersAccum.length)}
+                            disabled={ordersPage.isFetching}
+                          >
+                            {ordersPage.isFetching ? 'Loading...' : 'Load more'}
+                          </Button>
+                        </div>
                       )}
                     </div>
-                  </Card>
-                </div>
-              )}
+                  )}
+                </ScrollArea>
+              </div>
 
-              {selectedUnlinkedEmail && (
-                <div className="space-y-5">
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="text-sm font-semibold text-slate-900">
-                      Email preview
-                    </div>
-                    <p className="mt-2 text-xs text-slate-500">
-                      From: {selectedUnlinkedEmail.from} ·{' '}
-                      {new Date(
-                        selectedUnlinkedEmail.createdAt,
-                      ).toLocaleString()}
-                    </p>
-                    <p className="mt-3 text-sm text-slate-600 whitespace-pre-wrap">
-                      {selectedUnlinkedEmail.body}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full border-slate-200 text-slate-600"
-                        onClick={() => {
-                          setSelectedUnlinkedId(null);
-                          setUnlinkedSuggestion(null);
-                          setDraft('');
-                        }}
-                      >
-                        Close preview
-                      </Button>
-                    </div>
-                  </Card>
-
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-slate-900">
-                        AI suggestion
+              {/* ============================================================= */}
+              {/* CENTER PANEL - Conversation / Email Detail */}
+              {/* ============================================================= */}
+              <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+                {view === 'inbox' && selectedEmail ? (
+                  <>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(selectedEmail.from)}`}
+                        >
+                          {getInitials(null, selectedEmail.from)}
+                        </div>
+                        <div>
+                          <h2 className="text-sm font-semibold text-stone-900">
+                            {getSenderName(selectedEmail.from)}
+                          </h2>
+                          <p className="text-xs text-stone-500">
+                            {extractEmailAddress(selectedEmail.from)}
+                          </p>
+                        </div>
                       </div>
-                      {((unlinkedSuggestion as any)?.confidence ??
-                        selectedUnlinkedEmail.aiSuggestion?.confidence) && (
-                        <Badge className="border border-indigo-100 bg-indigo-50 text-indigo-600">
-                          {Math.round(
-                            ((unlinkedSuggestion as any)?.confidence ??
-                              selectedUnlinkedEmail.aiSuggestion?.confidence) *
-                              100,
-                          )}
-                          % confidence
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-3 text-sm text-slate-600">
-                      {(unlinkedSuggestion as any)?.rationale ??
-                        selectedUnlinkedEmail.aiSuggestion?.rationale ??
-                        'Generate a reply to analyse this email.'}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                      <Button
-                        size="sm"
-                        className="rounded-full bg-slate-900 text-white"
-                        onClick={() => handleGenerateAi(selectedUnlinkedEmail)}
-                        disabled={suggest.isPending}
-                      >
-                        {suggest.isPending ? 'Analysing…' : 'Generate AI reply'}
-                      </Button>
-                      {(unlinkedSuggestion as any)?.draftReply ||
-                      selectedUnlinkedEmail.aiSuggestion?.reply ? (
+                      <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-full border-slate-200 text-slate-600"
-                          onClick={() =>
-                            setDraft(
-                              cleanPlaceholders(
-                                (unlinkedSuggestion as any)?.draftReply ??
-                                  selectedUnlinkedEmail.aiSuggestion?.reply ??
-                                  '',
-                              ),
-                            )
-                          }
+                          className="rounded-lg text-xs"
                         >
-                          Use suggestion
+                          <BellOff className="h-3.5 w-3.5 mr-1.5" />
+                          Snooze
                         </Button>
-                      ) : null}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-lg"
+                        >
+                          <MoreVertical className="h-4 w-4 text-stone-500" />
+                        </Button>
+                      </div>
                     </div>
-                  </Card>
 
-                  <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="text-sm font-semibold text-slate-900">
-                      Reply draft
+                    {/* Conversation Area */}
+                    <ScrollArea className="flex-1 p-6">
+                      {/* Date Header */}
+                      <div className="flex items-center justify-center mb-6">
+                        <button className="flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-200 transition">
+                          {formatDateHeader(selectedEmail.createdAt)}
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+                      </div>
+
+                      {/* Message */}
+                      <div className="flex items-start gap-3 mb-6">
+                        <div
+                          className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(selectedEmail.from)}`}
+                        >
+                          {getInitials(null, selectedEmail.from)}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-stone-900">
+                              {getSenderName(selectedEmail.from)}
+                            </span>
+                            <span className="text-xs text-stone-500">
+                              {formatTime(selectedEmail.createdAt)}
+                            </span>
+                          </div>
+                          {selectedEmail.subject && (
+                            <p className="text-sm font-medium text-stone-800 mb-2">
+                              {selectedEmail.subject}
+                            </p>
+                          )}
+                          <div className="rounded-2xl rounded-tl-none bg-stone-100 p-4">
+                            <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">
+                              {selectedEmail.body}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AI Suggestion Section */}
+                      {(selectedEmail.aiSuggestion || draft) && (
+                        <div className="mt-6 pt-6 border-t border-stone-100">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="h-4 w-4 text-violet-500" />
+                            <span className="text-sm font-semibold text-stone-900">
+                              AI Suggested Reply
+                            </span>
+                            {selectedEmail.aiSuggestion?.confidence && (
+                              <Badge className="bg-violet-100 text-violet-700 text-xs">
+                                {Math.round(
+                                  selectedEmail.aiSuggestion.confidence * 100,
+                                )}
+                                % confidence
+                              </Badge>
+                            )}
+                          </div>
+
+                          {selectedEmail.aiSuggestion?.rationale && (
+                            <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
+                              <strong>Analysis:</strong>{' '}
+                              {selectedEmail.aiSuggestion.rationale}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </ScrollArea>
+
+                    {/* Reply Input */}
+                    <div className="p-4 border-t border-stone-100">
+                      <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300 focus-within:border-stone-300">
+                        <textarea
+                          ref={messageInputRef}
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          placeholder="Write a message..."
+                          rows={4}
+                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                        />
+                        <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
+                          <div className="flex items-center gap-2">
+                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                              <Paperclip className="h-4 w-4" />
+                            </button>
+                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                              <AtSign className="h-4 w-4" />
+                            </button>
+                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                              <Smile className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={handleGenerateAi}
+                              disabled={suggest.isPending}
+                              className="rounded-lg text-xs"
+                            >
+                              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                              {suggest.isPending ? 'Generating...' : 'AI Reply'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleSendReply}
+                              disabled={
+                                !draft.trim() || sendUnassignedReply.isPending
+                              }
+                              className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
+                            >
+                              {sendUnassignedReply.isPending ? (
+                                <>
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  Sending...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="h-3.5 w-3.5 mr-1.5" />
+                                  Send
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <textarea
-                      value={draft}
-                      onChange={(event) => setDraft(event.target.value)}
-                      rows={10}
-                      placeholder="AI generated reply will appear here."
-                      className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-none"
-                    />
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Button
-                        className="rounded-full bg-slate-900 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
-                        onClick={() =>
-                          handleSendUnlinkedReply(selectedUnlinkedEmail)
-                        }
-                        disabled={
-                          sendUnassignedReply.isPending ||
-                          (!draft && !selectedUnlinkedEmail.aiSuggestion?.reply)
-                        }
-                      >
-                        {sendUnassignedReply.isPending ? (
+                  </>
+                ) : view === 'orders' && selectedOrderId ? (
+                  // Order Detail View
+                  <>
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-stone-100 flex items-center justify-center">
+                          <ShoppingBag className="h-5 w-5 text-stone-600" />
+                        </div>
+                        <div>
+                          <h2 className="text-sm font-semibold text-stone-900">
+                            {ordersAccum.find(
+                              (o) => o.shopifyId === selectedOrderId,
+                            )?.name || `Order ${selectedOrderId.slice(-6)}`}
+                          </h2>
+                          <p className="text-xs text-stone-500">
+                            {ordersAccum.find(
+                              (o) => o.shopifyId === selectedOrderId,
+                            )?.email || 'No email'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            refreshOrder.mutate({
+                              shop,
+                              orderId: selectedOrderId,
+                            })
+                          }
+                          disabled={refreshOrder.isPending}
+                          className="rounded-lg text-xs"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 mr-1.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                          />
+                          Sync
+                        </Button>
+                      </div>
+                    </div>
+
+                    <ScrollArea className="flex-1 p-6">
+                      {/* Order Messages Thread */}
+                      {orderMessages.isLoading ? (
+                        <ConversationSkeleton />
+                      ) : (orderMessages.data?.messages ?? []).length > 0 ? (
+                        <div className="space-y-6">
+                          {(orderMessages.data?.messages as any[]).map(
+                            (message) => (
+                              <div
+                                key={message.id}
+                                className="flex items-start gap-3"
+                              >
+                                <div
+                                  className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${
+                                    message.direction === 'INBOUND'
+                                      ? getAvatarColor(
+                                          message.from || 'customer',
+                                        )
+                                      : 'bg-stone-900'
+                                  }`}
+                                >
+                                  {message.direction === 'INBOUND'
+                                    ? getInitials(null, message.from)
+                                    : 'ZY'}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm font-semibold text-stone-900">
+                                      {message.direction === 'INBOUND'
+                                        ? getSenderName(message.from)
+                                        : 'You'}
+                                    </span>
+                                    <span className="text-xs text-stone-500">
+                                      {formatTime(message.createdAt)}
+                                    </span>
+                                    <Badge
+                                      className={`text-xs ${
+                                        message.direction === 'INBOUND'
+                                          ? 'bg-emerald-100 text-emerald-700'
+                                          : 'bg-sky-100 text-sky-700'
+                                      }`}
+                                    >
+                                      {message.direction}
+                                    </Badge>
+                                  </div>
+                                  <div
+                                    className={`rounded-2xl p-4 ${
+                                      message.direction === 'INBOUND'
+                                        ? 'rounded-tl-none bg-stone-100'
+                                        : 'rounded-tr-none bg-stone-900 text-white'
+                                    }`}
+                                  >
+                                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                                      {message.body}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
+                            <MessageSquare className="h-6 w-6 text-stone-400" />
+                          </div>
+                          <p className="text-sm font-medium text-stone-900">
+                            No messages yet
+                          </p>
+                          <p className="text-xs text-stone-500 mt-1">
+                            Start a conversation with this customer
+                          </p>
+                        </div>
+                      )}
+                    </ScrollArea>
+
+                    {/* Reply Input for Orders */}
+                    <div className="p-4 border-t border-stone-100">
+                      <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300">
+                        <textarea
+                          value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          placeholder="Reply to customer..."
+                          rows={3}
+                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                        />
+                        <div className="flex items-center justify-end px-4 py-2 border-t border-stone-100 bg-white">
+                          <Button
+                            size="sm"
+                            onClick={handleSendOrderReply}
+                            disabled={
+                              !draft.trim() ||
+                              createAction.isPending ||
+                              approveSend.isPending
+                            }
+                            className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
+                          >
+                            {createAction.isPending || approveSend.isPending ? (
+                              <>
+                                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                Sending...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-3.5 w-3.5 mr-1.5" />
+                                Send Reply
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // Empty State
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                    <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
+                      {view === 'inbox' ? (
+                        <Mail className="h-8 w-8 text-stone-400" />
+                      ) : (
+                        <ShoppingBag className="h-8 w-8 text-stone-400" />
+                      )}
+                    </div>
+                    <h3 className="text-lg font-semibold text-stone-900 mb-1">
+                      {view === 'inbox'
+                        ? 'Select a conversation'
+                        : 'Select an order'}
+                    </h3>
+                    <p className="text-sm text-stone-500 max-w-sm">
+                      {view === 'inbox'
+                        ? 'Choose an email from the list to view the conversation and reply'
+                        : 'Choose an order to view details and communicate with the customer'}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* ============================================================= */}
+              {/* RIGHT PANEL - Profile / Order Details */}
+              {/* ============================================================= */}
+              <div className="w-80 flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+                {view === 'inbox' && selectedEmail ? (
+                  <>
+                    {/* Profile Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100">
+                      <span className="text-sm font-semibold text-stone-900">
+                        Profile
+                      </span>
+                      <button className="p-1 rounded-lg hover:bg-stone-100 transition">
+                        <X className="h-4 w-4 text-stone-400" />
+                      </button>
+                    </div>
+
+                    <ScrollArea className="flex-1">
+                      <div className="p-6">
+                        {/* Avatar & Name */}
+                        <div className="flex flex-col items-center text-center mb-6">
+                          <div
+                            className={`h-24 w-24 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4 ${getAvatarColor(selectedEmail.from)}`}
+                          >
+                            {getInitials(null, selectedEmail.from)}
+                          </div>
+                          <h3 className="text-lg font-semibold text-stone-900">
+                            {getSenderName(selectedEmail.from)}
+                          </h3>
+                          <p className="text-sm text-stone-500">Customer</p>
+                        </div>
+
+                        {/* Contact Info */}
+                        <div className="space-y-3 mb-6">
+                          <div className="flex items-center gap-3 text-sm">
+                            <div className="h-8 w-8 rounded-lg bg-stone-100 flex items-center justify-center">
+                              <AtSign className="h-4 w-4 text-stone-500" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-400">
+                                Email address
+                              </p>
+                              <p className="text-stone-900">
+                                {extractEmailAddress(selectedEmail.from)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <div className="h-8 w-8 rounded-lg bg-stone-100 flex items-center justify-center">
+                              <Clock className="h-4 w-4 text-stone-500" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-stone-400">
+                                First contact
+                              </p>
+                              <p className="text-stone-900">
+                                {new Date(
+                                  selectedEmail.createdAt,
+                                ).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Separator className="my-4" />
+
+                        {/* Linked Order */}
+                        <div className="mb-6">
+                          <h4 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                            <Package className="h-4 w-4" />
+                            Linked Order
+                          </h4>
+
+                          {linkedOrder ? (
+                            <div className="rounded-xl border border-stone-200 p-4 bg-stone-50">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-semibold text-stone-900">
+                                  {linkedOrder.name ||
+                                    `#${linkedOrder.shopifyId.slice(-6)}`}
+                                </span>
+                                <Badge
+                                  className={`text-xs ${STATUS_COLORS[linkedOrder.status] || STATUS_COLORS.default}`}
+                                >
+                                  {linkedOrder.status}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between text-xs text-stone-500">
+                                <span>
+                                  {formatCurrency(linkedOrder.totalAmount)}
+                                </span>
+                                <span>
+                                  {relativeTime(linkedOrder.createdAt)}
+                                </span>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-3 rounded-lg text-xs"
+                                onClick={() => {
+                                  setView('orders');
+                                  handleSelectOrder(linkedOrder);
+                                }}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1.5" />
+                                View Order
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-stone-200 p-4 text-center">
+                              <Package className="h-6 w-6 text-stone-300 mx-auto mb-2" />
+                              <p className="text-xs text-stone-500">
+                                No linked order found
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* AI Insights */}
+                        {selectedEmail.aiSuggestion && (
                           <>
-                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                            Sending…
-                          </>
-                        ) : (
-                          <>
-                            Send AI reply
-                            <ArrowRight className="ml-2 h-4 w-4" />
+                            <Separator className="my-4" />
+                            <div>
+                              <h4 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                                <Sparkles className="h-4 w-4 text-violet-500" />
+                                AI Insights
+                              </h4>
+                              <div className="rounded-xl bg-violet-50 p-4 text-sm text-violet-800">
+                                <p className="text-xs font-medium text-violet-600 mb-1">
+                                  Suggested Action
+                                </p>
+                                <p>
+                                  {selectedEmail.aiSuggestion.proposedAction ||
+                                    'Respond to inquiry'}
+                                </p>
+                              </div>
+                            </div>
                           </>
                         )}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="rounded-full border-slate-200 text-sm text-slate-600"
-                        onClick={() => navigator.clipboard.writeText(draft)}
-                      >
-                        Copy
-                      </Button>
+                      </div>
+                    </ScrollArea>
+                  </>
+                ) : view === 'orders' && selectedOrderId ? (
+                  // Order Details Panel
+                  <>
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100">
+                      <span className="text-sm font-semibold text-stone-900">
+                        Order Details
+                      </span>
+                      <button className="p-1 rounded-lg hover:bg-stone-100 transition">
+                        <X className="h-4 w-4 text-stone-400" />
+                      </button>
                     </div>
-                  </Card>
-                </div>
-              )}
+
+                    <ScrollArea className="flex-1">
+                      <div className="p-6">
+                        {orderDetail.isLoading ? (
+                          <div className="animate-pulse space-y-4">
+                            <div className="h-16 bg-stone-100 rounded-xl" />
+                            <div className="h-32 bg-stone-100 rounded-xl" />
+                            <div className="h-24 bg-stone-100 rounded-xl" />
+                          </div>
+                        ) : (
+                          <>
+                            {/* Order Summary */}
+                            <div className="rounded-xl border border-stone-200 p-4 mb-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-lg font-semibold text-stone-900">
+                                  {
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.name
+                                  }
+                                </span>
+                                <Badge
+                                  className={`${STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.status || 'default'] || STATUS_COLORS.default}`}
+                                >
+                                  {
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.status
+                                  }
+                                </Badge>
+                              </div>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                  <span className="text-stone-500">Total</span>
+                                  <span className="font-semibold text-stone-900">
+                                    {formatCurrency(
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.totalAmount || 0,
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-stone-500">
+                                    Customer
+                                  </span>
+                                  <span className="text-stone-900">
+                                    {ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.email || 'N/A'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-stone-500">Date</span>
+                                  <span className="text-stone-900">
+                                    {new Date(
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.createdAt || '',
+                                    ).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Line Items */}
+                            {orderDetail.data?.order?.lineItems && (
+                              <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-stone-900 mb-3">
+                                  Items
+                                </h4>
+                                <div className="space-y-2">
+                                  {(
+                                    orderDetail.data.order.lineItems as any[]
+                                  ).map((item: any) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
+                                    >
+                                      <div>
+                                        <p className="text-sm font-medium text-stone-900">
+                                          {item.title}
+                                        </p>
+                                        <p className="text-xs text-stone-500">
+                                          Qty: {item.quantity}
+                                        </p>
+                                      </div>
+                                      <span className="text-sm font-medium text-stone-900">
+                                        {item.price}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Linked Emails */}
+                            <div>
+                              <h4 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                                <Mail className="h-4 w-4" />
+                                Related Emails
+                              </h4>
+                              {(orderMessages.data?.messages ?? []).length >
+                              0 ? (
+                                <div className="space-y-2">
+                                  {(orderMessages.data?.messages as any[])
+                                    .slice(0, 3)
+                                    .map((msg: any) => (
+                                      <div
+                                        key={msg.id}
+                                        className="rounded-lg bg-stone-50 p-3"
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <Badge
+                                            className={`text-xs ${msg.direction === 'INBOUND' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}
+                                          >
+                                            {msg.direction}
+                                          </Badge>
+                                          <span className="text-xs text-stone-500">
+                                            {relativeTime(msg.createdAt)}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-stone-600 line-clamp-2">
+                                          {msg.body}
+                                        </p>
+                                      </div>
+                                    ))}
+                                </div>
+                              ) : (
+                                <div className="rounded-xl border border-dashed border-stone-200 p-4 text-center">
+                                  <Mail className="h-6 w-6 text-stone-300 mx-auto mb-2" />
+                                  <p className="text-xs text-stone-500">
+                                    No emails linked
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </>
+                ) : (
+                  // Empty State
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                    <div className="h-12 w-12 rounded-xl bg-stone-100 flex items-center justify-center mb-3">
+                      <User className="h-6 w-6 text-stone-400" />
+                    </div>
+                    <p className="text-sm font-medium text-stone-900">
+                      No selection
+                    </p>
+                    <p className="text-xs text-stone-500 mt-1">
+                      Select an item to view details
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Upgrade Prompt Modal */}
+        {emailLimit.data && !emailLimit.data.allowed && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <UpgradePrompt
+              usagePercentage={emailLimit.data.percentage}
+              currentUsage={emailLimit.data.current}
+              limit={emailLimit.data.limit}
+              planName={
+                emailLimit.data.planType
+                  ?.toLowerCase()
+                  .replace(/^\w/, (c) => c.toUpperCase()) || 'Current'
+              }
+              variant="inline"
+              isTrial={emailLimit.data.trial?.isTrial ?? false}
+              trialExpired={emailLimit.data.trial?.expired ?? false}
+              trialDaysRemaining={emailLimit.data.trial?.daysRemaining ?? null}
+            />
+          </div>
+        )}
+      </div>
     </>
   );
 }

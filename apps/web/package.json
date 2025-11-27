@@ -26,8 +26,6 @@
     "@trpc/react-query": "^10.45.2",
     "@trpc/server": "^10.45.2",
     "@types/node": "^20.14.12",
-    "@upstash/ratelimit": "^2.0.6",
-    "@upstash/redis": "^1.35.6",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "classnames": "^2.5.1",
