@@ -319,6 +319,17 @@ function IntegrationsInner() {
           originalObject: c,
         });
       });
+      // Add "Add Store" card when there are already stores connected
+      items.push({
+        id: 'shopify-add-store',
+        type: 'SHOPIFY',
+        name: 'Add Another Store',
+        description:
+          'Connect an additional Shopify store to manage multiple stores.',
+        category: 'Sales & Marketing Tools',
+        status: 'disconnected',
+        icon: Plus,
+      });
     } else {
       items.push({
         id: 'shopify-placeholder',

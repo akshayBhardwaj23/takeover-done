@@ -398,6 +398,30 @@ const shopifyRouter = t.router({
         },
       });
 
+      // If not updating existing, check store limit
+      if (!existing) {
+        const subscription = await ensureSubscription(ctx.userId);
+        const planLimits = PLAN_LIMITS[subscription.planType];
+        const storeLimit = planLimits.stores;
+
+        // Check current store count (only if limit is not unlimited)
+        if (storeLimit !== -1) {
+          const currentStoreCount = await prisma.connection.count({
+            where: {
+              userId: ctx.userId,
+              type: 'SHOPIFY',
+            },
+          });
+
+          if (currentStoreCount >= storeLimit) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: `You've reached your store limit (${storeLimit} store${storeLimit > 1 ? 's' : ''}). Please upgrade your plan to add more stores.`,
+            });
+          }
+        }
+      }
+
       if (existing) {
         // Return existing webhook URL
         const webhookUrl = (existing.metadata as any)?.webhookUrl;
@@ -490,6 +514,39 @@ const shopifyRouter = t.router({
         });
       }
 
+      // Check if connection already exists before checking limits
+      const existing = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      // If not updating existing, check store limit
+      if (!existing) {
+        const subscription = await ensureSubscription(ctx.userId);
+        const planLimits = PLAN_LIMITS[subscription.planType];
+        const storeLimit = planLimits.stores;
+
+        // Check current store count (only if limit is not unlimited)
+        if (storeLimit !== -1) {
+          const currentStoreCount = await prisma.connection.count({
+            where: {
+              userId: ctx.userId,
+              type: 'SHOPIFY',
+            },
+          });
+
+          if (currentStoreCount >= storeLimit) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: `You've reached your store limit (${storeLimit} store${storeLimit > 1 ? 's' : ''}). Please upgrade your plan to add more stores.`,
+            });
+          }
+        }
+      }
+
       // Verify access token by making a test API call
       try {
         const testUrl = `https://${subdomain}.myshopify.com/admin/api/2024-10/shop.json`;
@@ -511,15 +568,6 @@ const shopifyRouter = t.router({
           shop?: { name?: string | null };
         };
         const fetchedStoreName = shopData?.shop?.name;
-
-        // Check if connection already exists
-        const existing = await prisma.connection.findFirst({
-          where: {
-            shopDomain: cleanShop,
-            userId: ctx.userId,
-            type: 'SHOPIFY',
-          },
-        });
 
         const metadata: Record<string, unknown> = {
           subdomain,
