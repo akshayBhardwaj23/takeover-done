@@ -1,14 +1,16 @@
 export function OrderCardSkeleton() {
   return (
-    <div className="mb-2 animate-pulse rounded-lg border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="h-4 w-20 rounded bg-slate-200"></div>
-        <div className="h-5 w-16 rounded-full bg-slate-200"></div>
-      </div>
-      <div className="mb-1 h-3 w-32 rounded bg-slate-200"></div>
-      <div className="flex items-center justify-between">
-        <div className="h-4 w-16 rounded bg-slate-200"></div>
-        <div className="h-3 w-20 rounded bg-slate-200"></div>
+    <div className="mb-2 animate-pulse rounded-xl border border-stone-100 bg-white p-4">
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 rounded-full bg-stone-200" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-24 rounded bg-stone-200" />
+            <div className="h-3 w-10 rounded bg-stone-200" />
+          </div>
+          <div className="h-3 w-32 rounded bg-stone-200" />
+          <div className="h-3 w-40 rounded bg-stone-200" />
+        </div>
       </div>
     </div>
   );
@@ -16,39 +18,46 @@ export function OrderCardSkeleton() {
 
 export function OrderDetailSkeleton() {
   return (
-    <div className="flex flex-1 flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="flex items-center justify-between gap-6">
-        <div className="space-y-3">
-          <div className="h-3 w-24 rounded-full bg-slate-200/70" />
-          <div className="h-5 w-36 rounded-full bg-slate-200/70" />
-          <div className="h-3 w-28 rounded-full bg-slate-200/70" />
-        </div>
-        <div className="flex flex-col items-end gap-3">
-          <div className="h-7 w-20 rounded-full bg-slate-200/70" />
-          <div className="h-8 w-32 rounded-full bg-slate-200/70" />
-        </div>
+    <div className="animate-pulse p-6 space-y-6">
+      {/* Profile Section */}
+      <div className="flex flex-col items-center">
+        <div className="h-24 w-24 rounded-full bg-stone-200 mb-4" />
+        <div className="h-5 w-32 rounded bg-stone-200 mb-2" />
+        <div className="h-3 w-20 rounded bg-stone-200" />
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
-        <div className="h-3 w-28 rounded-full bg-slate-200/70" />
-        {[0, 1].map((entry) => (
-          <div
-            key={entry}
-            className="flex items-center justify-between rounded-xl bg-white/70 px-4 py-3 shadow-inner"
-          >
-            <div className="space-y-2">
-              <div className="h-4 w-32 rounded-full bg-slate-200/70" />
-              <div className="h-3 w-16 rounded-full bg-slate-200/70" />
-            </div>
-            <div className="h-4 w-14 rounded-full bg-slate-200/70" />
+      {/* Contact Info */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-stone-200" />
+          <div className="space-y-1">
+            <div className="h-3 w-20 rounded bg-stone-200" />
+            <div className="h-4 w-36 rounded bg-stone-200" />
           </div>
-        ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-stone-200" />
+          <div className="space-y-1">
+            <div className="h-3 w-16 rounded bg-stone-200" />
+            <div className="h-4 w-24 rounded bg-stone-200" />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
-        <div className="h-3 w-24 rounded-full bg-slate-200/70" />
-        <div className="h-32 w-full rounded-2xl bg-slate-200/60" />
-        <div className="h-9 w-36 rounded-full bg-slate-200/70" />
+      {/* Linked Order */}
+      <div className="space-y-3">
+        <div className="h-4 w-28 rounded bg-stone-200" />
+        <div className="rounded-xl border border-stone-200 p-4 space-y-3">
+          <div className="flex justify-between">
+            <div className="h-4 w-20 rounded bg-stone-200" />
+            <div className="h-5 w-16 rounded-full bg-stone-200" />
+          </div>
+          <div className="flex justify-between">
+            <div className="h-3 w-16 rounded bg-stone-200" />
+            <div className="h-3 w-20 rounded bg-stone-200" />
+          </div>
+          <div className="h-8 w-full rounded-lg bg-stone-200" />
+        </div>
       </div>
     </div>
   );
@@ -56,15 +65,17 @@ export function OrderDetailSkeleton() {
 
 export function EmailCardSkeleton() {
   return (
-    <div className="mb-2 animate-pulse rounded-lg border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="h-5 w-16 rounded-full bg-slate-200"></div>
-        <div className="h-3 w-12 rounded bg-slate-200"></div>
-      </div>
-      <div className="mb-2 h-3 w-24 rounded bg-slate-200"></div>
-      <div className="mt-2 space-y-1">
-        <div className="h-3 w-full rounded bg-slate-200"></div>
-        <div className="h-3 w-3/4 rounded bg-slate-200"></div>
+    <div className="animate-pulse p-4 border-b border-stone-50">
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 rounded-full bg-stone-200" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-28 rounded bg-stone-200" />
+            <div className="h-3 w-12 rounded bg-stone-200" />
+          </div>
+          <div className="h-3 w-40 rounded bg-stone-200" />
+          <div className="h-3 w-48 rounded bg-stone-200" />
+        </div>
       </div>
     </div>
   );
@@ -72,31 +83,20 @@ export function EmailCardSkeleton() {
 
 export function UnassignedEmailSkeleton() {
   return (
-    <div className="animate-pulse rounded-lg border border-amber-200 bg-amber-50 p-4">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="h-4 w-4 rounded bg-amber-200"></div>
-        <div className="h-3 w-16 rounded bg-amber-200"></div>
-      </div>
-      <div className="mb-2 h-3 w-32 rounded bg-amber-200"></div>
-      <div className="mb-3 rounded bg-white/80 p-3">
-        <div className="mb-1 h-3 w-28 rounded bg-slate-200"></div>
-        <div className="space-y-1">
-          <div className="h-3 w-full rounded bg-slate-200"></div>
-          <div className="h-3 w-5/6 rounded bg-slate-200"></div>
-          <div className="h-3 w-4/6 rounded bg-slate-200"></div>
-        </div>
-      </div>
-      <div className="space-y-2">
-        <div className="h-4 w-40 rounded bg-amber-200"></div>
-        <div className="rounded border border-slate-200 bg-white p-3">
-          <div className="mb-2 h-3 w-16 rounded bg-slate-200"></div>
-          <div className="space-y-1">
-            <div className="h-3 w-full rounded bg-slate-200"></div>
-            <div className="h-3 w-full rounded bg-slate-200"></div>
-            <div className="h-3 w-3/4 rounded bg-slate-200"></div>
+    <div className="animate-pulse p-4 border-b border-stone-50">
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 rounded-full bg-stone-200" />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-32 rounded bg-stone-200" />
+            <div className="h-3 w-10 rounded bg-stone-200" />
+          </div>
+          <div className="h-3 w-44 rounded bg-stone-200" />
+          <div className="h-3 w-52 rounded bg-stone-200" />
+          <div className="flex gap-2 mt-2">
+            <div className="h-5 w-16 rounded-full bg-violet-100" />
           </div>
         </div>
-        <div className="h-8 w-full rounded bg-violet-200"></div>
       </div>
     </div>
   );
