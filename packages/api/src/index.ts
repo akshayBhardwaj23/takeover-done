@@ -6,9 +6,11 @@ import {
   getUsageSummary,
   getUsageHistory,
   canSendEmail,
+  canUseAI,
   PLAN_LIMITS,
   ensureSubscription,
   incrementEmailSent,
+  incrementAISuggestion,
 } from '@ai-ecom/db';
 import {
   getOrCreateCustomer,
@@ -1142,7 +1144,6 @@ export const appRouter = t.router({
     }
   }),
 
-
   updateConnectionSettings: protectedProcedure
     .input(
       z.object({
@@ -1443,6 +1444,19 @@ export const appRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // Check AI usage limit before processing
+      const aiUsage = await canUseAI(ctx.userId);
+      if (!aiUsage.allowed) {
+        const message =
+          aiUsage.trial.isTrial && aiUsage.trial.expired
+            ? 'Your free trial has expired. Please upgrade to continue using AI-assisted replies.'
+            : `You've reached your AI reply limit (${aiUsage.limit} per month). Please upgrade your plan for more AI-assisted replies.`;
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message,
+        });
+      }
+
       // Sanitize inputs
       const message = sanitizeLimited(input.customerMessage, 5000);
       const orderSummary = sanitizeLimited(input.orderSummary, 500);
@@ -1481,7 +1495,8 @@ export const appRouter = t.router({
       };
 
       if (!apiKey) {
-        // Enhanced fallback response
+        // Enhanced fallback response - still counts toward AI usage since we're generating a reply
+        await incrementAISuggestion(ctx.userId);
         return { suggestion: buildFallback() };
       }
 
@@ -1564,9 +1579,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const suggestion =
           json.choices?.[0]?.message?.content ?? fallbackSuggestion;
 
+        // Increment AI usage counter after successful generation
+        await incrementAISuggestion(ctx.userId);
+
         return { suggestion: ensureSignature(suggestion, signatureBlock) };
       } catch (error) {
         console.error('OpenAI API error:', error);
+
+        // Increment AI usage counter even for fallback (since we generated a response)
+        await incrementAISuggestion(ctx.userId);
 
         // Fallback response
         return { suggestion: buildFallback() };

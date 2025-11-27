@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, logEvent } from '@ai-ecom/db';
+import {
+  prisma,
+  logEvent,
+  canReceiveEmail,
+  incrementEmailReceived,
+} from '@ai-ecom/db';
 import crypto from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 
@@ -277,6 +282,24 @@ export async function POST(req: NextRequest) {
     if (!alias || !to.toLowerCase().includes(alias.toLowerCase())) {
       return NextResponse.json({ error: 'alias mismatch' }, { status: 400 });
     }
+
+    // Check email received limit before processing (for trial plans)
+    if (conn.userId) {
+      const emailLimit = await canReceiveEmail(conn.userId);
+      if (!emailLimit.allowed) {
+        const message = emailLimit.trial.isTrial && emailLimit.trial.expired
+          ? 'Your free trial has expired. Please upgrade to continue receiving emails.'
+          : `You've reached your email processing limit (${emailLimit.limit} emails). Please upgrade your plan to process more emails.`;
+        console.error(
+          `[Email Webhook] ❌ Email limit reached for user ${conn.userId}: ${message}`,
+        );
+        return NextResponse.json(
+          { error: message },
+          { status: 403 },
+        );
+      }
+    }
+
     const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
     const rawBody = text || html || '';
@@ -504,6 +527,19 @@ export async function POST(req: NextRequest) {
       'thread',
       thread.id,
     );
+
+    // Increment email received count after successfully processing
+    if (conn.userId) {
+      try {
+        await incrementEmailReceived(conn.userId);
+      } catch (error) {
+        // Log error but don't fail the webhook - email is already stored
+        console.error(
+          '[Email Webhook] Failed to increment email received count:',
+          error,
+        );
+      }
+    }
 
     // Trigger Inngest event to generate AI suggestion (non-blocking, event-driven)
     // This replaces BullMQ worker - zero Redis polling!

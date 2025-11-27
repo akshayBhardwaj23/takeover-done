@@ -108,6 +108,7 @@ export default function UsagePage() {
       ? plans.data?.plans[currentPlanIndex + 1]
       : null;
 
+  const aiRemaining = data.aiRemaining ?? 0;
   const heroStats = [
     {
       label: 'Current plan',
@@ -121,8 +122,11 @@ export default function UsagePage() {
           : `${emailsRemaining.toLocaleString()}`,
     },
     {
-      label: 'AI drafts this month',
-      value: data.aiSuggestions.toLocaleString(),
+      label: 'AI replies remaining',
+      value:
+        data.aiLimit === -1 || data.aiLimit === undefined
+          ? 'Unlimited'
+          : `${aiRemaining.toLocaleString()}`,
     },
   ];
 
@@ -378,14 +382,23 @@ export default function UsagePage() {
                     <div className="mb-4">
                       <div className="text-3xl font-black text-slate-900">
                         {data.aiSuggestions.toLocaleString()}
+                        {data.aiLimit !== undefined && data.aiLimit !== -1 && (
+                          <span className="ml-2 text-lg font-normal text-slate-500">
+                            / {data.aiLimit.toLocaleString()}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-2 text-sm text-slate-600">
-                        Drafted replies this month
+                        AI-assisted replies this month
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <TrendingUp className="h-3 w-3" />
-                      <span>Unlimited AI drafting for every plan</span>
+                      <span>
+                        {data.aiLimit === -1 || data.aiLimit === undefined
+                          ? 'Unlimited AI drafting on this plan'
+                          : `${(data.aiRemaining ?? 0).toLocaleString()} AI replies remaining`}
+                      </span>
                     </div>
                   </div>
                 </Card>

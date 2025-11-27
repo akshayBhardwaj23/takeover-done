@@ -16,9 +16,8 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     badge: 'For emerging brands',
     features: [
       '500 emails/month (outbound)',
+      '500 AI-assisted replies/month',
       '1 Shopify store connection',
-      'Unlimited AI suggestions',
-      'Basic AI reply generation',
       'Order matching & email threading',
     ],
   },
@@ -28,10 +27,10 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     highlight: true,
     features: [
       '2,500 emails/month',
+      '2,500 AI-assisted replies/month',
       'Up to 3 store connections',
       'Priority support response',
       'Advanced analytics & dashboards',
-      'Reusable email templates',
     ],
   },
   PRO: {
@@ -39,8 +38,8 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     badge: 'For high-volume teams',
     features: [
       '10,000 emails/month',
+      '10,000 AI-assisted replies/month',
       'Up to 10 store connections',
-      'Custom AI training sessions',
       'Full API access',
       'White-label & advanced reporting',
     ],
@@ -49,11 +48,11 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     name: 'Enterprise',
     badge: 'Designed with you',
     features: [
-      'Unlimited or volume-based emails',
+      'Unlimited emails',
+      'Unlimited AI-assisted replies',
       'Unlimited store connections',
       'Dedicated success & SLA guarantees',
       'Custom integrations & onboarding',
-      'Volume discounts starting at ₹2/email',
     ],
   },
 };
@@ -80,6 +79,12 @@ export default function Pricing() {
             All plans include Shopify + inbox integrations, AI reply drafts, and
             analytics.
           </p>
+          {/* Free Trial Banner */}
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-2 text-sm text-emerald-700">
+            <span className="font-semibold">🎉 Free 7-day trial</span>
+            <span className="text-emerald-600">—</span>
+            <span>20 AI replies • 20 emails • 1 store</span>
+          </div>
         </div>
         {/* Pricing is sourced from the Pricing page config to stay consistent */}
         <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-4">

@@ -3,27 +3,38 @@ import { prisma } from './index.js';
 // Base plan limits (without pricing - pricing is currency-dependent)
 export const PLAN_LIMITS = {
   TRIAL: {
-    emailsPerMonth: 100,
-    stores: 1,
+    emailsPerMonth: 20, // Free trial: 20 emails only
+    aiRepliesLimit: 20, // Free trial: 20 AI-assisted replies only
+    emailsReceivedLimit: 20, // Free trial: only process 20 incoming emails
+    stores: 1, // Free trial: 1 store only
     name: 'Free Trial',
+    trialDays: 7, // 7-day free trial
   },
   STARTER: {
     emailsPerMonth: 500,
+    aiRepliesLimit: 500, // Match emails limit
+    emailsReceivedLimit: -1, // Unlimited on paid plans
     stores: 1,
     name: 'Starter',
   },
   GROWTH: {
     emailsPerMonth: 2500,
+    aiRepliesLimit: 2500, // Match emails limit
+    emailsReceivedLimit: -1, // Unlimited on paid plans
     stores: 3,
     name: 'Growth',
   },
   PRO: {
     emailsPerMonth: 10000,
+    aiRepliesLimit: 10000, // Match emails limit
+    emailsReceivedLimit: -1, // Unlimited on paid plans
     stores: 10,
     name: 'Pro',
   },
   ENTERPRISE: {
     emailsPerMonth: -1, // unlimited
+    aiRepliesLimit: -1, // unlimited
+    emailsReceivedLimit: -1, // unlimited
     stores: -1, // unlimited
     name: 'Enterprise',
   },
@@ -211,10 +222,151 @@ export async function incrementEmailSent(userId: string) {
 }
 
 /**
+ * Check if user can receive more emails based on plan limits
+ */
+export async function canReceiveEmail(userId: string): Promise<{
+  allowed: boolean;
+  current: number;
+  limit: number;
+  percentage: number;
+  remaining: number;
+  planType: string;
+  trial: {
+    isTrial: boolean;
+    expired: boolean;
+    endsAt: Date | null;
+    daysRemaining: number | null;
+  };
+}> {
+  const subscription = await ensureSubscription(userId);
+  const planLimits = PLAN_LIMITS[subscription.planType];
+  const now = new Date();
+  const isTrial = subscription.planType === 'TRIAL';
+  const periodStart = subscription.currentPeriodStart;
+  const periodEnd = subscription.currentPeriodEnd;
+
+  // Check if we're within the current billing period
+  const isWithinPeriod = now >= periodStart && now <= periodEnd;
+
+  // Get usage record
+  let usageRecord;
+  if (isWithinPeriod) {
+    usageRecord = await prisma.usageRecord.findUnique({
+      where: {
+        subscriptionId_periodStart: {
+          subscriptionId: subscription.id,
+          periodStart,
+        },
+      },
+    });
+
+    if (!usageRecord) {
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart,
+          periodEnd,
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  } else {
+    // Period expired
+    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
+      prisma.subscription
+        .update({
+          where: { id: subscription.id },
+          data: { status: 'expired' },
+        })
+        .catch((err) => console.error('Failed to expire trial:', err));
+    }
+
+    usageRecord = await prisma.usageRecord.findFirst({
+      where: { subscriptionId: subscription.id },
+      orderBy: { periodStart: 'desc' },
+      take: 1,
+    });
+
+    if (!usageRecord) {
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart: periodEnd,
+          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  }
+
+  const limit = planLimits.emailsReceivedLimit ?? -1;
+  const current = usageRecord.emailsReceived;
+  const endsAt = isTrial ? subscription.currentPeriodEnd : null;
+  const expired = isTrial ? now > subscription.currentPeriodEnd : false;
+  const daysRemaining =
+    isTrial && !expired
+      ? Math.max(
+          0,
+          Math.ceil(
+            (subscription.currentPeriodEnd.getTime() - now.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
+      : 0;
+  const remaining =
+    limit === -1 ? -1 : Math.max(0, planLimits.emailsReceivedLimit - current);
+  const normalizedRemaining =
+    isTrial && expired && limit !== -1 ? 0 : remaining;
+
+  // Unlimited plan
+  if (limit === -1) {
+    return {
+      allowed: true,
+      current,
+      limit: -1,
+      percentage: 0,
+      remaining: -1,
+      planType: subscription.planType,
+      trial: {
+        isTrial,
+        expired,
+        endsAt,
+        daysRemaining: isTrial ? daysRemaining : null,
+      },
+    };
+  }
+
+  const percentage = (current / limit) * 100;
+  const allowed = current < limit && !(isTrial && expired);
+
+  return {
+    allowed,
+    current,
+    limit,
+    percentage: Math.round(percentage * 100) / 100,
+    remaining: normalizedRemaining,
+    planType: subscription.planType,
+    trial: {
+      isTrial,
+      expired,
+      endsAt,
+      daysRemaining: isTrial ? daysRemaining : null,
+    },
+  };
+}
+
+/**
  * Increment email received count
  */
 export async function incrementEmailReceived(userId: string) {
   const subscription = await ensureSubscription(userId);
+  if (subscription.planType === 'TRIAL' && subscription.status === 'expired') {
+    throw new Error('Trial expired. Cannot receive more emails.');
+  }
   const usageRecord = await getCurrentUsageRecord(subscription.id);
 
   return await prisma.usageRecord.update({
@@ -389,6 +541,144 @@ export async function canSendEmail(userId: string): Promise<{
 }
 
 /**
+ * Check if user can use AI-assisted replies based on plan limits
+ */
+export async function canUseAI(userId: string): Promise<{
+  allowed: boolean;
+  current: number;
+  limit: number;
+  percentage: number;
+  remaining: number;
+  planType: string;
+  trial: {
+    isTrial: boolean;
+    expired: boolean;
+    endsAt: Date | null;
+    daysRemaining: number | null;
+  };
+}> {
+  const subscription = await ensureSubscription(userId);
+  const planLimits = PLAN_LIMITS[subscription.planType];
+  const now = new Date();
+  const isTrial = subscription.planType === 'TRIAL';
+  const periodStart = subscription.currentPeriodStart;
+  const periodEnd = subscription.currentPeriodEnd;
+
+  // Check if we're within the current billing period
+  const isWithinPeriod = now >= periodStart && now <= periodEnd;
+
+  // Get usage record
+  let usageRecord;
+  if (isWithinPeriod) {
+    usageRecord = await prisma.usageRecord.findUnique({
+      where: {
+        subscriptionId_periodStart: {
+          subscriptionId: subscription.id,
+          periodStart,
+        },
+      },
+    });
+
+    if (!usageRecord) {
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart,
+          periodEnd,
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  } else {
+    // Period expired
+    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
+      prisma.subscription
+        .update({
+          where: { id: subscription.id },
+          data: { status: 'expired' },
+        })
+        .catch((err) => console.error('Failed to expire trial:', err));
+    }
+
+    usageRecord = await prisma.usageRecord.findFirst({
+      where: { subscriptionId: subscription.id },
+      orderBy: { periodStart: 'desc' },
+      take: 1,
+    });
+
+    if (!usageRecord) {
+      usageRecord = await prisma.usageRecord.create({
+        data: {
+          subscriptionId: subscription.id,
+          periodStart: periodEnd,
+          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
+          emailsSent: 0,
+          emailsReceived: 0,
+          aiSuggestions: 0,
+        },
+      });
+    }
+  }
+
+  const limit = planLimits.aiRepliesLimit;
+  const current = usageRecord.aiSuggestions;
+  const endsAt = isTrial ? subscription.currentPeriodEnd : null;
+  const expired = isTrial ? now > subscription.currentPeriodEnd : false;
+  const daysRemaining =
+    isTrial && !expired
+      ? Math.max(
+          0,
+          Math.ceil(
+            (subscription.currentPeriodEnd.getTime() - now.getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
+      : 0;
+  const remaining =
+    limit === -1 ? -1 : Math.max(0, planLimits.aiRepliesLimit - current);
+  const normalizedRemaining =
+    isTrial && expired && limit !== -1 ? 0 : remaining;
+
+  // Unlimited plan
+  if (limit === -1) {
+    return {
+      allowed: true,
+      current,
+      limit: -1,
+      percentage: 0,
+      remaining: -1,
+      planType: subscription.planType,
+      trial: {
+        isTrial,
+        expired,
+        endsAt,
+        daysRemaining: isTrial ? daysRemaining : null,
+      },
+    };
+  }
+
+  const percentage = (current / limit) * 100;
+  const allowed = current < limit && !(isTrial && expired);
+
+  return {
+    allowed,
+    current,
+    limit,
+    percentage: Math.round(percentage * 100) / 100,
+    remaining: normalizedRemaining,
+    planType: subscription.planType,
+    trial: {
+      isTrial,
+      expired,
+      endsAt,
+      daysRemaining: isTrial ? daysRemaining : null,
+    },
+  };
+}
+
+/**
  * Get usage summary for a user
  */
 export async function getUsageSummary(userId: string) {
@@ -397,7 +687,9 @@ export async function getUsageSummary(userId: string) {
   const planLimits = PLAN_LIMITS[subscription.planType];
 
   const limit = planLimits.emailsPerMonth;
+  const aiLimit = planLimits.aiRepliesLimit;
   const current = usageRecord.emailsSent;
+  const aiCurrent = usageRecord.aiSuggestions;
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
   const expired = isTrial ? now > subscription.currentPeriodEnd : false;
@@ -415,23 +707,31 @@ export async function getUsageSummary(userId: string) {
   // Note: price is now currency-dependent, fetched separately via API
   const canSendMore =
     (limit === -1 || current < limit) && !(isTrial && expired);
+  const canUseAIMore =
+    (aiLimit === -1 || aiCurrent < aiLimit) && !(isTrial && expired);
 
   return {
     planType: subscription.planType,
     planName: planLimits.name,
     emailsSent: current,
     emailsReceived: usageRecord.emailsReceived,
-    aiSuggestions: usageRecord.aiSuggestions,
+    aiSuggestions: aiCurrent,
     emailLimit: limit,
+    aiLimit: aiLimit,
     emailUsagePercentage:
       limit === -1 ? 0 : Math.round((current / limit) * 10000) / 100,
+    aiUsagePercentage:
+      aiLimit === -1 ? 0 : Math.round((aiCurrent / aiLimit) * 10000) / 100,
     canSendEmail: canSendMore,
+    canUseAI: canUseAIMore,
     periodStart: usageRecord.periodStart,
     periodEnd: usageRecord.periodEnd,
     status: subscription.status,
     storesLimit: planLimits.stores,
     emailsRemaining:
       limit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, limit - current),
+    aiRemaining:
+      aiLimit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, aiLimit - aiCurrent),
     trial: {
       isTrial,
       expired,
