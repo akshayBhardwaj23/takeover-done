@@ -18,23 +18,15 @@ import {
   Store,
   Mail,
   RefreshCw,
-  Copy,
-  Power,
   CheckCircle2,
   Plus,
   Sparkles,
-  Trash2,
   BarChart3,
-  ExternalLink,
   Settings2,
   Search,
-  LayoutGrid,
-  List,
-  Filter,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { Switch } from '../../components/ui/switch';
-import { Badge } from '../../components/ui/badge';
 
 // --- Types ---
 
@@ -161,12 +153,6 @@ function IntegrationsInner() {
 
   // State for Shopify Dialog
   const [showShopifyDialog, setShowShopifyDialog] = useState(false);
-  const [connectionTab, setConnectionTab] = useState<'webhook' | 'custom_app'>(
-    'webhook',
-  );
-  const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
-  const [shopInput, setShopInput] = useState('');
-  const [storeNameInput, setStoreNameInput] = useState('');
   const [subdomainInput, setSubdomainInput] = useState('');
   const [accessTokenInput, setAccessTokenInput] = useState('');
 
@@ -181,11 +167,6 @@ function IntegrationsInner() {
     useState(false);
 
   // Mutations
-  const createWebhook = trpc.shopify.createWebhook.useMutation({
-    onSuccess: (data: any) => setWebhookUrl(data.webhookUrl),
-    onError: (err: any) => toast.error(err.message),
-  });
-
   const createCustomApp = trpc.shopify.createCustomAppConnection.useMutation({
     onSuccess: () => {
       toast.success('Shopify store connected!');
@@ -255,8 +236,7 @@ function IntegrationsInner() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const isConnectingShopify =
-    createWebhook.isPending || createCustomApp.isPending;
+  const isConnectingShopify = createCustomApp.isPending;
   const isSavingStoreName = updateStoreName.isPending;
 
   // --- State ---
@@ -272,29 +252,12 @@ function IntegrationsInner() {
     return meta.storeName || c.shopDomain?.split('.')[0] || 'Shopify Store';
   };
 
-  const copyWebhookUrl = async () => {
-    if (webhookUrl) {
-      try {
-        await navigator.clipboard.writeText(webhookUrl);
-        toast.success('Copied to clipboard!');
-      } catch {
-        toast.error('Failed to copy');
-      }
-    }
-  };
-
-  const onSubmitWebhook = (e: React.FormEvent) => {
-    e.preventDefault();
-    createWebhook.mutate({
-      shopDomain: shopInput,
-      storeName: storeNameInput || undefined,
-    });
-  };
-
   const onSubmitCustomApp = (e: React.FormEvent) => {
     e.preventDefault();
+    // Construct shopDomain from subdomain
+    const shopDomain = `${subdomainInput}.myshopify.com`;
     createCustomApp.mutate({
-      shopDomain: shopInput,
+      shopDomain,
       subdomain: subdomainInput,
       accessToken: accessTokenInput,
     });
@@ -478,10 +441,6 @@ function IntegrationsInner() {
       // Connect Action
       if (item.type === 'SHOPIFY') {
         setShowShopifyDialog(true);
-        setConnectionTab('webhook');
-        setWebhookUrl(null);
-        setShopInput('');
-        setStoreNameInput('');
         setSubdomainInput('');
         setAccessTokenInput('');
       } else if (item.type === 'EMAIL') {
@@ -664,8 +623,8 @@ function IntegrationsInner() {
 
       {/* Shopify Connect Dialog */}
       <Dialog open={showShopifyDialog} onOpenChange={setShowShopifyDialog}>
-        <DialogContent className="max-w-xl border-zinc-200 p-0 sm:rounded-3xl">
-          <DialogHeader className="border-b border-zinc-100 px-8 py-6">
+        <DialogContent className="max-w-2xl border-zinc-200 p-0 sm:rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b border-zinc-100 px-8 py-6 sticky top-0 bg-white z-10">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-white">
                 <Store className="h-6 w-6" />
@@ -675,223 +634,174 @@ function IntegrationsInner() {
                   Connect Shopify Store
                 </DialogTitle>
                 <p className="mt-1 text-sm text-zinc-500">
-                  Choose how you want to connect your store.
+                  Connect your store using a Custom App for full access.
                 </p>
               </div>
             </div>
           </DialogHeader>
 
           <div className="px-8 py-6">
-            <div className="mb-8 flex rounded-2xl bg-zinc-100 p-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setConnectionTab('webhook');
-                  setWebhookUrl(null);
-                }}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
-                  connectionTab === 'webhook'
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-              >
-                Webhook (Simple)
-              </button>
-              <button
-                type="button"
-                onClick={() => setConnectionTab('custom_app')}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition-all ${
-                  connectionTab === 'custom_app'
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-              >
-                Custom App (Advanced)
-              </button>
+            {/* Step-by-step Guide */}
+            <div className="mb-8 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5">
+              <h4 className="mb-4 flex items-center gap-2 font-bold text-emerald-800">
+                <CheckCircle2 className="h-5 w-5" />
+                How to create a Custom App in Shopify
+              </h4>
+              <ol className="space-y-3 text-sm text-emerald-700">
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    1
+                  </span>
+                  <span>
+                    Go to your <strong>Shopify Admin</strong> →{' '}
+                    <strong>Settings</strong> (bottom left) →{' '}
+                    <strong>Apps and sales channels</strong>
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    2
+                  </span>
+                  <span>
+                    Click <strong>Develop apps</strong> (top right) →{' '}
+                    <strong>Create an app</strong>
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    3
+                  </span>
+                  <span>
+                    Name your app (e.g., &quot;Zyyp Integration&quot;) and click{' '}
+                    <strong>Create app</strong>
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    4
+                  </span>
+                  <span>
+                    Click <strong>Configure Admin API scopes</strong> and
+                    select:{' '}
+                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
+                      read_orders
+                    </code>
+                    ,{' '}
+                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
+                      read_customers
+                    </code>
+                    ,{' '}
+                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
+                      read_products
+                    </code>
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    5
+                  </span>
+                  <span>
+                    Click <strong>Save</strong>, then go to{' '}
+                    <strong>API credentials</strong> tab
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
+                    6
+                  </span>
+                  <span>
+                    Click <strong>Install app</strong>, then{' '}
+                    <strong>Reveal token once</strong> to copy your Admin API
+                    access token
+                  </span>
+                </li>
+              </ol>
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-800">
+                <Settings2 className="h-4 w-4 shrink-0" />
+                <span>
+                  <strong>Important:</strong> The access token is only shown
+                  once! Copy it immediately and paste it below.
+                </span>
+              </div>
             </div>
 
-            {connectionTab === 'webhook' ? (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-sm text-blue-700">
-                  <p className="font-bold">Webhook Connection</p>
-                  <p className="mt-1 opacity-90">
-                    If your store URL is &quot;https://demo.myshopify.com&quot;,
-                    enter &quot;demo&quot; (without .myshopify.com)
-                  </p>
-                  <p className="mt-1 opacity-90">
-                    Best for receiving order data. You&apos;ll need to add a URL
-                    to your Shopify admin settings.
-                  </p>
+            <form onSubmit={onSubmitCustomApp} className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">
+                  Store Subdomain
+                </label>
+                <div className="flex items-center">
+                  <Input
+                    placeholder="your-shop"
+                    required
+                    value={subdomainInput}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                      setSubdomainInput(
+                        (e as any).target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9-]/g, ''),
+                      )
+                    }
+                    className="h-12 rounded-l-xl rounded-r-none border-r-0 border-zinc-200 bg-zinc-50"
+                  />
+                  <span className="flex h-12 items-center rounded-r-xl border border-l-0 border-zinc-200 bg-zinc-100 px-4 text-sm text-zinc-500">
+                    .myshopify.com
+                  </span>
                 </div>
-
-                {!webhookUrl ? (
-                  <form onSubmit={onSubmitWebhook} className="space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700">
-                        Store Domain
-                      </label>
-                      <Input
-                        placeholder="your-shop.myshopify.com"
-                        required
-                        value={shopInput}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          setShopInput((e as any).target.value)
-                        }
-                        className="h-12 rounded-xl border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700">
-                        Store Name (Optional)
-                      </label>
-                      <Input
-                        placeholder="My Store"
-                        value={storeNameInput}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                          setStoreNameInput((e as any).target.value)
-                        }
-                        className="h-12 rounded-xl border-zinc-200 bg-zinc-50"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="h-12 w-full rounded-full bg-zinc-900 text-base font-medium hover:bg-zinc-800"
-                      disabled={isConnectingShopify}
-                    >
-                      {isConnectingShopify ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        'Generate Webhook URL'
-                      )}
-                    </Button>
-                  </form>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700">
-                        Your Webhook URL
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          value={webhookUrl}
-                          readOnly
-                          className="h-12 rounded-xl border-zinc-200 bg-zinc-50 font-mono text-sm"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-12 w-12 rounded-xl border-zinc-200"
-                          onClick={copyWebhookUrl}
-                        >
-                          <Copy className="h-5 w-5" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
-                      <h4 className="mb-3 text-sm font-bold text-zinc-900">
-                        Next Steps
-                      </h4>
-                      <ol className="list-decimal space-y-2 pl-4 text-sm text-zinc-600">
-                        <li>Go to Shopify Settings → Notifications</li>
-                        <li>Click &quot;Create webhook&quot;</li>
-                        <li>Event: orders/create</li>
-                        <li>Format: JSON</li>
-                        <li>Paste the URL above</li>
-                      </ol>
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="h-12 w-full rounded-full border-zinc-200 text-zinc-600 hover:bg-zinc-50"
-                      onClick={() => {
-                        setWebhookUrl(null);
-                        setShopInput('');
-                        setStoreNameInput('');
-                      }}
-                    >
-                      Connect Another Store
-                    </Button>
-                  </div>
-                )}
+                <p className="text-xs text-zinc-400">
+                  Example: If your store URL is https://
+                  <strong>my-store</strong>.myshopify.com, enter{' '}
+                  <strong>my-store</strong>
+                </p>
               </div>
-            ) : (
-              <form onSubmit={onSubmitCustomApp} className="space-y-6">
-                <div className="rounded-2xl border border-purple-100 bg-purple-50/50 p-4 text-sm text-purple-700">
-                  <p className="font-bold">Custom App Connection</p>
-                  <p className="mt-1 opacity-90">
-                    Found in: Your custom app → API credentials → Admin API
-                    access token (starts with &quot;shpat_&quot;)
-                  </p>
-                  <p className="mt-1 opacity-90">
-                    Provides full API access for advanced automation. Requires
-                    creating a custom app in Shopify.
-                  </p>
-                </div>
 
-                <div className="grid gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700">
-                      Store Domain
-                    </label>
-                    <Input
-                      placeholder="your-shop.myshopify.com"
-                      required
-                      value={shopInput}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                        setShopInput((e as any).target.value)
-                      }
-                      className="h-12 rounded-xl border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700">
-                      Subdomain
-                    </label>
-                    <Input
-                      placeholder="your-shop"
-                      required
-                      value={subdomainInput}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                        setSubdomainInput((e as any).target.value)
-                      }
-                      className="h-12 rounded-xl border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700">
-                      Access Token
-                    </label>
-                    <Input
-                      type="password"
-                      placeholder="shpat_..."
-                      required
-                      value={accessTokenInput}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                        setAccessTokenInput((e as any).target.value)
-                      }
-                      className="h-12 rounded-xl border-zinc-200 bg-zinc-50"
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">
+                  Admin API Access Token
+                </label>
+                <Input
+                  type="password"
+                  placeholder="shpat_xxxxxxxxxxxxxxxxxxxxx"
+                  required
+                  value={accessTokenInput}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setAccessTokenInput((e as any).target.value)
+                  }
+                  className="h-12 rounded-xl border-zinc-200 bg-zinc-50 font-mono text-sm"
+                />
+                <p className="text-xs text-zinc-400">
+                  Found in: Your custom app → API credentials → Admin API access
+                  token (starts with &quot;shpat_&quot;)
+                </p>
+              </div>
 
-                <Button
-                  type="submit"
-                  className="h-12 w-full rounded-full bg-zinc-900 text-base font-medium hover:bg-zinc-800"
-                  disabled={isConnectingShopify}
-                >
-                  {isConnectingShopify ? (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    'Connect Store'
-                  )}
-                </Button>
-              </form>
-            )}
+              <Button
+                type="submit"
+                className="h-12 w-full rounded-full bg-zinc-900 text-base font-medium hover:bg-zinc-800"
+                disabled={isConnectingShopify}
+              >
+                {isConnectingShopify ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  'Connect Store'
+                )}
+              </Button>
+            </form>
+
+            <p className="mt-6 text-center text-xs text-zinc-400">
+              Need help? Check our{' '}
+              <a
+                href="https://docs.zyyp.ai/integrations/shopify"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-600 underline hover:text-zinc-900"
+              >
+                Shopify setup guide
+              </a>
+            </p>
           </div>
         </DialogContent>
       </Dialog>
