@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { prisma, logEvent } from '@ai-ecom/db';
-import { Redis } from '@upstash/redis';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
@@ -9,68 +8,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  // Idempotency: prevent replayed webhooks
-  const webhookId = req.headers.get('x-shopify-webhook-id');
-
-  // Only use Upstash Redis in production/staging (not in local development)
-  // Development should use local Redis configured separately
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isStaging =
-    process.env.ENVIRONMENT === 'staging' ||
-    process.env.NODE_ENV === 'production';
-  const useUpstash = isProduction || isStaging;
-
-  let redis = null;
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (
-    useUpstash &&
-    redisUrl &&
-    redisToken &&
-    !redisUrl.includes('...') &&
-    redisUrl.startsWith('https://')
-  ) {
-    try {
-      redis = new Redis({
-        url: redisUrl,
-        token: redisToken,
-      });
-    } catch (err) {
-      console.warn(
-        '[Shopify Webhook] Failed to initialize Redis, continuing without idempotency:',
-        err,
-      );
-      redis = null;
-    }
-  }
-
-  if (webhookId && redis) {
-    try {
-      const key = `webhook:${webhookId}`;
-      // Use SETNX (SET with NX) - atomic check-and-set in 1 command instead of GET+SET (2 commands)
-      // Returns 1 if key was set (first time), 0 if already exists (duplicate)
-      const wasNew = await redis.set(key, '1', {
-        nx: true, // Only set if key doesn't exist
-        ex: 60 * 60 * 24, // 24 hour TTL
-      });
-      if (!wasNew) {
-        // Key already exists - this is a duplicate webhook
-        return NextResponse.json({ ok: true, deduped: true });
-      }
-    } catch (err) {
-      console.warn(
-        '[Shopify Webhook] Redis idempotency check failed, continuing:',
-        err,
-      );
-    }
-  }
-
   // Get headers and secret first for debugging
   const secret = process.env.SHOPIFY_API_SECRET;
   const hmac = req.headers.get('x-shopify-hmac-sha256') ?? '';
   const topic = req.headers.get('x-shopify-topic') ?? '';
   const shop = req.headers.get('x-shopify-shop-domain') ?? '';
+  const webhookId = req.headers.get('x-shopify-webhook-id');
 
   // Debug logging
   console.log('[Shopify Webhook] Received webhook:', {

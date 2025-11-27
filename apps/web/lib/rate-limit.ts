@@ -1,68 +1,5 @@
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
-
-// Only use Upstash Redis in production/staging environments
-// Development should use local Redis (configured via REDIS_URL for BullMQ)
-// This saves Upstash free tier quota (500K commands/month) for production use
-const isProduction = process.env.NODE_ENV === 'production';
-const isStaging =
-  process.env.ENVIRONMENT === 'staging' ||
-  process.env.NODE_ENV === 'production';
-const useUpstash = isProduction || isStaging;
-
-// Initialize Upstash Redis client (only in staging/production)
-const redis =
-  useUpstash &&
-  process.env.UPSTASH_REDIS_REST_URL &&
-  process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
-    : null;
-
-// General API rate limiter: 100 requests per minute per user
-export const apiLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(100, '1 m'),
-      analytics: isProduction, // Only enable in production to save commands in dev
-      prefix: 'ratelimit:api',
-    })
-  : null;
-
-// AI operations rate limiter: 10 requests per minute per user
-// This is more restrictive because AI calls are expensive
-export const aiLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(10, '1 m'),
-      analytics: isProduction, // Only enable in production to save commands in dev
-      prefix: 'ratelimit:ai',
-    })
-  : null;
-
-// Email sending rate limiter: 20 emails per minute per user
-export const emailLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(20, '1 m'),
-      analytics: isProduction, // Only enable in production to save commands in dev
-      prefix: 'ratelimit:email',
-    })
-  : null;
-
-// Webhook rate limiter: 60 requests per minute per IP
-export const webhookLimiter = redis
-  ? new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(60, '1 m'),
-      analytics: isProduction, // Only enable in production to save commands in dev
-      prefix: 'ratelimit:webhook',
-    })
-  : null;
-
-// Fallback in-memory rate limiter for when Redis is not configured
+// In-memory rate limiter (no external dependencies)
+// Rate limits reset when the application restarts
 const inMemoryStore = new Map<string, { count: number; resetAt: number }>();
 
 export function checkInMemoryRateLimit(
@@ -101,9 +38,9 @@ if (typeof setInterval !== 'undefined') {
   }, 60000);
 }
 
-// Helper to check rate limit with fallback
+// Helper to check rate limit (now always uses in-memory implementation)
 export async function checkRateLimit(
-  limiter: Ratelimit | null,
+  _limiter: null, // Kept for API compatibility but unused
   identifier: string,
   fallbackMax: number,
   fallbackWindowMs: number,
@@ -113,22 +50,16 @@ export async function checkRateLimit(
   remaining?: number;
   reset?: number;
 }> {
-  if (limiter) {
-    // Use Upstash rate limiter
-    const result = await limiter.limit(identifier);
-    return {
-      success: result.success,
-      limit: result.limit,
-      remaining: result.remaining,
-      reset: result.reset,
-    };
-  } else {
-    // Fallback to in-memory
-    const success = checkInMemoryRateLimit(
-      identifier,
-      fallbackMax,
-      fallbackWindowMs,
-    );
-    return { success };
-  }
+  const success = checkInMemoryRateLimit(
+    identifier,
+    fallbackMax,
+    fallbackWindowMs,
+  );
+  return { success };
 }
+
+// Exported for backward compatibility (all are null now)
+export const apiLimiter = null;
+export const aiLimiter = null;
+export const emailLimiter = null;
+export const webhookLimiter = null;

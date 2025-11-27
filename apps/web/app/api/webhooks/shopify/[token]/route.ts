@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { prisma, logEvent } from '@ai-ecom/db';
-import { Redis } from '@upstash/redis';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
@@ -17,58 +16,6 @@ export async function POST(
     return NextResponse.json({ error: 'Missing webhook token' }, { status: 400 });
   }
 
-  // Idempotency: prevent replayed webhooks
-  const webhookId = req.headers.get('x-shopify-webhook-id');
-
-  // Only use Upstash Redis in production/staging (not in local development)
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isStaging =
-    process.env.ENVIRONMENT === 'staging' ||
-    process.env.NODE_ENV === 'production';
-  const useUpstash = isProduction || isStaging;
-
-  let redis = null;
-  const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (
-    useUpstash &&
-    redisUrl &&
-    redisToken &&
-    !redisUrl.includes('...') &&
-    redisUrl.startsWith('https://')
-  ) {
-    try {
-      redis = new Redis({
-        url: redisUrl,
-        token: redisToken,
-      });
-    } catch (err) {
-      console.warn(
-        '[Shopify Webhook] Failed to initialize Redis, continuing without idempotency:',
-        err,
-      );
-      redis = null;
-    }
-  }
-
-  if (webhookId && redis) {
-    try {
-      const key = `webhook:${webhookId}`;
-      const wasNew = await redis.set(key, '1', {
-        nx: true,
-        ex: 60 * 60 * 24, // 24 hour TTL
-      });
-      if (!wasNew) {
-        return NextResponse.json({ ok: true, deduped: true });
-      }
-    } catch (err) {
-      console.warn(
-        '[Shopify Webhook] Redis idempotency check failed, continuing:',
-        err,
-      );
-    }
-  }
 
   // Find connection by webhook token
   const connection = await prisma.connection.findFirst({

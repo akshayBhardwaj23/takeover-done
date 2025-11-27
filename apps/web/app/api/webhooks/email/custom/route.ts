@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
-import { Redis } from '@upstash/redis';
 import crypto from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 
@@ -157,40 +156,7 @@ export async function POST(req: NextRequest) {
     timestamp: new Date().toISOString(),
   });
   try {
-    // Idempotency: prefer Message-ID header; fallback to HMAC of body
-    // Only use Upstash Redis in production/staging (not in local development)
-    // Development should use local Redis configured separately
-    const isProduction = process.env.NODE_ENV === 'production';
-    const isStaging =
-      process.env.ENVIRONMENT === 'staging' ||
-      process.env.NODE_ENV === 'production';
-    const useUpstash = isProduction || isStaging;
 
-    let redis = null;
-    const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-    // Only initialize Upstash Redis in staging/production
-    if (
-      useUpstash &&
-      redisUrl &&
-      redisToken &&
-      !redisUrl.includes('...') &&
-      redisUrl.startsWith('https://')
-    ) {
-      try {
-        redis = new Redis({
-          url: redisUrl,
-          token: redisToken,
-        });
-      } catch (err) {
-        console.warn(
-          '[Email Webhook] Failed to initialize Redis, continuing without idempotency:',
-          err,
-        );
-        redis = null;
-      }
-    }
     // Basic guardrails
     const contentLength = Number(req.headers.get('content-length') || '0');
     if (contentLength > 25 * 1024 * 1024) {
@@ -247,6 +213,12 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: 'invalid body' }, { status: 400 });
     }
+
+    // Extract Message-ID header for message metadata
+    const messageIdHeader =
+      (raw['Message-Id'] as string) ||
+      (raw['message-id'] as string) ||
+      undefined;
 
     // Normalize common fields across JSON and Mailgun Routes
     const to: string | undefined =
@@ -485,38 +457,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Idempotency guard using message-id when available
-    const messageIdHeader =
-      (raw['Message-Id'] as string) ||
-      (raw['message-id'] as string) ||
-      undefined;
-    if (messageIdHeader && redis) {
-      try {
-        const key = `email:webhook:${messageIdHeader}`;
-        // Use SETNX (SET with NX) - atomic check-and-set in 1 command instead of GET+SET (2 commands)
-        // Returns 1 if key was set (first time), 0 if already exists (duplicate)
-        const wasNew = await redis.set(key, '1', {
-          nx: true, // Only set if key doesn't exist
-          ex: 60 * 60 * 24, // 24 hour TTL
-        });
-        if (!wasNew) {
-          // Key already exists - this is a duplicate webhook
-          console.error(
-            `[Email Webhook] ⚠️ Duplicate webhook detected (Message-ID: ${messageIdHeader}), skipping - already processed`,
-          );
-          return NextResponse.json({ ok: true, deduped: true });
-        } else {
-          console.error(
-            `[Email Webhook] ✅ New webhook (Message-ID: ${messageIdHeader}), processing...`,
-          );
-        }
-      } catch (err) {
-        console.warn(
-          '[Email Webhook] Redis idempotency check failed, continuing:',
-          err,
-        );
-      }
-    }
+
 
     // Create thread and message
     // Thread requires connectionId - use the connection we found earlier
