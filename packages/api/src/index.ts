@@ -328,8 +328,8 @@ async function syncShopifyData(connectionId: string, userId: string) {
       credentials.accessToken,
     );
 
-    // Fetch last 50 orders to start
-    const orders = await client.getOrders(50);
+    // Fetch last 100 orders on initial sync (including historical orders beyond 60 days)
+    const orders = await client.getOrders(100, { includeHistorical: true });
 
     for (const order of orders) {
       const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
@@ -672,6 +672,50 @@ const shopifyRouter = t.router({
       });
 
       return { ok: true };
+    }),
+  syncOrders: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      // Check if custom app connection (has API access)
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Order sync requires a Custom App connection with API access',
+        });
+      }
+
+      // Trigger sync in background
+      void syncShopifyData(connection.id, ctx.userId).catch(console.error);
+
+      return {
+        ok: true,
+        message: 'Order sync started. This may take a moment.',
+      };
     }),
   disconnectStore: protectedProcedure
     .input(z.object({ connectionId: z.string().min(1) }))

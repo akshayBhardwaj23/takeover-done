@@ -57,11 +57,15 @@ function IntegrationCard({
   onToggle,
   onDetails,
   onRemove,
+  onSync,
+  isSyncing,
 }: {
   item: IntegrationItem;
   onToggle: (item: IntegrationItem) => void;
   onDetails: (item: IntegrationItem) => void;
   onRemove: (item: IntegrationItem) => void;
+  onSync?: (item: IntegrationItem) => void;
+  isSyncing?: boolean;
 }) {
   return (
     <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md">
@@ -88,6 +92,21 @@ function IntegrationCard({
       <div className="flex items-center gap-3">
         {item.status === 'connected' ? (
           <>
+            {item.type === 'SHOPIFY' && onSync && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-lg border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                onClick={() => onSync(item)}
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -172,6 +191,13 @@ function IntegrationsInner() {
       toast.success('Shopify store connected!');
       setShowShopifyDialog(false);
       utils.connections.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const syncOrders = trpc.shopify.syncOrders.useMutation({
+    onSuccess: () => {
+      toast.success('Order sync started! This may take a moment.');
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -503,6 +529,12 @@ function IntegrationsInner() {
     }
   };
 
+  const handleSync = (item: IntegrationItem) => {
+    if (item.type === 'SHOPIFY' && item.id && item.id !== 'shopify-add-store') {
+      syncOrders.mutate({ connectionId: item.id });
+    }
+  };
+
   return (
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
@@ -604,6 +636,8 @@ function IntegrationsInner() {
                       onToggle={handleToggle}
                       onDetails={handleDetails}
                       onRemove={handleRemove}
+                      onSync={handleSync}
+                      isSyncing={syncOrders.isPending}
                     />
                   ))}
                 </div>

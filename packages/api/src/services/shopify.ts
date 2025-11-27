@@ -68,13 +68,22 @@ export class ShopifyClient {
     return response.json();
   }
 
-  async getOrders(limit = 50, sinceId?: number): Promise<ShopifyOrder[]> {
+  async getOrders(limit = 50, options?: { sinceId?: number; includeHistorical?: boolean }): Promise<ShopifyOrder[]> {
     const params: Record<string, any> = {
       status: 'any',
       limit,
     };
-    if (sinceId) {
-      params.since_id = sinceId;
+    
+    if (options?.sinceId) {
+      params.since_id = options.sinceId;
+    }
+    
+    // By default, Shopify only returns orders from last 60 days
+    // Set created_at_min to fetch historical orders (up to 2 years back)
+    if (options?.includeHistorical) {
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      params.created_at_min = twoYearsAgo.toISOString();
     }
 
     const data = await this.request<{ orders: ShopifyOrder[] }>('orders.json', params);
