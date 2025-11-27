@@ -370,347 +370,8 @@ async function syncShopifyData(connectionId: string, userId: string) {
   }
 }
 
-export const appRouter = t.router({
-  // Public endpoints (no auth required)
-  health: publicProcedure.query(() => ({ status: 'ok' })),
-  echo: publicProcedure
-    .input(z.object({ text: z.string() }))
-    .query(({ input }) => ({ text: input.text })),
-
-  // Protected endpoints (auth required)
-  ordersCount: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      const count = await prisma.order.count();
-      return { count };
-    } catch {
-      return { count: 0 };
-    }
-  }),
-  getUserProfile: protectedProcedure.query(async ({ ctx }) => {
-    const user = await prisma.user.findUnique({
-      where: { id: ctx.userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!user) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: 'User profile not found',
-      });
-    }
-
-    const connections = await prisma.connection.findMany({
-      where: { userId: ctx.userId, type: 'SHOPIFY' },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        shopDomain: true,
-        createdAt: true,
-        metadata: true,
-      },
-    });
-
-    const stores = connections.map((connection) => {
-      const metadata =
-        (connection.metadata as Record<string, unknown> | null) ?? {};
-      const nameFromMetadata =
-        typeof (metadata as { storeName?: unknown }).storeName === 'string'
-          ? ((metadata as { storeName?: string }).storeName ?? '').trim()
-          : null;
-      const supportEmail =
-        typeof (metadata as { supportEmail?: unknown }).supportEmail ===
-        'string'
-          ? ((metadata as { supportEmail?: string }).supportEmail ?? '').trim()
-          : null;
-
-      const normalizedName = normalizeStoreNameFromDomain(
-        connection.shopDomain,
-      );
-
-      return {
-        id: connection.id,
-        shopDomain: connection.shopDomain ?? '',
-        createdAt: connection.createdAt,
-        name:
-          nameFromMetadata && nameFromMetadata.length > 0
-            ? nameFromMetadata
-            : (normalizedName ?? STORE_DEFAULT_NAME),
-        supportEmail,
-      };
-    });
-
-    return {
-      user,
-      stores,
-    };
-  }),
-  updateUserProfile: protectedProcedure
-    .input(
-      z.object({
-        name: z
-          .string()
-          .trim()
-          .min(2, 'Name must be at least 2 characters long')
-          .max(120, 'Name must be at most 120 characters long')
-          .optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const updates: { name?: string | null } = {};
-
-      if (input.name !== undefined) {
-        const sanitized = sanitizeLimited(input.name, 120).trim();
-        updates.name = sanitized.length > 0 ? sanitized : null;
-      }
-
-      if (Object.keys(updates).length === 0) {
-        return {
-          user: await prisma.user.findUnique({
-            where: { id: ctx.userId },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          }),
-        };
-      }
-
-      const updated = await prisma.user.update({
-        where: { id: ctx.userId },
-        data: updates,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-      await logEvent(
-        'user.profile.updated',
-        { hasName: updated.name != null },
-        'user',
-        ctx.userId,
-      );
-
-      return { user: updated };
-    }),
-  threadsList: protectedProcedure
-    .input(
-      z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
-    )
-    .query(async ({ input }) => {
-      try {
-        const take = clampNumber(input?.take ?? 20, 1, 100);
-        const threads = await prisma.thread.findMany({
-          take,
-          orderBy: { createdAt: 'desc' },
-        });
-        return { threads };
-      } catch {
-        return { threads: [] };
-      }
-    }),
-  threadMessages: protectedProcedure
-    .input(z.object({ threadId: z.string() }))
-    .query(async ({ input }) => {
-      try {
-        const messages = await prisma.message.findMany({
-          where: { threadId: input.threadId },
-          orderBy: { createdAt: 'asc' },
-          select: {
-            id: true,
-            from: true,
-            to: true,
-            body: true,
-            direction: true,
-            createdAt: true,
-            aiSuggestion: {
-              select: {
-                reply: true,
-                proposedAction: true,
-                confidence: true,
-              },
-            },
-          },
-        });
-        return { messages };
-      } catch {
-        return { messages: [] };
-      }
-    }),
-  connections: protectedProcedure.query(async ({ ctx }) => {
-    try {
-      const cons = await prisma.connection.findMany({
-        where: { userId: ctx.userId }, // Multi-tenant scoping
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          type: true,
-          shopDomain: true,
-          createdAt: true,
-          metadata: true,
-        },
-      });
-      return { connections: cons };
-    } catch {
-      return { connections: [] };
-    }
-  }),
-  updateStoreName: protectedProcedure
-    .input(
-      z.object({
-        connectionId: z.string().min(1),
-        storeName: z
-          .string()
-          .trim()
-          .min(2, 'Store name must be at least 2 characters long')
-          .max(120, 'Store name must be at most 120 characters long'),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const connection = await prisma.connection.findFirst({
-        where: {
-          id: input.connectionId,
-          userId: ctx.userId,
-          type: 'SHOPIFY',
-        },
-        select: {
-          id: true,
-          metadata: true,
-        },
-      });
-
-      if (!connection) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Connection not found or access denied',
-        });
-      }
-
-      const trimmedName = input.storeName.trim();
-      const existingMetadata =
-        (connection.metadata as Record<string, unknown> | null) ?? {};
-
-      await prisma.connection.update({
-        where: { id: connection.id },
-        data: {
-          metadata: {
-            ...existingMetadata,
-            storeName: trimmedName,
-          },
-        },
-      });
-
-      return { ok: true };
-    }),
-  disconnectStore: protectedProcedure
-    .input(z.object({ connectionId: z.string().min(1) }))
-    .mutation(async ({ input, ctx }) => {
-      const connection = await prisma.connection.findFirst({
-        where: {
-          id: input.connectionId,
-          userId: ctx.userId,
-          type: 'SHOPIFY',
-        },
-        select: {
-          id: true,
-          shopDomain: true,
-        },
-      });
-
-      if (!connection) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Connection not found or access denied',
-        });
-      }
-
-      const shopDomain = connection.shopDomain;
-
-      // Delete related data in the correct order to avoid foreign key constraint violations
-      // 1. Get all orders and threads for this connection
-      const orders = await prisma.order.findMany({
-        where: { connectionId: connection.id },
-        select: { id: true },
-      });
-      const orderIds = orders.map((o) => o.id);
-
-      const threads = await prisma.thread.findMany({
-        where: { connectionId: connection.id },
-        select: { id: true },
-      });
-      const threadIds = threads.map((t) => t.id);
-
-      // 2. Get all messages for these orders and threads
-      const messages = await prisma.message.findMany({
-        where: {
-          OR: [{ orderId: { in: orderIds } }, { threadId: { in: threadIds } }],
-        },
-        select: { id: true },
-      });
-      const messageIds = messages.map((m) => m.id);
-
-      // 3. Delete AISuggestions (they reference Message)
-      if (messageIds.length > 0) {
-        await prisma.aISuggestion.deleteMany({
-          where: { messageId: { in: messageIds } },
-        });
-      }
-
-      // 4. Delete Actions (they reference Order)
-      if (orderIds.length > 0) {
-        await prisma.action.deleteMany({
-          where: { orderId: { in: orderIds } },
-        });
-      }
-
-      // 5. Delete Messages (they reference Order and Thread)
-      if (messageIds.length > 0) {
-        await prisma.message.deleteMany({
-          where: { id: { in: messageIds } },
-        });
-      }
-
-      // 6. Delete Orders
-      if (orderIds.length > 0) {
-        await prisma.order.deleteMany({
-          where: { connectionId: connection.id },
-        });
-      }
-
-      // 7. Delete Threads (they reference Connection)
-      if (threadIds.length > 0) {
-        await prisma.thread.deleteMany({
-          where: { connectionId: connection.id },
-        });
-      }
-
-      // 8. Finally, delete the connection
-      await prisma.connection.delete({
-        where: { id: connection.id },
-      });
-
-      await logEvent(
-        'shopify.store.disconnected',
-        { shop: shopDomain },
-        'connection',
-        connection.id,
-      );
-
-      return { ok: true, shopDomain };
-    }),
-  createWebhookConnection: protectedProcedure
+const shopifyRouter = t.router({
+  createWebhook: protectedProcedure
     .input(
       z.object({
         shopDomain: z.string().min(3),
@@ -915,6 +576,149 @@ export const appRouter = t.router({
         });
       }
     }),
+  updateStoreName: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string().min(1),
+        storeName: z
+          .string()
+          .trim()
+          .min(2, 'Store name must be at least 2 characters long')
+          .max(120, 'Store name must be at most 120 characters long'),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const trimmedName = input.storeName.trim();
+      const existingMetadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+
+      await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: {
+            ...existingMetadata,
+            storeName: trimmedName,
+          },
+        },
+      });
+
+      return { ok: true };
+    }),
+  disconnectStore: protectedProcedure
+    .input(z.object({ connectionId: z.string().min(1) }))
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          shopDomain: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      const shopDomain = connection.shopDomain;
+
+      // Delete related data in the correct order to avoid foreign key constraint violations
+      // 1. Get all orders and threads for this connection
+      const orders = await prisma.order.findMany({
+        where: { connectionId: connection.id },
+        select: { id: true },
+      });
+      const orderIds = orders.map((o) => o.id);
+
+      const threads = await prisma.thread.findMany({
+        where: { connectionId: connection.id },
+        select: { id: true },
+      });
+      const threadIds = threads.map((t) => t.id);
+
+      // 2. Get all messages for these orders and threads
+      const messages = await prisma.message.findMany({
+        where: {
+          OR: [{ orderId: { in: orderIds } }, { threadId: { in: threadIds } }],
+        },
+        select: { id: true },
+      });
+      const messageIds = messages.map((m) => m.id);
+
+      // 3. Delete AISuggestions (they reference Message)
+      if (messageIds.length > 0) {
+        await prisma.aISuggestion.deleteMany({
+          where: { messageId: { in: messageIds } },
+        });
+      }
+
+      // 4. Delete Actions (they reference Order)
+      if (orderIds.length > 0) {
+        await prisma.action.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+      }
+
+      // 5. Delete Messages (they reference Order and Thread)
+      if (messageIds.length > 0) {
+        await prisma.message.deleteMany({
+          where: { id: { in: messageIds } },
+        });
+      }
+
+      // 6. Delete Orders
+      if (orderIds.length > 0) {
+        await prisma.order.deleteMany({
+          where: { connectionId: connection.id },
+        });
+      }
+
+      // 7. Delete Threads (they reference Connection)
+      if (threadIds.length > 0) {
+        await prisma.thread.deleteMany({
+          where: { connectionId: connection.id },
+        });
+      }
+
+      // 8. Finally, delete the connection
+      await prisma.connection.delete({
+        where: { id: connection.id },
+      });
+
+      await logEvent(
+        'shopify.store.disconnected',
+        { shop: shopDomain },
+        'connection',
+        connection.id,
+      );
+
+      return { ok: true, shopDomain };
+    }),
   getWebhookUrl: protectedProcedure
     .input(z.object({ connectionId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
@@ -948,166 +752,10 @@ export const appRouter = t.router({
         shopDomain: connection.shopDomain,
       };
     }),
-  rotateAlias: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
-      const existing = await prisma.connection.findFirst({
-        where: {
-          id: input.id,
-          userId: ctx.userId, // Multi-tenant scoping
-        },
-      });
-      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Connection not found or access denied',
-        });
-      }
-      const domain = (existing.metadata as any)?.domain as string | undefined;
-      if (!domain) return { ok: false } as any;
+});
 
-      // Get shop domain from metadata to generate consistent shop slug
-      const shopDomain = (existing.metadata as any)?.shopDomain as
-        | string
-        | undefined;
-      if (!shopDomain) return { ok: false } as any;
-
-      // Generate new alias with same format as createEmailAlias
-      const short = Math.random().toString(36).slice(2, 6);
-      const shopSlug = shopDomain
-        .replace(/[^a-zA-Z0-9]/g, '')
-        .slice(0, 8)
-        .toLowerCase();
-
-      // Add environment suffix to alias for routing (local/staging/production)
-      const envSuffix =
-        process.env.NODE_ENV === 'development'
-          ? '-local'
-          : process.env.ENVIRONMENT === 'staging'
-            ? '-staging'
-            : ''; // Production has no suffix
-
-      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
-      const webhookSecret =
-        Math.random().toString(36).slice(2) +
-        Math.random().toString(36).slice(2);
-      const updated = await prisma.connection.update({
-        where: { id: input.id },
-        data: {
-          accessToken: webhookSecret,
-          metadata: {
-            ...(existing.metadata as any),
-            alias,
-            rotatedAt: new Date().toISOString(),
-          } as any,
-        },
-        select: { id: true, metadata: true },
-      });
-      await logEvent('email.alias.rotated', { alias }, 'connection', input.id);
-      return { ok: true, connection: updated } as any;
-    }),
-  setAliasStatus: protectedProcedure
-    .input(z.object({ id: z.string(), disabled: z.boolean() }))
-    .mutation(async ({ input, ctx }) => {
-      const existing = await prisma.connection.findFirst({
-        where: {
-          id: input.id,
-          userId: ctx.userId, // Multi-tenant scoping
-        },
-      });
-      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Connection not found or access denied',
-        });
-      }
-      const updated = await prisma.connection.update({
-        where: { id: input.id },
-        data: {
-          metadata: {
-            ...(existing.metadata as any),
-            disabled: input.disabled,
-          } as any,
-        },
-        select: { id: true, metadata: true },
-      });
-      await logEvent(
-        input.disabled ? 'email.alias.disabled' : 'email.alias.enabled',
-        {},
-        'connection',
-        input.id,
-      );
-      return { ok: true, connection: updated } as any;
-    }),
-  updateConnectionSettings: protectedProcedure
-    .input(
-      z.object({
-        connectionId: z.string(),
-        supportEmail: z.string().email().optional(),
-        storeName: z.string().min(1).max(100).optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      // Verify user owns the connection
-      const existing = await prisma.connection.findFirst({
-        where: {
-          id: input.connectionId,
-          userId: ctx.userId, // Multi-tenant scoping
-        },
-      });
-
-      if (!existing) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Connection not found or access denied',
-        });
-      }
-
-      // Update metadata with support email and/or store name
-      const currentMetadata = (existing.metadata as any) ?? {};
-      const updatedMetadata: any = { ...currentMetadata };
-
-      if (input.supportEmail !== undefined) {
-        updatedMetadata.supportEmail = input.supportEmail;
-      }
-
-      if (input.storeName !== undefined) {
-        updatedMetadata.storeName = input.storeName;
-      }
-
-      const updated = await prisma.connection.update({
-        where: { id: input.connectionId },
-        data: {
-          metadata: updatedMetadata,
-        },
-        select: { id: true, metadata: true },
-      });
-
-      await logEvent(
-        'connection.settings.updated',
-        {
-          supportEmail: input.supportEmail,
-          storeName: input.storeName,
-        },
-        'connection',
-        input.connectionId,
-      );
-
-      return { ok: true, connection: updated };
-    }),
-  emailHealth: publicProcedure.query(async () => {
-    try {
-      const last = await prisma.message.findFirst({
-        where: { direction: 'INBOUND' as any },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
-      });
-      return { lastInboundAt: last?.createdAt ?? null };
-    } catch {
-      return { lastInboundAt: null };
-    }
-  }),
-  createEmailAlias: protectedProcedure
+const emailRouter = t.router({
+  createAlias: protectedProcedure
     .input(
       z.object({
         userEmail: z.string().email(),
@@ -1201,6 +849,369 @@ export const appRouter = t.router({
       await logEvent('email.alias.created', { alias }, 'connection', conn.id);
       return { id: conn.id, alias };
     }),
+  rotateAlias: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
+      });
+      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+      const domain = (existing.metadata as any)?.domain as string | undefined;
+      if (!domain) return { ok: false } as any;
+
+      // Get shop domain from metadata to generate consistent shop slug
+      const shopDomain = (existing.metadata as any)?.shopDomain as
+        | string
+        | undefined;
+      if (!shopDomain) return { ok: false } as any;
+
+      // Generate new alias with same format as createEmailAlias
+      const short = Math.random().toString(36).slice(2, 6);
+      const shopSlug = shopDomain
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .slice(0, 8)
+        .toLowerCase();
+
+      // Add environment suffix to alias for routing (local/staging/production)
+      const envSuffix =
+        process.env.NODE_ENV === 'development'
+          ? '-local'
+          : process.env.ENVIRONMENT === 'staging'
+            ? '-staging'
+            : ''; // Production has no suffix
+
+      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
+      const webhookSecret =
+        Math.random().toString(36).slice(2) +
+        Math.random().toString(36).slice(2);
+      const updated = await prisma.connection.update({
+        where: { id: input.id },
+        data: {
+          accessToken: webhookSecret,
+          metadata: {
+            ...(existing.metadata as any),
+            alias,
+            rotatedAt: new Date().toISOString(),
+          } as any,
+        },
+        select: { id: true, metadata: true },
+      });
+      await logEvent('email.alias.rotated', { alias }, 'connection', input.id);
+      return { ok: true, connection: updated } as any;
+    }),
+  setAliasStatus: protectedProcedure
+    .input(z.object({ id: z.string(), disabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
+      });
+      if (!existing || (existing.type as any) !== 'CUSTOM_EMAIL') {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+      const updated = await prisma.connection.update({
+        where: { id: input.id },
+        data: {
+          metadata: {
+            ...(existing.metadata as any),
+            disabled: input.disabled,
+          } as any,
+        },
+        select: { id: true, metadata: true },
+      });
+      await logEvent(
+        input.disabled ? 'email.alias.disabled' : 'email.alias.enabled',
+        {},
+        'connection',
+        input.id,
+      );
+      return { ok: true, connection: updated } as any;
+    }),
+});
+
+export const appRouter = t.router({
+  shopify: shopifyRouter,
+  email: emailRouter,
+  // Public endpoints (no auth required)
+  health: publicProcedure.query(() => ({ status: 'ok' })),
+  echo: publicProcedure
+    .input(z.object({ text: z.string() }))
+    .query(({ input }) => ({ text: input.text })),
+
+  // Protected endpoints (auth required)
+  ordersCount: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const count = await prisma.order.count();
+      return { count };
+    } catch {
+      return { count: 0 };
+    }
+  }),
+  getUserProfile: protectedProcedure.query(async ({ ctx }) => {
+    const user = await prisma.user.findUnique({
+      where: { id: ctx.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'User profile not found',
+      });
+    }
+
+    const connections = await prisma.connection.findMany({
+      where: { userId: ctx.userId, type: 'SHOPIFY' },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        shopDomain: true,
+        createdAt: true,
+        metadata: true,
+      },
+    });
+
+    const stores = connections.map((connection) => {
+      const metadata =
+        (connection.metadata as Record<string, unknown> | null) ?? {};
+      const nameFromMetadata =
+        typeof (metadata as { storeName?: unknown }).storeName === 'string'
+          ? ((metadata as { storeName?: string }).storeName ?? '').trim()
+          : null;
+      const supportEmail =
+        typeof (metadata as { supportEmail?: unknown }).supportEmail ===
+        'string'
+          ? ((metadata as { supportEmail?: string }).supportEmail ?? '').trim()
+          : null;
+
+      const normalizedName = normalizeStoreNameFromDomain(
+        connection.shopDomain,
+      );
+
+      return {
+        id: connection.id,
+        shopDomain: connection.shopDomain ?? '',
+        createdAt: connection.createdAt,
+        name:
+          nameFromMetadata && nameFromMetadata.length > 0
+            ? nameFromMetadata
+            : (normalizedName ?? STORE_DEFAULT_NAME),
+        supportEmail,
+      };
+    });
+
+    return {
+      user,
+      stores,
+    };
+  }),
+  updateUserProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .min(2, 'Name must be at least 2 characters long')
+          .max(120, 'Name must be at most 120 characters long')
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const updates: { name?: string | null } = {};
+
+      if (input.name !== undefined) {
+        const sanitized = sanitizeLimited(input.name, 120).trim();
+        updates.name = sanitized.length > 0 ? sanitized : null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return {
+          user: await prisma.user.findUnique({
+            where: { id: ctx.userId },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          }),
+        };
+      }
+
+      const updated = await prisma.user.update({
+        where: { id: ctx.userId },
+        data: updates,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await logEvent(
+        'user.profile.updated',
+        { hasName: updated.name != null },
+        'user',
+        ctx.userId,
+      );
+
+      return { user: updated };
+    }),
+  threadsList: protectedProcedure
+    .input(
+      z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
+    )
+    .query(async ({ input }) => {
+      try {
+        const take = clampNumber(input?.take ?? 20, 1, 100);
+        const threads = await prisma.thread.findMany({
+          take,
+          orderBy: { createdAt: 'desc' },
+        });
+        return { threads };
+      } catch {
+        return { threads: [] };
+      }
+    }),
+  threadMessages: protectedProcedure
+    .input(z.object({ threadId: z.string() }))
+    .query(async ({ input }) => {
+      try {
+        const messages = await prisma.message.findMany({
+          where: { threadId: input.threadId },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            from: true,
+            to: true,
+            body: true,
+            direction: true,
+            createdAt: true,
+            aiSuggestion: {
+              select: {
+                reply: true,
+                proposedAction: true,
+                confidence: true,
+              },
+            },
+          },
+        });
+        return { messages };
+      } catch {
+        return { messages: [] };
+      }
+    }),
+  connections: protectedProcedure.query(async ({ ctx }) => {
+    try {
+      const cons = await prisma.connection.findMany({
+        where: { userId: ctx.userId }, // Multi-tenant scoping
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          shopDomain: true,
+          createdAt: true,
+          metadata: true,
+        },
+      });
+      return { connections: cons };
+    } catch {
+      return { connections: [] };
+    }
+  }),
+
+
+  updateConnectionSettings: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string(),
+        supportEmail: z.string().email().optional(),
+        storeName: z.string().min(1).max(100).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Verify user owns the connection
+      const existing = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId, // Multi-tenant scoping
+        },
+      });
+
+      if (!existing) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      // Update metadata with support email and/or store name
+      const currentMetadata = (existing.metadata as any) ?? {};
+      const updatedMetadata: any = { ...currentMetadata };
+
+      if (input.supportEmail !== undefined) {
+        updatedMetadata.supportEmail = input.supportEmail;
+      }
+
+      if (input.storeName !== undefined) {
+        updatedMetadata.storeName = input.storeName;
+      }
+
+      const updated = await prisma.connection.update({
+        where: { id: input.connectionId },
+        data: {
+          metadata: updatedMetadata,
+        },
+        select: { id: true, metadata: true },
+      });
+
+      await logEvent(
+        'connection.settings.updated',
+        {
+          supportEmail: input.supportEmail,
+          storeName: input.storeName,
+        },
+        'connection',
+        input.connectionId,
+      );
+
+      return { ok: true, connection: updated };
+    }),
+  emailHealth: publicProcedure.query(async () => {
+    try {
+      const last = await prisma.message.findFirst({
+        where: { direction: 'INBOUND' as any },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      return { lastInboundAt: last?.createdAt ?? null };
+    } catch {
+      return { lastInboundAt: null };
+    }
+  }),
+
   ordersListDb: protectedProcedure
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
