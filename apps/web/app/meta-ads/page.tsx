@@ -55,6 +55,11 @@ interface AIInsight {
 function generateAIInsights(stats: any): AIInsight[] {
   const insights: AIInsight[] = [];
 
+  // Safety check
+  if (!stats || typeof stats !== 'object') {
+    return insights;
+  }
+
   // ROAS Analysis
   if (stats.roas !== undefined) {
     if (stats.roas < 1) {
@@ -97,7 +102,7 @@ function generateAIInsights(stats: any): AIInsight[] {
   }
 
   // CTR Analysis
-  if (stats.ctr > 0) {
+  if (stats.ctr !== undefined && stats.ctr > 0) {
     const ctrPercent = stats.ctr * 100;
     if (ctrPercent < 0.5) {
       insights.push({
@@ -129,7 +134,7 @@ function generateAIInsights(stats: any): AIInsight[] {
   }
 
   // CPC Analysis
-  if (stats.cpc > 0) {
+  if (stats.cpc !== undefined && stats.cpc > 0) {
     if (stats.cpc > 5) {
       insights.push({
         type: 'warning',
@@ -151,7 +156,7 @@ function generateAIInsights(stats: any): AIInsight[] {
   }
 
   // Campaign Analysis
-  if (stats.campaigns && stats.campaigns.length > 0) {
+  if (stats.campaigns && Array.isArray(stats.campaigns) && stats.campaigns.length > 0) {
     // Find underperforming campaigns
     const underperformingCampaigns = stats.campaigns.filter((c: any) => {
       if (c.roas !== undefined && c.roas < 0.5 && c.spend > 10) {
@@ -206,7 +211,7 @@ function generateAIInsights(stats: any): AIInsight[] {
   }
 
   // Ad Set Analysis
-  if (stats.adsets && stats.adsets.length > 0) {
+  if (stats.adsets && Array.isArray(stats.adsets) && stats.adsets.length > 0) {
     const underperformingAdsets = stats.adsets.filter((a: any) => {
       if (a.roas !== undefined && a.roas < 0.5 && a.spend > 5) {
         return true;
@@ -258,7 +263,7 @@ function generateAIInsights(stats: any): AIInsight[] {
   }
 
   // Frequency Analysis
-  if (stats.frequency !== undefined && stats.frequency > 0) {
+  if (stats.frequency !== undefined && typeof stats.frequency === 'number' && stats.frequency > 0) {
     if (stats.frequency > 4) {
       insights.push({
         type: 'warning',
@@ -1496,7 +1501,7 @@ function MetaAdsInner() {
         </DialogContent>
       </Dialog>
 
-      <ToastContainer />
+      <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
     </main>
   );
 }
