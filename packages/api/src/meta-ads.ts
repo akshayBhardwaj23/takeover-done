@@ -849,3 +849,288 @@ export async function fetchMetaAdsInsights(
     throw error;
   }
 }
+
+/**
+ * Pause or activate a campaign
+ */
+export async function updateCampaignStatus(
+  campaignId: string,
+  status: 'PAUSED' | 'ACTIVE',
+  accessToken: string,
+  exchangeToken: string | null,
+): Promise<{ success: boolean }> {
+  const validToken = await getValidAccessToken(accessToken, exchangeToken);
+
+  try {
+    const url = new URL(`https://graph.facebook.com/v21.0/${campaignId}`);
+    url.searchParams.set('access_token', validToken);
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: status,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Failed to update campaign status: ${errorText}`;
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        // Keep original error message
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Meta Ads] Error updating campaign status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Pause or activate an ad set
+ */
+export async function updateAdSetStatus(
+  adSetId: string,
+  status: 'PAUSED' | 'ACTIVE',
+  accessToken: string,
+  exchangeToken: string | null,
+): Promise<{ success: boolean }> {
+  const validToken = await getValidAccessToken(accessToken, exchangeToken);
+
+  try {
+    const url = new URL(`https://graph.facebook.com/v21.0/${adSetId}`);
+    url.searchParams.set('access_token', validToken);
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: status,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Failed to update ad set status: ${errorText}`;
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        // Keep original error message
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Meta Ads] Error updating ad set status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update campaign budget
+ */
+export async function updateCampaignBudget(
+  campaignId: string,
+  dailyBudget: number,
+  accessToken: string,
+  exchangeToken: string | null,
+): Promise<{ success: boolean }> {
+  const validToken = await getValidAccessToken(accessToken, exchangeToken);
+
+  try {
+    // Update with daily budget (convert to cents)
+    const url = new URL(`https://graph.facebook.com/v21.0/${campaignId}`);
+    url.searchParams.set('access_token', validToken);
+
+    const budgetInCents = Math.round(dailyBudget * 100);
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        daily_budget: budgetInCents,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Failed to update campaign budget: ${errorText}`;
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        // Keep original error message
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Meta Ads] Error updating campaign budget:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get ad set details for creating similar ad sets
+ */
+export async function getAdSetDetails(
+  adSetId: string,
+  accessToken: string,
+  exchangeToken: string | null,
+): Promise<{
+  id: string;
+  name: string;
+  campaign_id: string;
+  targeting: any;
+  daily_budget?: number;
+  optimization_goal?: string;
+  billing_event?: string;
+  bid_amount?: number;
+}> {
+  const validToken = await getValidAccessToken(accessToken, exchangeToken);
+
+  try {
+    const url = new URL(`https://graph.facebook.com/v21.0/${adSetId}`);
+    url.searchParams.set(
+      'fields',
+      'id,name,campaign_id,targeting,daily_budget,optimization_goal,billing_event,bid_amount',
+    );
+    url.searchParams.set('access_token', validToken);
+
+    const response = await fetch(url.toString());
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch ad set: ${errorText}`);
+    }
+
+    const data = (await response.json()) as {
+      id: string;
+      name: string;
+      campaign_id?: string;
+      targeting?: any;
+      daily_budget?: string;
+      optimization_goal?: string;
+      billing_event?: string;
+      bid_amount?: string;
+    };
+
+    return {
+      id: data.id,
+      name: data.name,
+      campaign_id: data.campaign_id || '',
+      targeting: data.targeting || {},
+      daily_budget: data.daily_budget
+        ? parseFloat(data.daily_budget) / 100
+        : undefined,
+      optimization_goal: data.optimization_goal,
+      billing_event: data.billing_event,
+      bid_amount: data.bid_amount ? parseFloat(data.bid_amount) / 100 : undefined,
+    };
+  } catch (error: any) {
+    console.error('[Meta Ads] Error fetching ad set details:', error);
+    throw error;
+  }
+}
+
+/**
+ * Create a new ad set based on a top-performing ad set
+ */
+export async function createOptimizedAdSet(
+  adAccountId: string,
+  campaignId: string,
+  sourceAdSetId: string,
+  name: string,
+  dailyBudget: number,
+  accessToken: string,
+  exchangeToken: string | null,
+): Promise<{ id: string; success: boolean }> {
+  const validToken = await getValidAccessToken(accessToken, exchangeToken);
+
+  try {
+    // Get source ad set details
+    const sourceAdSet = await getAdSetDetails(
+      sourceAdSetId,
+      accessToken,
+      exchangeToken,
+    );
+
+    // Clean adAccountId
+    const cleanAdAccountId = adAccountId.startsWith('act_')
+      ? adAccountId
+      : `act_${adAccountId.replace(/^act_/, '')}`;
+
+    // Create new ad set with similar targeting but optimized budget
+    const url = new URL(
+      `https://graph.facebook.com/v21.0/${cleanAdAccountId}/adsets`,
+    );
+    url.searchParams.set('access_token', validToken);
+
+    const budgetInCents = Math.round(dailyBudget * 100);
+
+    const adSetData: any = {
+      name: name,
+      campaign_id: campaignId,
+      daily_budget: budgetInCents,
+      optimization_goal: sourceAdSet.optimization_goal || 'OFFSITE_CONVERSIONS',
+      billing_event: sourceAdSet.billing_event || 'IMPRESSIONS',
+      status: 'PAUSED', // Start paused so user can review
+      targeting: sourceAdSet.targeting || {},
+    };
+
+    // Add bid amount if available
+    if (sourceAdSet.bid_amount) {
+      adSetData.bid_amount = Math.round(sourceAdSet.bid_amount * 100);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(adSetData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `Failed to create ad set: ${errorText}`;
+
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+      } catch {
+        // Keep original error message
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const result = (await response.json()) as { id: string };
+
+    return { id: result.id, success: true };
+  } catch (error: any) {
+    console.error('[Meta Ads] Error creating optimized ad set:', error);
+    throw error;
+  }
+}
