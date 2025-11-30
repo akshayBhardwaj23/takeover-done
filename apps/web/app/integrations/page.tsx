@@ -376,17 +376,52 @@ function IntegrationsInner() {
           originalObject: c,
         });
       });
-    } else {
-      items.push({
-        id: 'email-placeholder',
-        type: 'EMAIL',
-        name: 'Email Aliases',
-        description:
-          'Create email aliases to route support emails through Zyyp.',
-        category: 'Communication & Collaboration',
-        status: 'disconnected',
-        icon: Mail,
+
+      // Add "Add Email Alias" option for stores without aliases
+      const storesWithAliases = emailConnections
+        .map((c: any) => (c.metadata as any)?.shopDomain)
+        .filter(Boolean);
+      const storesWithoutAliases = shopifyConnections.filter(
+        (c: any) => c.shopDomain && !storesWithAliases.includes(c.shopDomain),
+      );
+
+      storesWithoutAliases.forEach((store: any) => {
+        items.push({
+          id: `email-add-${store.id}`,
+          type: 'EMAIL',
+          name: `Add Email Alias for ${deriveStoreName(store)}`,
+          description: `Create an email alias for ${store.shopDomain}.`,
+          category: 'Communication & Collaboration',
+          status: 'disconnected',
+          icon: Plus,
+          originalObject: store,
+        });
       });
+    } else {
+      if (shopifyConnections.length > 0) {
+        // Show placeholder if there are stores but no aliases
+        items.push({
+          id: 'email-placeholder',
+          type: 'EMAIL',
+          name: 'Email Aliases',
+          description:
+            'Create email aliases to route support emails through Zyyp.',
+          category: 'Communication & Collaboration',
+          status: 'disconnected',
+          icon: Mail,
+        });
+      } else {
+        // No stores connected yet
+        items.push({
+          id: 'email-placeholder',
+          type: 'EMAIL',
+          name: 'Email Aliases',
+          description: 'Connect a Shopify store first to create email aliases.',
+          category: 'Communication & Collaboration',
+          status: 'disconnected',
+          icon: Mail,
+        });
+      }
     }
 
     // 4. Google Analytics
@@ -476,19 +511,49 @@ function IntegrationsInner() {
           toast.warning('Please sign in first.');
           return;
         }
-        const firstShop = connections.find(
-          (c: any) => c.type === 'SHOPIFY',
-        )?.shopDomain;
-        if (!firstShop) {
-          toast.warning('Connect a Shopify store first.');
+
+        // If this is an "Add Email Alias for Store X" item, use that store
+        let targetShop: string | undefined;
+        if (
+          item.id?.startsWith('email-add-') &&
+          item.originalObject?.shopDomain
+        ) {
+          targetShop = item.originalObject.shopDomain;
+        } else {
+          // Otherwise, find all available shops
+          const availableShops = connections
+            .filter((c: any) => c.type === 'SHOPIFY')
+            .map((c: any) => c.shopDomain);
+
+          if (availableShops.length === 0) {
+            toast.warning('Connect a Shopify store first.');
+            return;
+          }
+
+          // If only one shop, use it directly
+          if (availableShops.length === 1) {
+            targetShop = availableShops[0];
+          } else {
+            // Multiple shops - show selection dialog (for now, use first)
+            // TODO: Add store selection dialog for multiple stores
+            targetShop = availableShops[0];
+            toast.info(
+              `Creating alias for ${availableShops[0]}. To create for another store, use the "Add Email Alias" option for that specific store.`,
+            );
+          }
+        }
+
+        if (!targetShop) {
+          toast.warning('No store selected for email alias.');
           return;
         }
+
         createAlias.mutate({
           userEmail: email,
           domain:
             (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
             'mail.example.com',
-          shop: firstShop,
+          shop: targetShop,
         });
       } else if (item.type === 'GA4') {
         window.location.href = '/api/google-analytics/install';

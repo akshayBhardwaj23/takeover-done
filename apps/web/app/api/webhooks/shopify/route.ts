@@ -160,11 +160,29 @@ export async function POST(req: NextRequest) {
       const order = json;
       const totalCents = Math.round(Number(order.total_price || '0') * 100);
 
+      let customerName: string | null = null;
+      if (order.customer) {
+        const first = order.customer.first_name || '';
+        const last = order.customer.last_name || '';
+        if (first || last) {
+          customerName = `${first} ${last}`.trim();
+        }
+      }
+      
+      if (!customerName && order.billing_address) {
+        customerName = order.billing_address.name || `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() || null;
+      }
+      
+      if (!customerName && order.shipping_address) {
+        customerName = order.shipping_address.name || `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() || null;
+      }
+
       console.log('[Shopify Webhook] Saving order:', {
         shopifyId: String(order.id),
         name: order.name,
         shop: normalizedShop,
         totalCents,
+        customerName,
       });
 
       await prisma.order.upsert({
@@ -177,6 +195,7 @@ export async function POST(req: NextRequest) {
           status: 'CREATED',
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
+          customerName,
         },
         update: {
           name: order.name || null,
@@ -184,6 +203,7 @@ export async function POST(req: NextRequest) {
           status: 'CREATED',
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
+          customerName,
         },
       });
 
@@ -191,6 +211,48 @@ export async function POST(req: NextRequest) {
         '[Shopify Webhook] Order saved successfully:',
         String(order.id),
       );
+    } else if (topic === 'orders/updated') {
+      const order = json;
+      const totalCents = Math.round(Number(order.total_price || '0') * 100);
+      
+      let customerName: string | null = null;
+      if (order.customer) {
+        const first = order.customer.first_name || '';
+        const last = order.customer.last_name || '';
+        if (first || last) {
+          customerName = `${first} ${last}`.trim();
+        }
+      }
+      
+      if (!customerName && order.billing_address) {
+        customerName = order.billing_address.name || `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() || null;
+      }
+      
+      if (!customerName && order.shipping_address) {
+        customerName = order.shipping_address.name || `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() || null;
+      }
+
+      await prisma.order.upsert({
+        where: { shopifyId: String(order.id) },
+        create: {
+          shopifyId: String(order.id),
+          connectionId: conn.id,
+          name: order.name || null,
+          shopDomain: normalizedShop || null,
+          status: order.financial_status || 'CREATED',
+          email: order.email ?? null,
+          totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
+          customerName,
+        },
+        update: {
+          name: order.name || null,
+          shopDomain: normalizedShop || null,
+          status: order.financial_status || 'CREATED',
+          email: order.email ?? null,
+          totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
+          customerName,
+        },
+      });
     } else if (topic === 'orders/fulfilled') {
       const order = json;
       await prisma.order.updateMany({

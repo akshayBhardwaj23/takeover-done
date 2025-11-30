@@ -864,7 +864,9 @@ export default function InboxPage() {
                               </div>
                               <p className="text-xs text-stone-600 truncate mb-1">
                                 {order.customerName ||
-                                  order.email ||
+                                  (order.email
+                                    ? getSenderName(order.email)
+                                    : null) ||
                                   'No customer info'}
                               </p>
                               <div className="flex items-center gap-2">
