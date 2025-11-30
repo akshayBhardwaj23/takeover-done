@@ -507,6 +507,9 @@ export default function InboxPage() {
     }
     setIsRefreshing(true);
     try {
+      if (shop && selectedOrderId) {
+        await refreshOrder.mutateAsync({ shop, orderId: selectedOrderId });
+      }
       await Promise.all([inboxBootstrap.refetch(), unassignedQuery.refetch()]);
       toast.success('Inbox refreshed');
     } catch (error: any) {
@@ -516,7 +519,14 @@ export default function InboxPage() {
         setIsRefreshing(false);
       }, 400);
     }
-  }, [inboxBootstrap, unassignedQuery, toast]);
+  }, [
+    inboxBootstrap,
+    unassignedQuery,
+    toast,
+    shop,
+    selectedOrderId,
+    refreshOrder,
+  ]);
 
   const handleSendReply = async () => {
     if (!selectedEmail || !draft.trim()) return;
