@@ -4,50 +4,87 @@
 
 **Capabilities**
 
-- OAuth install, token stored in `Connection`
-- Non-protected Admin API reads (recent orders, single order)
-- Webhook receiver with HMAC verification
+- Custom App connection with manual access token entry
+- Admin API access for reading orders and store data
+- Initial sync of up to 100 historical orders (up to 2 years back)
+- Manual order sync via sync button
+- Store limit enforcement based on subscription plan (Trial: 1, Starter: 1, Growth: 3, Pro: 10, Enterprise: unlimited)
+- Webhook receiver with HMAC verification (optional - for real-time updates)
 
-**Essential webhooks** (always registered)
+**Connection Method**
 
-- `orders/create`, `orders/fulfilled`, `refunds/create`, `app/uninstalled`
-- These are required for core functionality and are always registered
+- **Custom App**: Users manually create a Custom App in Shopify Admin and copy the Admin API access token
+- No OAuth flow required - works entirely on localhost without tunnels
+- Connection stored in `Connection` table with encrypted access token
 
-**Additional topics** (optional, controlled by `PROTECTED_WEBHOOKS` flag)
+**Order Syncing**
 
-- `shop/update`, `products/create`
-- Only registered when `PROTECTED_WEBHOOKS=true`
+- **Initial Sync**: Automatically fetches last 100 orders when store is connected (includes historical orders beyond 60 days)
+- **Manual Sync**: Users can click sync button (🔄) to refresh orders anytime
+- **API Calls**: All order syncing uses direct API calls to Shopify Admin API
+- **Time Range**: Fetches orders up to 2 years back (Shopify's default limit is 60 days)
 
-**Env keys**
+**Webhooks** (Optional)
 
-- `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`
+- Webhooks are **optional** and only provide real-time updates
+- If webhooks are configured, they register:
+  - `orders/create` - Real-time order notifications
+  - `orders/fulfilled` - Fulfillment updates
+  - `refunds/create` - Refund notifications
+  - `app/uninstalled` - App removal notifications
+- Webhooks require a public URL (tunnel needed only for webhook testing)
 
-**Sequence (install)**
+**Env keys** (Optional - only for webhooks)
+
+- `SHOPIFY_API_SECRET` - Only needed if using webhooks (for HMAC verification)
+- `SHOPIFY_APP_URL` - Only needed if registering webhooks programmatically
+
+**Connection Sequence**
 
 ```mermaid
 sequenceDiagram
   participant U as User
   participant Web as Next.js /integrations
-  participant S as Shopify
+  participant Shopify as Shopify Admin
+  participant API as Shopify Admin API
   participant DB as Prisma
-  U->>Web: Connect store
-  Web->>S: Redirect to consent
-  S->>Web: Callback with code+hmac
-  Web->>S: Exchange for access_token
-  Web->>DB: Create Connection(userId, shopDomain, accessToken)
-  Web-->>U: Redirect to /integrations?connected=1
+  U->>Shopify: Create Custom App manually
+  Shopify->>U: Generate Admin API access token
+  U->>Web: Paste subdomain + access token
+  Web->>API: Verify credentials (test API call)
+  API-->>Web: Valid credentials
+  Web->>API: Fetch last 100 orders (includeHistorical)
+  API-->>Web: Return orders
+  Web->>DB: Create Connection + Store orders
+  Web-->>U: Store connected successfully
 ```
 
-**Admin API usage**
+**Admin API Usage**
 
-- tRPC resolves `Connection` by `shop` and uses `X-Shopify-Access-Token` for:
-  - `ordersRecent` — `/admin/api/2024-07/orders.json?status=any&limit=...`
-  - `orderGet` — `/admin/api/2024-07/orders/{id}.json`
+- Uses `X-Shopify-Access-Token` header for all API calls
+- `getOrders(limit, { includeHistorical: true })` - Fetches orders with historical data
+- Orders are stored in database with `connectionId` linking to specific store
+- Each order includes: `shopifyId`, `status`, `email`, `totalAmount`, `shopDomain`, `connectionId`
 
-**Security/HMAC verification**
+**Plan Limits**
 
-- OAuth callback: compute `sha256` HMAC using `SHOPIFY_API_SECRET` over the sorted query string (all params except `hmac`), compare to `hmac` param.
-- Webhooks: verify `X-Shopify-Hmac-Sha256` header equals the base64-encoded `sha256` HMAC of the raw request body using `SHOPIFY_API_SECRET`.
+- **Trial/Starter**: 1 store maximum
+- **Growth**: 3 stores maximum
+- **Pro**: 10 stores maximum
+- **Enterprise**: Unlimited stores
+- Backend enforces limits when creating connections
+
+**Security**
+
+- Access tokens encrypted at rest using `encryptSecure`
+- Token verification before connection (test API call)
+- Each store's orders are isolated by `connectionId`
+- No OAuth flow means no callback URLs or redirect handling needed
+
+**Disconnection**
+
+- When disconnecting a store, users are reminded to also delete the Custom App from Shopify Admin
+- Disconnection removes all stored data (orders, messages, threads) for that store
 
 ### Email (planned)
 

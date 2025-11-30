@@ -36,10 +36,10 @@ NEXTAUTH_URL="https://YOUR-SUBDOMAIN.zyyp.ai"  # Each dev has their own subdomai
 GOOGLE_CLIENT_ID="..."  # Get from team lead
 GOOGLE_CLIENT_SECRET="..."  # Get from team lead
 
-# Shopify (SHARED)
-SHOPIFY_CLIENT_ID="..."  # Get from team lead
-SHOPIFY_CLIENT_SECRET="..."  # Get from team lead
-SHOPIFY_WEBHOOK_SECRET="..."  # Get from team lead
+# Shopify (Optional - only for webhooks, not required for Custom App connections)
+SHOPIFY_CLIENT_ID="..."  # Optional - only if using OAuth
+SHOPIFY_CLIENT_SECRET="..."  # Optional - only if using OAuth
+SHOPIFY_WEBHOOK_SECRET="..."  # Optional - only if testing webhooks
 
 # Mailgun (SHARED)
 MAILGUN_API_KEY="..."  # Get from team lead
@@ -67,9 +67,13 @@ pnpm prisma generate
 
 **Note:** DO NOT run `prisma migrate dev` unless coordinating with the team, as it will affect the shared database.
 
-### 4. Set Up Your Own Cloudflare Tunnel
+### 4. Set Up Your Own Cloudflare Tunnel (Optional)
 
-This is the crucial step! Each developer needs their own tunnel to receive webhooks.
+**Note**: With Custom App connections, a tunnel is **NOT required** for Shopify integration! Orders sync via API calls, not webhooks.
+
+A tunnel is only needed if you want to:
+- Receive email webhooks (Mailgun) in localhost
+- Test real-time Shopify webhooks (optional - manual sync works fine)
 
 #### Install Cloudflare Tunnel (cloudflared)
 
@@ -226,7 +230,7 @@ pnpm prisma studio
 
 ## Alternative: Quick Testing Without Tunnel
 
-If you just want to test locally without webhooks:
+You can develop and test the full Shopify integration **without a tunnel** using Custom App connections:
 
 ```bash
 # Just run the app
@@ -236,7 +240,15 @@ pnpm dev
 # Visit http://localhost:3000
 ```
 
-**Limitation**: Shopify/Mailgun webhooks won't work without a public URL.
+**What Works Without Tunnel:**
+- ✅ Connect Shopify stores (Custom App method)
+- ✅ Sync orders manually or on initial connection
+- ✅ View orders in dashboard
+- ✅ All Shopify functionality via API calls
+
+**What Requires Tunnel:**
+- ❌ Email webhooks (Mailgun) - only if you want to receive customer emails
+- ❌ Real-time Shopify webhooks - optional, manual sync available
 
 ## Getting Help
 
