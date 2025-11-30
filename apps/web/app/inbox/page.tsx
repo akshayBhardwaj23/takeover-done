@@ -877,7 +877,7 @@ export default function InboxPage() {
                                   (order.email
                                     ? getSenderName(order.email)
                                     : null) ||
-                                  'No customer info'}
+                                  'Guest Customer'}
                               </p>
                               <div className="flex items-center gap-2">
                                 <Badge
@@ -1487,7 +1487,7 @@ export default function InboxPage() {
                                       ordersAccum.find(
                                         (o) => o.shopifyId === selectedOrderId,
                                       )?.email ||
-                                      'N/A'}
+                                      'Guest Customer'}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">
