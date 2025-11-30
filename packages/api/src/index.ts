@@ -3272,6 +3272,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             type: key,
             name: value.name,
             emailsPerMonth: value.emailsPerMonth,
+            aiRepliesLimit: value.aiRepliesLimit,
             stores: value.stores,
             price: pricing ? pricing[currency] : -1,
             priceUSD: pricing ? pricing.USD : -1,

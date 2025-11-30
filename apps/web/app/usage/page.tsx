@@ -561,8 +561,22 @@ export default function UsagePage() {
                                 />
                                 <span>
                                   {plan.emailsPerMonth === -1
-                                    ? 'Unlimited AI-assisted replies'
-                                    : `${plan.emailsPerMonth.toLocaleString()} AI-assisted replies/month`}
+                                    ? 'Unlimited emails/month'
+                                    : `${plan.emailsPerMonth.toLocaleString()} emails/month`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CheckCircle
+                                  className={`h-4 w-4 ${
+                                    isCurrentPlan
+                                      ? 'text-white/70'
+                                      : 'text-slate-400'
+                                  }`}
+                                />
+                                <span>
+                                  {(plan as any).aiRepliesLimit === -1
+                                    ? 'Unlimited AI replies'
+                                    : `${((plan as any).aiRepliesLimit || plan.emailsPerMonth).toLocaleString()} AI replies/month`}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
