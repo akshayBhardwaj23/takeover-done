@@ -862,7 +862,7 @@ export default function InboxPage() {
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 relative">
                               <div className="flex items-center justify-between mb-0.5">
                                 <span className="text-sm font-semibold text-stone-900 truncate">
                                   {order.name ||
@@ -895,15 +895,8 @@ export default function InboxPage() {
 
                               {/* Email indicator */}
                               {hasPendingEmails && (
-                                <div className="flex items-center gap-1 mt-2">
-                                  <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                                  <span className="text-xs text-orange-600">
-                                    {order.pendingEmailCount} email
-                                    {(order.pendingEmailCount ?? 0) > 1
-                                      ? 's'
-                                      : ''}{' '}
-                                    pending
-                                  </span>
+                                <div className="absolute top-0.5 right-0">
+                                  <div className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-white" />
                                 </div>
                               )}
                             </div>
