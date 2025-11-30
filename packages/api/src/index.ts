@@ -42,6 +42,10 @@ import {
 import {
   listAdAccounts,
   fetchMetaAdsInsights,
+  updateCampaignStatus,
+  updateAdSetStatus,
+  updateCampaignBudget,
+  createOptimizedAdSet,
   type MetaAdAccount,
   type MetaAdsInsights,
 } from './meta-ads';
@@ -4633,6 +4637,175 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     await logEvent('meta_ads.disconnected', {}, 'connection', ctx.userId);
     return { success: true };
   }),
+  // Pause or activate a campaign
+  pauseCampaign: protectedProcedure
+    .input(
+      z.object({
+        campaignId: z.string().min(1),
+        status: z.enum(['PAUSED', 'ACTIVE']),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateCampaignStatus(
+        input.campaignId,
+        input.status,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        `meta_ads.campaign.${input.status.toLowerCase()}`,
+        { campaignId: input.campaignId },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Pause or activate an ad set
+  pauseAdSet: protectedProcedure
+    .input(
+      z.object({
+        adSetId: z.string().min(1),
+        status: z.enum(['PAUSED', 'ACTIVE']),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateAdSetStatus(
+        input.adSetId,
+        input.status,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        `meta_ads.adset.${input.status.toLowerCase()}`,
+        { adSetId: input.adSetId },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Scale campaign budget
+  scaleCampaign: protectedProcedure
+    .input(
+      z.object({
+        campaignId: z.string().min(1),
+        dailyBudget: z.number().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateCampaignBudget(
+        input.campaignId,
+        input.dailyBudget,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        'meta_ads.campaign.budget_updated',
+        {
+          campaignId: input.campaignId,
+          dailyBudget: input.dailyBudget,
+        },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Create optimized ad set
+  createOptimizedAdSet: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().min(1),
+        campaignId: z.string().min(1),
+        sourceAdSetId: z.string().min(1),
+        name: z.string().min(1),
+        dailyBudget: z.number().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await createOptimizedAdSet(
+        input.adAccountId,
+        input.campaignId,
+        input.sourceAdSetId,
+        input.name,
+        input.dailyBudget,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        'meta_ads.adset.created',
+        {
+          adSetId: result.id,
+          campaignId: input.campaignId,
+          sourceAdSetId: input.sourceAdSetId,
+        },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {
