@@ -202,6 +202,10 @@ export async function POST(req: NextRequest) {
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
         },
         update: {
           name: order.name || null,
@@ -210,6 +214,10 @@ export async function POST(req: NextRequest) {
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
         },
       });
 
@@ -265,6 +273,10 @@ export async function POST(req: NextRequest) {
             order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
         },
         update: {
           name: order.name || null,
@@ -274,19 +286,29 @@ export async function POST(req: NextRequest) {
             order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
         },
       });
     } else if (topic === 'orders/fulfilled') {
       const order = json;
       await prisma.order.updateMany({
         where: { shopifyId: String(order.id) },
-        data: { status: 'FULFILLED' },
+        data: {
+          status: 'FULFILLED',
+          statusUpdatedAt: new Date(),
+        },
       });
     } else if (topic === 'refunds/create') {
       const refund = json;
       await prisma.order.updateMany({
         where: { shopifyId: String(refund.order_id) },
-        data: { status: 'REFUNDED' },
+        data: {
+          status: 'REFUNDED',
+          statusUpdatedAt: new Date(),
+        },
       });
     }
   } catch (err) {
