@@ -408,6 +408,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
           shopDomain: credentials.shopUrl.replace('https://', ''),
           connectionId,
           createdAt: new Date(order.created_at),
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
         },
         update: {
           status: order.financial_status,
@@ -415,6 +419,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
           totalAmount,
           currency: order.currency || 'INR',
           customerName,
+          processedAt: order.processed_at ? new Date(order.processed_at) : null,
+          statusUpdatedAt: order.updated_at
+            ? new Date(order.updated_at)
+            : new Date(),
           updatedAt: new Date(),
         },
       });
@@ -1470,6 +1478,11 @@ export const appRouter = t.router({
                 to: true,
                 body: true,
                 createdAt: true,
+                thread: {
+                  select: {
+                    subject: true,
+                  },
+                },
                 aiSuggestion: {
                   select: {
                     reply: true,
@@ -2184,7 +2197,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         }
 
         // Remove any placeholder text and ensure proper signature
-        const signatureBlock = `${storeName}\nCustomer Support Team`;
+        const signatureBlock = `${storeName} Support Team`;
         let cleanedBody = safeBody
           .replace(/\[Your Name\]/gi, '')
           .replace(/\[Your Company\]/gi, storeName)

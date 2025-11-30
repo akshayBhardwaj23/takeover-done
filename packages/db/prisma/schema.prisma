@@ -96,6 +96,8 @@ model Order {
   updatedAt    DateTime   @updatedAt
   shopDomain   String?
   name         String?
+  processedAt  DateTime?  // Time when order was processed by Shopify
+  statusUpdatedAt DateTime? // Time when order status was last updated
   connectionId String
   actions      Action[]
   messages     Message[]

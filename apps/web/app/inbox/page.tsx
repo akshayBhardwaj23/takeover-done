@@ -796,7 +796,9 @@ export default function InboxPage() {
                                   </span>
                                 </div>
                                 <p className="text-xs text-stone-600 truncate mb-1">
-                                  {email.subject || 'No subject'}
+                                  {email.subject ||
+                                    email.thread?.subject ||
+                                    'No subject'}
                                 </p>
                                 <p className="text-xs text-stone-500 line-clamp-1">
                                   {email.snippet || email.body?.slice(0, 80)}
@@ -990,9 +992,11 @@ export default function InboxPage() {
                               {formatTime(selectedEmail.createdAt)}
                             </span>
                           </div>
-                          {selectedEmail.subject && (
+                          {(selectedEmail.subject ||
+                            selectedEmail.thread?.subject) && (
                             <p className="text-sm font-medium text-stone-800 mb-2">
-                              {selectedEmail.subject}
+                              {selectedEmail.subject ||
+                                selectedEmail.thread?.subject}
                             </p>
                           )}
                           <div className="rounded-2xl rounded-tl-none bg-stone-100 p-4">

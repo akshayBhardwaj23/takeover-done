@@ -10,6 +10,8 @@ interface ShopifyOrder {
   currency: string;
   financial_status: string;
   fulfillment_status: string | null;
+  processed_at: string;
+  updated_at: string;
   customer?: {
     id: number;
     first_name: string;
