@@ -345,10 +345,30 @@ async function syncShopifyData(connectionId: string, userId: string) {
 
     for (const order of orders) {
       const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
-      const customerName = order.customer
-        ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() ||
-          null
-        : null;
+
+      let customerName: string | null = null;
+
+      if (order.customer) {
+        const first = order.customer.first_name || '';
+        const last = order.customer.last_name || '';
+        if (first || last) {
+          customerName = `${first} ${last}`.trim();
+        }
+      }
+
+      if (!customerName && order.billing_address) {
+        customerName =
+          order.billing_address.name ||
+          `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() ||
+          null;
+      }
+
+      if (!customerName && order.shipping_address) {
+        customerName =
+          order.shipping_address.name ||
+          `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() ||
+          null;
+      }
 
       await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
