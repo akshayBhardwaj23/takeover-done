@@ -352,6 +352,16 @@ async function syncShopifyData(connectionId: string, userId: string) {
 
       let customerName: string | null = null;
 
+      // Debug log for customer data
+      console.log(`[Shopify Sync] Processing order ${order.id}:`, {
+        hasCustomer: !!order.customer,
+        hasBilling: !!order.billing_address,
+        hasShipping: !!order.shipping_address,
+        email: order.email,
+        contactEmail: order.contact_email,
+        customerEmail: order.customer?.email,
+      });
+
       if (order.customer) {
         const first = order.customer.first_name || '';
         const last = order.customer.last_name || '';
@@ -379,7 +389,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
         create: {
           shopifyId: String(order.id),
           status: order.financial_status,
-          email: order.email || order.customer?.email,
+          email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
           currency: order.currency || 'INR',
           customerName,
@@ -390,7 +400,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
         },
         update: {
           status: order.financial_status,
-          email: order.email || order.customer?.email,
+          email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
           currency: order.currency || 'INR',
           customerName,
