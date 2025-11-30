@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ai-ecom/db';
-import { decryptSecure } from '@ai-ecom/api/src/crypto'; // Direct import since not exported from index? Or try from package
-import { ShopifyClient } from '@ai-ecom/api/src/services/shopify';
+import { decryptSecure, ShopifyClient } from '@ai-ecom/api';
 import { getServerSession } from 'next-auth';
 // import { authOptions } from '@/lib/auth'; // Assumption: standard next-auth setup
 
@@ -12,7 +11,7 @@ async function isAuthenticated(req: NextRequest) {
   if (debugSecret && req.headers.get('x-debug-secret') === debugSecret) {
     return true;
   }
-  
+
   // TODO: Add session check if needed, but for now secret is safer for quick debug
   return false;
 }
@@ -31,20 +30,23 @@ export async function GET(req: NextRequest) {
     let connection;
     if (targetShop) {
       connection = await prisma.connection.findFirst({
-        where: { 
+        where: {
           type: 'SHOPIFY' as any,
-          shopDomain: { contains: targetShop, mode: 'insensitive' }
-        }
+          shopDomain: { contains: targetShop, mode: 'insensitive' },
+        },
       });
     } else {
       // Default to first found if no shop specified
       connection = await prisma.connection.findFirst({
-        where: { type: 'SHOPIFY' as any }
+        where: { type: 'SHOPIFY' as any },
       });
     }
 
     if (!connection) {
-      return NextResponse.json({ error: 'No Shopify connection found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'No Shopify connection found' },
+        { status: 404 },
+      );
     }
 
     // 3. Decrypt Token
@@ -55,22 +57,26 @@ export async function GET(req: NextRequest) {
     try {
       accessToken = decryptSecure(connection.accessToken);
     } catch (e) {
-      return NextResponse.json({ error: 'Failed to decrypt token', details: String(e) }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Failed to decrypt token', details: String(e) },
+        { status: 500 },
+      );
     }
 
     const metadata = (connection.metadata as any) || {};
     const subdomain = metadata.subdomain;
     // Handle custom app vs oauth
-    const shopUrl = (metadata.connectionMethod === 'custom_app' && subdomain)
-      ? `https://${subdomain}.myshopify.com`
-      : `https://${connection.shopDomain}`;
+    const shopUrl =
+      metadata.connectionMethod === 'custom_app' && subdomain
+        ? `https://${subdomain}.myshopify.com`
+        : `https://${connection.shopDomain}`;
 
     // 4. Fetch Orders
     const client = new ShopifyClient(shopUrl, accessToken);
     const orders = await client.getOrders(5, { includeHistorical: true });
 
     // 5. Return Debug Data
-    const debugData = orders.map(order => ({
+    const debugData = orders.map((order) => ({
       id: order.id,
       name: order.name,
       email: order.email,
@@ -78,21 +84,24 @@ export async function GET(req: NextRequest) {
       customer_obj: order.customer,
       billing_address: order.billing_address,
       shipping_address: order.shipping_address,
-      raw_customer_name: order.customer ? `${order.customer.first_name} ${order.customer.last_name}` : null
+      raw_customer_name: order.customer
+        ? `${order.customer.first_name} ${order.customer.last_name}`
+        : null,
     }));
 
     return NextResponse.json({
       shop: shopUrl,
       count: orders.length,
-      orders: debugData
+      orders: debugData,
     });
-
   } catch (error) {
     console.error('[Debug API] Error:', error);
-    return NextResponse.json({ 
-      error: 'Internal Server Error', 
-      details: error instanceof Error ? error.message : String(error) 
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Internal Server Error',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
   }
 }
-

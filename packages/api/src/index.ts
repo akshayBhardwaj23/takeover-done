@@ -51,6 +51,7 @@ import {
 } from './meta-ads';
 
 import { ShopifyClient } from './services/shopify';
+export { ShopifyClient } from './services/shopify';
 type Context = {
   session: any;
   userId: string | null;
