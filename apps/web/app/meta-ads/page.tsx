@@ -19,12 +19,340 @@ import {
   Globe,
   Clock,
   Percent,
+  AlertTriangle,
+  CheckCircle2,
+  Lightbulb,
+  PauseCircle,
+  Play,
+  Sparkles,
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
+import { Button } from '../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { useToast, ToastContainer } from '../../components/Toast';
+
+// Types for AI insights
+interface AIInsight {
+  type: 'success' | 'warning' | 'info' | 'action';
+  category: 'performance' | 'revenue' | 'optimization' | 'action';
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+  action?: string;
+  entityId?: string;
+  entityName?: string;
+}
+
+// Generate AI insights based on ad performance data
+function generateAIInsights(stats: any): AIInsight[] {
+  const insights: AIInsight[] = [];
+
+  // Safety check
+  if (!stats || typeof stats !== 'object') {
+    return insights;
+  }
+
+  // ROAS Analysis
+  if (stats.roas !== undefined) {
+    if (stats.roas < 1) {
+      insights.push({
+        type: 'warning',
+        category: 'revenue',
+        title: 'Negative Return on Ad Spend',
+        description: `Your ROAS is ${stats.roas.toFixed(2)}x, meaning you're spending more than you're earning. Consider pausing low-performing campaigns and reallocating budget to better performers.`,
+        impact: 'high',
+        action: 'Review and pause underperforming campaigns',
+      });
+    } else if (stats.roas >= 1 && stats.roas < 2) {
+      insights.push({
+        type: 'info',
+        category: 'revenue',
+        title: 'Moderate ROAS Performance',
+        description: `Your ROAS is ${stats.roas.toFixed(2)}x. While profitable, there's room for improvement. Focus on optimizing ad creative and targeting.`,
+        impact: 'medium',
+        action: 'Optimize targeting and creative',
+      });
+    } else if (stats.roas >= 2 && stats.roas < 4) {
+      insights.push({
+        type: 'success',
+        category: 'revenue',
+        title: 'Good ROAS Performance',
+        description: `Your ROAS is ${stats.roas.toFixed(2)}x. This is solid performance! Consider scaling your budget on top campaigns to maximize revenue.`,
+        impact: 'medium',
+        action: 'Scale successful campaigns',
+      });
+    } else {
+      insights.push({
+        type: 'success',
+        category: 'revenue',
+        title: 'Excellent ROAS Performance',
+        description: `Your ROAS is ${stats.roas.toFixed(2)}x. Outstanding performance! Scale aggressively and explore similar audiences.`,
+        impact: 'high',
+        action: 'Scale budget and expand to lookalike audiences',
+      });
+    }
+  }
+
+  // CTR Analysis
+  if (stats.ctr !== undefined && stats.ctr > 0) {
+    const ctrPercent = stats.ctr * 100;
+    if (ctrPercent < 0.5) {
+      insights.push({
+        type: 'warning',
+        category: 'performance',
+        title: 'Low Click-Through Rate',
+        description: `Your CTR is ${ctrPercent.toFixed(2)}%. This suggests your ad creative or targeting may not be resonating with your audience. Test new creatives and refine your audience.`,
+        impact: 'high',
+        action: 'Test new ad creatives and refine targeting',
+      });
+    } else if (ctrPercent >= 0.5 && ctrPercent < 1) {
+      insights.push({
+        type: 'info',
+        category: 'performance',
+        title: 'Average Click-Through Rate',
+        description: `Your CTR is ${ctrPercent.toFixed(2)}%. This is acceptable but could be improved with better ad copy and more compelling visuals.`,
+        impact: 'medium',
+        action: 'A/B test ad copy and visuals',
+      });
+    } else if (ctrPercent >= 2) {
+      insights.push({
+        type: 'success',
+        category: 'performance',
+        title: 'Excellent Click-Through Rate',
+        description: `Your CTR is ${ctrPercent.toFixed(2)}%. Your ads are highly engaging! Keep monitoring and maintain this quality.`,
+        impact: 'low',
+      });
+    }
+  }
+
+  // CPC Analysis
+  if (stats.cpc !== undefined && stats.cpc > 0) {
+    if (stats.cpc > 5) {
+      insights.push({
+        type: 'warning',
+        category: 'optimization',
+        title: 'High Cost Per Click',
+        description: `Your CPC is $${stats.cpc.toFixed(2)}, which is higher than average. Consider refining your targeting to reach more qualified audiences at lower costs.`,
+        impact: 'high',
+        action: 'Refine audience targeting to lower CPC',
+      });
+    } else if (stats.cpc <= 1) {
+      insights.push({
+        type: 'success',
+        category: 'optimization',
+        title: 'Efficient Cost Per Click',
+        description: `Your CPC is $${stats.cpc.toFixed(2)}, which is very efficient. You're acquiring clicks at a great rate!`,
+        impact: 'low',
+      });
+    }
+  }
+
+  // Campaign Analysis
+  if (stats.campaigns && Array.isArray(stats.campaigns) && stats.campaigns.length > 0) {
+    // Find underperforming campaigns
+    const underperformingCampaigns = stats.campaigns.filter((c: any) => {
+      if (c.roas !== undefined && c.roas < 0.5 && c.spend > 10) {
+        return true;
+      }
+      if (c.ctr < 0.003 && c.spend > 10) {
+        // Less than 0.3% CTR
+        return true;
+      }
+      return false;
+    });
+
+    if (underperformingCampaigns.length > 0) {
+      underperformingCampaigns.slice(0, 3).forEach((campaign: any) => {
+        const reason =
+          campaign.roas !== undefined && campaign.roas < 0.5
+            ? `poor ROAS (${campaign.roas.toFixed(2)}x)`
+            : `low CTR (${(campaign.ctr * 100).toFixed(2)}%)`;
+
+        insights.push({
+          type: 'action',
+          category: 'action',
+          title: `Pause Campaign: ${campaign.name}`,
+          description: `This campaign has ${reason} and has spent $${campaign.spend.toFixed(2)}. Consider pausing it to prevent further wasteful spending.`,
+          impact: 'high',
+          action: 'Pause this campaign',
+          entityId: campaign.id,
+          entityName: campaign.name,
+        });
+      });
+    }
+
+    // Find top performers to scale
+    const topPerformers = stats.campaigns
+      .filter((c: any) => c.roas !== undefined && c.roas >= 3 && c.spend > 20)
+      .slice(0, 2);
+
+    if (topPerformers.length > 0) {
+      topPerformers.forEach((campaign: any) => {
+        insights.push({
+          type: 'success',
+          category: 'revenue',
+          title: `Scale Campaign: ${campaign.name}`,
+          description: `This campaign has excellent ROAS (${campaign.roas.toFixed(2)}x). Increase budget by 20-30% to maximize revenue while maintaining efficiency.`,
+          impact: 'high',
+          action: 'Increase campaign budget',
+          entityId: campaign.id,
+          entityName: campaign.name,
+        });
+      });
+    }
+  }
+
+  // Ad Set Analysis
+  if (stats.adsets && Array.isArray(stats.adsets) && stats.adsets.length > 0) {
+    const underperformingAdsets = stats.adsets.filter((a: any) => {
+      if (a.roas !== undefined && a.roas < 0.5 && a.spend > 5) {
+        return true;
+      }
+      if (a.ctr < 0.003 && a.spend > 5) {
+        return true;
+      }
+      return false;
+    });
+
+    if (underperformingAdsets.length > 0) {
+      const worstAdset = underperformingAdsets[0];
+      const reason =
+        worstAdset.roas !== undefined && worstAdset.roas < 0.5
+          ? `poor ROAS (${worstAdset.roas.toFixed(2)}x)`
+          : `low CTR (${(worstAdset.ctr * 100).toFixed(2)}%)`;
+
+      insights.push({
+        type: 'action',
+        category: 'action',
+        title: `Pause Ad Set: ${worstAdset.name}`,
+        description: `This ad set has ${reason}. The audience targeting may not be optimal. Pause and test a different audience segment.`,
+        impact: 'medium',
+        action: 'Pause this ad set',
+        entityId: worstAdset.id,
+        entityName: worstAdset.name,
+      });
+    }
+
+    // Find top-performing ad sets to create optimized copies
+    const topAdSets = stats.adsets
+      .filter((a: any) => a.roas !== undefined && a.roas >= 3 && a.spend > 10)
+      .slice(0, 1);
+
+    if (topAdSets.length > 0) {
+      topAdSets.forEach((adSet: any) => {
+        insights.push({
+          type: 'success',
+          category: 'revenue',
+          title: `Scale Ad Set: ${adSet.name}`,
+          description: `This ad set has excellent ROAS (${adSet.roas.toFixed(2)}x). Create an optimized copy with similar targeting to test variations and scale your success.`,
+          impact: 'high',
+          action: 'Create optimized ad set',
+          entityId: adSet.id,
+          entityName: adSet.name,
+        });
+      });
+    }
+  }
+
+  // Frequency Analysis
+  if (stats.frequency !== undefined && typeof stats.frequency === 'number' && stats.frequency > 0) {
+    if (stats.frequency > 4) {
+      insights.push({
+        type: 'warning',
+        category: 'optimization',
+        title: 'High Ad Frequency',
+        description: `Your average frequency is ${stats.frequency.toFixed(2)}, meaning people are seeing your ads too often. This can lead to ad fatigue. Expand your audience or refresh your creative.`,
+        impact: 'medium',
+        action: 'Expand audience or refresh creative',
+      });
+    } else if (stats.frequency < 1.5 && stats.reach && stats.reach > 1000) {
+      insights.push({
+        type: 'info',
+        category: 'optimization',
+        title: 'Low Ad Frequency',
+        description: `Your frequency is ${stats.frequency.toFixed(2)}. Consider retargeting engaged users to improve conversion rates.`,
+        impact: 'low',
+        action: 'Set up retargeting campaigns',
+      });
+    }
+  }
+
+  // Conversion Rate Analysis
+  if (stats.conversions !== undefined && stats.clicks > 0) {
+    const conversionRate = (stats.conversions / stats.clicks) * 100;
+    if (conversionRate < 1) {
+      insights.push({
+        type: 'warning',
+        category: 'optimization',
+        title: 'Low Conversion Rate',
+        description: `Your conversion rate is ${conversionRate.toFixed(2)}%. Many people click but don't convert. Optimize your landing page, ensure fast load times, and clarify your value proposition.`,
+        impact: 'high',
+        action: 'Optimize landing page and checkout flow',
+      });
+    } else if (conversionRate >= 3) {
+      insights.push({
+        type: 'success',
+        category: 'performance',
+        title: 'Strong Conversion Rate',
+        description: `Your conversion rate is ${conversionRate.toFixed(2)}%. Your landing page and offer are well-aligned with your ad messaging!`,
+        impact: 'low',
+      });
+    }
+  }
+
+  // Budget Optimization
+  if (stats.spend > 0 && stats.campaigns && stats.campaigns.length > 3) {
+    const topCampaignSpend = stats.campaigns
+      .slice(0, 3)
+      .reduce((sum: number, c: any) => sum + c.spend, 0);
+    const totalSpend = stats.spend;
+    const topThreePercentage = (topCampaignSpend / totalSpend) * 100;
+
+    if (topThreePercentage < 50) {
+      insights.push({
+        type: 'info',
+        category: 'optimization',
+        title: 'Budget Distribution',
+        description: `Your budget is spread across many campaigns. Consider consolidating budget into your top performers to maximize efficiency.`,
+        impact: 'medium',
+        action: 'Consolidate budget to top campaigns',
+      });
+    }
+  }
+
+  // General best practices
+  if (insights.length === 0 || insights.filter((i) => i.type === 'success').length > insights.length / 2) {
+    insights.push({
+      type: 'info',
+      category: 'optimization',
+      title: 'Continue Testing',
+      description: `Your campaigns are performing well! Keep testing new audiences, creatives, and ad formats to find additional opportunities for growth.`,
+      impact: 'low',
+      action: 'Test new audiences and creatives',
+    });
+  }
+
+  // Sort by impact
+  const impactOrder = { high: 0, medium: 1, low: 2 };
+  return insights.sort((a, b) => impactOrder[a.impact] - impactOrder[b.impact]);
+}
 
 function MetaAdsInner() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('7d');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [selectedInsight, setSelectedInsight] = useState<AIInsight | null>(null);
+  const [budgetInput, setBudgetInput] = useState<string>('');
+  const [adSetNameInput, setAdSetNameInput] = useState<string>('');
+  const toast = useToast();
 
   // Fetch connections
   const connections = trpc.connections.useQuery();
@@ -102,6 +430,54 @@ function MetaAdsInner() {
   const updateAccount = trpc.updateMetaAdsAccount.useMutation({
     onSuccess: () => {
       connections.refetch();
+    },
+  });
+
+  // Action mutations
+  const pauseCampaign = trpc.pauseCampaign.useMutation({
+    onSuccess: () => {
+      toast.success('Campaign status updated successfully!');
+      setActionDialogOpen(false);
+      insights.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update campaign');
+    },
+  });
+
+  const pauseAdSet = trpc.pauseAdSet.useMutation({
+    onSuccess: () => {
+      toast.success('Ad set status updated successfully!');
+      setActionDialogOpen(false);
+      insights.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update ad set');
+    },
+  });
+
+  const scaleCampaign = trpc.scaleCampaign.useMutation({
+    onSuccess: () => {
+      toast.success('Campaign budget updated successfully!');
+      setActionDialogOpen(false);
+      setBudgetInput('');
+      insights.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update campaign budget');
+    },
+  });
+
+  const createOptimizedAdSet = trpc.createOptimizedAdSet.useMutation({
+    onSuccess: () => {
+      toast.success('New ad set created successfully! Review it in Meta Ads Manager.');
+      setActionDialogOpen(false);
+      setAdSetNameInput('');
+      setBudgetInput('');
+      insights.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to create ad set');
     },
   });
 
@@ -375,6 +751,89 @@ function MetaAdsInner() {
     trend: [],
   };
 
+  // Generate AI insights
+  const aiInsights = generateAIInsights(stats);
+
+  // Handle taking action on an insight
+  const handleTakeAction = (insight: AIInsight) => {
+    setSelectedInsight(insight);
+    setActionDialogOpen(true);
+    setBudgetInput('');
+    setAdSetNameInput('');
+  };
+
+  // Execute the action based on insight type
+  const executeAction = () => {
+    if (!selectedInsight) return;
+
+    if (selectedInsight.type === 'action' && selectedInsight.entityId) {
+      // Pause campaign or ad set
+      if (selectedInsight.title.includes('Campaign')) {
+        pauseCampaign.mutate({
+          campaignId: selectedInsight.entityId,
+          status: 'PAUSED',
+        });
+      } else if (selectedInsight.title.includes('Ad Set')) {
+        pauseAdSet.mutate({
+          adSetId: selectedInsight.entityId,
+          status: 'PAUSED',
+        });
+      }
+    } else if (
+      selectedInsight.category === 'revenue' &&
+      selectedInsight.title.includes('Scale') &&
+      selectedInsight.entityId
+    ) {
+      // Scale campaign budget
+      const budget = parseFloat(budgetInput);
+      if (isNaN(budget) || budget <= 0) {
+        toast.error('Please enter a valid budget amount');
+        return;
+      }
+      scaleCampaign.mutate({
+        campaignId: selectedInsight.entityId,
+        dailyBudget: budget,
+      });
+    } else if (
+      selectedInsight.category === 'revenue' &&
+      (selectedInsight.title.includes('Scale Ad Set') ||
+        selectedInsight.title.includes('Create')) &&
+      selectedInsight.entityId &&
+      selectedInsight.entityName
+    ) {
+      // Create optimized ad set based on top performer
+      const budget = parseFloat(budgetInput);
+      const name = adSetNameInput.trim() || `${selectedInsight.entityName} - Optimized Copy`;
+
+      if (isNaN(budget) || budget <= 0) {
+        toast.error('Please enter a valid budget amount');
+        return;
+      }
+
+      if (!name) {
+        toast.error('Please enter a name for the new ad set');
+        return;
+      }
+
+      // Find the ad set from stats
+      const adSet = stats.adsets.find(
+        (a: any) => a.id === selectedInsight.entityId || a.name === selectedInsight.entityName,
+      );
+
+      if (adSet && selectedAccountId) {
+        createOptimizedAdSet.mutate({
+          adAccountId: selectedAccountId,
+          campaignId: adSet.campaignId || '',
+          sourceAdSetId: adSet.id,
+          name: name,
+          dailyBudget: budget,
+        });
+      } else {
+        toast.error('Unable to find ad set details');
+      }
+    }
+  };
+
   const statCards = [
     {
       title: 'Spend',
@@ -488,6 +947,171 @@ function MetaAdsInner() {
             </select>
           </div>
         </header>
+
+        {/* AI Insights Section */}
+        {aiInsights.length > 0 && (
+          <Card className="rounded-3xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-8 shadow-lg">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 p-3">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  AI-Powered Insights
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Actionable recommendations to optimize your ad performance
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {aiInsights.map((insight, index) => {
+                const getInsightIcon = () => {
+                  switch (insight.type) {
+                    case 'success':
+                      return CheckCircle2;
+                    case 'warning':
+                      return AlertTriangle;
+                    case 'action':
+                      return PauseCircle;
+                    default:
+                      return Lightbulb;
+                  }
+                };
+
+                const getInsightColor = () => {
+                  switch (insight.type) {
+                    case 'success':
+                      return {
+                        border: 'border-emerald-200',
+                        bg: 'bg-emerald-50',
+                        icon: 'text-emerald-600',
+                        badge: 'bg-emerald-100 text-emerald-700',
+                      };
+                    case 'warning':
+                      return {
+                        border: 'border-amber-200',
+                        bg: 'bg-amber-50',
+                        icon: 'text-amber-600',
+                        badge: 'bg-amber-100 text-amber-700',
+                      };
+                    case 'action':
+                      return {
+                        border: 'border-red-200',
+                        bg: 'bg-red-50',
+                        icon: 'text-red-600',
+                        badge: 'bg-red-100 text-red-700',
+                      };
+                    default:
+                      return {
+                        border: 'border-blue-200',
+                        bg: 'bg-blue-50',
+                        icon: 'text-blue-600',
+                        badge: 'bg-blue-100 text-blue-700',
+                      };
+                  }
+                };
+
+                const Icon = getInsightIcon();
+                const colors = getInsightColor();
+
+                return (
+                  <div
+                    key={index}
+                    className={`rounded-2xl border-2 ${colors.border} ${colors.bg} p-5 transition hover:shadow-md`}
+                  >
+                    <div className="mb-3 flex items-start justify-between">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`rounded-full ${colors.bg} p-2 ring-2 ring-white`}
+                        >
+                          <Icon className={`h-5 w-5 ${colors.icon}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-slate-900">
+                            {insight.title}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-700">
+                            {insight.description}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      {insight.action && (
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`${colors.badge} border-0 font-semibold`}
+                          >
+                            💡 {insight.action}
+                          </Badge>
+                        </div>
+                      )}
+                      <div className="ml-auto flex items-center gap-2">
+                        <Badge
+                          className={`border-0 ${
+                            insight.impact === 'high'
+                              ? 'bg-red-100 text-red-700'
+                              : insight.impact === 'medium'
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {insight.impact.toUpperCase()} IMPACT
+                        </Badge>
+                        {(insight.type === 'action' ||
+                          (insight.category === 'revenue' &&
+                            (insight.title.includes('Scale') ||
+                              insight.title.includes('Create')))) && (
+                          <Button
+                            onClick={() => handleTakeAction(insight)}
+                            size="sm"
+                            variant={
+                              insight.type === 'action'
+                                ? 'destructive'
+                                : 'default'
+                            }
+                            className="ml-2 h-7 text-xs"
+                          >
+                            {insight.type === 'action' ? (
+                              <>
+                                <PauseCircle className="h-3 w-3" />
+                                Take Action
+                              </>
+                            ) : (
+                              <>
+                                <TrendingUp className="h-3 w-3" />
+                                Implement
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-indigo-200 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <Lightbulb className="h-5 w-5 text-indigo-600" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Pro Tip
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Review these insights regularly and take action on high-impact items first. 
+                    Optimization is an ongoing process - test, measure, and iterate continuously 
+                    for best results.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {statCards.map((stat) => {
@@ -750,6 +1374,134 @@ function MetaAdsInner() {
           </div>
         </Card>
       </div>
+
+      {/* Action Confirmation Dialog */}
+      <Dialog open={actionDialogOpen} onOpenChange={setActionDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedInsight?.type === 'action'
+                ? 'Confirm Action'
+                : 'Implement Suggestion'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedInsight?.type === 'action'
+                ? `Are you sure you want to pause "${selectedInsight?.entityName || 'this item'}"? This will stop all ads in this ${selectedInsight?.title.includes('Campaign') ? 'campaign' : 'ad set'}.`
+                : selectedInsight?.title.includes('Scale')
+                  ? `This will ${selectedInsight?.title.includes('Campaign') ? 'increase the campaign budget' : 'create a new optimized ad set'} based on "${selectedInsight?.entityName || 'top performer'}".`
+                  : 'Please review the details below before proceeding.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {selectedInsight?.type === 'action' ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p className="text-sm font-semibold text-red-900">
+                  ⚠️ Warning
+                </p>
+                <p className="mt-1 text-sm text-red-700">
+                  Pausing will immediately stop all ads. You can reactivate later
+                  from Meta Ads Manager.
+                </p>
+              </div>
+            ) : selectedInsight?.title.includes('Scale Campaign') ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    New Daily Budget ($)
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Enter daily budget"
+                    value={budgetInput}
+                    onChange={(e) => setBudgetInput(e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Recommended: 20-30% increase from current budget
+                  </p>
+                </div>
+              </div>
+            ) : (selectedInsight?.title.includes('Scale Ad Set') ||
+              selectedInsight?.title.includes('Create')) &&
+              selectedInsight?.entityName ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Ad Set Name
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter ad set name"
+                    value={adSetNameInput}
+                    onChange={(e) => setAdSetNameInput(e.target.value)}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Daily Budget ($)
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="Enter daily budget"
+                    value={budgetInput}
+                    onChange={(e) => setBudgetInput(e.target.value)}
+                    className="mt-1"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">
+                    The new ad set will be created paused for your review
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setActionDialogOpen(false)}
+              disabled={
+                pauseCampaign.isPending ||
+                pauseAdSet.isPending ||
+                scaleCampaign.isPending ||
+                createOptimizedAdSet.isPending
+              }
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={selectedInsight?.type === 'action' ? 'destructive' : 'default'}
+              onClick={executeAction}
+              disabled={
+                pauseCampaign.isPending ||
+                pauseAdSet.isPending ||
+                scaleCampaign.isPending ||
+                createOptimizedAdSet.isPending ||
+                (selectedInsight?.title.includes('Scale') && !budgetInput) ||
+                (selectedInsight?.title.includes('Scale') &&
+                  selectedInsight?.entityName &&
+                  !adSetNameInput)
+              }
+            >
+              {pauseCampaign.isPending ||
+              pauseAdSet.isPending ||
+              scaleCampaign.isPending ||
+              createOptimizedAdSet.isPending
+                ? 'Processing...'
+                : selectedInsight?.type === 'action'
+                  ? 'Pause Now'
+                  : 'Implement'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
     </main>
   );
 }

@@ -5,9 +5,10 @@ import Image from 'next/image';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { trpc } from '../lib/trpc';
-import { ChevronDown, Mail, Store } from 'lucide-react';
+import { ChevronDown, Mail, Store, Menu, X } from 'lucide-react';
 export default function Header() {
   const { data: session, status } = useSession();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAuthed = status === 'authenticated';
   const user = session?.user;
   const { data: emailUsage } = trpc.checkEmailLimit.useQuery(undefined, {
@@ -87,7 +88,7 @@ export default function Header() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4">
-      <div className="flex w-full max-w-6xl items-center justify-between gap-6 rounded-full border border-slate-900/10 bg-white/80 px-6 py-4 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+      <div className="flex w-full max-w-6xl items-center justify-between gap-6 rounded-full border border-slate-900/10 bg-white/80 px-6 py-4 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur supports-[backdrop-filter]:bg-white/70 relative z-50">
         <div className="flex items-center gap-8">
           <Link
             href="/"
@@ -278,6 +279,17 @@ export default function Header() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            className="p-1 text-slate-700 md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+
           {isAuthed ? (
             <div className="flex items-center gap-4">
               {emailUsage && (
@@ -393,7 +405,7 @@ export default function Header() {
                 )}
               </div>
               <button
-                className="rounded-full border border-slate-900/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-slate-900/40 hover:text-slate-900"
+                className="hidden rounded-full border border-slate-900/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-slate-900/40 hover:text-slate-900 md:block"
                 onClick={() => signOut({ callbackUrl: '/' })}
               >
                 Sign out
@@ -409,6 +421,146 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 overflow-y-auto bg-white px-6 pb-10 pt-28 md:hidden">
+          <nav className="flex flex-col gap-6 text-lg font-medium text-slate-700">
+            <Link
+              href="/integrations"
+              onClick={() => setMobileMenuOpen(false)}
+              className="block border-b border-slate-100 pb-4"
+            >
+              Integrations
+            </Link>
+
+            {isAuthed && (
+              <>
+                <div>
+                  <div className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                    Stores
+                  </div>
+                  {stores.length > 0 ? (
+                    <ul className="space-y-3 pl-2">
+                      {stores.map((store) => (
+                        <li key={store.id}>
+                          <Link
+                            href={`/inbox?shop=${encodeURIComponent(store.shopDomain)}`}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="block text-slate-600 hover:text-slate-900"
+                          >
+                            {store.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="pl-2 text-sm text-slate-400">
+                      No stores connected
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
+                    Analytics
+                  </div>
+                  <ul className="space-y-3 pl-2">
+                    <li>
+                      <Link
+                        href="/analytics"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-slate-600 hover:text-slate-900"
+                      >
+                        Support Analytics
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href="/shopify-analytics"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-slate-600 hover:text-slate-900"
+                      >
+                        Business Analytics
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href="/advertisements"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-slate-600 hover:text-slate-900"
+                      >
+                        Advertisements
+                      </Link>
+                    </li>
+                  </ul>
+                </div>
+
+                <Link
+                  href="/usage"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block border-b border-slate-100 pb-4"
+                >
+                  Usage
+                </Link>
+
+                <div className="border-t border-slate-100 pt-4">
+                  <div className="mb-4 flex items-center gap-3">
+                    {user?.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={user.image}
+                        alt="avatar"
+                        className="h-10 w-10 rounded-full border border-slate-200"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-500">
+                        {(user?.name ?? user?.email ?? '?')
+                          ?.toString()
+                          .charAt(0)
+                          .toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-semibold text-slate-900">
+                        {user?.name}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {user?.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3 pl-2">
+                    <Link
+                      href="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block text-slate-600 hover:text-slate-900"
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      href="/account"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block text-slate-600 hover:text-slate-900"
+                    >
+                      Account
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        signOut({ callbackUrl: '/' });
+                      }}
+                      className="block text-rose-600 hover:text-rose-700"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 }

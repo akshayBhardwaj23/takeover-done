@@ -31,6 +31,7 @@ See [docs/operations/RUNBOOK.md](./docs/operations/RUNBOOK.md)
 - **[Roadmap](./docs/planning/ROADMAP.md)** - Feature roadmap and todos
 - **[PRD](./docs/planning/PRD.md)** - **Product Requirements Document (Main Reference)**
 - **[Integrations Guide](./docs/integrations/INTEGRATIONS.md)** - All integrations (Shopify, Mailgun, Google Analytics, Meta Ads)
+- **[Shopify Setup Guide](./docs/integrations/SHOPIFY_SETUP.md)** - Detailed Shopify Custom App connection guide
 - **[Playbooks Documentation](./docs/PLAYBOOKS.md)** - Automation playbooks guide
 - **[Mailgun Setup](./docs/integrations/MAILGUN_SETUP.md)** - Mailgun email configuration guide
 
@@ -52,7 +53,8 @@ ai-ecom-tool/
 
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Shadcn UI
 - **Backend**: tRPC, Prisma ORM, PostgreSQL
-- **Auth**: NextAuth.js (Google OAuth), Shopify OAuth, Google Analytics OAuth, Meta Ads OAuth
+- **Auth**: NextAuth.js (Google OAuth), Google Analytics OAuth, Meta Ads OAuth
+- **Shopify**: Custom App connections (no OAuth required - works on localhost)
 - **Integrations**: Shopify Admin API, Mailgun (email), OpenAI (AI suggestions), Google Analytics 4, Meta Ads (Facebook Ads)
 - **Payments**: Razorpay (subscription management)
 - **Infrastructure**: Cloudflare Tunnel, Inngest (background jobs), Upstash Redis (optional)
@@ -62,7 +64,7 @@ ai-ecom-tool/
 
 ### Core Support Features
 
-- ✅ Shopify OAuth integration
+- ✅ Shopify Custom App integration (works on localhost, no tunnel needed)
 - ✅ Custom email ingestion (Mailgun)
 - ✅ AI-powered email-to-order mapping (hybrid heuristic + AI)
 - ✅ AI-suggested replies and actions (OpenAI-powered)
@@ -114,7 +116,7 @@ ai-ecom-tool/
 
 ### Individual Resources (Each Developer Needs)
 
-- Cloudflare Tunnel (your own subdomain: `yourname.zyyp.ai`)
+- Cloudflare Tunnel (optional - only for email webhooks testing; Shopify works without it)
 - Local development server
 
 See [docs/setup/DEVELOPMENT_SETUP.md](./docs/setup/DEVELOPMENT_SETUP.md) for detailed instructions.
@@ -135,7 +137,7 @@ cd packages/db && pnpm prisma generate
 # Start development server
 cd apps/web && pnpm dev
 
-# Start your Cloudflare tunnel (in another terminal)
+# Start your Cloudflare tunnel (optional - only needed for email webhooks)
 cloudflared tunnel run yourname-dev
 ```
 
@@ -150,7 +152,7 @@ Your app will be available at:
 ### Key Points:
 
 1. **Database is shared** - all developers use the same database
-2. **Each developer needs their own Cloudflare tunnel** - this is critical!
+2. **Cloudflare tunnel is optional** - Only needed for email webhooks; Shopify Custom App connections work on localhost
 3. **API keys are shared** - get them from team lead
 4. **Coordinate on database migrations** - don't run migrations without telling the team
 
@@ -184,7 +186,7 @@ cd packages/db && pnpm prisma generate
 ### Quick Fixes
 
 - **tRPC 500 errors**: Clear `.next` cache and restart dev server
-- **Orders not appearing**: Re-register Shopify webhooks via `/api/shopify/webhooks/register?shop=...`
+- **Orders not appearing**: Click the sync button (🔄) on the Integrations page, or check that the store connection has the correct API scopes
 - **Email webhook 404**: Check that route file exists and restart dev server
 - **Wrong order matched**: Order matching now prioritizes order numbers from email subject/body
 

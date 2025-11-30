@@ -45,7 +45,7 @@ const faqData: FAQItem[] = [
     category: 'Getting Started',
     question: 'Is there a free trial?',
     answer:
-      "Yes! We offer a free trial so you can test all features. During the trial, you'll have access to AI-powered replies, order matching, and email automation. Check your email limit in the header to see how many emails you have remaining.",
+      "Yes! We offer a 7-day free trial so you can test all features. During the trial, you'll have access to AI-powered replies (20 replies), order matching, email automation (20 emails), and you can connect 1 store. Check your email limit in the header to see how many emails you have remaining.",
   },
 
   // Shopify Integration
@@ -294,7 +294,7 @@ const faqData: FAQItem[] = [
     category: 'Pricing & Plans',
     question: 'How does email counting work?',
     answer:
-      'Only outbound emails (emails you send to customers) count toward your limit. Inbound emails (emails you receive) are unlimited. AI suggestions and draft generation don\'t count. You can see your current usage in the header (e.g., "99 emails left").',
+      'Outbound emails (emails you send to customers) and AI-assisted replies count toward your limits. On the free trial, you get 20 emails and 20 AI replies for 7 days. Inbound emails are limited to 20 on the trial, but unlimited on paid plans. You can see your current usage in the header.',
   },
   {
     id: 'pricing-3',

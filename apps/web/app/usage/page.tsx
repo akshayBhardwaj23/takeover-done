@@ -108,6 +108,7 @@ export default function UsagePage() {
       ? plans.data?.plans[currentPlanIndex + 1]
       : null;
 
+  const aiRemaining = data.aiRemaining ?? 0;
   const heroStats = [
     {
       label: 'Current plan',
@@ -121,8 +122,11 @@ export default function UsagePage() {
           : `${emailsRemaining.toLocaleString()}`,
     },
     {
-      label: 'AI drafts this month',
-      value: data.aiSuggestions.toLocaleString(),
+      label: 'AI replies remaining',
+      value:
+        data.aiLimit === -1 || data.aiLimit === undefined
+          ? 'Unlimited'
+          : `${aiRemaining.toLocaleString()}`,
     },
   ];
 
@@ -378,14 +382,23 @@ export default function UsagePage() {
                     <div className="mb-4">
                       <div className="text-3xl font-black text-slate-900">
                         {data.aiSuggestions.toLocaleString()}
+                        {data.aiLimit !== undefined && data.aiLimit !== -1 && (
+                          <span className="ml-2 text-lg font-normal text-slate-500">
+                            / {data.aiLimit.toLocaleString()}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-2 text-sm text-slate-600">
-                        Drafted replies this month
+                        AI-assisted replies this month
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <TrendingUp className="h-3 w-3" />
-                      <span>Unlimited AI drafting for every plan</span>
+                      <span>
+                        {data.aiLimit === -1 || data.aiLimit === undefined
+                          ? 'Unlimited AI drafting on this plan'
+                          : `${(data.aiRemaining ?? 0).toLocaleString()} AI replies remaining`}
+                      </span>
                     </div>
                   </div>
                 </Card>
@@ -548,8 +561,22 @@ export default function UsagePage() {
                                 />
                                 <span>
                                   {plan.emailsPerMonth === -1
-                                    ? 'Unlimited AI-assisted replies'
-                                    : `${plan.emailsPerMonth.toLocaleString()} AI-assisted replies/month`}
+                                    ? 'Unlimited emails/month'
+                                    : `${plan.emailsPerMonth.toLocaleString()} emails/month`}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <CheckCircle
+                                  className={`h-4 w-4 ${
+                                    isCurrentPlan
+                                      ? 'text-white/70'
+                                      : 'text-slate-400'
+                                  }`}
+                                />
+                                <span>
+                                  {(plan as any).aiRepliesLimit === -1
+                                    ? 'Unlimited AI replies'
+                                    : `${((plan as any).aiRepliesLimit || plan.emailsPerMonth).toLocaleString()} AI replies/month`}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">

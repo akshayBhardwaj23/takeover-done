@@ -16,9 +16,8 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     badge: 'For emerging brands',
     features: [
       '500 emails/month (outbound)',
+      '500 AI-assisted replies/month',
       '1 Shopify store connection',
-      'Unlimited AI suggestions',
-      'Basic AI reply generation',
       'Order matching & email threading',
     ],
   },
@@ -28,10 +27,10 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     highlight: true,
     features: [
       '2,500 emails/month',
+      '2,500 AI-assisted replies/month',
       'Up to 3 store connections',
       'Priority support response',
       'Advanced analytics & dashboards',
-      'Reusable email templates',
     ],
   },
   PRO: {
@@ -39,8 +38,8 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     badge: 'For high-volume teams',
     features: [
       '10,000 emails/month',
+      '10,000 AI-assisted replies/month',
       'Up to 10 store connections',
-      'Custom AI training sessions',
       'Full API access',
       'White-label & advanced reporting',
     ],
@@ -49,11 +48,11 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     name: 'Enterprise',
     badge: 'Designed with you',
     features: [
-      'Unlimited or volume-based emails',
+      'Unlimited emails',
+      'Unlimited AI-assisted replies',
       'Unlimited store connections',
       'Dedicated success & SLA guarantees',
       'Custom integrations & onboarding',
-      'Volume discounts starting at ₹2/email',
     ],
   },
 };

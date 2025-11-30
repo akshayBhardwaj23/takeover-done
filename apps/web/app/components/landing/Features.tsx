@@ -172,8 +172,8 @@ const PLAN_META: Record<PlanKey, PlanMeta> = {
     badge: 'For emerging brands',
     features: [
       '500 emails/month (outbound)',
+      '500 AI-assisted replies/month',
       '1 Shopify store connection',
-      'Unlimited AI suggestions',
       'Basic AI reply generation',
       'Order matching & email threading',
     ],

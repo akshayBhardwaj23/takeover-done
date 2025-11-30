@@ -48,6 +48,8 @@ type DbOrder = {
   name?: string | null;
   email?: string | null;
   totalAmount: number;
+  currency?: string | null;
+  customerName?: string | null;
   status: string;
   createdAt: string;
   pendingEmailCount?: number;
@@ -79,10 +81,12 @@ type EmailMessage = {
 // UTILS
 // =============================================================================
 
-function formatCurrency(cents: number) {
-  return new Intl.NumberFormat('en-US', {
+function formatCurrency(cents: number, currencyCode: string = 'INR') {
+  const code = currencyCode || 'INR';
+  const locale = code === 'INR' ? 'en-IN' : 'en-US';
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: 'USD',
+    currency: code,
     maximumFractionDigits: 2,
   }).format(cents / 100);
 }
@@ -503,6 +507,9 @@ export default function InboxPage() {
     }
     setIsRefreshing(true);
     try {
+      if (shop && selectedOrderId) {
+        await refreshOrder.mutateAsync({ shop, orderId: selectedOrderId });
+      }
       await Promise.all([inboxBootstrap.refetch(), unassignedQuery.refetch()]);
       toast.success('Inbox refreshed');
     } catch (error: any) {
@@ -512,7 +519,14 @@ export default function InboxPage() {
         setIsRefreshing(false);
       }, 400);
     }
-  }, [inboxBootstrap, unassignedQuery, toast]);
+  }, [
+    inboxBootstrap,
+    unassignedQuery,
+    toast,
+    shop,
+    selectedOrderId,
+    refreshOrder,
+  ]);
 
   const handleSendReply = async () => {
     if (!selectedEmail || !draft.trim()) return;
@@ -829,8 +843,7 @@ export default function InboxPage() {
                       {ordersAccum.map((order) => {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
-                          order.pendingEmailCount &&
-                          order.pendingEmailCount > 0;
+                          (order.pendingEmailCount ?? 0) > 0;
 
                         return (
                           <button
@@ -848,7 +861,7 @@ export default function InboxPage() {
                             </div>
 
                             {/* Content */}
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1 min-w-0 relative">
                               <div className="flex items-center justify-between mb-0.5">
                                 <span className="text-sm font-semibold text-stone-900 truncate">
                                   {order.name ||
@@ -859,7 +872,11 @@ export default function InboxPage() {
                                 </span>
                               </div>
                               <p className="text-xs text-stone-600 truncate mb-1">
-                                {order.email || 'No email'}
+                                {order.customerName ||
+                                  (order.email
+                                    ? getSenderName(order.email)
+                                    : null) ||
+                                  'Guest Customer'}
                               </p>
                               <div className="flex items-center gap-2">
                                 <Badge
@@ -868,21 +885,17 @@ export default function InboxPage() {
                                   {order.status}
                                 </Badge>
                                 <span className="text-xs text-stone-500">
-                                  {formatCurrency(order.totalAmount)}
+                                  {formatCurrency(
+                                    order.totalAmount,
+                                    order.currency || 'INR',
+                                  )}
                                 </span>
                               </div>
 
                               {/* Email indicator */}
                               {hasPendingEmails && (
-                                <div className="flex items-center gap-1 mt-2">
-                                  <div className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                                  <span className="text-xs text-orange-600">
-                                    {order.pendingEmailCount} email
-                                    {(order.pendingEmailCount ?? 0) > 1
-                                      ? 's'
-                                      : ''}{' '}
-                                    pending
-                                  </span>
+                                <div className="absolute top-0.5 right-0">
+                                  <div className="h-2 w-2 rounded-full bg-emerald-500 ring-4 ring-white" />
                                 </div>
                               )}
                             </div>
@@ -1343,7 +1356,10 @@ export default function InboxPage() {
                               </div>
                               <div className="flex items-center justify-between text-xs text-stone-500">
                                 <span>
-                                  {formatCurrency(linkedOrder.totalAmount)}
+                                  {formatCurrency(
+                                    linkedOrder.totalAmount,
+                                    linkedOrder.currency || 'INR',
+                                  )}
                                 </span>
                                 <span>
                                   {relativeTime(linkedOrder.createdAt)}
@@ -1446,6 +1462,9 @@ export default function InboxPage() {
                                       ordersAccum.find(
                                         (o) => o.shopifyId === selectedOrderId,
                                       )?.totalAmount || 0,
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.currency || 'INR',
                                     )}
                                   </span>
                                 </div>
@@ -1453,10 +1472,14 @@ export default function InboxPage() {
                                   <span className="text-stone-500">
                                     Customer
                                   </span>
-                                  <span className="text-stone-900">
+                                  <span className="text-stone-900 text-right max-w-[180px] truncate">
                                     {ordersAccum.find(
                                       (o) => o.shopifyId === selectedOrderId,
-                                    )?.email || 'N/A'}
+                                    )?.customerName ||
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.email ||
+                                      'Guest Customer'}
                                   </span>
                                 </div>
                                 <div className="flex justify-between">

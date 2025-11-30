@@ -6,9 +6,11 @@ import {
   getUsageSummary,
   getUsageHistory,
   canSendEmail,
+  canUseAI,
   PLAN_LIMITS,
   ensureSubscription,
   incrementEmailSent,
+  incrementAISuggestion,
 } from '@ai-ecom/db';
 import {
   getOrCreateCustomer,
@@ -40,11 +42,16 @@ import {
 import {
   listAdAccounts,
   fetchMetaAdsInsights,
+  updateCampaignStatus,
+  updateAdSetStatus,
+  updateCampaignBudget,
+  createOptimizedAdSet,
   type MetaAdAccount,
   type MetaAdsInsights,
 } from './meta-ads';
 
 import { ShopifyClient } from './services/shopify';
+export { ShopifyClient } from './services/shopify';
 type Context = {
   session: any;
   userId: string | null;
@@ -318,27 +325,85 @@ export { encryptSecure, decryptSecure } from './crypto';
 
 async function syncShopifyData(connectionId: string, userId: string) {
   try {
+    console.log(
+      `[Shopify Sync] Starting sync for connectionId: ${connectionId}, userId: ${userId}`,
+    );
+
     const credentials = await getShopifyApiCredentials(connectionId, userId);
-    if (!credentials) return;
+    if (!credentials) {
+      console.log(
+        `[Shopify Sync] No credentials found for connectionId: ${connectionId}`,
+      );
+      return;
+    }
 
     const client = new ShopifyClient(
       credentials.shopUrl,
       credentials.accessToken,
     );
 
-    // Fetch last 50 orders to start
-    const orders = await client.getOrders(50);
+    // Fetch last 100 orders on initial sync (including historical orders beyond 60 days)
+    const orders = await client.getOrders(100, { includeHistorical: true });
+    console.log(
+      `[Shopify Sync] Fetched ${orders.length} orders from Shopify API for ${credentials.shopUrl}`,
+    );
 
     for (const order of orders) {
       const totalAmount = Math.round(parseFloat(order.total_price) * 100); // Convert to cents
+
+      let customerName: string | null = null;
+
+      // Debug log for customer data
+      console.log(`[Shopify Sync] Processing order ${order.id}:`, {
+        hasCustomer: !!order.customer,
+        hasBilling: !!order.billing_address,
+        hasShipping: !!order.shipping_address,
+        email: order.email,
+        contactEmail: order.contact_email,
+        customerEmail: order.customer?.email,
+      });
+
+      if (order.customer) {
+        const first = order.customer.first_name || '';
+        const last = order.customer.last_name || '';
+        if (first || last) {
+          customerName = `${first} ${last}`.trim();
+        }
+
+        // Try to extract from default address in customer object if first/last name is empty
+        if (!customerName && order.customer.default_address) {
+          const def = order.customer.default_address;
+          customerName =
+            def.name ||
+            `${def.first_name || ''} ${def.last_name || ''}`.trim() ||
+            def.company ||
+            null;
+        }
+      }
+
+      if (!customerName && order.billing_address) {
+        customerName =
+          order.billing_address.name ||
+          `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() ||
+          null;
+      }
+
+      if (!customerName && order.shipping_address) {
+        customerName =
+          order.shipping_address.name ||
+          `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() ||
+          null;
+      }
 
       await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
           status: order.financial_status,
-          email: order.email || order.customer?.email,
+          email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
+          currency: order.currency || 'INR',
+          customerName,
           name: order.name,
           shopDomain: credentials.shopUrl.replace('https://', ''),
           connectionId,
@@ -346,12 +411,18 @@ async function syncShopifyData(connectionId: string, userId: string) {
         },
         update: {
           status: order.financial_status,
-          email: order.email || order.customer?.email,
+          email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
+          currency: order.currency || 'INR',
+          customerName,
           updatedAt: new Date(),
         },
       });
     }
+
+    console.log(
+      `[Shopify Sync] Successfully synced ${orders.length} orders for connectionId: ${connectionId}`,
+    );
 
     await logEvent(
       'shopify.sync.completed',
@@ -360,7 +431,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
       connectionId,
     );
   } catch (error) {
-    console.error('Failed to sync Shopify data:', error);
+    console.error('[Shopify Sync] Failed to sync Shopify data:', error);
     await logEvent(
       'shopify.sync.failed',
       { error: String(error) },
@@ -395,6 +466,30 @@ const shopifyRouter = t.router({
           type: 'SHOPIFY',
         },
       });
+
+      // If not updating existing, check store limit
+      if (!existing) {
+        const subscription = await ensureSubscription(ctx.userId);
+        const planLimits = PLAN_LIMITS[subscription.planType];
+        const storeLimit = planLimits.stores;
+
+        // Check current store count (only if limit is not unlimited)
+        if (storeLimit !== -1) {
+          const currentStoreCount = await prisma.connection.count({
+            where: {
+              userId: ctx.userId,
+              type: 'SHOPIFY',
+            },
+          });
+
+          if (currentStoreCount >= storeLimit) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: `You've reached your store limit (${storeLimit} store${storeLimit > 1 ? 's' : ''}). Please upgrade your plan to add more stores.`,
+            });
+          }
+        }
+      }
 
       if (existing) {
         // Return existing webhook URL
@@ -488,6 +583,39 @@ const shopifyRouter = t.router({
         });
       }
 
+      // Check if connection already exists before checking limits
+      const existing = await prisma.connection.findFirst({
+        where: {
+          shopDomain: cleanShop,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+      });
+
+      // If not updating existing, check store limit
+      if (!existing) {
+        const subscription = await ensureSubscription(ctx.userId);
+        const planLimits = PLAN_LIMITS[subscription.planType];
+        const storeLimit = planLimits.stores;
+
+        // Check current store count (only if limit is not unlimited)
+        if (storeLimit !== -1) {
+          const currentStoreCount = await prisma.connection.count({
+            where: {
+              userId: ctx.userId,
+              type: 'SHOPIFY',
+            },
+          });
+
+          if (currentStoreCount >= storeLimit) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: `You've reached your store limit (${storeLimit} store${storeLimit > 1 ? 's' : ''}). Please upgrade your plan to add more stores.`,
+            });
+          }
+        }
+      }
+
       // Verify access token by making a test API call
       try {
         const testUrl = `https://${subdomain}.myshopify.com/admin/api/2024-10/shop.json`;
@@ -509,15 +637,6 @@ const shopifyRouter = t.router({
           shop?: { name?: string | null };
         };
         const fetchedStoreName = shopData?.shop?.name;
-
-        // Check if connection already exists
-        const existing = await prisma.connection.findFirst({
-          where: {
-            shopDomain: cleanShop,
-            userId: ctx.userId,
-            type: 'SHOPIFY',
-          },
-        });
 
         const metadata: Record<string, unknown> = {
           subdomain,
@@ -622,6 +741,50 @@ const shopifyRouter = t.router({
       });
 
       return { ok: true };
+    }),
+  syncOrders: protectedProcedure
+    .input(
+      z.object({
+        connectionId: z.string().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          id: input.connectionId,
+          userId: ctx.userId,
+          type: 'SHOPIFY',
+        },
+        select: {
+          id: true,
+          metadata: true,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Connection not found or access denied',
+        });
+      }
+
+      // Check if custom app connection (has API access)
+      const metadata = (connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Order sync requires a Custom App connection with API access',
+        });
+      }
+
+      // Trigger sync in background
+      void syncShopifyData(connection.id, ctx.userId).catch(console.error);
+
+      return {
+        ok: true,
+        message: 'Order sync started. This may take a moment.',
+      };
     }),
   disconnectStore: protectedProcedure
     .input(z.object({ connectionId: z.string().min(1) }))
@@ -1142,7 +1305,6 @@ export const appRouter = t.router({
     }
   }),
 
-
   updateConnectionSettings: protectedProcedure
     .input(
       z.object({
@@ -1283,6 +1445,8 @@ export const appRouter = t.router({
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -1443,6 +1607,19 @@ export const appRouter = t.router({
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      // Check AI usage limit before processing
+      const aiUsage = await canUseAI(ctx.userId);
+      if (!aiUsage.allowed) {
+        const message =
+          aiUsage.trial.isTrial && aiUsage.trial.expired
+            ? 'Your free trial has expired. Please upgrade to continue using AI-assisted replies.'
+            : `You've reached your AI reply limit (${aiUsage.limit} per month). Please upgrade your plan for more AI-assisted replies.`;
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message,
+        });
+      }
+
       // Sanitize inputs
       const message = sanitizeLimited(input.customerMessage, 5000);
       const orderSummary = sanitizeLimited(input.orderSummary, 500);
@@ -1481,7 +1658,8 @@ export const appRouter = t.router({
       };
 
       if (!apiKey) {
-        // Enhanced fallback response
+        // Enhanced fallback response - still counts toward AI usage since we're generating a reply
+        await incrementAISuggestion(ctx.userId);
         return { suggestion: buildFallback() };
       }
 
@@ -1564,9 +1742,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const suggestion =
           json.choices?.[0]?.message?.content ?? fallbackSuggestion;
 
+        // Increment AI usage counter after successful generation
+        await incrementAISuggestion(ctx.userId);
+
         return { suggestion: ensureSignature(suggestion, signatureBlock) };
       } catch (error) {
         console.error('OpenAI API error:', error);
+
+        // Increment AI usage counter even for fallback (since we generated a response)
+        await incrementAISuggestion(ctx.userId);
 
         // Fallback response
         return { suggestion: buildFallback() };
@@ -2385,6 +2569,19 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         select: { id: true },
       });
       const connectionIds = connections.map((c) => c.id);
+
+      // Debug: Log connection IDs and total order count
+      console.log(
+        `[ordersList] User ${ctx.userId} has ${connectionIds.length} connections:`,
+        connectionIds,
+      );
+      const totalOrdersInDb = await prisma.order.count({
+        where: { connectionId: { in: connectionIds } },
+      });
+      console.log(
+        `[ordersList] Total orders for user's connections: ${totalOrdersInDb}`,
+      );
+
       if (connectionIds.length === 0) {
         return { orders: [], hasMore: false };
       }
@@ -2409,6 +2606,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -2430,6 +2629,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             name: true,
             email: true,
             totalAmount: true,
+            currency: true,
+            customerName: true,
             status: true,
             createdAt: true,
             updatedAt: true,
@@ -3082,6 +3283,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             type: key,
             name: value.name,
             emailsPerMonth: value.emailsPerMonth,
+            aiRepliesLimit: value.aiRepliesLimit,
             stores: value.stores,
             price: pricing ? pricing[currency] : -1,
             priceUSD: pricing ? pricing.USD : -1,
@@ -4457,6 +4659,175 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     await logEvent('meta_ads.disconnected', {}, 'connection', ctx.userId);
     return { success: true };
   }),
+  // Pause or activate a campaign
+  pauseCampaign: protectedProcedure
+    .input(
+      z.object({
+        campaignId: z.string().min(1),
+        status: z.enum(['PAUSED', 'ACTIVE']),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateCampaignStatus(
+        input.campaignId,
+        input.status,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        `meta_ads.campaign.${input.status.toLowerCase()}`,
+        { campaignId: input.campaignId },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Pause or activate an ad set
+  pauseAdSet: protectedProcedure
+    .input(
+      z.object({
+        adSetId: z.string().min(1),
+        status: z.enum(['PAUSED', 'ACTIVE']),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateAdSetStatus(
+        input.adSetId,
+        input.status,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        `meta_ads.adset.${input.status.toLowerCase()}`,
+        { adSetId: input.adSetId },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Scale campaign budget
+  scaleCampaign: protectedProcedure
+    .input(
+      z.object({
+        campaignId: z.string().min(1),
+        dailyBudget: z.number().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await updateCampaignBudget(
+        input.campaignId,
+        input.dailyBudget,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        'meta_ads.campaign.budget_updated',
+        {
+          campaignId: input.campaignId,
+          dailyBudget: input.dailyBudget,
+        },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
+  // Create optimized ad set
+  createOptimizedAdSet: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().min(1),
+        campaignId: z.string().min(1),
+        sourceAdSetId: z.string().min(1),
+        name: z.string().min(1),
+        dailyBudget: z.number().min(1),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads connection not found',
+        });
+      }
+
+      const result = await createOptimizedAdSet(
+        input.adAccountId,
+        input.campaignId,
+        input.sourceAdSetId,
+        input.name,
+        input.dailyBudget,
+        connection.accessToken,
+        connection.refreshToken,
+      );
+
+      await logEvent(
+        'meta_ads.adset.created',
+        {
+          adSetId: result.id,
+          campaignId: input.campaignId,
+          sourceAdSetId: input.sourceAdSetId,
+        },
+        'connection',
+        connection.id,
+      );
+
+      return result;
+    }),
   // Get Google Analytics Properties
   getGoogleAnalyticsProperties: protectedProcedure.query(async ({ ctx }) => {
     try {

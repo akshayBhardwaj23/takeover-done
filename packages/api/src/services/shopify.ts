@@ -4,6 +4,7 @@ interface ShopifyOrder {
   id: number;
   name: string;
   email: string;
+  contact_email?: string;
   created_at: string;
   total_price: string;
   currency: string;
@@ -14,6 +15,25 @@ interface ShopifyOrder {
     first_name: string;
     last_name: string;
     email: string;
+    default_address?: {
+      first_name?: string;
+      last_name?: string;
+      name?: string;
+      company?: string;
+      country?: string;
+    };
+  };
+  billing_address?: {
+    first_name: string;
+    last_name: string;
+    name: string;
+    country?: string;
+  };
+  shipping_address?: {
+    first_name: string;
+    last_name: string;
+    name: string;
+    country?: string;
   };
   line_items: Array<{
     id: number;
@@ -39,13 +59,16 @@ export class ShopifyClient {
 
   constructor(shopDomain: string, accessToken: string) {
     // Ensure protocol
-    this.shopUrl = shopDomain.startsWith('http') 
-      ? shopDomain 
+    this.shopUrl = shopDomain.startsWith('http')
+      ? shopDomain
       : `https://${shopDomain}`;
     this.accessToken = accessToken;
   }
 
-  private async request<T>(path: string, params: Record<string, any> = {}): Promise<T> {
+  private async request<T>(
+    path: string,
+    params: Record<string, any> = {},
+  ): Promise<T> {
     const url = new URL(`${this.shopUrl}/admin/api/2024-10/${path}`);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -62,22 +85,39 @@ export class ShopifyClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Shopify API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(
+        `Shopify API Error: ${response.status} ${response.statusText} - ${errorText}`,
+      );
     }
 
     return response.json();
   }
 
-  async getOrders(limit = 50, sinceId?: number): Promise<ShopifyOrder[]> {
+  async getOrders(
+    limit = 50,
+    options?: { sinceId?: number; includeHistorical?: boolean },
+  ): Promise<ShopifyOrder[]> {
     const params: Record<string, any> = {
       status: 'any',
       limit,
     };
-    if (sinceId) {
-      params.since_id = sinceId;
+
+    if (options?.sinceId) {
+      params.since_id = options.sinceId;
     }
 
-    const data = await this.request<{ orders: ShopifyOrder[] }>('orders.json', params);
+    // By default, Shopify only returns orders from last 60 days
+    // Set created_at_min to fetch historical orders (up to 2 years back)
+    if (options?.includeHistorical) {
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+      params.created_at_min = twoYearsAgo.toISOString();
+    }
+
+    const data = await this.request<{ orders: ShopifyOrder[] }>(
+      'orders.json',
+      params,
+    );
     return data.orders;
   }
 
@@ -89,10 +129,13 @@ export class ShopifyClient {
       params.since_id = sinceId;
     }
 
-    const data = await this.request<{ customers: ShopifyCustomer[] }>('customers.json', params);
+    const data = await this.request<{ customers: ShopifyCustomer[] }>(
+      'customers.json',
+      params,
+    );
     return data.customers;
   }
-  
+
   /**
    * Validates the credentials by fetching the shop info
    */
