@@ -82,18 +82,24 @@ export async function GET(req: NextRequest) {
     const orders = await client.getOrders(5, { includeHistorical: true });
 
     // 5. Return Debug Data
-    const debugData = orders.map((order) => ({
-      id: order.id,
-      name: order.name,
-      email: order.email,
-      contact_email: order.contact_email,
-      customer_obj: order.customer,
-      billing_address: order.billing_address,
-      shipping_address: order.shipping_address,
-      raw_customer_name: order.customer
-        ? `${order.customer.first_name} ${order.customer.last_name}`
-        : null,
-    }));
+    // Return FULL raw order for the first item to see absolutely everything
+    const debugData = orders.map((order, index) => {
+      if (index === 0) {
+        return order; // Return full object for first order
+      }
+      return {
+        id: order.id,
+        name: order.name,
+        email: order.email,
+        contact_email: order.contact_email,
+        customer_obj: order.customer,
+        billing_address: order.billing_address,
+        shipping_address: order.shipping_address,
+        raw_customer_name: order.customer
+          ? `${order.customer.first_name} ${order.customer.last_name}`
+          : null,
+      };
+    });
 
     return NextResponse.json({
       shop: shopUrl,
