@@ -15,16 +15,25 @@ interface ShopifyOrder {
     first_name: string;
     last_name: string;
     email: string;
+    default_address?: {
+      first_name?: string;
+      last_name?: string;
+      name?: string;
+      company?: string;
+      country?: string;
+    };
   };
   billing_address?: {
     first_name: string;
     last_name: string;
     name: string;
+    country?: string;
   };
   shipping_address?: {
     first_name: string;
     last_name: string;
     name: string;
+    country?: string;
   };
   line_items: Array<{
     id: number;

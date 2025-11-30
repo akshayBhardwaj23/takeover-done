@@ -369,6 +369,16 @@ async function syncShopifyData(connectionId: string, userId: string) {
         if (first || last) {
           customerName = `${first} ${last}`.trim();
         }
+
+        // Try to extract from default address in customer object if first/last name is empty
+        if (!customerName && order.customer.default_address) {
+          const def = order.customer.default_address;
+          customerName =
+            def.name ||
+            `${def.first_name || ''} ${def.last_name || ''}`.trim() ||
+            def.company ||
+            null;
+        }
       }
 
       if (!customerName && order.billing_address) {

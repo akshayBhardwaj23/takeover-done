@@ -222,6 +222,15 @@ export async function POST(req: NextRequest) {
         if (first || last) {
           customerName = `${first} ${last}`.trim();
         }
+        // Fallback to default_address in customer object
+        if (!customerName && order.customer.default_address) {
+           const def = order.customer.default_address;
+            customerName = 
+              def.name || 
+              `${def.first_name || ''} ${def.last_name || ''}`.trim() || 
+              def.company || 
+              null;
+        }
       }
       
       if (!customerName && order.billing_address) {
@@ -239,16 +248,16 @@ export async function POST(req: NextRequest) {
           connectionId: conn.id,
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: order.financial_status || 'CREATED',
-          email: order.email ?? null,
+          status: 'CREATED',
+          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
         },
         update: {
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: order.financial_status || 'CREATED',
-          email: order.email ?? null,
+          status: 'CREATED',
+          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
         },
