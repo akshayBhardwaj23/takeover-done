@@ -6,9 +6,15 @@ import { getServerSession } from 'next-auth';
 
 // Helper for quick debug authentication
 async function isAuthenticated(req: NextRequest) {
-  // Allow checking via simple secret header for curl/scripts
   const debugSecret = process.env.DEBUG_API_SECRET;
+  // 1. Check Header
   if (debugSecret && req.headers.get('x-debug-secret') === debugSecret) {
+    return true;
+  }
+
+  // 2. Check Query Param (for easy browser access)
+  const searchParams = req.nextUrl.searchParams;
+  if (debugSecret && searchParams.get('secret') === debugSecret) {
     return true;
   }
 
