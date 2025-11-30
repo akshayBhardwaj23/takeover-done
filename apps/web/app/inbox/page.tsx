@@ -843,8 +843,7 @@ export default function InboxPage() {
                       {ordersAccum.map((order) => {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
-                          order.pendingEmailCount &&
-                          order.pendingEmailCount > 0;
+                          (order.pendingEmailCount ?? 0) > 0;
 
                         return (
                           <button
