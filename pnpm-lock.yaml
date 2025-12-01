@@ -69,6 +69,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-ecom/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@ai-ecom/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@prisma/client':
         specifier: ^5.19.1
         version: 5.22.0(prisma@5.22.0)
