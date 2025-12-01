@@ -13,6 +13,8 @@
     "postbuild": "next-sitemap --config next-sitemap.config.js"
   },
   "dependencies": {
+    "@ai-ecom/api": "workspace:*",
+    "@ai-ecom/db": "workspace:*",
     "@prisma/client": "^5.19.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",

@@ -69,6 +69,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@ai-ecom/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@ai-ecom/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@prisma/client':
         specifier: ^5.19.1
         version: 5.22.0(prisma@5.22.0)
@@ -218,6 +224,12 @@ importers:
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
+      '@types/node':
+        specifier: ^20.14.12
+        version: 20.19.21
+      '@types/validator':
+        specifier: ^13.15.4
+        version: 13.15.4
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -252,9 +264,6 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.26)
-      '@types/validator':
-        specifier: ^13.15.4
-        version: 13.15.4
       typescript:
         specifier: ^5.5.4
         version: 5.9.3
@@ -264,6 +273,9 @@ importers:
       '@prisma/client':
         specifier: ^5.19.1
         version: 5.22.0(prisma@5.22.0)
+      '@types/node':
+        specifier: ^20.14.12
+        version: 20.19.21
       prisma:
         specifier: ^5.19.1
         version: 5.22.0
