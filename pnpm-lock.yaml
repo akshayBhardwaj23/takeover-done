@@ -224,6 +224,9 @@ importers:
       '@trpc/server':
         specifier: ^10.45.2
         version: 10.45.2
+      '@types/node':
+        specifier: ^20.14.12
+        version: 20.19.21
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
