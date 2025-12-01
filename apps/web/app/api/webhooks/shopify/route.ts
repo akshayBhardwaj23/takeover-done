@@ -198,7 +198,10 @@ export async function POST(req: NextRequest) {
           connectionId: conn.id,
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: 'CREATED',
+          status: (order.financial_status || 'PENDING').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'UNFULFILLED'
+          ).toUpperCase(),
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
@@ -210,7 +213,10 @@ export async function POST(req: NextRequest) {
         update: {
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: 'CREATED',
+          status: (order.financial_status || 'PENDING').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'UNFULFILLED'
+          ).toUpperCase(),
           email: order.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
@@ -268,7 +274,10 @@ export async function POST(req: NextRequest) {
           connectionId: conn.id,
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: 'CREATED',
+          status: (order.financial_status || 'PENDING').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'UNFULFILLED'
+          ).toUpperCase(),
           email:
             order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
@@ -281,7 +290,10 @@ export async function POST(req: NextRequest) {
         update: {
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: 'CREATED',
+          status: (order.financial_status || 'PENDING').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'UNFULFILLED'
+          ).toUpperCase(),
           email:
             order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
@@ -297,7 +309,7 @@ export async function POST(req: NextRequest) {
       await prisma.order.updateMany({
         where: { shopifyId: String(order.id) },
         data: {
-          status: 'FULFILLED',
+          fulfillmentStatus: 'FULFILLED',
           statusUpdatedAt: new Date(),
         },
       });

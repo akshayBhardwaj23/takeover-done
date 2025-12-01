@@ -51,6 +51,7 @@ type DbOrder = {
   currency?: string | null;
   customerName?: string | null;
   status: string;
+  fulfillmentStatus?: string | null;
   createdAt: string;
   pendingEmailCount?: number;
 };
@@ -186,10 +187,24 @@ function getAvatarColor(str: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
-const STATUS_COLORS: Record<string, string> = {
+// Fulfillment status colors (shipping/delivery status)
+const FULFILLMENT_STATUS_COLORS: Record<string, string> = {
   FULFILLED: 'bg-emerald-100 text-emerald-700',
+  PARTIAL: 'bg-blue-100 text-blue-700',
+  UNFULFILLED: 'bg-amber-100 text-amber-700',
+  SHIPPED: 'bg-sky-100 text-sky-700',
+  IN_TRANSIT: 'bg-indigo-100 text-indigo-700',
+  DELIVERED: 'bg-emerald-100 text-emerald-700',
+  default: 'bg-slate-100 text-slate-600',
+};
+
+// Financial status colors (payment status)
+const STATUS_COLORS: Record<string, string> = {
+  PAID: 'bg-emerald-100 text-emerald-700',
   REFUNDED: 'bg-rose-100 text-rose-700',
   PENDING: 'bg-amber-100 text-amber-700',
+  PARTIALLY_REFUNDED: 'bg-orange-100 text-orange-700',
+  VOIDED: 'bg-gray-100 text-gray-700',
   default: 'bg-slate-100 text-slate-600',
 };
 
@@ -902,7 +917,14 @@ export default function InboxPage() {
                                     : null) ||
                                   'Guest Customer'}
                               </p>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {/* Fulfillment/Shipping Status */}
+                                <Badge
+                                  className={`text-xs ${FULFILLMENT_STATUS_COLORS[order.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
+                                >
+                                  {order.fulfillmentStatus || 'UNFULFILLED'}
+                                </Badge>
+                                {/* Payment Status */}
                                 <Badge
                                   className={`text-xs ${STATUS_COLORS[order.status] || STATUS_COLORS.default}`}
                                 >
@@ -1374,11 +1396,19 @@ export default function InboxPage() {
                                   {linkedOrder.name ||
                                     `#${linkedOrder.shopifyId.slice(-6)}`}
                                 </span>
-                                <Badge
-                                  className={`text-xs ${STATUS_COLORS[linkedOrder.status] || STATUS_COLORS.default}`}
-                                >
-                                  {linkedOrder.status}
-                                </Badge>
+                                <div className="flex gap-1">
+                                  <Badge
+                                    className={`text-xs ${FULFILLMENT_STATUS_COLORS[linkedOrder.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
+                                  >
+                                    {linkedOrder.fulfillmentStatus ||
+                                      'UNFULFILLED'}
+                                  </Badge>
+                                  <Badge
+                                    className={`text-xs ${STATUS_COLORS[linkedOrder.status] || STATUS_COLORS.default}`}
+                                  >
+                                    {linkedOrder.status}
+                                  </Badge>
+                                </div>
                               </div>
                               <div className="flex items-center justify-between text-xs text-stone-500">
                                 <span>
@@ -1470,15 +1500,24 @@ export default function InboxPage() {
                                     )?.name
                                   }
                                 </span>
-                                <Badge
-                                  className={`${STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.status || 'default'] || STATUS_COLORS.default}`}
-                                >
-                                  {
-                                    ordersAccum.find(
+                                <div className="flex gap-1">
+                                  <Badge
+                                    className={`${FULFILLMENT_STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
+                                  >
+                                    {ordersAccum.find(
                                       (o) => o.shopifyId === selectedOrderId,
-                                    )?.status
-                                  }
-                                </Badge>
+                                    )?.fulfillmentStatus || 'UNFULFILLED'}
+                                  </Badge>
+                                  <Badge
+                                    className={`${STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.status || 'default'] || STATUS_COLORS.default}`}
+                                  >
+                                    {
+                                      ordersAccum.find(
+                                        (o) => o.shopifyId === selectedOrderId,
+                                      )?.status
+                                    }
+                                  </Badge>
+                                </div>
                               </div>
                               <div className="space-y-2 text-sm">
                                 <div className="flex justify-between">
