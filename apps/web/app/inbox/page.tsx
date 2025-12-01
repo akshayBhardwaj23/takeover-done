@@ -306,10 +306,19 @@ export default function InboxPage() {
   const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
   useEffect(() => {
     const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
-    setOrdersAccum((prev) =>
-      ordersOffset === 0 ? incoming : [...prev, ...incoming],
-    );
-  }, [ordersPage.data, ordersOffset]);
+    const bootstrapOrders = (inboxBootstrap.data?.orders as DbOrder[] | undefined) ?? [];
+    
+    // Merge orders from both sources, deduplicating by id
+    const allOrders = [...bootstrapOrders, ...incoming];
+    const orderMap = new Map<string, DbOrder>();
+    allOrders.forEach((order) => {
+      if (!orderMap.has(order.id)) {
+        orderMap.set(order.id, order);
+      }
+    });
+    
+    setOrdersAccum(Array.from(orderMap.values()));
+  }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
 
   const hasMoreOrders = ordersPage.data?.hasMore ?? false;
 
@@ -418,15 +427,17 @@ export default function InboxPage() {
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
     if (!selectedEmail) return null;
-    
+
     // First, check if the message has a direct orderId link
     if (selectedEmail.orderId) {
       const orderById = ordersAccum.find(
-        (order) => order.id === selectedEmail.orderId || order.shopifyId === selectedEmail.orderId,
+        (order) =>
+          order.id === selectedEmail.orderId ||
+          order.shopifyId === selectedEmail.orderId,
       );
       if (orderById) return orderById;
     }
-    
+
     // Fallback: match by sender email address
     const senderEmail = extractEmailAddress(selectedEmail.from);
     if (!senderEmail) return null;
