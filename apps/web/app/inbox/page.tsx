@@ -418,6 +418,16 @@ export default function InboxPage() {
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
     if (!selectedEmail) return null;
+    
+    // First, check if the message has a direct orderId link
+    if (selectedEmail.orderId) {
+      const orderById = ordersAccum.find(
+        (order) => order.id === selectedEmail.orderId || order.shopifyId === selectedEmail.orderId,
+      );
+      if (orderById) return orderById;
+    }
+    
+    // Fallback: match by sender email address
     const senderEmail = extractEmailAddress(selectedEmail.from);
     if (!senderEmail) return null;
     return (
