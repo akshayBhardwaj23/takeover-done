@@ -306,8 +306,9 @@ export default function InboxPage() {
   const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
   useEffect(() => {
     const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
-    const bootstrapOrders = (inboxBootstrap.data?.orders as DbOrder[] | undefined) ?? [];
-    
+    const bootstrapOrders =
+      (inboxBootstrap.data?.orders as DbOrder[] | undefined) ?? [];
+
     // Merge orders from both sources, deduplicating by id
     const allOrders = [...bootstrapOrders, ...incoming];
     const orderMap = new Map<string, DbOrder>();
@@ -316,7 +317,7 @@ export default function InboxPage() {
         orderMap.set(order.id, order);
       }
     });
-    
+
     setOrdersAccum(Array.from(orderMap.values()));
   }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
 
