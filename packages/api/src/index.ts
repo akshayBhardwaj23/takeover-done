@@ -399,7 +399,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
-          status: order.financial_status,
+          status: (order.financial_status || 'pending').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'unfulfilled'
+          ).toUpperCase(),
           email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
           currency: order.currency || 'INR',
@@ -414,7 +417,10 @@ async function syncShopifyData(connectionId: string, userId: string) {
             : new Date(),
         },
         update: {
-          status: order.financial_status,
+          status: (order.financial_status || 'pending').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'unfulfilled'
+          ).toUpperCase(),
           email: order.email || order.contact_email || order.customer?.email,
           totalAmount,
           currency: order.currency || 'INR',
@@ -1456,6 +1462,7 @@ export const appRouter = t.router({
             currency: true,
             customerName: true,
             status: true,
+            fulfillmentStatus: true,
             createdAt: true,
             updatedAt: true,
             shopDomain: true,
@@ -2505,6 +2512,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           email: order.email || order.customer?.email || null,
           totalAmount: Math.round(parseFloat(order.total_price || '0') * 100),
           status: (order.financial_status || 'PENDING').toUpperCase(),
+          fulfillmentStatus: (
+            order.fulfillment_status || 'UNFULFILLED'
+          ).toUpperCase(),
           shopDomain: input.shop,
         };
 
@@ -2624,6 +2634,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             currency: true,
             customerName: true,
             status: true,
+            fulfillmentStatus: true,
             createdAt: true,
             updatedAt: true,
             shopDomain: true,
@@ -2647,6 +2658,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             currency: true,
             customerName: true,
             status: true,
+            fulfillmentStatus: true,
             createdAt: true,
             updatedAt: true,
             shopDomain: true,

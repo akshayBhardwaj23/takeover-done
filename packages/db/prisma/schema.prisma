@@ -87,7 +87,8 @@ model Connection {
 model Order {
   id           String     @id @default(cuid())
   shopifyId    String     @unique
-  status       String
+  status       String                      // Financial status from Shopify (paid, pending, refunded, etc.)
+  fulfillmentStatus String?                // Fulfillment/shipping status (fulfilled, unfulfilled, partial, shipped, in_transit, etc.)
   email        String?
   totalAmount  Int
   currency     String     @default("INR")  // Currency code from Shopify (USD, INR, etc.)
