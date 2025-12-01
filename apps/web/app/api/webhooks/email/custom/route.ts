@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   prisma,
   logEvent,
-  canReceiveEmail,
   incrementEmailReceived,
 } from '@ai-ecom/db';
 import crypto from 'node:crypto';
@@ -283,22 +282,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'alias mismatch' }, { status: 400 });
     }
 
-    // Check email received limit before processing (applies to all plans)
-    if (conn.userId) {
-      const emailLimit = await canReceiveEmail(conn.userId);
-      if (!emailLimit.allowed) {
-        const message = emailLimit.trial.isTrial && emailLimit.trial.expired
-          ? 'Your free trial has expired. Please upgrade to continue receiving emails.'
-          : `You've reached your email processing limit (${emailLimit.limit} emails/month). Please upgrade your plan to process more emails.`;
-        console.error(
-          `[Email Webhook] ❌ Email limit reached for user ${conn.userId}: ${message}`,
-        );
-        return NextResponse.json(
-          { error: message },
-          { status: 403 },
-        );
-      }
-    }
+    // NOTE: Email limit check temporarily disabled for demo
+    // TODO: Re-enable canReceiveEmail check after demo
+    // if (conn.userId) {
+    //   const emailLimit = await canReceiveEmail(conn.userId);
+    //   if (!emailLimit.allowed) {
+    //     ...
+    //   }
+    // }
 
     const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
