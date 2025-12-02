@@ -1,5 +1,6 @@
 type WebhookTopic =
   | 'orders/create'
+  | 'orders/updated'  // Added for real-time status updates + PII refresh
   | 'refunds/create'
   | 'orders/fulfilled'
   | 'app/uninstalled'
@@ -10,9 +11,13 @@ export async function registerWebhooks(shop: string, accessToken: string) {
   const appUrl = process.env.SHOPIFY_APP_URL ?? 'http://localhost:3000';
   const address = `${appUrl}/api/webhooks/shopify`;
   // Always register orders/create and other essential webhooks
+  // orders/updated is critical for:
+  //   1. Real-time status changes (payment, fulfillment)
+  //   2. Customer PII updates (webhooks contain unredacted data)
   // The PROTECTED_WEBHOOKS flag controls additional webhooks
   const essentialTopics: WebhookTopic[] = [
     'orders/create',
+    'orders/updated',   // Essential for real-time updates + PII from webhooks
     'orders/fulfilled',
     'refunds/create',
     'app/uninstalled',

@@ -929,6 +929,349 @@ const shopifyRouter = t.router({
         shopDomain: connection.shopDomain,
       };
     }),
+
+  // ============================================================================
+  // Refund and Cancel Order Mutations (via Shopify Admin API)
+  // ============================================================================
+
+  initiateRefund: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.string().min(1), // Internal order ID
+        amount: z.number().int().positive().optional(), // Amount in cents (optional for full refund)
+        reason: z.string().max(500).optional(),
+        notify: z.boolean().default(true), // Whether to send notification to customer
+        lineItems: z
+          .array(
+            z.object({
+              lineItemId: z.string(),
+              quantity: z.number().int().positive(),
+              restockType: z.enum(['no_restock', 'cancel', 'return']).optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Get the order and verify ownership
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: {
+              id: true,
+              userId: true,
+              accessToken: true,
+              shopDomain: true,
+              metadata: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      // Verify user owns this connection
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied to this order',
+        });
+      }
+
+      // Check if connection has API access (custom app)
+      const metadata = (order.connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Refunds require a Custom App connection with API access',
+        });
+      }
+
+      // Decrypt access token and create Shopify client
+      const accessToken = await decryptSecure(order.connection.accessToken);
+      if (!accessToken || !order.connection.shopDomain) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Invalid connection credentials',
+        });
+      }
+
+      const client = new ShopifyClient(order.connection.shopDomain, accessToken);
+
+      // Initiate the refund via Shopify Admin API
+      const result = await client.createRefund({
+        orderId: order.shopifyId,
+        amount: input.amount,
+        reason: input.reason,
+        notify: input.notify,
+        lineItems: input.lineItems,
+      });
+
+      if (!result.success) {
+        await logEvent(
+          'shopify.refund.failed',
+          {
+            orderId: input.orderId,
+            shopifyOrderId: order.shopifyId,
+            error: result.error,
+          },
+          'order',
+          input.orderId,
+        );
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: result.error || 'Failed to create refund',
+        });
+      }
+
+      // Update local order status (webhook will also update this)
+      await prisma.order.update({
+        where: { id: input.orderId },
+        data: {
+          status: input.amount ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+
+      // Log the refund action
+      await prisma.action.create({
+        data: {
+          orderId: input.orderId,
+          type: 'REFUND',
+          status: 'EXECUTED',
+          payload: {
+            refundId: result.refundId,
+            amount: result.amount,
+            reason: input.reason,
+          },
+          executedAt: new Date(),
+        },
+      });
+
+      await logEvent(
+        'shopify.refund.success',
+        {
+          orderId: input.orderId,
+          shopifyOrderId: order.shopifyId,
+          refundId: result.refundId,
+          amount: result.amount,
+        },
+        'order',
+        input.orderId,
+      );
+
+      return {
+        success: true,
+        refundId: result.refundId,
+        amount: result.amount,
+      };
+    }),
+
+  cancelOrder: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.string().min(1), // Internal order ID
+        reason: z.enum(['customer', 'fraud', 'inventory', 'declined', 'other']).default('other'),
+        email: z.boolean().default(true), // Whether to send cancellation email
+        restock: z.boolean().default(true), // Whether to restock items
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Get the order and verify ownership
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: {
+              id: true,
+              userId: true,
+              accessToken: true,
+              shopDomain: true,
+              metadata: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      // Verify user owns this connection
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied to this order',
+        });
+      }
+
+      // Check if connection has API access (custom app)
+      const metadata = (order.connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Order cancellation requires a Custom App connection with API access',
+        });
+      }
+
+      // Decrypt access token and create Shopify client
+      const accessToken = await decryptSecure(order.connection.accessToken);
+      if (!accessToken || !order.connection.shopDomain) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Invalid connection credentials',
+        });
+      }
+
+      const client = new ShopifyClient(order.connection.shopDomain, accessToken);
+
+      // Cancel the order via Shopify Admin API
+      const result = await client.cancelOrder({
+        orderId: order.shopifyId,
+        reason: input.reason,
+        email: input.email,
+        restock: input.restock,
+      });
+
+      if (!result.success) {
+        await logEvent(
+          'shopify.cancel.failed',
+          {
+            orderId: input.orderId,
+            shopifyOrderId: order.shopifyId,
+            error: result.error,
+          },
+          'order',
+          input.orderId,
+        );
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: result.error || 'Failed to cancel order',
+        });
+      }
+
+      // Update local order status
+      await prisma.order.update({
+        where: { id: input.orderId },
+        data: {
+          status: 'CANCELLED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+
+      // Log the cancel action
+      await prisma.action.create({
+        data: {
+          orderId: input.orderId,
+          type: 'CANCEL',
+          status: 'EXECUTED',
+          payload: {
+            reason: input.reason,
+            cancelledAt: result.cancelledAt,
+          },
+          executedAt: new Date(),
+        },
+      });
+
+      await logEvent(
+        'shopify.cancel.success',
+        {
+          orderId: input.orderId,
+          shopifyOrderId: order.shopifyId,
+          cancelledAt: result.cancelledAt,
+        },
+        'order',
+        input.orderId,
+      );
+
+      return {
+        success: true,
+        cancelledAt: result.cancelledAt,
+      };
+    }),
+
+  // Get order details including customer info from linked Customer record
+  getOrderDetails: protectedProcedure
+    .input(z.object({ orderId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: { userId: true, shopDomain: true },
+          },
+          customer: true, // Include linked customer with full PII
+          actions: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied',
+        });
+      }
+
+      return {
+        id: order.id,
+        shopifyId: order.shopifyId,
+        name: order.name,
+        status: order.status,
+        fulfillmentStatus: order.fulfillmentStatus,
+        totalAmount: order.totalAmount,
+        currency: order.currency,
+        email: order.email,
+        customerName: order.customerName,
+        shopDomain: order.shopDomain,
+        processedAt: order.processedAt,
+        statusUpdatedAt: order.statusUpdatedAt,
+        // Customer PII from webhooks
+        customer: order.customer
+          ? {
+              id: order.customer.id,
+              email: order.customer.email,
+              phone: order.customer.phone,
+              firstName: order.customer.firstName,
+              lastName: order.customer.lastName,
+              fullName: [order.customer.firstName, order.customer.lastName]
+                .filter(Boolean)
+                .join(' ') || null,
+              address: {
+                address1: order.customer.address1,
+                address2: order.customer.address2,
+                city: order.customer.city,
+                province: order.customer.province,
+                country: order.customer.country,
+                zip: order.customer.zip,
+                company: order.customer.company,
+              },
+              ordersCount: order.customer.ordersCount,
+              totalSpent: order.customer.totalSpent,
+              acceptsMarketing: order.customer.acceptsMarketing,
+            }
+          : null,
+        recentActions: order.actions,
+      };
+    }),
 });
 
 const emailRouter = t.router({

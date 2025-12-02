@@ -79,9 +79,46 @@ model Connection {
   user         User           @relation(fields: [userId], references: [id])
   orders       Order[]
   threads      Thread[]
+  customers    Customer[]
 
   @@index([userId])
   @@index([userId, createdAt])
+}
+
+// Customer model to store PII data from Shopify webhooks
+// Webhooks contain full customer data that Admin API redacts for non-embedded apps
+model Customer {
+  id            String     @id @default(cuid())
+  shopifyId     String     @unique  // Shopify customer ID
+  connectionId  String
+  email         String?
+  phone         String?
+  firstName     String?
+  lastName      String?
+  // Shipping/Billing address fields
+  address1      String?
+  address2      String?
+  city          String?
+  province      String?
+  provinceCode  String?
+  country       String?
+  countryCode   String?
+  zip           String?
+  company       String?
+  // Aggregated stats
+  ordersCount   Int        @default(0)
+  totalSpent    Int        @default(0) // in cents
+  acceptsMarketing Boolean @default(false)
+  // Timestamps
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  // Relations
+  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@index([connectionId])
+  @@index([email])
+  @@index([connectionId, email])
 }
 
 model Order {
@@ -100,12 +137,15 @@ model Order {
   processedAt  DateTime?  // Time when order was processed by Shopify
   statusUpdatedAt DateTime? // Time when order status was last updated
   connectionId String
+  customerId   String?    // Link to Customer (populated from webhooks with full PII)
   actions      Action[]
   messages     Message[]
   connection   Connection @relation(fields: [connectionId], references: [id])
+  customer     Customer?  @relation(fields: [customerId], references: [id])
 
   @@index([connectionId])
   @@index([connectionId, createdAt])
+  @@index([customerId])
 }
 
 model Thread {

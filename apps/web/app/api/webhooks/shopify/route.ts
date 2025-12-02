@@ -7,6 +7,181 @@ export const runtime = 'nodejs';
 // Ensure we get fresh request body (no caching)
 export const dynamic = 'force-dynamic';
 
+// ============================================================================
+// Types for Shopify webhook payloads
+// ============================================================================
+
+interface ShopifyAddress {
+  first_name?: string;
+  last_name?: string;
+  name?: string;
+  company?: string;
+  address1?: string;
+  address2?: string;
+  city?: string;
+  province?: string;
+  province_code?: string;
+  country?: string;
+  country_code?: string;
+  zip?: string;
+  phone?: string;
+}
+
+interface ShopifyCustomer {
+  id: number;
+  email?: string;
+  phone?: string;
+  first_name?: string;
+  last_name?: string;
+  orders_count?: number;
+  total_spent?: string;
+  accepts_marketing?: boolean;
+  default_address?: ShopifyAddress;
+}
+
+interface ShopifyOrderPayload {
+  id: number;
+  name?: string;
+  email?: string;
+  contact_email?: string;
+  total_price?: string;
+  currency?: string;
+  financial_status?: string;
+  fulfillment_status?: string | null;
+  processed_at?: string;
+  updated_at?: string;
+  customer?: ShopifyCustomer;
+  billing_address?: ShopifyAddress;
+  shipping_address?: ShopifyAddress;
+}
+
+// ============================================================================
+// Helper: Extract and upsert Customer from webhook payload
+// Webhooks contain full PII that Admin API redacts for non-embedded apps
+// ============================================================================
+
+async function upsertCustomerFromWebhook(
+  order: ShopifyOrderPayload,
+  connectionId: string,
+): Promise<string | null> {
+  // Customer data can come from order.customer or addresses
+  const customer = order.customer;
+  
+  if (!customer?.id) {
+    // No customer data available (guest checkout or missing data)
+    return null;
+  }
+
+  const shopifyCustomerId = String(customer.id);
+  
+  // Extract address - prefer shipping, fall back to billing, then default_address
+  const address = order.shipping_address || order.billing_address || customer.default_address;
+  
+  // Calculate total spent in cents
+  const totalSpentCents = customer.total_spent 
+    ? Math.round(parseFloat(customer.total_spent) * 100)
+    : 0;
+
+  try {
+    const upsertedCustomer = await prisma.customer.upsert({
+      where: { shopifyId: shopifyCustomerId },
+      create: {
+        shopifyId: shopifyCustomerId,
+        connectionId,
+        email: customer.email || order.email || order.contact_email || null,
+        phone: customer.phone || address?.phone || null,
+        firstName: customer.first_name || address?.first_name || null,
+        lastName: customer.last_name || address?.last_name || null,
+        address1: address?.address1 || null,
+        address2: address?.address2 || null,
+        city: address?.city || null,
+        province: address?.province || null,
+        provinceCode: address?.province_code || null,
+        country: address?.country || null,
+        countryCode: address?.country_code || null,
+        zip: address?.zip || null,
+        company: address?.company || null,
+        ordersCount: customer.orders_count || 1,
+        totalSpent: totalSpentCents,
+        acceptsMarketing: customer.accepts_marketing || false,
+      },
+      update: {
+        // Update PII on every webhook - ensures we have latest data
+        email: customer.email || order.email || order.contact_email || undefined,
+        phone: customer.phone || address?.phone || undefined,
+        firstName: customer.first_name || address?.first_name || undefined,
+        lastName: customer.last_name || address?.last_name || undefined,
+        address1: address?.address1 || undefined,
+        address2: address?.address2 || undefined,
+        city: address?.city || undefined,
+        province: address?.province || undefined,
+        provinceCode: address?.province_code || undefined,
+        country: address?.country || undefined,
+        countryCode: address?.country_code || undefined,
+        zip: address?.zip || undefined,
+        company: address?.company || undefined,
+        ordersCount: customer.orders_count || undefined,
+        totalSpent: totalSpentCents || undefined,
+        acceptsMarketing: customer.accepts_marketing,
+      },
+    });
+
+    console.log('[Shopify Webhook] Customer upserted:', {
+      customerId: upsertedCustomer.id,
+      shopifyId: shopifyCustomerId,
+      email: upsertedCustomer.email,
+      hasPhone: !!upsertedCustomer.phone,
+      hasAddress: !!upsertedCustomer.address1,
+    });
+
+    return upsertedCustomer.id;
+  } catch (err) {
+    console.error('[Shopify Webhook] Failed to upsert customer:', {
+      shopifyCustomerId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Don't fail the webhook - customer data is supplementary
+    return null;
+  }
+}
+
+// ============================================================================
+// Helper: Extract customer name from order data
+// ============================================================================
+
+function extractCustomerName(order: ShopifyOrderPayload): string | null {
+  // Try customer object first
+  if (order.customer) {
+    const first = order.customer.first_name || '';
+    const last = order.customer.last_name || '';
+    if (first || last) {
+      return `${first} ${last}`.trim();
+    }
+    // Fallback to default_address in customer object
+    if (order.customer.default_address) {
+      const def = order.customer.default_address;
+      const name = def.name || `${def.first_name || ''} ${def.last_name || ''}`.trim() || def.company;
+      if (name) return name;
+    }
+  }
+
+  // Try billing address
+  if (order.billing_address) {
+    const name = order.billing_address.name || 
+      `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim();
+    if (name) return name;
+  }
+
+  // Try shipping address
+  if (order.shipping_address) {
+    const name = order.shipping_address.name || 
+      `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim();
+    if (name) return name;
+  }
+
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   // Get headers and secret first for debugging
   const secret = process.env.SHOPIFY_API_SECRET;
@@ -156,39 +331,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (topic === 'orders/create') {
-      const order = json;
+    if (topic === 'orders/create' || topic === 'orders/updated') {
+      const order = json as ShopifyOrderPayload;
       const totalCents = Math.round(Number(order.total_price || '0') * 100);
+      const customerName = extractCustomerName(order);
 
-      let customerName: string | null = null;
-      if (order.customer) {
-        const first = order.customer.first_name || '';
-        const last = order.customer.last_name || '';
-        if (first || last) {
-          customerName = `${first} ${last}`.trim();
-        }
-      }
+      // Upsert customer with full PII from webhook payload
+      // This is the key advantage of webhooks - they contain unredacted customer data
+      const customerId = await upsertCustomerFromWebhook(order, conn.id);
 
-      if (!customerName && order.billing_address) {
-        customerName =
-          order.billing_address.name ||
-          `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() ||
-          null;
-      }
-
-      if (!customerName && order.shipping_address) {
-        customerName =
-          order.shipping_address.name ||
-          `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() ||
-          null;
-      }
-
-      console.log('[Shopify Webhook] Saving order:', {
+      console.log(`[Shopify Webhook] Processing ${topic}:`, {
         shopifyId: String(order.id),
         name: order.name,
         shop: normalizedShop,
         totalCents,
         customerName,
+        customerId,
+        hasCustomerData: !!order.customer,
       });
 
       await prisma.order.upsert({
@@ -196,13 +355,14 @@ export async function POST(req: NextRequest) {
         create: {
           shopifyId: String(order.id),
           connectionId: conn.id,
+          customerId, // Link to Customer record with full PII
           name: order.name || null,
           shopDomain: normalizedShop || null,
           status: (order.financial_status || 'PENDING').toUpperCase(),
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
-          email: order.email ?? null,
+          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
           processedAt: order.processed_at ? new Date(order.processed_at) : null,
@@ -211,13 +371,14 @@ export async function POST(req: NextRequest) {
             : new Date(),
         },
         update: {
+          customerId, // Update customer link on order updates
           name: order.name || null,
           shopDomain: normalizedShop || null,
           status: (order.financial_status || 'PENDING').toUpperCase(),
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
-          email: order.email ?? null,
+          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
           processedAt: order.processed_at ? new Date(order.processed_at) : null,
@@ -228,82 +389,9 @@ export async function POST(req: NextRequest) {
       });
 
       console.log(
-        '[Shopify Webhook] Order saved successfully:',
+        `[Shopify Webhook] Order ${topic === 'orders/create' ? 'created' : 'updated'} successfully:`,
         String(order.id),
       );
-    } else if (topic === 'orders/updated') {
-      const order = json;
-      const totalCents = Math.round(Number(order.total_price || '0') * 100);
-
-      let customerName: string | null = null;
-      if (order.customer) {
-        const first = order.customer.first_name || '';
-        const last = order.customer.last_name || '';
-        if (first || last) {
-          customerName = `${first} ${last}`.trim();
-        }
-        // Fallback to default_address in customer object
-        if (!customerName && order.customer.default_address) {
-          const def = order.customer.default_address;
-          customerName =
-            def.name ||
-            `${def.first_name || ''} ${def.last_name || ''}`.trim() ||
-            def.company ||
-            null;
-        }
-      }
-
-      if (!customerName && order.billing_address) {
-        customerName =
-          order.billing_address.name ||
-          `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim() ||
-          null;
-      }
-
-      if (!customerName && order.shipping_address) {
-        customerName =
-          order.shipping_address.name ||
-          `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim() ||
-          null;
-      }
-
-      await prisma.order.upsert({
-        where: { shopifyId: String(order.id) },
-        create: {
-          shopifyId: String(order.id),
-          connectionId: conn.id,
-          name: order.name || null,
-          shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
-          fulfillmentStatus: (
-            order.fulfillment_status || 'UNFULFILLED'
-          ).toUpperCase(),
-          email:
-            order.email ?? order.contact_email ?? order.customer?.email ?? null,
-          totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
-          customerName,
-          processedAt: order.processed_at ? new Date(order.processed_at) : null,
-          statusUpdatedAt: order.updated_at
-            ? new Date(order.updated_at)
-            : new Date(),
-        },
-        update: {
-          name: order.name || null,
-          shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
-          fulfillmentStatus: (
-            order.fulfillment_status || 'UNFULFILLED'
-          ).toUpperCase(),
-          email:
-            order.email ?? order.contact_email ?? order.customer?.email ?? null,
-          totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
-          customerName,
-          processedAt: order.processed_at ? new Date(order.processed_at) : null,
-          statusUpdatedAt: order.updated_at
-            ? new Date(order.updated_at)
-            : new Date(),
-        },
-      });
     } else if (topic === 'orders/fulfilled') {
       const order = json;
       await prisma.order.updateMany({
