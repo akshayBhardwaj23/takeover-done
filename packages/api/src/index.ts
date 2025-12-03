@@ -1876,6 +1876,13 @@ export const appRouter = t.router({
                 thread: {
                   select: {
                     subject: true,
+                    connectionId: true,
+                    connection: {
+                      select: {
+                        shopDomain: true,
+                        metadata: true,
+                      },
+                    },
                   },
                 },
                 aiSuggestion: {
@@ -2800,6 +2807,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             thread: {
               select: {
                 subject: true,
+                connectionId: true,
+                connection: {
+                  select: {
+                    shopDomain: true,
+                    metadata: true,
+                  },
+                },
               },
             },
             aiSuggestion: {

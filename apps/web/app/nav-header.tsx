@@ -115,6 +115,13 @@ export default function Header() {
             </Link>
             {isAuthed && (
               <>
+                <Link
+                  href="/inbox"
+                  className="flex items-center gap-1 transition hover:text-slate-900"
+                >
+                  <Mail className="h-3.5 w-3.5 opacity-60" />
+                  Inbox
+                </Link>
                 <div
                   className="relative"
                   onMouseEnter={() => {
@@ -436,6 +443,14 @@ export default function Header() {
 
             {isAuthed && (
               <>
+                <Link
+                  href="/inbox"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block border-b border-slate-100 pb-4"
+                >
+                  Inbox
+                </Link>
+
                 <div>
                   <div className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-400">
                     Stores
