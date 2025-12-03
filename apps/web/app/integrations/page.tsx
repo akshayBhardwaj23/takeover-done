@@ -174,6 +174,7 @@ function IntegrationsInner() {
   const [showShopifyDialog, setShowShopifyDialog] = useState(false);
   const [subdomainInput, setSubdomainInput] = useState('');
   const [accessTokenInput, setAccessTokenInput] = useState('');
+  const [apiSecretInput, setApiSecretInput] = useState('');
 
   // State for Edit/Disconnect
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
@@ -286,6 +287,7 @@ function IntegrationsInner() {
       shopDomain,
       subdomain: subdomainInput,
       accessToken: accessTokenInput,
+      apiSecret: apiSecretInput, // For webhook HMAC verification
     });
   };
 
@@ -837,11 +839,30 @@ function IntegrationsInner() {
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
                     6
                   </span>
-                  <span>
-                    Click <strong>Install app</strong>, then{' '}
-                    <strong>Reveal token once</strong> to copy your Admin API
-                    access token
-                  </span>
+                  <div className="flex-1">
+                    <span>
+                      Click <strong>Install app</strong>, then copy these two
+                      values:
+                    </span>
+                    <div className="mt-2 space-y-1.5 rounded-lg bg-white/60 p-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <code className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold">
+                          Admin API access token
+                        </code>
+                        <span className="text-emerald-600">
+                          → Click &quot;Reveal token once&quot;
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        <code className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold">
+                          API secret key
+                        </code>
+                        <span className="text-emerald-600">
+                          → Shown in API credentials
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </li>
               </ol>
 
@@ -956,6 +977,26 @@ function IntegrationsInner() {
                 <p className="text-xs text-zinc-400">
                   Found in: Your custom app → API credentials → Admin API access
                   token (starts with &quot;shpat_&quot;)
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">
+                  API Secret Key
+                </label>
+                <Input
+                  type="password"
+                  placeholder="shpss_xxxxxxxxxxxxxxxxxxxxx"
+                  required
+                  value={apiSecretInput}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setApiSecretInput((e as any).target.value)
+                  }
+                  className="h-12 rounded-xl border-zinc-200 bg-zinc-50 font-mono text-sm"
+                />
+                <p className="text-xs text-zinc-400">
+                  Found in: Your custom app → API credentials → API secret key
+                  (used for webhook verification)
                 </p>
               </div>
 

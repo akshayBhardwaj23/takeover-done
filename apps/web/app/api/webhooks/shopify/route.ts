@@ -1,11 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { prisma, logEvent } from '@ai-ecom/db';
+import { decryptSecure } from '@ai-ecom/api';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
 // Ensure we get fresh request body (no caching)
 export const dynamic = 'force-dynamic';
+
+// ============================================================================
+// Helper: Get API secret for a shop (per-connection or fallback to env)
+// ============================================================================
+
+async function getApiSecretForShop(shopDomain: string): Promise<string | null> {
+  // Normalize shop domain
+  const normalizedShop = shopDomain
+    .replace(/^https?:\/\//, '')
+    .toLowerCase()
+    .trim();
+
+  // Try to find connection with stored API secret
+  const connection = await prisma.connection.findFirst({
+    where: {
+      type: 'SHOPIFY' as any,
+      shopDomain: normalizedShop,
+    },
+    select: {
+      metadata: true,
+    },
+  });
+
+  // If connection has encrypted API secret, use it
+  const metadata = (connection?.metadata as Record<string, unknown>) || {};
+  const encryptedApiSecret = metadata.encryptedApiSecret as string | undefined;
+
+  if (encryptedApiSecret) {
+    try {
+      const decrypted = decryptSecure(encryptedApiSecret);
+      if (decrypted) {
+        console.log('[Shopify Webhook] Using per-connection API secret for:', normalizedShop);
+        return decrypted;
+      }
+    } catch (err) {
+      console.error('[Shopify Webhook] Failed to decrypt per-connection secret:', err);
+    }
+  }
+
+  // Fallback to environment variable
+  const envSecret = process.env.SHOPIFY_API_SECRET;
+  if (envSecret) {
+    console.log('[Shopify Webhook] Using env SHOPIFY_API_SECRET for:', normalizedShop);
+    return envSecret;
+  }
+
+  return null;
+}
 
 // ============================================================================
 // Types for Shopify webhook payloads
@@ -183,12 +232,19 @@ function extractCustomerName(order: ShopifyOrderPayload): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  // Get headers and secret first for debugging
-  const secret = process.env.SHOPIFY_API_SECRET;
+  // Get headers first
   const hmac = req.headers.get('x-shopify-hmac-sha256') ?? '';
   const topic = req.headers.get('x-shopify-topic') ?? '';
   const shop = req.headers.get('x-shopify-shop-domain') ?? '';
   const webhookId = req.headers.get('x-shopify-webhook-id');
+
+  // Read raw body as text BEFORE any other processing
+  // Important: Must read body first as it can only be read once
+  const payload = await req.text();
+  const payloadLength = payload.length;
+
+  // Get API secret for this shop (per-connection or env fallback)
+  const secret = await getApiSecretForShop(shop);
 
   // Debug logging
   console.log('[Shopify Webhook] Received webhook:', {
@@ -199,20 +255,13 @@ export async function POST(req: NextRequest) {
     hmacPrefix: hmac.substring(0, 10) + '...',
     secretPresent: !!secret,
     secretLength: secret?.length ?? 0,
-    secretPrefix: secret
-      ? secret.substring(0, 3) + '...' + secret.substring(secret.length - 3)
-      : 'missing',
+    secretSource: secret ? 'found' : 'missing',
   });
 
   if (!secret) {
-    console.error('[Shopify Webhook] ❌ Missing SHOPIFY_API_SECRET');
-    return NextResponse.json({ error: 'Missing secret' }, { status: 500 });
+    console.error('[Shopify Webhook] ❌ No API secret found for shop:', shop);
+    return NextResponse.json({ error: 'Missing secret for shop' }, { status: 500 });
   }
-
-  // Read raw body as text (Shopify sends JSON as text)
-  // Important: Must read body BEFORE any other processing
-  const payload = await req.text();
-  const payloadLength = payload.length;
 
   // Calculate HMAC using the exact payload Shopify sent
   const digest = crypto
@@ -245,8 +294,6 @@ export async function POST(req: NextRequest) {
       hmac,
       '\nSecret length:',
       secret.length,
-      '\nSecret preview:',
-      secret.substring(0, 3) + '...' + secret.substring(secret.length - 3),
     );
     return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
   }

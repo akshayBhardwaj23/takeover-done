@@ -576,6 +576,7 @@ const shopifyRouter = t.router({
         shopDomain: z.string().min(3),
         subdomain: z.string().min(1),
         accessToken: z.string().min(1),
+        apiSecret: z.string().min(1), // API secret key for webhook HMAC verification
         storeName: z.string().optional(),
       }),
     )
@@ -655,6 +656,8 @@ const shopifyRouter = t.router({
         const metadata: Record<string, unknown> = {
           subdomain,
           connectionMethod: 'custom_app',
+          // Store encrypted API secret for per-connection webhook HMAC verification
+          encryptedApiSecret: encryptSecure(input.apiSecret),
         };
 
         if (input.storeName || fetchedStoreName) {

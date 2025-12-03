@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { prisma, logEvent } from '@ai-ecom/db';
+import { decryptSecure } from '@ai-ecom/api';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
@@ -210,13 +211,32 @@ export async function POST(
   }
 
   // Get headers
-  const secret = process.env.SHOPIFY_API_SECRET;
   const hmac = req.headers.get('x-shopify-hmac-sha256') ?? '';
   const topic = req.headers.get('x-shopify-topic') ?? '';
   const shop = req.headers.get('x-shopify-shop-domain') ?? '';
 
   // Read raw body as text
   const payload = await req.text();
+
+  // Get API secret - prefer per-connection, fallback to env
+  const metadata = (connection.metadata as Record<string, unknown>) || {};
+  const encryptedApiSecret = metadata.encryptedApiSecret as string | undefined;
+  
+  let secret: string | null = null;
+  if (encryptedApiSecret) {
+    try {
+      secret = decryptSecure(encryptedApiSecret);
+      console.log('[Shopify Webhook Token] Using per-connection API secret');
+    } catch (err) {
+      console.error('[Shopify Webhook Token] Failed to decrypt per-connection secret:', err);
+    }
+  }
+  if (!secret) {
+    secret = process.env.SHOPIFY_API_SECRET || null;
+    if (secret) {
+      console.log('[Shopify Webhook Token] Using env SHOPIFY_API_SECRET');
+    }
+  }
 
   // Verify HMAC if secret is available
   if (secret && hmac) {
@@ -226,7 +246,7 @@ export async function POST(
       .digest('base64');
 
     if (digest !== hmac) {
-      console.error('[Shopify Webhook] ❌ Invalid HMAC');
+      console.error('[Shopify Webhook Token] ❌ Invalid HMAC');
       return NextResponse.json({ error: 'Invalid HMAC' }, { status: 401 });
     }
   }
