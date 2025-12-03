@@ -2934,6 +2934,152 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return { ok: false, error: error.message || 'Unknown error' };
       }
     }),
+
+  // Sync all orders from Shopify - bulk resync for catching missed webhooks
+  syncAllOrdersFromShopify: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string(),
+        // Optional: only sync orders updated after this date
+        updatedAfter: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const conn = await prisma.connection.findFirst({
+          where: {
+            type: 'SHOPIFY',
+            shopDomain: input.shopDomain,
+            userId: ctx.userId,
+          },
+        });
+
+        if (!conn) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
+
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          return {
+            ok: false,
+            error: 'Failed to get API credentials',
+            synced: 0,
+          };
+        }
+
+        // Build query params - fetch orders updated in last 30 days by default
+        const params = new URLSearchParams({
+          status: 'any',
+          limit: '250', // Max allowed by Shopify
+        });
+
+        if (input.updatedAfter) {
+          params.set('updated_at_min', input.updatedAfter);
+        } else {
+          // Default: last 30 days
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          params.set('updated_at_min', thirtyDaysAgo.toISOString());
+        }
+
+        const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
+        const resp = await fetch(url, {
+          headers: {
+            'X-Shopify-Access-Token': credentials.accessToken,
+          },
+        });
+
+        if (!resp.ok) {
+          const errorText = await resp.text().catch(() => '');
+          console.error(
+            '[syncAllOrders] Shopify API error:',
+            resp.status,
+            errorText,
+          );
+          return {
+            ok: false,
+            error: `Shopify API error: ${resp.status}`,
+            synced: 0,
+          };
+        }
+
+        const json: any = await resp.json();
+        const orders = json.orders || [];
+
+        let synced = 0;
+        let errors = 0;
+
+        for (const order of orders) {
+          try {
+            // Determine status - check for cancellation
+            let orderStatus = (
+              order.financial_status || 'PENDING'
+            ).toUpperCase();
+            if (order.cancelled_at) {
+              orderStatus = 'CANCELLED';
+            }
+
+            const orderData = {
+              name: order.name || null,
+              email: order.email || order.customer?.email || null,
+              totalAmount: Math.round(
+                parseFloat(order.total_price || '0') * 100,
+              ),
+              status: orderStatus,
+              fulfillmentStatus: (
+                order.fulfillment_status || 'UNFULFILLED'
+              ).toUpperCase(),
+              shopDomain: input.shopDomain,
+              customerName: order.customer
+                ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() ||
+                  null
+                : null,
+              processedAt: order.processed_at
+                ? new Date(order.processed_at)
+                : null,
+              statusUpdatedAt: order.updated_at
+                ? new Date(order.updated_at)
+                : new Date(),
+            };
+
+            await prisma.order.upsert({
+              where: { shopifyId: order.id.toString() },
+              create: {
+                shopifyId: order.id.toString(),
+                connectionId: conn.id,
+                ...orderData,
+              },
+              update: orderData,
+            });
+
+            synced++;
+          } catch (err) {
+            console.error(
+              '[syncAllOrders] Failed to sync order:',
+              order.id,
+              err,
+            );
+            errors++;
+          }
+        }
+
+        console.log(
+          `[syncAllOrders] Synced ${synced} orders for ${input.shopDomain}, ${errors} errors`,
+        );
+        return { ok: true, synced, errors, total: orders.length };
+      } catch (error: any) {
+        console.error('[syncAllOrders] Error:', error);
+        return {
+          ok: false,
+          error: error.message || 'Unknown error',
+          synced: 0,
+        };
+      }
+    }),
+
   ordersRecent: protectedProcedure
     .input(
       z.object({
