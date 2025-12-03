@@ -1854,6 +1854,16 @@ export const appRouter = t.router({
             updatedAt: true,
             shopDomain: true,
             connectionId: true,
+            lineItems: {
+              select: {
+                id: true,
+                shopifyId: true,
+                title: true,
+                quantity: true,
+                price: true,
+                sku: true,
+              },
+            },
           },
         }),
         unassignedConnectionIds.length
@@ -3045,7 +3055,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                 : new Date(),
             };
 
-            await prisma.order.upsert({
+            const upsertedOrder = await prisma.order.upsert({
               where: { shopifyId: order.id.toString() },
               create: {
                 shopifyId: order.id.toString(),
@@ -3054,6 +3064,27 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               },
               update: orderData,
             });
+
+            // Sync line items if present
+            if (order.line_items && order.line_items.length > 0) {
+              // Delete existing and insert new (handles updates)
+              await prisma.orderLineItem.deleteMany({
+                where: { orderId: upsertedOrder.id },
+              });
+
+              await prisma.orderLineItem.createMany({
+                data: order.line_items.map((item: any) => ({
+                  orderId: upsertedOrder.id,
+                  shopifyId: String(item.id),
+                  title: item.title || 'Unknown Item',
+                  quantity: item.quantity || 1,
+                  price: Math.round(parseFloat(item.price || '0') * 100),
+                  sku: item.sku || null,
+                  variantId: item.variant_id ? String(item.variant_id) : null,
+                  productId: item.product_id ? String(item.product_id) : null,
+                })),
+              });
+            }
 
             synced++;
           } catch (err) {
@@ -3067,7 +3098,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         }
 
         console.log(
-          `[syncAllOrders] Synced ${synced} orders for ${input.shopDomain}, ${errors} errors`,
+          `[syncAllOrders] Synced ${synced} orders with line items for ${input.shopDomain}, ${errors} errors`,
         );
         return { ok: true, synced, errors, total: orders.length };
       } catch (error: any) {
@@ -3163,6 +3194,32 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       const take = input.limit + 1; // fetch one extra to detect hasMore
 
       let orders;
+      const orderSelect = {
+        id: true,
+        shopifyId: true,
+        name: true,
+        email: true,
+        totalAmount: true,
+        currency: true,
+        customerName: true,
+        status: true,
+        fulfillmentStatus: true,
+        createdAt: true,
+        updatedAt: true,
+        shopDomain: true,
+        connectionId: true,
+        lineItems: {
+          select: {
+            id: true,
+            shopifyId: true,
+            title: true,
+            quantity: true,
+            price: true,
+            sku: true,
+          },
+        },
+      };
+
       if (input.cursor) {
         // Cursor-based pagination (faster for large datasets)
         orders = await prisma.order.findMany({
@@ -3172,21 +3229,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
           orderBy: { createdAt: 'desc' },
           take,
-          select: {
-            id: true,
-            shopifyId: true,
-            name: true,
-            email: true,
-            totalAmount: true,
-            currency: true,
-            customerName: true,
-            status: true,
-            fulfillmentStatus: true,
-            createdAt: true,
-            updatedAt: true,
-            shopDomain: true,
-            connectionId: true,
-          },
+          select: orderSelect,
         });
       } else {
         // Offset-based pagination (for backward compatibility)
@@ -3196,21 +3239,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           orderBy: { createdAt: 'desc' },
           skip: input.offset,
           take,
-          select: {
-            id: true,
-            shopifyId: true,
-            name: true,
-            email: true,
-            totalAmount: true,
-            currency: true,
-            customerName: true,
-            status: true,
-            fulfillmentStatus: true,
-            createdAt: true,
-            updatedAt: true,
-            shopDomain: true,
-            connectionId: true,
-          },
+          select: orderSelect,
         });
       }
 

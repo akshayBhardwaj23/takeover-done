@@ -43,6 +43,15 @@ import { UpgradePrompt } from '../../components/UpgradePrompt';
 // TYPES
 // =============================================================================
 
+type OrderLineItem = {
+  id: string;
+  shopifyId: string;
+  title: string;
+  quantity: number;
+  price: number; // Price in cents
+  sku?: string | null;
+};
+
 type DbOrder = {
   id: string;
   shopifyId: string;
@@ -57,6 +66,7 @@ type DbOrder = {
   pendingEmailCount?: number;
   shopDomain?: string | null;
   connectionId?: string;
+  lineItems?: OrderLineItem[];
 };
 
 type EmailMessage = {
@@ -547,6 +557,10 @@ export default function InboxPage() {
     setSelectedOrderId(order.shopifyId);
     setSelectedEmailId(null);
     setDraft('');
+    // Set shop from the order's shopDomain for API calls (Sync, Reply)
+    if (order.shopDomain) {
+      setShop(order.shopDomain);
+    }
   }, []);
 
   const handleGenerateAi = async () => {
@@ -1583,14 +1597,8 @@ export default function InboxPage() {
 
                     <ScrollArea className="flex-1">
                       <div className="p-6">
-                        {orderDetail.isLoading ? (
-                          <div className="animate-pulse space-y-4">
-                            <div className="h-16 bg-stone-100 rounded-xl" />
-                            <div className="h-32 bg-stone-100 rounded-xl" />
-                            <div className="h-24 bg-stone-100 rounded-xl" />
-                          </div>
-                        ) : (
-                          <>
+                        {/* Order data comes from database (ordersAccum) - no loading needed */}
+                        <>
                             {/* Order Summary */}
                             <div className="rounded-xl border border-stone-200 p-4 mb-4">
                               <div className="flex items-center justify-between mb-3">
@@ -1661,36 +1669,45 @@ export default function InboxPage() {
                               </div>
                             </div>
 
-                            {/* Line Items */}
-                            {orderDetail.data?.order?.lineItems && (
-                              <div className="mb-4">
-                                <h4 className="text-sm font-semibold text-stone-900 mb-3">
-                                  Items
-                                </h4>
-                                <div className="space-y-2">
-                                  {(
-                                    orderDetail.data.order.lineItems as any[]
-                                  ).map((item: any) => (
-                                    <div
-                                      key={item.id}
-                                      className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
-                                    >
-                                      <div>
-                                        <p className="text-sm font-medium text-stone-900">
-                                          {item.title}
-                                        </p>
-                                        <p className="text-xs text-stone-500">
-                                          Qty: {item.quantity}
-                                        </p>
+                            {/* Line Items - from database for fast display */}
+                            {(() => {
+                              const selectedOrderForItems = ordersAccum.find(
+                                (o) => o.shopifyId === selectedOrderId,
+                              );
+                              const items = selectedOrderForItems?.lineItems || [];
+                              if (items.length === 0) return null;
+                              return (
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-semibold text-stone-900 mb-3">
+                                    Items ({items.length})
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {items.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
+                                      >
+                                        <div>
+                                          <p className="text-sm font-medium text-stone-900">
+                                            {item.title}
+                                          </p>
+                                          <p className="text-xs text-stone-500">
+                                            Qty: {item.quantity}
+                                            {item.sku && ` • SKU: ${item.sku}`}
+                                          </p>
+                                        </div>
+                                        <span className="text-sm font-medium text-stone-900">
+                                          {formatCurrency(
+                                            item.price,
+                                            selectedOrderForItems?.currency || 'INR',
+                                          )}
+                                        </span>
                                       </div>
-                                      <span className="text-sm font-medium text-stone-900">
-                                        {item.price}
-                                      </span>
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
 
                             {/* Linked Emails */}
                             <div>
@@ -1734,7 +1751,6 @@ export default function InboxPage() {
                               )}
                             </div>
                           </>
-                        )}
                       </div>
                     </ScrollArea>
                   </>

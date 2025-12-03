@@ -140,12 +140,30 @@ model Order {
   customerId   String?    // Link to Customer (populated from webhooks with full PII)
   actions      Action[]
   messages     Message[]
+  lineItems    OrderLineItem[]
   connection   Connection @relation(fields: [connectionId], references: [id])
   customer     Customer?  @relation(fields: [customerId], references: [id])
 
   @@index([connectionId])
   @@index([connectionId, createdAt])
   @@index([customerId])
+}
+
+// Line items for orders - stored for fast display without Shopify API calls
+model OrderLineItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  shopifyId   String   // Shopify line_item.id
+  title       String
+  quantity    Int
+  price       Int      // Price in cents
+  sku         String?
+  variantId   String?
+  productId   String?
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@unique([orderId, shopifyId])
 }
 
 model Thread {
