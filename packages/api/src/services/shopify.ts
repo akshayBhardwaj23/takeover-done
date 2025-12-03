@@ -293,7 +293,10 @@ export class ShopifyClient {
       );
       return data.transactions;
     } catch (e) {
-      console.error(`[ShopifyClient] Failed to get transactions for order ${orderId}:`, e);
+      console.error(
+        `[ShopifyClient] Failed to get transactions for order ${orderId}:`,
+        e,
+      );
       return [];
     }
   }
@@ -337,7 +340,10 @@ export class ShopifyClient {
         lineItems: data.refund.refund_line_items || [],
       };
     } catch (e) {
-      console.error(`[ShopifyClient] Failed to calculate refund for order ${orderId}:`, e);
+      console.error(
+        `[ShopifyClient] Failed to calculate refund for order ${orderId}:`,
+        e,
+      );
       return null;
     }
   }
@@ -365,11 +371,15 @@ export class ShopifyClient {
       // Get transactions to find the parent transaction for refund
       const transactions = await this.getOrderTransactions(orderId);
       const capturedTransaction = transactions.find(
-        (t) => (t.kind === 'capture' || t.kind === 'sale') && t.status === 'success',
+        (t) =>
+          (t.kind === 'capture' || t.kind === 'sale') && t.status === 'success',
       );
 
       if (!capturedTransaction) {
-        return { success: false, error: 'No captured payment found for this order' };
+        return {
+          success: false,
+          error: 'No captured payment found for this order',
+        };
       }
 
       // Build refund request
@@ -380,7 +390,7 @@ export class ShopifyClient {
           transactions: [
             {
               parent_id: capturedTransaction.id,
-              amount: amount 
+              amount: amount
                 ? (amount / 100).toFixed(2) // Convert cents to dollars
                 : capturedTransaction.amount, // Full refund if no amount specified
               kind: 'refund',
@@ -422,7 +432,10 @@ export class ShopifyClient {
       };
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
-      console.error(`[ShopifyClient] Failed to create refund for order ${orderId}:`, e);
+      console.error(
+        `[ShopifyClient] Failed to create refund for order ${orderId}:`,
+        e,
+      );
       return { success: false, error: errorMessage };
     }
   }
@@ -448,7 +461,10 @@ export class ShopifyClient {
       }
 
       if (order.fulfillment_status === 'fulfilled') {
-        return { success: false, error: 'Cannot cancel a fulfilled order. Consider a refund instead.' };
+        return {
+          success: false,
+          error: 'Cannot cancel a fulfilled order. Consider a refund instead.',
+        };
       }
 
       // Cancel the order
@@ -487,7 +503,7 @@ export class ShopifyClient {
   ): Promise<boolean> {
     try {
       const url = `${this.shopUrl}/admin/api/${this.apiVersion}/orders/${orderId}.json`;
-      
+
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -499,7 +515,10 @@ export class ShopifyClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[ShopifyClient] Failed to update order ${orderId}:`, errorText);
+        console.error(
+          `[ShopifyClient] Failed to update order ${orderId}:`,
+          errorText,
+        );
         return false;
       }
 
@@ -533,7 +552,8 @@ export class ShopifyClient {
       'app/uninstalled',
     ];
 
-    const results: Array<{ topic: string; success: boolean; error?: string }> = [];
+    const results: Array<{ topic: string; success: boolean; error?: string }> =
+      [];
 
     for (const topic of topics) {
       try {
@@ -564,15 +584,23 @@ export class ShopifyClient {
             continue;
           }
           const errorMsg = `Status ${response.status}: ${text}`;
-          console.error(`[ShopifyClient] Failed to register webhook ${topic}:`, errorMsg);
+          console.error(
+            `[ShopifyClient] Failed to register webhook ${topic}:`,
+            errorMsg,
+          );
           results.push({ topic, success: false, error: errorMsg });
         } else {
-          console.log(`[ShopifyClient] Webhook ${topic} registered successfully`);
+          console.log(
+            `[ShopifyClient] Webhook ${topic} registered successfully`,
+          );
           results.push({ topic, success: true });
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(`[ShopifyClient] Exception registering webhook ${topic}:`, errorMsg);
+        console.error(
+          `[ShopifyClient] Exception registering webhook ${topic}:`,
+          errorMsg,
+        );
         results.push({ topic, success: false, error: errorMsg });
       }
     }
@@ -583,7 +611,9 @@ export class ShopifyClient {
   /**
    * List all registered webhooks for this shop
    */
-  async listWebhooks(): Promise<Array<{ id: number; topic: string; address: string }>> {
+  async listWebhooks(): Promise<
+    Array<{ id: number; topic: string; address: string }>
+  > {
     try {
       const data = await this.request<{
         webhooks: Array<{ id: number; topic: string; address: string }>;

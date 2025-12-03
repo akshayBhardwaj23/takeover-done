@@ -781,7 +781,8 @@ function IntegrationsInner() {
                   </span>
                   <div className="flex-1">
                     <span>
-                      Click <strong>Configure Admin API scopes</strong> and select these permissions:
+                      Click <strong>Configure Admin API scopes</strong> and
+                      select these permissions:
                     </span>
                     <div className="mt-3 space-y-2 rounded-lg bg-white/60 p-3">
                       <div className="flex items-start gap-2">
@@ -818,7 +819,8 @@ function IntegrationsInner() {
                       </div>
                     </div>
                     <p className="mt-2 text-xs text-emerald-600/80">
-                      💡 Tip: Use the search bar in Shopify to quickly find each permission
+                      💡 Tip: Use the search bar in Shopify to quickly find each
+                      permission
                     </p>
                   </div>
                 </li>
@@ -842,7 +844,7 @@ function IntegrationsInner() {
                   </span>
                 </li>
               </ol>
-              
+
               {/* Features Enabled */}
               <div className="mt-5 rounded-lg bg-white/60 p-4">
                 <p className="mb-2 text-xs font-semibold text-emerald-800">
@@ -878,12 +880,23 @@ function IntegrationsInner() {
 
               {/* Automatic Setup Info */}
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
-                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  className="h-4 w-4 shrink-0"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
                 <span>
-                  <strong>Automatic setup:</strong> Webhooks for real-time order updates and customer data
-                  will be configured automatically when you connect.
+                  <strong>Automatic setup:</strong> Webhooks for real-time order
+                  updates and customer data will be configured automatically
+                  when you connect.
                 </span>
               </div>
 
