@@ -509,4 +509,89 @@ export class ShopifyClient {
       return false;
     }
   }
+
+  /**
+   * Register webhooks for real-time order updates and customer PII
+   * Webhooks contain unredacted customer data that Admin API doesn't provide
+   * @param webhookUrl - The URL where Shopify should send webhook events
+   * @returns Array of registration results
+   */
+  async registerWebhooks(
+    webhookUrl: string,
+  ): Promise<Array<{ topic: string; success: boolean; error?: string }>> {
+    // Essential webhooks for the hybrid integration:
+    // - orders/create: New orders with full customer PII
+    // - orders/updated: Status changes + PII updates
+    // - orders/fulfilled: Fulfillment tracking
+    // - refunds/create: Refund notifications
+    // - app/uninstalled: Cleanup on uninstall
+    const topics = [
+      'orders/create',
+      'orders/updated',
+      'orders/fulfilled',
+      'refunds/create',
+      'app/uninstalled',
+    ];
+
+    const results: Array<{ topic: string; success: boolean; error?: string }> = [];
+
+    for (const topic of topics) {
+      try {
+        const response = await fetch(
+          `${this.shopUrl}/admin/api/${this.apiVersion}/webhooks.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': this.accessToken,
+            },
+            body: JSON.stringify({
+              webhook: {
+                topic,
+                address: webhookUrl,
+                format: 'json',
+              },
+            }),
+          },
+        );
+
+        if (!response.ok) {
+          const text = await response.text();
+          // Treat "already registered" as success
+          if (response.status === 422 && text.includes('already been taken')) {
+            console.log(`[ShopifyClient] Webhook ${topic} already registered`);
+            results.push({ topic, success: true });
+            continue;
+          }
+          const errorMsg = `Status ${response.status}: ${text}`;
+          console.error(`[ShopifyClient] Failed to register webhook ${topic}:`, errorMsg);
+          results.push({ topic, success: false, error: errorMsg });
+        } else {
+          console.log(`[ShopifyClient] Webhook ${topic} registered successfully`);
+          results.push({ topic, success: true });
+        }
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(`[ShopifyClient] Exception registering webhook ${topic}:`, errorMsg);
+        results.push({ topic, success: false, error: errorMsg });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * List all registered webhooks for this shop
+   */
+  async listWebhooks(): Promise<Array<{ id: number; topic: string; address: string }>> {
+    try {
+      const data = await this.request<{
+        webhooks: Array<{ id: number; topic: string; address: string }>;
+      }>('webhooks.json');
+      return data.webhooks;
+    } catch (e) {
+      console.error('[ShopifyClient] Failed to list webhooks:', e);
+      return [];
+    }
+  }
 }

@@ -876,6 +876,17 @@ function IntegrationsInner() {
                 </ul>
               </div>
 
+              {/* Automatic Setup Info */}
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>
+                  <strong>Automatic setup:</strong> Webhooks for real-time order updates and customer data
+                  will be configured automatically when you connect.
+                </span>
+              </div>
+
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-800">
                 <Settings2 className="h-4 w-4 shrink-0" />
                 <span>

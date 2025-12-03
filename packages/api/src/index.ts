@@ -692,12 +692,39 @@ const shopifyRouter = t.router({
           connection.id,
         );
 
-        // Trigger initial sync
+        // Register webhooks for real-time updates + customer PII
+        // Webhooks contain unredacted customer data that Admin API doesn't provide
+        const appUrl =
+          process.env.SHOPIFY_APP_URL ||
+          process.env.NEXTAUTH_URL ||
+          'http://localhost:3000';
+        const webhookUrl = `${appUrl}/api/webhooks/shopify`;
+
+        const shopifyClient = new ShopifyClient(cleanShop, input.accessToken);
+        const webhookResults = await shopifyClient
+          .registerWebhooks(webhookUrl)
+          .catch((err) => {
+            console.error(
+              '[Shopify Custom App] Failed to register webhooks:',
+              err,
+            );
+            return [];
+          });
+
+        const successfulWebhooks = webhookResults.filter(
+          (r) => r.success,
+        ).length;
+        console.log(
+          `[Shopify Custom App] Registered ${successfulWebhooks}/${webhookResults.length} webhooks for ${cleanShop}`,
+        );
+
+        // Trigger initial sync (historical orders via Admin API)
         void syncShopifyData(connection.id, ctx.userId).catch(console.error);
 
         return {
           connectionId: connection.id,
           shopDomain: cleanShop,
+          webhooksRegistered: successfulWebhooks,
         };
       } catch (error) {
         if (error instanceof TRPCError) {
@@ -946,7 +973,9 @@ const shopifyRouter = t.router({
             z.object({
               lineItemId: z.string(),
               quantity: z.number().int().positive(),
-              restockType: z.enum(['no_restock', 'cancel', 'return']).optional(),
+              restockType: z
+                .enum(['no_restock', 'cancel', 'return'])
+                .optional(),
             }),
           )
           .optional(),
@@ -985,7 +1014,8 @@ const shopifyRouter = t.router({
       }
 
       // Check if connection has API access (custom app)
-      const metadata = (order.connection.metadata as Record<string, unknown>) || {};
+      const metadata =
+        (order.connection.metadata as Record<string, unknown>) || {};
       if (metadata.connectionMethod !== 'custom_app') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -1002,7 +1032,10 @@ const shopifyRouter = t.router({
         });
       }
 
-      const client = new ShopifyClient(order.connection.shopDomain, accessToken);
+      const client = new ShopifyClient(
+        order.connection.shopDomain,
+        accessToken,
+      );
 
       // Initiate the refund via Shopify Admin API
       const result = await client.createRefund({
@@ -1077,7 +1110,9 @@ const shopifyRouter = t.router({
     .input(
       z.object({
         orderId: z.string().min(1), // Internal order ID
-        reason: z.enum(['customer', 'fraud', 'inventory', 'declined', 'other']).default('other'),
+        reason: z
+          .enum(['customer', 'fraud', 'inventory', 'declined', 'other'])
+          .default('other'),
         email: z.boolean().default(true), // Whether to send cancellation email
         restock: z.boolean().default(true), // Whether to restock items
       }),
@@ -1115,11 +1150,13 @@ const shopifyRouter = t.router({
       }
 
       // Check if connection has API access (custom app)
-      const metadata = (order.connection.metadata as Record<string, unknown>) || {};
+      const metadata =
+        (order.connection.metadata as Record<string, unknown>) || {};
       if (metadata.connectionMethod !== 'custom_app') {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Order cancellation requires a Custom App connection with API access',
+          message:
+            'Order cancellation requires a Custom App connection with API access',
         });
       }
 
@@ -1132,7 +1169,10 @@ const shopifyRouter = t.router({
         });
       }
 
-      const client = new ShopifyClient(order.connection.shopDomain, accessToken);
+      const client = new ShopifyClient(
+        order.connection.shopDomain,
+        accessToken,
+      );
 
       // Cancel the order via Shopify Admin API
       const result = await client.cancelOrder({
@@ -1252,9 +1292,10 @@ const shopifyRouter = t.router({
               phone: order.customer.phone,
               firstName: order.customer.firstName,
               lastName: order.customer.lastName,
-              fullName: [order.customer.firstName, order.customer.lastName]
-                .filter(Boolean)
-                .join(' ') || null,
+              fullName:
+                [order.customer.firstName, order.customer.lastName]
+                  .filter(Boolean)
+                  .join(' ') || null,
               address: {
                 address1: order.customer.address1,
                 address2: order.customer.address2,
