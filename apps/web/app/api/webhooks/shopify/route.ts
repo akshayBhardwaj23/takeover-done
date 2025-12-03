@@ -38,18 +38,27 @@ async function getApiSecretForShop(shopDomain: string): Promise<string | null> {
     try {
       const decrypted = decryptSecure(encryptedApiSecret);
       if (decrypted) {
-        console.log('[Shopify Webhook] Using per-connection API secret for:', normalizedShop);
+        console.log(
+          '[Shopify Webhook] Using per-connection API secret for:',
+          normalizedShop,
+        );
         return decrypted;
       }
     } catch (err) {
-      console.error('[Shopify Webhook] Failed to decrypt per-connection secret:', err);
+      console.error(
+        '[Shopify Webhook] Failed to decrypt per-connection secret:',
+        err,
+      );
     }
   }
 
   // Fallback to environment variable
   const envSecret = process.env.SHOPIFY_API_SECRET;
   if (envSecret) {
-    console.log('[Shopify Webhook] Using env SHOPIFY_API_SECRET for:', normalizedShop);
+    console.log(
+      '[Shopify Webhook] Using env SHOPIFY_API_SECRET for:',
+      normalizedShop,
+    );
     return envSecret;
   }
 
@@ -115,19 +124,20 @@ async function upsertCustomerFromWebhook(
 ): Promise<string | null> {
   // Customer data can come from order.customer or addresses
   const customer = order.customer;
-  
+
   if (!customer?.id) {
     // No customer data available (guest checkout or missing data)
     return null;
   }
 
   const shopifyCustomerId = String(customer.id);
-  
+
   // Extract address - prefer shipping, fall back to billing, then default_address
-  const address = order.shipping_address || order.billing_address || customer.default_address;
-  
+  const address =
+    order.shipping_address || order.billing_address || customer.default_address;
+
   // Calculate total spent in cents
-  const totalSpentCents = customer.total_spent 
+  const totalSpentCents = customer.total_spent
     ? Math.round(parseFloat(customer.total_spent) * 100)
     : 0;
 
@@ -156,7 +166,8 @@ async function upsertCustomerFromWebhook(
       },
       update: {
         // Update PII on every webhook - ensures we have latest data
-        email: customer.email || order.email || order.contact_email || undefined,
+        email:
+          customer.email || order.email || order.contact_email || undefined,
         phone: customer.phone || address?.phone || undefined,
         firstName: customer.first_name || address?.first_name || undefined,
         lastName: customer.last_name || address?.last_name || undefined,
@@ -209,21 +220,26 @@ function extractCustomerName(order: ShopifyOrderPayload): string | null {
     // Fallback to default_address in customer object
     if (order.customer.default_address) {
       const def = order.customer.default_address;
-      const name = def.name || `${def.first_name || ''} ${def.last_name || ''}`.trim() || def.company;
+      const name =
+        def.name ||
+        `${def.first_name || ''} ${def.last_name || ''}`.trim() ||
+        def.company;
       if (name) return name;
     }
   }
 
   // Try billing address
   if (order.billing_address) {
-    const name = order.billing_address.name || 
+    const name =
+      order.billing_address.name ||
       `${order.billing_address.first_name || ''} ${order.billing_address.last_name || ''}`.trim();
     if (name) return name;
   }
 
   // Try shipping address
   if (order.shipping_address) {
-    const name = order.shipping_address.name || 
+    const name =
+      order.shipping_address.name ||
       `${order.shipping_address.first_name || ''} ${order.shipping_address.last_name || ''}`.trim();
     if (name) return name;
   }
@@ -260,7 +276,10 @@ export async function POST(req: NextRequest) {
 
   if (!secret) {
     console.error('[Shopify Webhook] ❌ No API secret found for shop:', shop);
-    return NextResponse.json({ error: 'Missing secret for shop' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Missing secret for shop' },
+      { status: 500 },
+    );
   }
 
   // Calculate HMAC using the exact payload Shopify sent
@@ -409,7 +428,8 @@ export async function POST(req: NextRequest) {
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
-          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
+          email:
+            order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
           processedAt: order.processed_at ? new Date(order.processed_at) : null,
@@ -425,7 +445,8 @@ export async function POST(req: NextRequest) {
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
-          email: order.email ?? order.contact_email ?? order.customer?.email ?? null,
+          email:
+            order.email ?? order.contact_email ?? order.customer?.email ?? null,
           totalAmount: Number.isFinite(totalCents) ? totalCents : 0,
           customerName,
           processedAt: order.processed_at ? new Date(order.processed_at) : null,

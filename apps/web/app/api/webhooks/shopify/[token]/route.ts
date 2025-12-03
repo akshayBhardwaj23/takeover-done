@@ -221,14 +221,17 @@ export async function POST(
   // Get API secret - prefer per-connection, fallback to env
   const metadata = (connection.metadata as Record<string, unknown>) || {};
   const encryptedApiSecret = metadata.encryptedApiSecret as string | undefined;
-  
+
   let secret: string | null = null;
   if (encryptedApiSecret) {
     try {
       secret = decryptSecure(encryptedApiSecret);
       console.log('[Shopify Webhook Token] Using per-connection API secret');
     } catch (err) {
-      console.error('[Shopify Webhook Token] Failed to decrypt per-connection secret:', err);
+      console.error(
+        '[Shopify Webhook Token] Failed to decrypt per-connection secret:',
+        err,
+      );
     }
   }
   if (!secret) {
