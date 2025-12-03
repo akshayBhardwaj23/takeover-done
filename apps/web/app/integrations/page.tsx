@@ -779,21 +779,48 @@ function IntegrationsInner() {
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
                     4
                   </span>
-                  <span>
-                    Click <strong>Configure Admin API scopes</strong> and
-                    select:{' '}
-                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
-                      read_orders
-                    </code>
-                    ,{' '}
-                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
-                      read_customers
-                    </code>
-                    ,{' '}
-                    <code className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs">
-                      read_products
-                    </code>
-                  </span>
+                  <div className="flex-1">
+                    <span>
+                      Click <strong>Configure Admin API scopes</strong> and select these permissions:
+                    </span>
+                    <div className="mt-3 space-y-2 rounded-lg bg-white/60 p-3">
+                      <div className="flex items-start gap-2">
+                        <code className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold">
+                          read_orders
+                        </code>
+                        <span className="text-xs text-emerald-600">
+                          View order history and details
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <code className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold">
+                          write_orders
+                        </code>
+                        <span className="text-xs text-emerald-600">
+                          Process refunds and cancel orders
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <code className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold">
+                          read_customers
+                        </code>
+                        <span className="text-xs text-emerald-600">
+                          View customer info (name, email, address)
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <code className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold">
+                          read_products
+                        </code>
+                        <span className="text-xs text-emerald-600">
+                          View product details in orders
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-emerald-600/80">
+                      💡 Tip: Use the search bar in Shopify to quickly find each permission
+                    </p>
+                  </div>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">
@@ -815,6 +842,40 @@ function IntegrationsInner() {
                   </span>
                 </li>
               </ol>
+              
+              {/* Features Enabled */}
+              <div className="mt-5 rounded-lg bg-white/60 p-4">
+                <p className="mb-2 text-xs font-semibold text-emerald-800">
+                  ✨ What you&apos;ll be able to do:
+                </p>
+                <ul className="grid grid-cols-2 gap-2 text-xs text-emerald-700">
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    View all orders in real-time
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    See customer details &amp; history
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Process refunds instantly
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Cancel unfulfilled orders
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    AI-powered email responses
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    Automated order tracking
+                  </li>
+                </ul>
+              </div>
+
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-100 p-3 text-xs text-amber-800">
                 <Settings2 className="h-4 w-4 shrink-0" />
                 <span>

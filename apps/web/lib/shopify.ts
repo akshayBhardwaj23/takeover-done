@@ -1,6 +1,6 @@
 type WebhookTopic =
   | 'orders/create'
-  | 'orders/updated'  // Added for real-time status updates + PII refresh
+  | 'orders/updated' // Added for real-time status updates + PII refresh
   | 'refunds/create'
   | 'orders/fulfilled'
   | 'app/uninstalled'
@@ -17,7 +17,7 @@ export async function registerWebhooks(shop: string, accessToken: string) {
   // The PROTECTED_WEBHOOKS flag controls additional webhooks
   const essentialTopics: WebhookTopic[] = [
     'orders/create',
-    'orders/updated',   // Essential for real-time updates + PII from webhooks
+    'orders/updated', // Essential for real-time updates + PII from webhooks
     'orders/fulfilled',
     'refunds/create',
     'app/uninstalled',
