@@ -3065,25 +3065,40 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               update: orderData,
             });
 
-            // Sync line items if present
+            // Sync line items if present (only if table exists)
             if (order.line_items && order.line_items.length > 0) {
-              // Delete existing and insert new (handles updates)
-              await prisma.orderLineItem.deleteMany({
-                where: { orderId: upsertedOrder.id },
-              });
+              try {
+                // Delete existing and insert new (handles updates)
+                await prisma.orderLineItem.deleteMany({
+                  where: { orderId: upsertedOrder.id },
+                });
 
-              await prisma.orderLineItem.createMany({
-                data: order.line_items.map((item: any) => ({
-                  orderId: upsertedOrder.id,
-                  shopifyId: String(item.id),
-                  title: item.title || 'Unknown Item',
-                  quantity: item.quantity || 1,
-                  price: Math.round(parseFloat(item.price || '0') * 100),
-                  sku: item.sku || null,
-                  variantId: item.variant_id ? String(item.variant_id) : null,
-                  productId: item.product_id ? String(item.product_id) : null,
-                })),
-              });
+                await prisma.orderLineItem.createMany({
+                  data: order.line_items.map((item: any) => ({
+                    orderId: upsertedOrder.id,
+                    shopifyId: String(item.id),
+                    title: item.title || 'Unknown Item',
+                    quantity: item.quantity || 1,
+                    price: Math.round(parseFloat(item.price || '0') * 100),
+                    sku: item.sku || null,
+                    variantId: item.variant_id ? String(item.variant_id) : null,
+                    productId: item.product_id ? String(item.product_id) : null,
+                  })),
+                });
+              } catch (lineItemError: any) {
+                // If OrderLineItem table doesn't exist yet, skip line items
+                // This allows orders to sync even before migration is applied
+                if (
+                  lineItemError?.code === 'P2021' ||
+                  lineItemError?.message?.includes('does not exist')
+                ) {
+                  console.warn(
+                    `[syncAllOrders] OrderLineItem table not found, skipping line items for order ${order.id}`,
+                  );
+                } else {
+                  throw lineItemError; // Re-throw other errors
+                }
+              }
             }
 
             synced++;

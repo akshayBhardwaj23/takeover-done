@@ -40,6 +40,16 @@ interface ShopifyCustomer {
   default_address?: ShopifyAddress;
 }
 
+interface ShopifyLineItem {
+  id: number;
+  title: string;
+  quantity: number;
+  price: string;
+  sku?: string;
+  variant_id?: number;
+  product_id?: number;
+}
+
 interface ShopifyOrderPayload {
   id: number;
   name?: string;
@@ -56,6 +66,7 @@ interface ShopifyOrderPayload {
   customer?: ShopifyCustomer;
   billing_address?: ShopifyAddress;
   shipping_address?: ShopifyAddress;
+  line_items?: ShopifyLineItem[];
 }
 
 // ============================================================================
@@ -166,6 +177,47 @@ function extractCustomerName(order: ShopifyOrderPayload): string | null {
   }
 
   return null;
+}
+
+// ============================================================================
+// Helper: Save line items for an order
+// ============================================================================
+
+async function saveLineItems(
+  orderId: string,
+  lineItems: ShopifyLineItem[] | undefined,
+): Promise<void> {
+  if (!lineItems || lineItems.length === 0) {
+    return;
+  }
+
+  try {
+    // Delete existing line items and insert new ones (handles updates)
+    await prisma.orderLineItem.deleteMany({
+      where: { orderId },
+    });
+
+    await prisma.orderLineItem.createMany({
+      data: lineItems.map((item) => ({
+        orderId,
+        shopifyId: String(item.id),
+        title: item.title,
+        quantity: item.quantity,
+        price: Math.round(parseFloat(item.price) * 100), // Convert to cents
+        sku: item.sku || null,
+        variantId: item.variant_id ? String(item.variant_id) : null,
+        productId: item.product_id ? String(item.product_id) : null,
+      })),
+    });
+
+    console.log('[Shopify Webhook Token] Line items saved:', {
+      orderId,
+      count: lineItems.length,
+    });
+  } catch (error) {
+    console.error('[Shopify Webhook Token] Failed to save line items:', error);
+    // Don't throw - line items are optional, order sync should still succeed
+  }
 }
 
 export async function POST(
@@ -327,7 +379,7 @@ export async function POST(
         cancelReason: order.cancel_reason,
       });
 
-      await prisma.order.upsert({
+      const upsertedOrder = await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
@@ -366,6 +418,15 @@ export async function POST(
             : new Date(),
         },
       });
+
+      // Save line items for the order (stored in DB for fast display)
+      await saveLineItems(upsertedOrder.id, order.line_items);
+
+      console.log(
+        `[Shopify Webhook Token] Order ${topic === 'orders/create' ? 'created' : 'updated'} successfully:`,
+        String(order.id),
+        `with ${order.line_items?.length ?? 0} line items`,
+      );
     } else if (topic === 'orders/fulfilled') {
       const order = json;
       await prisma.order.updateMany({
