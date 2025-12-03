@@ -1,6 +1,7 @@
 type WebhookTopic =
   | 'orders/create'
-  | 'orders/updated' // Added for real-time status updates + PII refresh
+  | 'orders/updated' // Real-time status updates + PII refresh
+  | 'orders/cancelled' // Order cancellation tracking
   | 'refunds/create'
   | 'orders/fulfilled'
   | 'app/uninstalled'
@@ -14,10 +15,14 @@ export async function registerWebhooks(shop: string, accessToken: string) {
   // orders/updated is critical for:
   //   1. Real-time status changes (payment, fulfillment)
   //   2. Customer PII updates (webhooks contain unredacted data)
+  // orders/cancelled is critical for:
+  //   1. Tracking order cancellations
+  //   2. Updating order status to CANCELLED
   // The PROTECTED_WEBHOOKS flag controls additional webhooks
   const essentialTopics: WebhookTopic[] = [
     'orders/create',
     'orders/updated', // Essential for real-time updates + PII from webhooks
+    'orders/cancelled', // Essential for tracking cancellations
     'orders/fulfilled',
     'refunds/create',
     'app/uninstalled',

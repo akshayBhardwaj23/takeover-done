@@ -51,6 +51,8 @@ interface ShopifyOrderPayload {
   fulfillment_status?: string | null;
   processed_at?: string;
   updated_at?: string;
+  cancelled_at?: string | null; // Timestamp when order was cancelled
+  cancel_reason?: string | null; // Reason for cancellation
   customer?: ShopifyCustomer;
   billing_address?: ShopifyAddress;
   shipping_address?: ShopifyAddress;
@@ -311,10 +313,18 @@ export async function POST(
       // Upsert customer with full PII from webhook payload
       const customerId = await upsertCustomerFromWebhook(order, connection.id);
 
+      // Determine order status - check for cancellation first
+      let orderStatus = (order.financial_status || 'PENDING').toUpperCase();
+      if (order.cancelled_at) {
+        orderStatus = 'CANCELLED';
+      }
+
       console.log(`[Shopify Webhook Token] Processing ${topic}:`, {
         shopifyId: String(order.id),
         name: order.name,
         customerId,
+        isCancelled: !!order.cancelled_at,
+        cancelReason: order.cancel_reason,
       });
 
       await prisma.order.upsert({
@@ -325,7 +335,7 @@ export async function POST(
           customerId,
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
+          status: orderStatus,
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
@@ -342,7 +352,7 @@ export async function POST(
           customerId,
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
+          status: orderStatus, // Uses CANCELLED if cancelled_at is set
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
@@ -362,6 +372,24 @@ export async function POST(
         where: { shopifyId: String(order.id) },
         data: {
           fulfillmentStatus: 'FULFILLED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+    } else if (topic === 'orders/cancelled') {
+      // Handle order cancellation
+      const order = json;
+      const cancelReason = order.cancel_reason || 'unknown';
+
+      console.log('[Shopify Webhook Token] Order cancelled:', {
+        shopifyId: String(order.id),
+        cancelReason,
+        cancelledAt: order.cancelled_at,
+      });
+
+      await prisma.order.updateMany({
+        where: { shopifyId: String(order.id) },
+        data: {
+          status: 'CANCELLED',
           statusUpdatedAt: new Date(),
         },
       });

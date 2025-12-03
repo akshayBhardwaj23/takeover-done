@@ -541,12 +541,14 @@ export class ShopifyClient {
     // Essential webhooks for the hybrid integration:
     // - orders/create: New orders with full customer PII
     // - orders/updated: Status changes + PII updates
+    // - orders/cancelled: Order cancellation tracking
     // - orders/fulfilled: Fulfillment tracking
     // - refunds/create: Refund notifications
     // - app/uninstalled: Cleanup on uninstall
     const topics = [
       'orders/create',
       'orders/updated',
+      'orders/cancelled',
       'orders/fulfilled',
       'refunds/create',
       'app/uninstalled',

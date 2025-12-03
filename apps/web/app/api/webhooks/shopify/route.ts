@@ -108,6 +108,8 @@ interface ShopifyOrderPayload {
   fulfillment_status?: string | null;
   processed_at?: string;
   updated_at?: string;
+  cancelled_at?: string | null; // Timestamp when order was cancelled
+  cancel_reason?: string | null; // Reason for cancellation (customer, fraud, inventory, declined, other)
   customer?: ShopifyCustomer;
   billing_address?: ShopifyAddress;
   shipping_address?: ShopifyAddress;
@@ -406,6 +408,13 @@ export async function POST(req: NextRequest) {
       // This is the key advantage of webhooks - they contain unredacted customer data
       const customerId = await upsertCustomerFromWebhook(order, conn.id);
 
+      // Determine order status - check for cancellation first
+      // If cancelled_at is set, the order is cancelled regardless of financial_status
+      let orderStatus = (order.financial_status || 'PENDING').toUpperCase();
+      if (order.cancelled_at) {
+        orderStatus = 'CANCELLED';
+      }
+
       console.log(`[Shopify Webhook] Processing ${topic}:`, {
         shopifyId: String(order.id),
         name: order.name,
@@ -414,6 +423,8 @@ export async function POST(req: NextRequest) {
         customerName,
         customerId,
         hasCustomerData: !!order.customer,
+        isCancelled: !!order.cancelled_at,
+        cancelReason: order.cancel_reason,
       });
 
       await prisma.order.upsert({
@@ -424,7 +435,7 @@ export async function POST(req: NextRequest) {
           customerId, // Link to Customer record with full PII
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
+          status: orderStatus,
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
@@ -441,7 +452,7 @@ export async function POST(req: NextRequest) {
           customerId, // Update customer link on order updates
           name: order.name || null,
           shopDomain: normalizedShop || null,
-          status: (order.financial_status || 'PENDING').toUpperCase(),
+          status: orderStatus, // Uses CANCELLED if cancelled_at is set
           fulfillmentStatus: (
             order.fulfillment_status || 'UNFULFILLED'
           ).toUpperCase(),
@@ -466,6 +477,24 @@ export async function POST(req: NextRequest) {
         where: { shopifyId: String(order.id) },
         data: {
           fulfillmentStatus: 'FULFILLED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+    } else if (topic === 'orders/cancelled') {
+      // Handle order cancellation
+      const order = json;
+      const cancelReason = order.cancel_reason || 'unknown';
+
+      console.log('[Shopify Webhook] Order cancelled:', {
+        shopifyId: String(order.id),
+        cancelReason,
+        cancelledAt: order.cancelled_at,
+      });
+
+      await prisma.order.updateMany({
+        where: { shopifyId: String(order.id) },
+        data: {
+          status: 'CANCELLED',
           statusUpdatedAt: new Date(),
         },
       });
