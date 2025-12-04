@@ -606,7 +606,7 @@ function IntegrationsInner() {
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <main className="min-h-screen bg-white text-zinc-900">
-        <div className="mx-auto max-w-7xl px-6 py-8">
+        <div className="mx-auto max-w-7xl px-6 pt-24 pb-8">
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <h1 className="text-2xl font-bold text-zinc-900">Integrations</h1>
