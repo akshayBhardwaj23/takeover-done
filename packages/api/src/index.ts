@@ -395,7 +395,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
           null;
       }
 
-      await prisma.order.upsert({
+      const upsertedOrder = await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
@@ -432,6 +432,50 @@ async function syncShopifyData(connectionId: string, userId: string) {
           updatedAt: new Date(),
         },
       });
+
+      // Sync line items if present
+      if (order.line_items && order.line_items.length > 0) {
+        try {
+          // Delete existing line items and insert new ones (handles updates)
+          await prisma.orderLineItem.deleteMany({
+            where: { orderId: upsertedOrder.id },
+          });
+
+          await prisma.orderLineItem.createMany({
+            data: order.line_items.map((item) => ({
+              orderId: upsertedOrder.id,
+              shopifyId: String(item.id),
+              title: item.title,
+              quantity: item.quantity,
+              price: Math.round(parseFloat(item.price) * 100), // Convert to cents
+              sku: item.sku || null,
+              variantId: item.variant_id ? String(item.variant_id) : null,
+              productId: item.product_id ? String(item.product_id) : null,
+            })),
+          });
+
+          console.log(
+            `[Shopify Sync] Synced ${order.line_items.length} line items for order ${order.id}`,
+          );
+        } catch (lineItemError: any) {
+          // If OrderLineItem table doesn't exist yet, skip line items
+          // This allows orders to sync even before migration is applied
+          if (
+            lineItemError?.code === 'P2021' ||
+            lineItemError?.message?.includes('does not exist')
+          ) {
+            console.warn(
+              `[Shopify Sync] OrderLineItem table not found, skipping line items for order ${order.id}`,
+            );
+          } else {
+            console.error(
+              `[Shopify Sync] Failed to sync line items for order ${order.id}:`,
+              lineItemError,
+            );
+            // Don't throw - continue syncing other orders
+          }
+        }
+      }
     }
 
     console.log(
