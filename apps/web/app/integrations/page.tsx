@@ -580,6 +580,7 @@ function IntegrationsInner() {
           {/* Header */}
           <div className="mb-12">
             <h1 className="text-2xl font-bold text-zinc-900">Integrations</h1>
+            <p className="text-zinc-500">Connect your favorite tools to unlock automated workflows, smarter insights, and a fully connected ZYYP experience.</p>
           </div>
 
           {/* Content */}
