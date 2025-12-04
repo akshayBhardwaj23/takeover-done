@@ -48,7 +48,7 @@ export default function Security() {
             </p>
           </div>
           <Link
-            href="/integrations"
+            href="/security"
             className="inline-flex items-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
           >
             View security overview

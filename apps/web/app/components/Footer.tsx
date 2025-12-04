@@ -14,7 +14,8 @@ const socialLinks = [
 const policyLinks = [
   { href: '/privacy-policy', label: 'Privacy Policy' },
   { href: '/terms', label: 'Terms & Conditions' },
-] satisfies Array<{ href: Route; label: string }>;
+  { href: '/security', label: 'Security Overview' },
+];
 
 export default function Footer() {
   const { status } = useSession();
@@ -26,7 +27,7 @@ export default function Footer() {
     { href: '/demo', label: 'Demo' },
     { href: '/pricing', label: 'Pricing' },
     { href: '/faq', label: 'FAQ' },
-  ] satisfies Array<{ href: Route; label: string }>;
+  ];
 
   return (
     <footer className="relative overflow-hidden bg-[#050505] text-white">
@@ -83,9 +84,9 @@ export default function Footer() {
                 {pageLinks.map((link) => (
                   <li key={link.label}>
                     <Link
-                      href={link.href}
-                      className="tracking-tight text-white hover:text-white/70"
-                    >
+                    href={link.href as Route}
+                    className="tracking-tight text-white hover:text-white/70"
+                  >
                       {link.label}
                     </Link>
                   </li>
@@ -140,9 +141,9 @@ export default function Footer() {
                   {policyLinks.map((link) => (
                     <li key={link.label}>
                       <Link
-                        href={link.href}
-                        className="text-white hover:text-white/70"
-                      >
+                      href={link.href as Route}
+                      className="text-white hover:text-white/70"
+                    >
                         {link.label}
                       </Link>
                     </li>
