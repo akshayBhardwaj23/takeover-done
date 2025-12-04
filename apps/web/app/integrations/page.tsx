@@ -7,7 +7,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -23,7 +22,6 @@ import {
   Sparkles,
   BarChart3,
   Settings2,
-  Search,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 
@@ -257,8 +255,6 @@ function IntegrationsInner() {
   const isSavingStoreName = updateStoreName.isPending;
 
   // --- State ---
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showAddDialog, setShowAddDialog] = useState(false);
 
   // --- Helpers ---
   const deriveStoreName = (c: any) => {
@@ -445,26 +441,16 @@ function IntegrationsInner() {
     return items;
   }, [shopifyConnections, emailConnections, gaConnections, metaAdsConnections]);
 
-  const filteredIntegrations = useMemo(() => {
-    return unifiedIntegrations.filter((item) => {
-      const matchesSearch =
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase());
-
-      return matchesSearch;
-    });
-  }, [unifiedIntegrations, searchQuery]);
-
   const groupedIntegrations = useMemo(() => {
     const groups: Record<string, IntegrationItem[]> = {};
-    filteredIntegrations.forEach((item) => {
+    unifiedIntegrations.forEach((item) => {
       if (!groups[item.category]) {
         groups[item.category] = [];
       }
       groups[item.category].push(item);
     });
     return groups;
-  }, [filteredIntegrations]);
+  }, [unifiedIntegrations]);
 
   // --- Handlers ---
 
@@ -589,64 +575,10 @@ function IntegrationsInner() {
     <>
       <ToastContainer toasts={toast.toasts} removeToast={toast.removeToast} />
       <main className="min-h-screen bg-white text-zinc-900">
-        <div className="mx-auto max-w-7xl px-6 pt-24 pb-8">
+        <div className="mx-auto max-w-7xl px-6 pt-32 pb-8">
           {/* Header */}
-          <div className="mb-8 flex items-center justify-between">
+          <div className="mb-12">
             <h1 className="text-2xl font-bold text-zinc-900">Integrations</h1>
-            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-              <DialogTrigger asChild>
-                <Button className="bg-zinc-900 text-white hover:bg-zinc-800">
-                  <Plus className="mr-2 h-4 w-4" /> Add Integration
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Add Integration</DialogTitle>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-4 py-4">
-                  {[
-                    { type: 'SHOPIFY', name: 'Shopify', icon: Store },
-                    { type: 'EMAIL', name: 'Email Alias', icon: Mail },
-                    { type: 'GA4', name: 'Google Analytics', icon: BarChart3 },
-                    { type: 'META_ADS', name: 'Meta Ads', icon: Sparkles },
-                  ].map((opt) => (
-                    <Button
-                      key={opt.type}
-                      variant="outline"
-                      className="flex h-24 flex-col items-center justify-center gap-2 rounded-xl border-zinc-200 hover:bg-zinc-50 hover:border-zinc-300"
-                      onClick={() => {
-                        setShowAddDialog(false);
-                        handleDetails({
-                          id: 'temp',
-                          type: opt.type as IntegrationType,
-                          name: opt.name,
-                          description: '',
-                          category: 'Sales & Marketing Tools', // Dummy
-                          status: 'disconnected',
-                          icon: opt.icon,
-                        });
-                      }}
-                    >
-                      <opt.icon className="h-6 w-6" />
-                      {opt.name}
-                    </Button>
-                  ))}
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Toolbar */}
-          <div className="mb-8 flex justify-end">
-            <div className="relative w-full sm:w-72">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Search Integration..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 rounded-lg border-zinc-200 pl-9 focus-visible:ring-zinc-900"
-              />
-            </div>
           </div>
 
           {/* Content */}
@@ -678,7 +610,7 @@ function IntegrationsInner() {
               </div>
             ))}
 
-            {filteredIntegrations.length === 0 && (
+            {Object.keys(groupedIntegrations).length === 0 && (
               <div className="py-20 text-center">
                 <p className="text-zinc-500">No integrations found.</p>
               </div>
