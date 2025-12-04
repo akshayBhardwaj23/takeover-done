@@ -224,10 +224,10 @@ export default function SecurityOverviewPage() {
             For security inquiries, vulnerability reports, or to request our
             security documentation, please contact our security team at{' '}
             <a
-              href="mailto:security@zyyp.ai"
+              href="mailto:hello@zyyp.ai"
               className="font-semibold text-white underline hover:text-white/90"
             >
-              security@zyyp.ai
+              hello@zyyp.ai
             </a>
             .
           </p>
