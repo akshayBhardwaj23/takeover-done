@@ -24,6 +24,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
+import TetrisLoading from '../../components/ui/tetris-loader';
 
 // --- Types ---
 
@@ -582,7 +583,12 @@ function IntegrationsInner() {
           </div>
 
           {/* Content */}
-          <div className="space-y-10">
+          {connectionsLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <TetrisLoading size="sm" speed="fast" loadingText="Loading integrations..." />
+            </div>
+          ) : (
+            <div className="space-y-10">
             {Object.entries(groupedIntegrations).map(([category, items]) => (
               <div key={category}>
                 <div className="mb-4">
@@ -615,7 +621,8 @@ function IntegrationsInner() {
                 <p className="text-zinc-500">No integrations found.</p>
               </div>
             )}
-          </div>
+            </div>
+          )}
         </div>
       </main>
 
