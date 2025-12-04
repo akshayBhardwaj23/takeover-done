@@ -26,7 +26,6 @@ import {
   Search,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
-import { Switch } from '../../components/ui/switch';
 
 // --- Types ---
 
@@ -73,15 +72,6 @@ function IntegrationCard({
         <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-100 bg-zinc-50 text-zinc-900">
           <item.icon className="h-6 w-6" />
         </div>
-        {item.status === 'connected' && (
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={item.isEnabled}
-              onCheckedChange={() => onToggle(item)}
-              className="data-[state=checked]:bg-emerald-500"
-            />
-          </div>
-        )}
       </div>
 
       <div className="mb-6 space-y-2">
@@ -96,7 +86,7 @@ function IntegrationCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-lg border-zinc-200 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                className="h-9 rounded-lg border-zinc-300 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400"
                 onClick={() => onSync(item)}
                 disabled={isSyncing}
               >
@@ -110,7 +100,7 @@ function IntegrationCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-9 flex-1 rounded-lg border-zinc-200 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+              className="h-9 flex-1 rounded-lg border-zinc-300 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400"
               onClick={() => onDetails(item)}
             >
               Details
@@ -118,7 +108,7 @@ function IntegrationCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 rounded-lg px-3 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700"
+              className="h-9 rounded-lg px-4 text-xs font-medium text-red-600 hover:bg-red-100 hover:text-red-700"
               onClick={() => onRemove(item)}
             >
               Remove
@@ -268,9 +258,6 @@ function IntegrationsInner() {
 
   // --- State ---
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<
-    'all' | 'connected' | 'disconnected'
-  >('all');
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   // --- Helpers ---
@@ -464,13 +451,9 @@ function IntegrationsInner() {
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-      if (!matchesSearch) return false;
-
-      if (activeTab === 'connected') return item.status === 'connected';
-      if (activeTab === 'disconnected') return item.status === 'disconnected';
-      return true;
+      return matchesSearch;
     });
-  }, [unifiedIntegrations, searchQuery, activeTab]);
+  }, [unifiedIntegrations, searchQuery]);
 
   const groupedIntegrations = useMemo(() => {
     const groups: Record<string, IntegrationItem[]> = {};
@@ -654,23 +637,7 @@ function IntegrationsInner() {
           </div>
 
           {/* Toolbar */}
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-2 rounded-lg bg-zinc-100 p-1">
-              {(['all', 'connected', 'disconnected'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`rounded-md px-4 py-1.5 text-sm font-medium transition-all ${
-                    activeTab === tab
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-700'
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}{' '}
-                  {tab === 'all' && 'Applications'}
-                </button>
-              ))}
-            </div>
+          <div className="mb-8 flex justify-end">
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <Input
