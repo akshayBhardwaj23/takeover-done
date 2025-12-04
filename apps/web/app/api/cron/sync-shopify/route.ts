@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
       }
 
       // Get API credentials
-      const encryptedToken = metadata.encryptedAccessToken as string | undefined;
+      const encryptedToken = metadata.encryptedAccessToken as
+        | string
+        | undefined;
       if (!encryptedToken) {
         console.log(
           `[Cron Sync] Skipping ${conn.shopDomain} - no access token`,
@@ -155,7 +157,9 @@ export async function GET(req: NextRequest) {
         for (const order of orders) {
           try {
             // Determine status - check for cancellation
-            let orderStatus = (order.financial_status || 'PENDING').toUpperCase();
+            let orderStatus = (
+              order.financial_status || 'PENDING'
+            ).toUpperCase();
             if (order.cancelled_at) {
               orderStatus = 'CANCELLED';
             }
@@ -183,7 +187,7 @@ export async function GET(req: NextRequest) {
                 : new Date(),
             };
 
-            await prisma.order.upsert({
+            const upsertedOrder = await prisma.order.upsert({
               where: { shopifyId: order.id.toString() },
               create: {
                 shopifyId: order.id.toString(),
@@ -192,6 +196,40 @@ export async function GET(req: NextRequest) {
               },
               update: orderData,
             });
+
+            // Sync line items if present
+            if (order.line_items && order.line_items.length > 0) {
+              try {
+                // Delete existing line items and insert new ones (handles updates)
+                await prisma.orderLineItem.deleteMany({
+                  where: { orderId: upsertedOrder.id },
+                });
+
+                await prisma.orderLineItem.createMany({
+                  data: order.line_items.map((item: any) => ({
+                    orderId: upsertedOrder.id,
+                    shopifyId: String(item.id),
+                    title: item.title || 'Unknown Item',
+                    quantity: item.quantity || 1,
+                    price: Math.round(parseFloat(item.price || '0') * 100),
+                    sku: item.sku || null,
+                    variantId: item.variant_id ? String(item.variant_id) : null,
+                    productId: item.product_id ? String(item.product_id) : null,
+                  })),
+                });
+
+                console.log(
+                  `[Cron Sync] Synced ${order.line_items.length} line items for order ${order.id}`,
+                );
+              } catch (lineItemError: any) {
+                // If OrderLineItem table doesn't exist or other error, log but don't fail
+                console.error(
+                  `[Cron Sync] Failed to sync line items for order ${order.id}:`,
+                  lineItemError,
+                );
+                // Don't throw - continue syncing other orders
+              }
+            }
 
             synced++;
           } catch (err) {
@@ -249,4 +287,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
