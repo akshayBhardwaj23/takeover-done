@@ -372,16 +372,19 @@ export default function InboxPage() {
     { keepPreviousData: true, staleTime: 30_000, refetchOnWindowFocus: false },
   );
 
-  const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
+  const [ordersAccum, setOrdersAccum] = useState<any[]>([]);
   useEffect(() => {
-    const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
-    const bootstrapOrders =
-      (inboxBootstrap.data?.orders as DbOrder[] | undefined) ?? [];
+    const incoming = Array.isArray(ordersPage.data?.orders)
+      ? ordersPage.data.orders
+      : [];
+    const bootstrapOrders = Array.isArray(inboxBootstrap.data?.orders)
+      ? inboxBootstrap.data.orders
+      : [];
 
     // Merge orders from both sources, deduplicating by id
     const allOrders = [...bootstrapOrders, ...incoming];
-    const orderMap = new Map<string, DbOrder>();
-    allOrders.forEach((order) => {
+    const orderMap = new Map<string, any>();
+    allOrders.forEach((order: any) => {
       if (!orderMap.has(order.id)) {
         orderMap.set(order.id, order);
       }
@@ -455,15 +458,31 @@ export default function InboxPage() {
   // COMPUTED DATA
   // =============================================================================
 
+  // Create a lookup map for connections by connectionId
+  const connectionsMap = useMemo(() => {
+    const connections = inboxBootstrap.data?.connections || [];
+    const map = new Map<string, { shopDomain?: string | null; metadata?: { storeName?: string } | null }>();
+    connections.forEach((conn: any) => {
+      map.set(conn.id, {
+        shopDomain: conn.shopDomain,
+        metadata: conn.metadata,
+      });
+    });
+    return map;
+  }, [inboxBootstrap.data?.connections]);
+
   // Combine all emails for the email list view
   const allEmails = useMemo(() => {
-    const unassigned = (unassignedQuery.data?.messages ?? []) as EmailMessage[];
-    const bootstrapUnassigned = (inboxBootstrap.data?.unassigned ??
-      []) as EmailMessage[];
+    const unassigned = Array.isArray(unassignedQuery.data?.messages) 
+      ? unassignedQuery.data.messages 
+      : [];
+    const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
+      ? inboxBootstrap.data.unassigned
+      : [];
 
     // Combine and dedupe
-    const emailMap = new Map<string, EmailMessage>();
-    [...unassigned, ...bootstrapUnassigned].forEach((email) => {
+    const emailMap = new Map<string, any>();
+    [...unassigned, ...bootstrapUnassigned].forEach((email: any) => {
       if (!emailMap.has(email.id)) {
         emailMap.set(email.id, email);
       }
@@ -605,7 +624,8 @@ export default function InboxPage() {
       if (shop && selectedOrderId) {
         await refreshOrder.mutateAsync({ shop, orderId: selectedOrderId });
       }
-      await Promise.all([inboxBootstrap.refetch(), unassignedQuery.refetch()]);
+      void inboxBootstrap.refetch();
+      void unassignedQuery.refetch();
       toast.success('Inbox refreshed');
     } catch (error: any) {
       toast.error(error?.message ?? 'Failed to refresh');
@@ -957,7 +977,10 @@ export default function InboxPage() {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
                           (order.pendingEmailCount ?? 0) > 0;
-                        const orderStoreName = getStoreName(order.shopDomain, null);
+                        const orderStoreName = getStoreName(
+                          order.shopDomain,
+                          order.connectionId ? connectionsMap.get(order.connectionId)?.metadata : null,
+                        );
                         const orderStoreColor = getStoreColor(
                           order.shopDomain || 'default',
                         );
@@ -1244,7 +1267,10 @@ export default function InboxPage() {
                     const selectedOrder = ordersAccum.find(
                       (o) => o.shopifyId === selectedOrderId,
                     );
-                    const detailStoreName = getStoreName(selectedOrder?.shopDomain, null);
+                    const detailStoreName = getStoreName(
+                      selectedOrder?.shopDomain,
+                      selectedOrder?.connectionId ? connectionsMap.get(selectedOrder.connectionId)?.metadata : null,
+                    );
                     const detailStoreColor = getStoreColor(selectedOrder?.shopDomain || 'default');
                     return (
                   <>
@@ -1682,7 +1708,7 @@ export default function InboxPage() {
                                     Items ({items.length})
                                   </h4>
                                   <div className="space-y-2">
-                                    {items.map((item) => (
+                                    {items.map((item: any) => (
                                       <div
                                         key={item.id}
                                         className="flex items-center justify-between rounded-lg bg-stone-50 p-3"

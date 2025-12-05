@@ -1982,7 +1982,7 @@ export const appRouter = t.router({
       // Fetch all connections once to avoid multiple round-trips
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
-        select: { id: true, type: true },
+        select: { id: true, type: true, shopDomain: true, metadata: true },
       });
 
       if (connections.length === 0) {
@@ -1990,6 +1990,7 @@ export const appRouter = t.router({
           orders: [],
           unassigned: [],
           emailLimit: await canSendEmail(ctx.userId),
+          connections: [], // Include empty connections array for consistent return type
         };
       }
 
@@ -2118,6 +2119,7 @@ export const appRouter = t.router({
         orders: ordersWithPending,
         unassigned: unassignedMessages,
         emailLimit,
+        connections, // Include connections for store name lookup
       };
     }),
   orderGet: protectedProcedure
