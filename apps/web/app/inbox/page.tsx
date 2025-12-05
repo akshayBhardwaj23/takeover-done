@@ -1211,7 +1211,7 @@ export default function InboxPage() {
                           onChange={(e) => setDraft(e.target.value)}
                           placeholder="Write a message..."
                           rows={4}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-y min-h-[100px]"
                         />
                         <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
                           <div className="flex items-center gap-2">
@@ -1226,16 +1226,6 @@ export default function InboxPage() {
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleGenerateAi}
-                              disabled={suggest.isPending}
-                              className="rounded-lg text-xs"
-                            >
-                              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                              {suggest.isPending ? 'Generating...' : 'AI Reply'}
-                            </Button>
                             <Button
                               size="sm"
                               onClick={handleSendReply}
@@ -1403,7 +1393,7 @@ export default function InboxPage() {
                           onChange={(e) => setDraft(e.target.value)}
                           placeholder="Reply to customer..."
                           rows={3}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-y min-h-[80px]"
                         />
                         <div className="flex items-center justify-end px-4 py-2 border-t border-stone-100 bg-white">
                           <Button
