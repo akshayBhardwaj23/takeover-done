@@ -35,6 +35,7 @@ import {
   Bell,
   BellOff,
   Store,
+  GripVertical,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
@@ -325,6 +326,8 @@ export default function InboxPage() {
   const [repliedMessageIds, setRepliedMessageIds] = useState<Set<string>>(
     new Set(),
   );
+  const [inboxTextareaHeight, setInboxTextareaHeight] = useState(100);
+  const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -1205,14 +1208,40 @@ export default function InboxPage() {
                     {/* Reply Input */}
                     <div className="p-4 border-t border-stone-100">
                       <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300 focus-within:border-stone-300">
-                        <textarea
-                          ref={messageInputRef}
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          placeholder="Write a message..."
-                          rows={4}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-y min-h-[100px]"
-                        />
+                        <div className="relative">
+                          <div
+                            className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const startY = e.clientY;
+                              const startHeight = inboxTextareaHeight;
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaY = moveEvent.clientY - startY;
+                                const newHeight = Math.max(100, Math.min(500, startHeight + deltaY));
+                                setInboxTextareaHeight(newHeight);
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          >
+                            <GripVertical className="h-4 w-4 text-stone-400" />
+                          </div>
+                          <textarea
+                            ref={messageInputRef}
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            placeholder="Write a message..."
+                            style={{ height: `${inboxTextareaHeight}px` }}
+                            className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                          />
+                        </div>
                         <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
                           <div className="flex items-center gap-2">
                             <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
@@ -1388,13 +1417,39 @@ export default function InboxPage() {
                     {/* Reply Input for Orders */}
                     <div className="p-4 border-t border-stone-100">
                       <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300">
-                        <textarea
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          placeholder="Reply to customer..."
-                          rows={3}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-y min-h-[80px]"
-                        />
+                        <div className="relative">
+                          <div
+                            className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const startY = e.clientY;
+                              const startHeight = orderTextareaHeight;
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaY = moveEvent.clientY - startY;
+                                const newHeight = Math.max(80, Math.min(500, startHeight + deltaY));
+                                setOrderTextareaHeight(newHeight);
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          >
+                            <GripVertical className="h-4 w-4 text-stone-400" />
+                          </div>
+                          <textarea
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            placeholder="Reply to customer..."
+                            style={{ height: `${orderTextareaHeight}px` }}
+                            className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                          />
+                        </div>
                         <div className="flex items-center justify-end px-4 py-2 border-t border-stone-100 bg-white">
                           <Button
                             size="sm"
