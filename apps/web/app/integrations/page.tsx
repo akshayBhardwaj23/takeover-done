@@ -102,7 +102,7 @@ function IntegrationCard({
               className="h-9 flex-1 rounded-lg border-zinc-300 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400 hover:text-zinc-900"
               onClick={() => onDetails(item)}
             >
-              Details
+              {item.type === 'EMAIL' ? 'Copy Email' : 'Details'}
             </Button>
             <Button
               variant="ghost"
@@ -562,7 +562,11 @@ function IntegrationsInner() {
     } else if (item.type === 'META_ADS') {
       setDisconnectMetaAdsDialogOpen(true);
     } else if (item.type === 'EMAIL') {
-      toast.info('To remove an alias, please contact support or disable it.');
+      // Disable the email alias
+      setAliasStatus.mutate({
+        id: item.id,
+        disabled: true,
+      });
     }
   };
 
