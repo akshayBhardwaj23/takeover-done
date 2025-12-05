@@ -34,6 +34,7 @@ import {
   Calendar,
   Bell,
   BellOff,
+  Store,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
@@ -41,6 +42,15 @@ import { UpgradePrompt } from '../../components/UpgradePrompt';
 // =============================================================================
 // TYPES
 // =============================================================================
+
+type OrderLineItem = {
+  id: string;
+  shopifyId: string;
+  title: string;
+  quantity: number;
+  price: number; // Price in cents
+  sku?: string | null;
+};
 
 type DbOrder = {
   id: string;
@@ -54,6 +64,9 @@ type DbOrder = {
   fulfillmentStatus?: string | null;
   createdAt: string;
   pendingEmailCount?: number;
+  shopDomain?: string | null;
+  connectionId?: string;
+  lineItems?: OrderLineItem[];
 };
 
 type EmailMessage = {
@@ -68,6 +81,11 @@ type EmailMessage = {
   orderId?: string | null;
   thread?: {
     subject?: string;
+    connectionId?: string;
+    connection?: {
+      shopDomain?: string | null;
+      metadata?: { storeName?: string } | null;
+    } | null;
   } | null;
   aiSuggestion?: {
     reply?: string;
@@ -185,6 +203,42 @@ function getAvatarColor(str: string): string {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// Store colors for multi-store badges
+const STORE_COLORS = [
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+  'bg-amber-100 text-amber-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-sky-100 text-sky-700',
+  'bg-fuchsia-100 text-fuchsia-700',
+  'bg-orange-100 text-orange-700',
+  'bg-teal-100 text-teal-700',
+];
+
+function getStoreColor(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return STORE_COLORS[Math.abs(hash) % STORE_COLORS.length];
+}
+
+function getStoreName(
+  shopDomain?: string | null,
+  metadata?: { storeName?: string } | null,
+): string {
+  if (metadata?.storeName) return metadata.storeName;
+  if (shopDomain) {
+    return shopDomain
+      .replace('.myshopify.com', '')
+      .replace(/-/g, ' ')
+      .split(' ')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  return 'Store';
 }
 
 // Fulfillment status colors (shipping/delivery status)
@@ -503,6 +557,10 @@ export default function InboxPage() {
     setSelectedOrderId(order.shopifyId);
     setSelectedEmailId(null);
     setDraft('');
+    // Set shop from the order's shopDomain for API calls (Sync, Reply)
+    if (order.shopDomain) {
+      setShop(order.shopDomain);
+    }
   }, []);
 
   const handleGenerateAi = async () => {
@@ -806,6 +864,13 @@ export default function InboxPage() {
                           const isSelected = selectedEmailId === email.id;
                           const senderName = getSenderName(email.from);
                           const hasAiSuggestion = !!email.aiSuggestion?.reply;
+                          const emailStoreName = getStoreName(
+                            email.thread?.connection?.shopDomain,
+                            email.thread?.connection?.metadata as { storeName?: string } | null,
+                          );
+                          const emailStoreColor = getStoreColor(
+                            email.thread?.connection?.shopDomain || 'default',
+                          );
 
                           return (
                             <button
@@ -842,7 +907,16 @@ export default function InboxPage() {
                                 </p>
 
                                 {/* Indicators */}
-                                <div className="flex items-center gap-2 mt-2">
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                  {/* Store Badge */}
+                                  {email.thread?.connection?.shopDomain && (
+                                    <span
+                                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${emailStoreColor}`}
+                                    >
+                                      <Store className="h-3 w-3" />
+                                      {emailStoreName}
+                                    </span>
+                                  )}
                                   {hasAiSuggestion && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">
                                       <Sparkles className="h-3 w-3" />
@@ -883,6 +957,10 @@ export default function InboxPage() {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
                           (order.pendingEmailCount ?? 0) > 0;
+                        const orderStoreName = getStoreName(order.shopDomain, null);
+                        const orderStoreColor = getStoreColor(
+                          order.shopDomain || 'default',
+                        );
 
                         return (
                           <button
@@ -918,6 +996,15 @@ export default function InboxPage() {
                                   'Guest Customer'}
                               </p>
                               <div className="flex items-center gap-2 flex-wrap">
+                                {/* Store Badge */}
+                                {order.shopDomain && (
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${orderStoreColor}`}
+                                  >
+                                    <Store className="h-3 w-3" />
+                                    {orderStoreName}
+                                  </span>
+                                )}
                                 {/* Fulfillment/Shipping Status */}
                                 <Badge
                                   className={`text-xs ${FULFILLMENT_STATUS_COLORS[order.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
@@ -983,9 +1070,22 @@ export default function InboxPage() {
                           {getInitials(null, selectedEmail.from)}
                         </div>
                         <div>
-                          <h2 className="text-sm font-semibold text-stone-900">
-                            {getSenderName(selectedEmail.from)}
-                          </h2>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-sm font-semibold text-stone-900">
+                              {getSenderName(selectedEmail.from)}
+                            </h2>
+                            {selectedEmail.thread?.connection?.shopDomain && (
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${getStoreColor(selectedEmail.thread.connection.shopDomain)}`}
+                              >
+                                <Store className="h-3 w-3" />
+                                {getStoreName(
+                                  selectedEmail.thread.connection.shopDomain,
+                                  selectedEmail.thread.connection.metadata as { storeName?: string } | null,
+                                )}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-stone-500">
                             {extractEmailAddress(selectedEmail.from)}
                           </p>
@@ -1140,6 +1240,13 @@ export default function InboxPage() {
                   </>
                 ) : view === 'orders' && selectedOrderId ? (
                   // Order Detail View
+                  (() => {
+                    const selectedOrder = ordersAccum.find(
+                      (o) => o.shopifyId === selectedOrderId,
+                    );
+                    const detailStoreName = getStoreName(selectedOrder?.shopDomain, null);
+                    const detailStoreColor = getStoreColor(selectedOrder?.shopDomain || 'default');
+                    return (
                   <>
                     <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
                       <div className="flex items-center gap-3">
@@ -1147,15 +1254,21 @@ export default function InboxPage() {
                           <ShoppingBag className="h-5 w-5 text-stone-600" />
                         </div>
                         <div>
-                          <h2 className="text-sm font-semibold text-stone-900">
-                            {ordersAccum.find(
-                              (o) => o.shopifyId === selectedOrderId,
-                            )?.name || `Order ${selectedOrderId.slice(-6)}`}
-                          </h2>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-sm font-semibold text-stone-900">
+                              {selectedOrder?.name || `Order ${selectedOrderId.slice(-6)}`}
+                            </h2>
+                            {selectedOrder?.shopDomain && (
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${detailStoreColor}`}
+                              >
+                                <Store className="h-3 w-3" />
+                                {detailStoreName}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-stone-500">
-                            {ordersAccum.find(
-                              (o) => o.shopifyId === selectedOrderId,
-                            )?.email || 'No email'}
+                            {selectedOrder?.email || 'No email'}
                           </p>
                         </div>
                       </div>
@@ -1293,6 +1406,8 @@ export default function InboxPage() {
                       </div>
                     </div>
                   </>
+                    );
+                  })()
                 ) : (
                   // Empty State
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
@@ -1482,14 +1597,8 @@ export default function InboxPage() {
 
                     <ScrollArea className="flex-1">
                       <div className="p-6">
-                        {orderDetail.isLoading ? (
-                          <div className="animate-pulse space-y-4">
-                            <div className="h-16 bg-stone-100 rounded-xl" />
-                            <div className="h-32 bg-stone-100 rounded-xl" />
-                            <div className="h-24 bg-stone-100 rounded-xl" />
-                          </div>
-                        ) : (
-                          <>
+                        {/* Order data comes from database (ordersAccum) - no loading needed */}
+                        <>
                             {/* Order Summary */}
                             <div className="rounded-xl border border-stone-200 p-4 mb-4">
                               <div className="flex items-center justify-between mb-3">
@@ -1560,36 +1669,45 @@ export default function InboxPage() {
                               </div>
                             </div>
 
-                            {/* Line Items */}
-                            {orderDetail.data?.order?.lineItems && (
-                              <div className="mb-4">
-                                <h4 className="text-sm font-semibold text-stone-900 mb-3">
-                                  Items
-                                </h4>
-                                <div className="space-y-2">
-                                  {(
-                                    orderDetail.data.order.lineItems as any[]
-                                  ).map((item: any) => (
-                                    <div
-                                      key={item.id}
-                                      className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
-                                    >
-                                      <div>
-                                        <p className="text-sm font-medium text-stone-900">
-                                          {item.title}
-                                        </p>
-                                        <p className="text-xs text-stone-500">
-                                          Qty: {item.quantity}
-                                        </p>
+                            {/* Line Items - from database for fast display */}
+                            {(() => {
+                              const selectedOrderForItems = ordersAccum.find(
+                                (o) => o.shopifyId === selectedOrderId,
+                              );
+                              const items = selectedOrderForItems?.lineItems || [];
+                              if (items.length === 0) return null;
+                              return (
+                                <div className="mb-4">
+                                  <h4 className="text-sm font-semibold text-stone-900 mb-3">
+                                    Items ({items.length})
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {items.map((item) => (
+                                      <div
+                                        key={item.id}
+                                        className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
+                                      >
+                                        <div>
+                                          <p className="text-sm font-medium text-stone-900">
+                                            {item.title}
+                                          </p>
+                                          <p className="text-xs text-stone-500">
+                                            Qty: {item.quantity}
+                                            {item.sku && ` • SKU: ${item.sku}`}
+                                          </p>
+                                        </div>
+                                        <span className="text-sm font-medium text-stone-900">
+                                          {formatCurrency(
+                                            item.price,
+                                            selectedOrderForItems?.currency || 'INR',
+                                          )}
+                                        </span>
                                       </div>
-                                      <span className="text-sm font-medium text-stone-900">
-                                        {item.price}
-                                      </span>
-                                    </div>
-                                  ))}
+                                    ))}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
 
                             {/* Linked Emails */}
                             <div>
@@ -1633,7 +1751,6 @@ export default function InboxPage() {
                               )}
                             </div>
                           </>
-                        )}
                       </div>
                     </ScrollArea>
                   </>

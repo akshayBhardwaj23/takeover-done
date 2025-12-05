@@ -395,7 +395,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
           null;
       }
 
-      await prisma.order.upsert({
+      const upsertedOrder = await prisma.order.upsert({
         where: { shopifyId: String(order.id) },
         create: {
           shopifyId: String(order.id),
@@ -432,6 +432,50 @@ async function syncShopifyData(connectionId: string, userId: string) {
           updatedAt: new Date(),
         },
       });
+
+      // Sync line items if present
+      if (order.line_items && order.line_items.length > 0) {
+        try {
+          // Delete existing line items and insert new ones (handles updates)
+          await prisma.orderLineItem.deleteMany({
+            where: { orderId: upsertedOrder.id },
+          });
+
+          await prisma.orderLineItem.createMany({
+            data: order.line_items.map((item) => ({
+              orderId: upsertedOrder.id,
+              shopifyId: String(item.id),
+              title: item.title,
+              quantity: item.quantity,
+              price: Math.round(parseFloat(item.price) * 100), // Convert to cents
+              sku: item.sku || null,
+              variantId: item.variant_id ? String(item.variant_id) : null,
+              productId: item.product_id ? String(item.product_id) : null,
+            })),
+          });
+
+          console.log(
+            `[Shopify Sync] Synced ${order.line_items.length} line items for order ${order.id}`,
+          );
+        } catch (lineItemError: any) {
+          // If OrderLineItem table doesn't exist yet, skip line items
+          // This allows orders to sync even before migration is applied
+          if (
+            lineItemError?.code === 'P2021' ||
+            lineItemError?.message?.includes('does not exist')
+          ) {
+            console.warn(
+              `[Shopify Sync] OrderLineItem table not found, skipping line items for order ${order.id}`,
+            );
+          } else {
+            console.error(
+              `[Shopify Sync] Failed to sync line items for order ${order.id}:`,
+              lineItemError,
+            );
+            // Don't throw - continue syncing other orders
+          }
+        }
+      }
     }
 
     console.log(
@@ -576,6 +620,7 @@ const shopifyRouter = t.router({
         shopDomain: z.string().min(3),
         subdomain: z.string().min(1),
         accessToken: z.string().min(1),
+        apiSecret: z.string().min(1), // API secret key for webhook HMAC verification
         storeName: z.string().optional(),
       }),
     )
@@ -655,6 +700,8 @@ const shopifyRouter = t.router({
         const metadata: Record<string, unknown> = {
           subdomain,
           connectionMethod: 'custom_app',
+          // Store encrypted API secret for per-connection webhook HMAC verification
+          encryptedApiSecret: encryptSecure(input.apiSecret),
         };
 
         if (input.storeName || fetchedStoreName) {
@@ -692,12 +739,39 @@ const shopifyRouter = t.router({
           connection.id,
         );
 
-        // Trigger initial sync
+        // Register webhooks for real-time updates + customer PII
+        // Webhooks contain unredacted customer data that Admin API doesn't provide
+        const appUrl =
+          process.env.SHOPIFY_APP_URL ||
+          process.env.NEXTAUTH_URL ||
+          'http://localhost:3000';
+        const webhookUrl = `${appUrl}/api/webhooks/shopify`;
+
+        const shopifyClient = new ShopifyClient(cleanShop, input.accessToken);
+        const webhookResults = await shopifyClient
+          .registerWebhooks(webhookUrl)
+          .catch((err) => {
+            console.error(
+              '[Shopify Custom App] Failed to register webhooks:',
+              err,
+            );
+            return [];
+          });
+
+        const successfulWebhooks = webhookResults.filter(
+          (r) => r.success,
+        ).length;
+        console.log(
+          `[Shopify Custom App] Registered ${successfulWebhooks}/${webhookResults.length} webhooks for ${cleanShop}`,
+        );
+
+        // Trigger initial sync (historical orders via Admin API)
         void syncShopifyData(connection.id, ctx.userId).catch(console.error);
 
         return {
           connectionId: connection.id,
           shopDomain: cleanShop,
+          webhooksRegistered: successfulWebhooks,
         };
       } catch (error) {
         if (error instanceof TRPCError) {
@@ -929,6 +1003,363 @@ const shopifyRouter = t.router({
         shopDomain: connection.shopDomain,
       };
     }),
+
+  // ============================================================================
+  // Refund and Cancel Order Mutations (via Shopify Admin API)
+  // ============================================================================
+
+  initiateRefund: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.string().min(1), // Internal order ID
+        amount: z.number().int().positive().optional(), // Amount in cents (optional for full refund)
+        reason: z.string().max(500).optional(),
+        notify: z.boolean().default(true), // Whether to send notification to customer
+        lineItems: z
+          .array(
+            z.object({
+              lineItemId: z.string(),
+              quantity: z.number().int().positive(),
+              restockType: z
+                .enum(['no_restock', 'cancel', 'return'])
+                .optional(),
+            }),
+          )
+          .optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Get the order and verify ownership
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: {
+              id: true,
+              userId: true,
+              accessToken: true,
+              shopDomain: true,
+              metadata: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      // Verify user owns this connection
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied to this order',
+        });
+      }
+
+      // Check if connection has API access (custom app)
+      const metadata =
+        (order.connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Refunds require a Custom App connection with API access',
+        });
+      }
+
+      // Decrypt access token and create Shopify client
+      const accessToken = await decryptSecure(order.connection.accessToken);
+      if (!accessToken || !order.connection.shopDomain) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Invalid connection credentials',
+        });
+      }
+
+      const client = new ShopifyClient(
+        order.connection.shopDomain,
+        accessToken,
+      );
+
+      // Initiate the refund via Shopify Admin API
+      const result = await client.createRefund({
+        orderId: order.shopifyId,
+        amount: input.amount,
+        reason: input.reason,
+        notify: input.notify,
+        lineItems: input.lineItems,
+      });
+
+      if (!result.success) {
+        await logEvent(
+          'shopify.refund.failed',
+          {
+            orderId: input.orderId,
+            shopifyOrderId: order.shopifyId,
+            error: result.error,
+          },
+          'order',
+          input.orderId,
+        );
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: result.error || 'Failed to create refund',
+        });
+      }
+
+      // Update local order status (webhook will also update this)
+      await prisma.order.update({
+        where: { id: input.orderId },
+        data: {
+          status: input.amount ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+
+      // Log the refund action
+      await prisma.action.create({
+        data: {
+          orderId: input.orderId,
+          type: 'REFUND',
+          status: 'EXECUTED',
+          payload: {
+            refundId: result.refundId,
+            amount: result.amount,
+            reason: input.reason,
+          },
+          executedAt: new Date(),
+        },
+      });
+
+      await logEvent(
+        'shopify.refund.success',
+        {
+          orderId: input.orderId,
+          shopifyOrderId: order.shopifyId,
+          refundId: result.refundId,
+          amount: result.amount,
+        },
+        'order',
+        input.orderId,
+      );
+
+      return {
+        success: true,
+        refundId: result.refundId,
+        amount: result.amount,
+      };
+    }),
+
+  cancelOrder: protectedProcedure
+    .input(
+      z.object({
+        orderId: z.string().min(1), // Internal order ID
+        reason: z
+          .enum(['customer', 'fraud', 'inventory', 'declined', 'other'])
+          .default('other'),
+        email: z.boolean().default(true), // Whether to send cancellation email
+        restock: z.boolean().default(true), // Whether to restock items
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Get the order and verify ownership
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: {
+              id: true,
+              userId: true,
+              accessToken: true,
+              shopDomain: true,
+              metadata: true,
+            },
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      // Verify user owns this connection
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied to this order',
+        });
+      }
+
+      // Check if connection has API access (custom app)
+      const metadata =
+        (order.connection.metadata as Record<string, unknown>) || {};
+      if (metadata.connectionMethod !== 'custom_app') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            'Order cancellation requires a Custom App connection with API access',
+        });
+      }
+
+      // Decrypt access token and create Shopify client
+      const accessToken = await decryptSecure(order.connection.accessToken);
+      if (!accessToken || !order.connection.shopDomain) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Invalid connection credentials',
+        });
+      }
+
+      const client = new ShopifyClient(
+        order.connection.shopDomain,
+        accessToken,
+      );
+
+      // Cancel the order via Shopify Admin API
+      const result = await client.cancelOrder({
+        orderId: order.shopifyId,
+        reason: input.reason,
+        email: input.email,
+        restock: input.restock,
+      });
+
+      if (!result.success) {
+        await logEvent(
+          'shopify.cancel.failed',
+          {
+            orderId: input.orderId,
+            shopifyOrderId: order.shopifyId,
+            error: result.error,
+          },
+          'order',
+          input.orderId,
+        );
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: result.error || 'Failed to cancel order',
+        });
+      }
+
+      // Update local order status
+      await prisma.order.update({
+        where: { id: input.orderId },
+        data: {
+          status: 'CANCELLED',
+          statusUpdatedAt: new Date(),
+        },
+      });
+
+      // Log the cancel action
+      await prisma.action.create({
+        data: {
+          orderId: input.orderId,
+          type: 'CANCEL',
+          status: 'EXECUTED',
+          payload: {
+            reason: input.reason,
+            cancelledAt: result.cancelledAt,
+          },
+          executedAt: new Date(),
+        },
+      });
+
+      await logEvent(
+        'shopify.cancel.success',
+        {
+          orderId: input.orderId,
+          shopifyOrderId: order.shopifyId,
+          cancelledAt: result.cancelledAt,
+        },
+        'order',
+        input.orderId,
+      );
+
+      return {
+        success: true,
+        cancelledAt: result.cancelledAt,
+      };
+    }),
+
+  // Get order details including customer info from linked Customer record
+  getOrderDetails: protectedProcedure
+    .input(z.object({ orderId: z.string().min(1) }))
+    .query(async ({ input, ctx }) => {
+      const order = await prisma.order.findFirst({
+        where: { id: input.orderId },
+        include: {
+          connection: {
+            select: { userId: true, shopDomain: true },
+          },
+          customer: true, // Include linked customer with full PII
+          actions: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          },
+        },
+      });
+
+      if (!order) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Order not found',
+        });
+      }
+
+      if (order.connection.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Access denied',
+        });
+      }
+
+      return {
+        id: order.id,
+        shopifyId: order.shopifyId,
+        name: order.name,
+        status: order.status,
+        fulfillmentStatus: order.fulfillmentStatus,
+        totalAmount: order.totalAmount,
+        currency: order.currency,
+        email: order.email,
+        customerName: order.customerName,
+        shopDomain: order.shopDomain,
+        processedAt: order.processedAt,
+        statusUpdatedAt: order.statusUpdatedAt,
+        // Customer PII from webhooks
+        customer: order.customer
+          ? {
+              id: order.customer.id,
+              email: order.customer.email,
+              phone: order.customer.phone,
+              firstName: order.customer.firstName,
+              lastName: order.customer.lastName,
+              fullName:
+                [order.customer.firstName, order.customer.lastName]
+                  .filter(Boolean)
+                  .join(' ') || null,
+              address: {
+                address1: order.customer.address1,
+                address2: order.customer.address2,
+                city: order.customer.city,
+                province: order.customer.province,
+                country: order.customer.country,
+                zip: order.customer.zip,
+                company: order.customer.company,
+              },
+              ordersCount: order.customer.ordersCount,
+              totalSpent: order.customer.totalSpent,
+              acceptsMarketing: order.customer.acceptsMarketing,
+            }
+          : null,
+        recentActions: order.actions,
+      };
+    }),
 });
 
 const emailRouter = t.router({
@@ -937,33 +1368,88 @@ const emailRouter = t.router({
       z.object({
         userEmail: z.string().email(),
         domain: z.string().min(3),
-        shop: z.string().min(3),
+        shop: z.string().min(3).optional(), // NOW OPTIONAL - allows standalone aliases
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const cleanEmail = safeEmail(input.userEmail);
-      const cleanShop = safeShopDomain(input.shop);
       const domain = sanitizeLimited(input.domain, 255);
-      if (!cleanEmail || !cleanShop) {
+      
+      if (!cleanEmail) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Invalid email or shop domain',
+          message: 'Invalid email address',
         });
       }
-      // Verify user owns the shop connection
-      const shopConnection = await prisma.connection.findFirst({
+
+      // Get all existing aliases for this user
+      const existingAliases = await prisma.connection.findMany({
         where: {
-          shopDomain: cleanShop,
           userId: ctx.userId,
-          type: 'SHOPIFY',
+          type: 'CUSTOM_EMAIL' as any,
         },
+        select: { id: true, metadata: true },
       });
 
-      if (!shopConnection) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Shop access denied',
+      // Determine if this is a standalone or store-linked alias
+      const isStandalone = !input.shop;
+      let cleanShop: string | undefined;
+
+      if (isStandalone) {
+        // STANDALONE ALIAS - Check if user already has one
+        const hasStandalone = existingAliases.some(
+          (a) => !(a.metadata as any)?.shopDomain
+        );
+
+        if (hasStandalone) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'You already have a standalone email alias. Each user can have only one standalone alias.',
+          });
+        }
+      } else {
+        // STORE-LINKED ALIAS
+        const shopDomainResult = safeShopDomain(input.shop);
+        cleanShop = shopDomainResult || undefined;
+        
+        if (!cleanShop) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid shop domain',
+          });
+        }
+
+        // Verify user owns the shop connection
+        const shopConnection = await prisma.connection.findFirst({
+          where: {
+            shopDomain: cleanShop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
         });
+
+        if (!shopConnection) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not own this Shopify store',
+          });
+        }
+
+        // Check if this store already has an alias
+        const storeHasAlias = existingAliases.some(
+          (a) => (a.metadata as any)?.shopDomain === cleanShop
+        );
+
+        if (storeHasAlias) {
+          const existing = existingAliases.find(
+            (a) => (a.metadata as any)?.shopDomain === cleanShop
+          );
+          return {
+            id: existing!.id,
+            alias: (existing!.metadata as any)?.alias,
+          };
+        }
       }
 
       // Create or ensure user exists
@@ -973,28 +1459,15 @@ const emailRouter = t.router({
         update: {},
       });
 
-      // If an alias already exists for this shop, return it
-      const existing = await prisma.connection.findFirst({
-        where: {
-          userId: ctx.userId, // Multi-tenant scoping
-          type: 'CUSTOM_EMAIL' as any,
-          AND: [
-            { metadata: { path: ['shopDomain'], equals: cleanShop } } as any,
-          ],
-        },
-      });
-      if (existing) {
-        return { id: existing.id, alias: (existing.metadata as any)?.alias };
-      }
-
+      // Generate alias
       const short = Math.random().toString(36).slice(2, 6);
-      const shopSlug = cleanShop
-        .replace(/[^a-zA-Z0-9]/g, '')
-        .slice(0, 8)
-        .toLowerCase();
+      
+      // For standalone, use generic prefix; for store, use shop slug
+      const prefix = cleanShop
+        ? cleanShop.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+        : 'support';
 
       // Add environment suffix to alias for routing (local/staging/production)
-      // This allows using a single Mailgun domain with multiple routes
       const envSuffix =
         process.env.NODE_ENV === 'development'
           ? '-local'
@@ -1002,7 +1475,7 @@ const emailRouter = t.router({
             ? '-staging'
             : ''; // Production has no suffix
 
-      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
+      const alias = `in+${prefix}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -1010,20 +1483,26 @@ const emailRouter = t.router({
       const conn = await prisma.connection.create({
         data: {
           type: 'CUSTOM_EMAIL' as any,
-          accessToken: webhookSecret, // store secret in accessToken for simplicity
+          accessToken: webhookSecret,
           userId: owner.id,
           metadata: {
             alias,
             provider: 'CUSTOM',
             domain,
             verifiedAt: null,
+            type: isStandalone ? 'STANDALONE' : 'STORE_LINKED',
             shopDomain: cleanShop,
           } as any,
         },
         select: { id: true },
       });
 
-      await logEvent('email.alias.created', { alias }, 'connection', conn.id);
+      await logEvent(
+        'email.alias.created',
+        { alias, type: isStandalone ? 'standalone' : 'store-linked' },
+        'connection',
+        conn.id
+      );
       return { id: conn.id, alias };
     }),
   rotateAlias: protectedProcedure
@@ -1117,6 +1596,77 @@ const emailRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
+  
+  deleteAlias: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify ownership
+      const alias = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId,
+          type: 'CUSTOM_EMAIL' as any,
+        },
+      });
+
+      if (!alias) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Email alias not found',
+        });
+      }
+
+      // Delete the alias
+      await prisma.connection.delete({
+        where: { id: input.id },
+      });
+
+      await logEvent(
+        'email.alias.deleted',
+        { alias: (alias.metadata as any)?.alias },
+        'connection',
+        input.id
+      );
+
+      return { success: true };
+    }),
+
+  getAliasLimits: protectedProcedure.query(async ({ ctx }) => {
+    // Count Shopify stores
+    const shopifyStores = await prisma.connection.count({
+      where: {
+        userId: ctx.userId,
+        type: 'SHOPIFY',
+      },
+    });
+
+    // Get existing aliases
+    const aliases = await prisma.connection.findMany({
+      where: {
+        userId: ctx.userId,
+        type: 'CUSTOM_EMAIL' as any,
+      },
+      select: { metadata: true },
+    });
+
+    const standaloneCount = aliases.filter(
+      (a) => !(a.metadata as any)?.shopDomain
+    ).length;
+
+    const storeLinkCount = aliases.filter(
+      (a) => !!(a.metadata as any)?.shopDomain
+    ).length;
+
+    return {
+      maxAliases: shopifyStores + 1, // 1 standalone + 1 per store
+      currentAliases: aliases.length,
+      standaloneUsed: standaloneCount,
+      storeLinkUsed: storeLinkCount,
+      canCreateStandalone: standaloneCount === 0,
+      canCreateStoreLink: storeLinkCount < shopifyStores,
+      shopifyStores,
+    };
+  }),
 });
 
 export const appRouter = t.router({
@@ -1467,6 +2017,16 @@ export const appRouter = t.router({
             updatedAt: true,
             shopDomain: true,
             connectionId: true,
+            lineItems: {
+              select: {
+                id: true,
+                shopifyId: true,
+                title: true,
+                quantity: true,
+                price: true,
+                sku: true,
+              },
+            },
           },
         }),
         unassignedConnectionIds.length
@@ -1489,6 +2049,13 @@ export const appRouter = t.router({
                 thread: {
                   select: {
                     subject: true,
+                    connectionId: true,
+                    connection: {
+                      select: {
+                        shopDomain: true,
+                        metadata: true,
+                      },
+                    },
                   },
                 },
                 aiSuggestion: {
@@ -2413,6 +2980,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             thread: {
               select: {
                 subject: true,
+                connectionId: true,
+                connection: {
+                  select: {
+                    shopDomain: true,
+                    metadata: true,
+                  },
+                },
               },
             },
             aiSuggestion: {
@@ -2533,6 +3107,188 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return { ok: false, error: error.message || 'Unknown error' };
       }
     }),
+
+  // Sync all orders from Shopify - bulk resync for catching missed webhooks
+  syncAllOrdersFromShopify: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string(),
+        // Optional: only sync orders updated after this date
+        updatedAfter: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        const conn = await prisma.connection.findFirst({
+          where: {
+            type: 'SHOPIFY',
+            shopDomain: input.shopDomain,
+            userId: ctx.userId,
+          },
+        });
+
+        if (!conn) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
+
+        const credentials = await getShopifyApiCredentials(conn.id, ctx.userId);
+        if (!credentials) {
+          return {
+            ok: false,
+            error: 'Failed to get API credentials',
+            synced: 0,
+          };
+        }
+
+        // Build query params - fetch orders updated in last 30 days by default
+        const params = new URLSearchParams({
+          status: 'any',
+          limit: '250', // Max allowed by Shopify
+        });
+
+        if (input.updatedAfter) {
+          params.set('updated_at_min', input.updatedAfter);
+        } else {
+          // Default: last 30 days
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          params.set('updated_at_min', thirtyDaysAgo.toISOString());
+        }
+
+        const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
+        const resp = await fetch(url, {
+          headers: {
+            'X-Shopify-Access-Token': credentials.accessToken,
+          },
+        });
+
+        if (!resp.ok) {
+          const errorText = await resp.text().catch(() => '');
+          console.error(
+            '[syncAllOrders] Shopify API error:',
+            resp.status,
+            errorText,
+          );
+          return {
+            ok: false,
+            error: `Shopify API error: ${resp.status}`,
+            synced: 0,
+          };
+        }
+
+        const json: any = await resp.json();
+        const orders = json.orders || [];
+
+        let synced = 0;
+        let errors = 0;
+
+        for (const order of orders) {
+          try {
+            // Determine status - check for cancellation
+            let orderStatus = (
+              order.financial_status || 'PENDING'
+            ).toUpperCase();
+            if (order.cancelled_at) {
+              orderStatus = 'CANCELLED';
+            }
+
+            const orderData = {
+              name: order.name || null,
+              email: order.email || order.customer?.email || null,
+              totalAmount: Math.round(
+                parseFloat(order.total_price || '0') * 100,
+              ),
+              status: orderStatus,
+              fulfillmentStatus: (
+                order.fulfillment_status || 'UNFULFILLED'
+              ).toUpperCase(),
+              shopDomain: input.shopDomain,
+              customerName: order.customer
+                ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() ||
+                  null
+                : null,
+              processedAt: order.processed_at
+                ? new Date(order.processed_at)
+                : null,
+              statusUpdatedAt: order.updated_at
+                ? new Date(order.updated_at)
+                : new Date(),
+            };
+
+            const upsertedOrder = await prisma.order.upsert({
+              where: { shopifyId: order.id.toString() },
+              create: {
+                shopifyId: order.id.toString(),
+                connectionId: conn.id,
+                ...orderData,
+              },
+              update: orderData,
+            });
+
+            // Sync line items if present (only if table exists)
+            if (order.line_items && order.line_items.length > 0) {
+              try {
+                // Delete existing and insert new (handles updates)
+                await prisma.orderLineItem.deleteMany({
+                  where: { orderId: upsertedOrder.id },
+                });
+
+                await prisma.orderLineItem.createMany({
+                  data: order.line_items.map((item: any) => ({
+                    orderId: upsertedOrder.id,
+                    shopifyId: String(item.id),
+                    title: item.title || 'Unknown Item',
+                    quantity: item.quantity || 1,
+                    price: Math.round(parseFloat(item.price || '0') * 100),
+                    sku: item.sku || null,
+                    variantId: item.variant_id ? String(item.variant_id) : null,
+                    productId: item.product_id ? String(item.product_id) : null,
+                  })),
+                });
+              } catch (lineItemError: any) {
+                // If OrderLineItem table doesn't exist yet, skip line items
+                // This allows orders to sync even before migration is applied
+                if (
+                  lineItemError?.code === 'P2021' ||
+                  lineItemError?.message?.includes('does not exist')
+                ) {
+                  console.warn(
+                    `[syncAllOrders] OrderLineItem table not found, skipping line items for order ${order.id}`,
+                  );
+                } else {
+                  throw lineItemError; // Re-throw other errors
+                }
+              }
+            }
+
+            synced++;
+          } catch (err) {
+            console.error(
+              '[syncAllOrders] Failed to sync order:',
+              order.id,
+              err,
+            );
+            errors++;
+          }
+        }
+
+        console.log(
+          `[syncAllOrders] Synced ${synced} orders with line items for ${input.shopDomain}, ${errors} errors`,
+        );
+        return { ok: true, synced, errors, total: orders.length };
+      } catch (error: any) {
+        console.error('[syncAllOrders] Error:', error);
+        return {
+          ok: false,
+          error: error.message || 'Unknown error',
+          synced: 0,
+        };
+      }
+    }),
+
   ordersRecent: protectedProcedure
     .input(
       z.object({
@@ -2616,6 +3372,32 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       const take = input.limit + 1; // fetch one extra to detect hasMore
 
       let orders;
+      const orderSelect = {
+        id: true,
+        shopifyId: true,
+        name: true,
+        email: true,
+        totalAmount: true,
+        currency: true,
+        customerName: true,
+        status: true,
+        fulfillmentStatus: true,
+        createdAt: true,
+        updatedAt: true,
+        shopDomain: true,
+        connectionId: true,
+        lineItems: {
+          select: {
+            id: true,
+            shopifyId: true,
+            title: true,
+            quantity: true,
+            price: true,
+            sku: true,
+          },
+        },
+      };
+
       if (input.cursor) {
         // Cursor-based pagination (faster for large datasets)
         orders = await prisma.order.findMany({
@@ -2625,21 +3407,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
           orderBy: { createdAt: 'desc' },
           take,
-          select: {
-            id: true,
-            shopifyId: true,
-            name: true,
-            email: true,
-            totalAmount: true,
-            currency: true,
-            customerName: true,
-            status: true,
-            fulfillmentStatus: true,
-            createdAt: true,
-            updatedAt: true,
-            shopDomain: true,
-            connectionId: true,
-          },
+          select: orderSelect,
         });
       } else {
         // Offset-based pagination (for backward compatibility)
@@ -2649,21 +3417,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           orderBy: { createdAt: 'desc' },
           skip: input.offset,
           take,
-          select: {
-            id: true,
-            shopifyId: true,
-            name: true,
-            email: true,
-            totalAmount: true,
-            currency: true,
-            customerName: true,
-            status: true,
-            fulfillmentStatus: true,
-            createdAt: true,
-            updatedAt: true,
-            shopDomain: true,
-            connectionId: true,
-          },
+          select: orderSelect,
         });
       }
 
