@@ -738,7 +738,7 @@ export default function InboxPage() {
 
       <div className="min-h-screen bg-[#f8f6f3] pt-20">
         {/* Top Bar */}
-        <div className="fixed top-16 left-0 right-0 z-40 bg-[#f8f6f3] border-b border-stone-200/60">
+        <div className="fixed top-20 left-0 right-0 z-40 bg-[#f8f6f3] border-b border-stone-200/60">
           <div className="flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-6">
               {/* Tab Switcher */}
