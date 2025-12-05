@@ -205,11 +205,11 @@ function IntegrationsInner() {
 
   // Mutations
   const createCustomApp = trpc.shopify.createCustomAppConnection.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Shopify store connected!');
       setShowShopifyDialog(false);
+      await utils.connections.invalidate();
       setConnectingItemId(null);
-      utils.connections.invalidate();
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -225,10 +225,10 @@ function IntegrationsInner() {
   });
 
   const createAlias = trpc.email.createAlias.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Email alias created!');
+      await utils.connections.invalidate();
       setConnectingItemId(null);
-      utils.connections.invalidate();
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -237,19 +237,19 @@ function IntegrationsInner() {
   });
 
   const rotateAlias = trpc.email.rotateAlias.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Alias rotated!');
-      utils.connections.invalidate();
+      await utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const setAliasStatus = trpc.email.setAliasStatus.useMutation({
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const action = variables.disabled ? 'disabled' : 'enabled';
       toast.success(`Email alias ${action} successfully!`);
+      await utils.connections.invalidate();
       setRemovingItemId(null);
-      utils.connections.invalidate();
     },
     onError: (err: any) => {
       toast.error(err.message);
@@ -258,37 +258,37 @@ function IntegrationsInner() {
   });
 
   const updateStoreName = trpc.shopify.updateStoreName.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Store name updated');
       setEditingStoreId(null);
-      utils.connections.invalidate();
+      await utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const disconnectStore = trpc.shopify.disconnectStore.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Store disconnected');
       setDisconnectDialogOpen(null);
-      utils.connections.invalidate();
+      await utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const disconnectGA = trpc.disconnectGoogleAnalytics.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Google Analytics disconnected');
       setDisconnectGADialogOpen(false);
-      utils.connections.invalidate();
+      await utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const disconnectMetaAds = trpc.disconnectMetaAds.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success('Meta Ads disconnected');
       setDisconnectMetaAdsDialogOpen(false);
-      utils.connections.invalidate();
+      await utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
   });
