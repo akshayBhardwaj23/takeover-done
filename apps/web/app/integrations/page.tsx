@@ -671,10 +671,13 @@ function IntegrationsInner() {
                         <h3 className="font-semibold text-blue-900">How Email Aliases Work</h3>
                         <div className="text-sm text-blue-800 space-y-1">
                           <p>
-                            <strong>What it is:</strong> Get a unique email address (like support-abc123@mail.zyyp.ai) that forwards customer emails to your ZYYP inbox.
+                            <strong>What it is:</strong> Get a unique ZYYP email address (like support-abc123@mail.zyyp.ai) to receive customer support emails.
                           </p>
                           <p>
-                            <strong>How to use:</strong> Share this email with customers for support. All emails are automatically organized and can be replied to with AI assistance.
+                            <strong>How to set up:</strong> Forward your existing support email (e.g., support@yourstore.com) to this ZYYP alias. All customer emails will then flow into your ZYYP inbox.
+                          </p>
+                          <p>
+                            <strong>Benefits:</strong> AI-powered responses, automatic organization, and order matching (when linked to Shopify stores).
                           </p>
                           <p>
                             <strong>Types:</strong> Create a standalone alias for general support, or link one to each Shopify store for automatic order matching.
@@ -684,6 +687,7 @@ function IntegrationsInner() {
                     </div>
                   </div>
                 )}
+                
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {items.map((item) => (
                     <IntegrationCard
