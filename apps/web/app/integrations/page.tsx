@@ -57,6 +57,8 @@ function IntegrationCard({
   onRemove,
   onSync,
   isSyncing,
+  isConnecting,
+  isRemoving,
 }: {
   item: IntegrationItem;
   onToggle: (item: IntegrationItem) => void;
@@ -64,6 +66,8 @@ function IntegrationCard({
   onRemove: (item: IntegrationItem) => void;
   onSync?: (item: IntegrationItem) => void;
   isSyncing?: boolean;
+  isConnecting?: boolean;
+  isRemoving?: boolean;
 }) {
   return (
     <div className="flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-6 shadow-sm transition-all hover:shadow-md">
@@ -101,6 +105,7 @@ function IntegrationCard({
               size="sm"
               className="h-9 flex-1 rounded-lg border-zinc-300 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400 hover:text-zinc-900"
               onClick={() => onDetails(item)}
+              disabled={isConnecting || isRemoving || isSyncing}
             >
               {item.type === 'EMAIL' ? 'Copy Email' : 'Details'}
             </Button>
@@ -113,10 +118,15 @@ function IntegrationCard({
                   : 'text-red-600 hover:bg-red-100 hover:text-red-700'
               }`}
               onClick={() => onRemove(item)}
+              disabled={isRemoving || isConnecting || isSyncing}
             >
-              {item.type === 'EMAIL' 
-                ? (item.isEnabled ? 'Disable' : 'Enable')
-                : 'Remove'}
+              {isRemoving ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                item.type === 'EMAIL' 
+                  ? (item.isEnabled ? 'Disable' : 'Enable')
+                  : 'Remove'
+              )}
             </Button>
           </>
         ) : (
@@ -124,8 +134,16 @@ function IntegrationCard({
             size="sm"
             className="h-9 w-full rounded-lg bg-zinc-900 text-xs font-medium text-white hover:bg-zinc-800"
             onClick={() => onDetails(item)} // Reusing onDetails for "Connect" action
+            disabled={isConnecting}
           >
-            Connect
+            {isConnecting ? (
+              <>
+                <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              'Connect'
+            )}
           </Button>
         )}
       </div>
@@ -181,14 +199,22 @@ function IntegrationsInner() {
   const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] =
     useState(false);
 
+  // State for tracking loading items
+  const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+
   // Mutations
   const createCustomApp = trpc.shopify.createCustomAppConnection.useMutation({
     onSuccess: () => {
       toast.success('Shopify store connected!');
       setShowShopifyDialog(false);
+      setConnectingItemId(null);
       utils.connections.invalidate();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      toast.error(err.message);
+      setConnectingItemId(null);
+    },
   });
 
   const syncOrders = trpc.shopify.syncOrders.useMutation({
@@ -201,9 +227,13 @@ function IntegrationsInner() {
   const createAlias = trpc.email.createAlias.useMutation({
     onSuccess: () => {
       toast.success('Email alias created!');
+      setConnectingItemId(null);
       utils.connections.invalidate();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      toast.error(err.message);
+      setConnectingItemId(null);
+    },
   });
 
   const rotateAlias = trpc.email.rotateAlias.useMutation({
@@ -218,9 +248,13 @@ function IntegrationsInner() {
     onSuccess: (_, variables) => {
       const action = variables.disabled ? 'disabled' : 'enabled';
       toast.success(`Email alias ${action} successfully!`);
+      setRemovingItemId(null);
       utils.connections.invalidate();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any) => {
+      toast.error(err.message);
+      setRemovingItemId(null);
+    },
   });
 
   const updateStoreName = trpc.shopify.updateStoreName.useMutation({
@@ -501,6 +535,9 @@ function IntegrationsInner() {
           return;
         }
 
+        // Set loading state
+        setConnectingItemId(item.id);
+
         // Determine if this is a standalone or store-linked alias
         let targetShop: string | undefined;
         
@@ -577,6 +614,9 @@ function IntegrationsInner() {
     } else if (item.type === 'META_ADS') {
       setDisconnectMetaAdsDialogOpen(true);
     } else if (item.type === 'EMAIL') {
+      // Set loading state
+      setRemovingItemId(item.id);
+      
       // Toggle the email alias status (enable/disable)
       setAliasStatus.mutate({
         id: item.id,
@@ -630,6 +670,8 @@ function IntegrationsInner() {
                       onRemove={handleRemove}
                       onSync={handleSync}
                       isSyncing={syncOrders.isPending}
+                      isConnecting={connectingItemId === item.id}
+                      isRemoving={removingItemId === item.id}
                     />
                   ))}
                 </div>
