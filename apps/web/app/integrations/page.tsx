@@ -85,7 +85,7 @@ function IntegrationCard({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-lg border-zinc-300 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400"
+                className="h-9 rounded-lg border-zinc-300 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400 hover:text-zinc-900"
                 onClick={() => onSync(item)}
                 disabled={isSyncing}
               >
@@ -99,7 +99,7 @@ function IntegrationCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-9 flex-1 rounded-lg border-zinc-300 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400"
+              className="h-9 flex-1 rounded-lg border-zinc-300 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:border-zinc-400 hover:text-zinc-900"
               onClick={() => onDetails(item)}
             >
               Details
