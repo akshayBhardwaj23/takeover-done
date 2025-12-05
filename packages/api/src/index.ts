@@ -1368,33 +1368,88 @@ const emailRouter = t.router({
       z.object({
         userEmail: z.string().email(),
         domain: z.string().min(3),
-        shop: z.string().min(3),
+        shop: z.string().min(3).optional(), // NOW OPTIONAL - allows standalone aliases
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const cleanEmail = safeEmail(input.userEmail);
-      const cleanShop = safeShopDomain(input.shop);
       const domain = sanitizeLimited(input.domain, 255);
-      if (!cleanEmail || !cleanShop) {
+      
+      if (!cleanEmail) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: 'Invalid email or shop domain',
+          message: 'Invalid email address',
         });
       }
-      // Verify user owns the shop connection
-      const shopConnection = await prisma.connection.findFirst({
+
+      // Get all existing aliases for this user
+      const existingAliases = await prisma.connection.findMany({
         where: {
-          shopDomain: cleanShop,
           userId: ctx.userId,
-          type: 'SHOPIFY',
+          type: 'CUSTOM_EMAIL' as any,
         },
+        select: { id: true, metadata: true },
       });
 
-      if (!shopConnection) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'Shop access denied',
+      // Determine if this is a standalone or store-linked alias
+      const isStandalone = !input.shop;
+      let cleanShop: string | undefined;
+
+      if (isStandalone) {
+        // STANDALONE ALIAS - Check if user already has one
+        const hasStandalone = existingAliases.some(
+          (a) => !(a.metadata as any)?.shopDomain
+        );
+
+        if (hasStandalone) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'You already have a standalone email alias. Each user can have only one standalone alias.',
+          });
+        }
+      } else {
+        // STORE-LINKED ALIAS
+        const shopDomainResult = safeShopDomain(input.shop);
+        cleanShop = shopDomainResult || undefined;
+        
+        if (!cleanShop) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Invalid shop domain',
+          });
+        }
+
+        // Verify user owns the shop connection
+        const shopConnection = await prisma.connection.findFirst({
+          where: {
+            shopDomain: cleanShop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
         });
+
+        if (!shopConnection) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'You do not own this Shopify store',
+          });
+        }
+
+        // Check if this store already has an alias
+        const storeHasAlias = existingAliases.some(
+          (a) => (a.metadata as any)?.shopDomain === cleanShop
+        );
+
+        if (storeHasAlias) {
+          const existing = existingAliases.find(
+            (a) => (a.metadata as any)?.shopDomain === cleanShop
+          );
+          return {
+            id: existing!.id,
+            alias: (existing!.metadata as any)?.alias,
+          };
+        }
       }
 
       // Create or ensure user exists
@@ -1404,28 +1459,15 @@ const emailRouter = t.router({
         update: {},
       });
 
-      // If an alias already exists for this shop, return it
-      const existing = await prisma.connection.findFirst({
-        where: {
-          userId: ctx.userId, // Multi-tenant scoping
-          type: 'CUSTOM_EMAIL' as any,
-          AND: [
-            { metadata: { path: ['shopDomain'], equals: cleanShop } } as any,
-          ],
-        },
-      });
-      if (existing) {
-        return { id: existing.id, alias: (existing.metadata as any)?.alias };
-      }
-
+      // Generate alias
       const short = Math.random().toString(36).slice(2, 6);
-      const shopSlug = cleanShop
-        .replace(/[^a-zA-Z0-9]/g, '')
-        .slice(0, 8)
-        .toLowerCase();
+      
+      // For standalone, use generic prefix; for store, use shop slug
+      const prefix = cleanShop
+        ? cleanShop.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+        : 'support';
 
       // Add environment suffix to alias for routing (local/staging/production)
-      // This allows using a single Mailgun domain with multiple routes
       const envSuffix =
         process.env.NODE_ENV === 'development'
           ? '-local'
@@ -1433,7 +1475,7 @@ const emailRouter = t.router({
             ? '-staging'
             : ''; // Production has no suffix
 
-      const alias = `in+${shopSlug}-${short}${envSuffix}@${domain}`;
+      const alias = `in+${prefix}-${short}${envSuffix}@${domain}`;
       const webhookSecret =
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
@@ -1441,20 +1483,26 @@ const emailRouter = t.router({
       const conn = await prisma.connection.create({
         data: {
           type: 'CUSTOM_EMAIL' as any,
-          accessToken: webhookSecret, // store secret in accessToken for simplicity
+          accessToken: webhookSecret,
           userId: owner.id,
           metadata: {
             alias,
             provider: 'CUSTOM',
             domain,
             verifiedAt: null,
+            type: isStandalone ? 'STANDALONE' : 'STORE_LINKED',
             shopDomain: cleanShop,
           } as any,
         },
         select: { id: true },
       });
 
-      await logEvent('email.alias.created', { alias }, 'connection', conn.id);
+      await logEvent(
+        'email.alias.created',
+        { alias, type: isStandalone ? 'standalone' : 'store-linked' },
+        'connection',
+        conn.id
+      );
       return { id: conn.id, alias };
     }),
   rotateAlias: protectedProcedure
@@ -1548,6 +1596,77 @@ const emailRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
+  
+  deleteAlias: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Verify ownership
+      const alias = await prisma.connection.findFirst({
+        where: {
+          id: input.id,
+          userId: ctx.userId,
+          type: 'CUSTOM_EMAIL' as any,
+        },
+      });
+
+      if (!alias) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Email alias not found',
+        });
+      }
+
+      // Delete the alias
+      await prisma.connection.delete({
+        where: { id: input.id },
+      });
+
+      await logEvent(
+        'email.alias.deleted',
+        { alias: (alias.metadata as any)?.alias },
+        'connection',
+        input.id
+      );
+
+      return { success: true };
+    }),
+
+  getAliasLimits: protectedProcedure.query(async ({ ctx }) => {
+    // Count Shopify stores
+    const shopifyStores = await prisma.connection.count({
+      where: {
+        userId: ctx.userId,
+        type: 'SHOPIFY',
+      },
+    });
+
+    // Get existing aliases
+    const aliases = await prisma.connection.findMany({
+      where: {
+        userId: ctx.userId,
+        type: 'CUSTOM_EMAIL' as any,
+      },
+      select: { metadata: true },
+    });
+
+    const standaloneCount = aliases.filter(
+      (a) => !(a.metadata as any)?.shopDomain
+    ).length;
+
+    const storeLinkCount = aliases.filter(
+      (a) => !!(a.metadata as any)?.shopDomain
+    ).length;
+
+    return {
+      maxAliases: shopifyStores + 1, // 1 standalone + 1 per store
+      currentAliases: aliases.length,
+      standaloneUsed: standaloneCount,
+      storeLinkUsed: storeLinkCount,
+      canCreateStandalone: standaloneCount === 0,
+      canCreateStoreLink: storeLinkCount < shopifyStores,
+      shopifyStores,
+    };
+  }),
 });
 
 export const appRouter = t.router({

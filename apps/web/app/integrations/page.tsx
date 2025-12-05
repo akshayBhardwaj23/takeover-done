@@ -350,11 +350,16 @@ function IntegrationsInner() {
     if (emailConnections.length > 0) {
       emailConnections.forEach((c: any) => {
         const meta = (c.metadata as any) || {};
+        const isStandalone = !meta.shopDomain;
+        const aliasType = meta.type || (isStandalone ? 'STANDALONE' : 'STORE_LINKED');
+        
         items.push({
           id: c.id,
           type: 'EMAIL',
-          name: meta.alias || 'Email Alias',
-          description: `Routing to: ${meta.shopDomain || 'Unknown'}.`,
+          name: isStandalone 
+            ? 'Standalone Email Alias' 
+            : `Email for ${meta.shopDomain?.split('.')[0] || 'Store'}`,
+          description: `${meta.alias || 'Email Alias'}${isStandalone ? ' (General Support)' : ''}`,
           category: 'Communication & Collaboration',
           status: 'connected',
           icon: Mail,
@@ -383,31 +388,35 @@ function IntegrationsInner() {
           originalObject: store,
         });
       });
-    } else {
-      if (shopifyConnections.length > 0) {
-        // Show placeholder if there are stores but no aliases
+      
+      // Check if user has a standalone alias
+      const hasStandalone = emailConnections.some(
+        (c: any) => !(c.metadata as any)?.shopDomain
+      );
+      
+      // Show option to create standalone alias if they don't have one
+      if (!hasStandalone) {
         items.push({
-          id: 'email-placeholder',
+          id: 'email-standalone',
           type: 'EMAIL',
-          name: 'Email Aliases',
-          description:
-            'Create email aliases to route support emails through Zyyp.',
-          category: 'Communication & Collaboration',
-          status: 'disconnected',
-          icon: Mail,
-        });
-      } else {
-        // No stores connected yet
-        items.push({
-          id: 'email-placeholder',
-          type: 'EMAIL',
-          name: 'Email Aliases',
-          description: 'Connect a Shopify store first to create email aliases.',
+          name: 'Standalone Email Alias',
+          description: 'Create a general support email alias (no Shopify required).',
           category: 'Communication & Collaboration',
           status: 'disconnected',
           icon: Mail,
         });
       }
+    } else {
+      // No email aliases yet - show option to create standalone
+      items.push({
+        id: 'email-standalone',
+        type: 'EMAIL',
+        name: 'Email Alias',
+        description: 'Create a support email alias for your business.',
+        category: 'Communication & Collaboration',
+        status: 'disconnected',
+        icon: Mail,
+      });
     }
 
     // 4. Google Analytics
@@ -484,13 +493,18 @@ function IntegrationsInner() {
           return;
         }
 
-        // If this is an "Add Email Alias for Store X" item, use that store
+        // Determine if this is a standalone or store-linked alias
         let targetShop: string | undefined;
+        
+        // If this is an "Add Email Alias for Store X" item, use that store
         if (
           item.id?.startsWith('email-add-') &&
           item.originalObject?.shopDomain
         ) {
           targetShop = item.originalObject.shopDomain;
+        } else if (item.id === 'email-standalone') {
+          // Creating standalone alias (no shop required)
+          targetShop = undefined;
         } else {
           // Otherwise, find all available shops
           const availableShops = connections
@@ -498,12 +512,10 @@ function IntegrationsInner() {
             .map((c: any) => c.shopDomain);
 
           if (availableShops.length === 0) {
-            toast.warning('Connect a Shopify store first.');
-            return;
-          }
-
-          // If only one shop, use it directly
-          if (availableShops.length === 1) {
+            // No shops available - create standalone alias
+            targetShop = undefined;
+          } else if (availableShops.length === 1) {
+            // If only one shop, use it directly
             targetShop = availableShops[0];
           } else {
             // Multiple shops - show selection dialog (for now, use first)
@@ -515,17 +527,12 @@ function IntegrationsInner() {
           }
         }
 
-        if (!targetShop) {
-          toast.warning('No store selected for email alias.');
-          return;
-        }
-
         createAlias.mutate({
           userEmail: email,
           domain:
             (process.env.NEXT_PUBLIC_INBOUND_EMAIL_DOMAIN as any) ||
             'mail.example.com',
-          shop: targetShop,
+          shop: targetShop, // Now optional - undefined for standalone
         });
       } else if (item.type === 'GA4') {
         window.location.href = '/api/google-analytics/install';
