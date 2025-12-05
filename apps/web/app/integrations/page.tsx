@@ -107,10 +107,16 @@ function IntegrationCard({
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 rounded-lg px-4 text-xs font-medium text-red-600 hover:bg-red-100 hover:text-red-700"
+              className={`h-9 rounded-lg px-4 text-xs font-medium ${
+                item.type === 'EMAIL' && !item.isEnabled
+                  ? 'text-green-600 hover:bg-green-100 hover:text-green-700'
+                  : 'text-red-600 hover:bg-red-100 hover:text-red-700'
+              }`}
               onClick={() => onRemove(item)}
             >
-              Remove
+              {item.type === 'EMAIL' 
+                ? (item.isEnabled ? 'Disable' : 'Enable')
+                : 'Remove'}
             </Button>
           </>
         ) : (
@@ -209,8 +215,9 @@ function IntegrationsInner() {
   });
 
   const setAliasStatus = trpc.email.setAliasStatus.useMutation({
-    onSuccess: () => {
-      toast.success('Alias status updated!');
+    onSuccess: (_, variables) => {
+      const action = variables.disabled ? 'disabled' : 'enabled';
+      toast.success(`Email alias ${action} successfully!`);
       utils.connections.invalidate();
     },
     onError: (err: any) => toast.error(err.message),
@@ -352,14 +359,15 @@ function IntegrationsInner() {
         const meta = (c.metadata as any) || {};
         const isStandalone = !meta.shopDomain;
         const aliasType = meta.type || (isStandalone ? 'STANDALONE' : 'STORE_LINKED');
+        const isDisabled = meta.disabled;
         
         items.push({
           id: c.id,
           type: 'EMAIL',
           name: isStandalone 
-            ? 'Standalone Email Alias' 
-            : `Email for ${meta.shopDomain?.split('.')[0] || 'Store'}`,
-          description: `${meta.alias || 'Email Alias'}${isStandalone ? ' (General Support)' : ''}`,
+            ? `Standalone Email Alias${isDisabled ? ' (Disabled)' : ''}` 
+            : `Email for ${meta.shopDomain?.split('.')[0] || 'Store'}${isDisabled ? ' (Disabled)' : ''}`,
+          description: `${meta.alias || 'Email Alias'}${isStandalone ? ' (General Support)' : ''}${isDisabled ? ' - Not receiving emails' : ''}`,
           category: 'Communication & Collaboration',
           status: 'connected',
           icon: Mail,
@@ -569,10 +577,10 @@ function IntegrationsInner() {
     } else if (item.type === 'META_ADS') {
       setDisconnectMetaAdsDialogOpen(true);
     } else if (item.type === 'EMAIL') {
-      // Disable the email alias
+      // Toggle the email alias status (enable/disable)
       setAliasStatus.mutate({
         id: item.id,
-        disabled: true,
+        disabled: !!item.isEnabled, // If currently enabled, disable it; if disabled, enable it
       });
     }
   };
