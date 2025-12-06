@@ -36,6 +36,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
+import { LumaSpin } from '../../components/ui/luma-spin';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
 
 // =============================================================================
@@ -787,6 +788,14 @@ export default function InboxPage() {
   // =============================================================================
   // RENDER
   // =============================================================================
+
+  if (inboxBootstrap.isLoading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-[#f8f6f3]">
+        <LumaSpin />
+      </div>
+    );
+  }
 
   return (
     <>
