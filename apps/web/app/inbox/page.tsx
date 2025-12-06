@@ -1414,68 +1414,7 @@ export default function InboxPage() {
                       )}
                     </ScrollArea>
 
-                    {/* Reply Input for Orders */}
-                    <div className="p-4 border-t border-stone-100">
-                      <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300">
-                        <div className="relative">
-                          <div
-                            className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              const startY = e.clientY;
-                              const startHeight = orderTextareaHeight;
-                              
-                              const handleMouseMove = (moveEvent: MouseEvent) => {
-                                const deltaY = moveEvent.clientY - startY;
-                                const newHeight = Math.max(80, Math.min(500, startHeight + deltaY));
-                                setOrderTextareaHeight(newHeight);
-                              };
-                              
-                              const handleMouseUp = () => {
-                                document.removeEventListener('mousemove', handleMouseMove);
-                                document.removeEventListener('mouseup', handleMouseUp);
-                              };
-                              
-                              document.addEventListener('mousemove', handleMouseMove);
-                              document.addEventListener('mouseup', handleMouseUp);
-                            }}
-                          >
-                            <GripVertical className="h-4 w-4 text-stone-400" />
-                          </div>
-                          <textarea
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            placeholder="Reply to customer..."
-                            style={{ height: `${orderTextareaHeight}px` }}
-                            className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
-                          />
-                        </div>
-                        <div className="flex items-center justify-end px-4 py-2 border-t border-stone-100 bg-white">
-                          <Button
-                            size="sm"
-                            onClick={handleSendOrderReply}
-                            disabled={
-                              !draft.trim() ||
-                              createAction.isPending ||
-                              approveSend.isPending
-                            }
-                            className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
-                          >
-                            {createAction.isPending || approveSend.isPending ? (
-                              <>
-                                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-3.5 w-3.5 mr-1.5" />
-                                Send Reply
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
+
                   </>
                     );
                   })()
@@ -1792,9 +1731,13 @@ export default function InboxPage() {
                                   {(orderMessages.data?.messages as any[])
                                     .slice(0, 3)
                                     .map((msg: any) => (
-                                      <div
+                                      <button
                                         key={msg.id}
-                                        className="rounded-lg bg-stone-50 p-3"
+                                        onClick={() => {
+                                          setView('inbox');
+                                          handleSelectEmail(msg);
+                                        }}
+                                        className="w-full text-left rounded-lg bg-stone-50 p-3 hover:bg-stone-100 transition-colors"
                                       >
                                         <div className="flex items-center justify-between mb-1">
                                           <Badge
@@ -1809,7 +1752,7 @@ export default function InboxPage() {
                                         <p className="text-xs text-stone-600 line-clamp-2">
                                           {msg.body}
                                         </p>
-                                      </div>
+                                      </button>
                                     ))}
                                 </div>
                               ) : (
