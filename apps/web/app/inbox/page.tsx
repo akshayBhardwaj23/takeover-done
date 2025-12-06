@@ -500,7 +500,7 @@ export default function InboxPage() {
       ? inboxBootstrap.data.unassigned
       : [];
 
-    // Combine and dedupe
+    // Combine and dedupe by email ID
     const emailMap = new Map<string, any>();
     [...unassigned, ...bootstrapUnassigned].forEach((email: any) => {
       if (!emailMap.has(email.id)) {
@@ -519,8 +519,34 @@ export default function InboxPage() {
       }
     });
 
+    // Group emails by thread - show one entry per thread (conversation)
+    const threadMap = new Map<string, any[]>();
+    emailMap.forEach((email) => {
+      const threadId = email.thread?.id || email.id; // Fallback to email ID if no thread
+      if (!threadMap.has(threadId)) {
+        threadMap.set(threadId, []);
+      }
+      threadMap.get(threadId)!.push(email);
+    });
+
+    // For each thread, get the most recent email as the representative
+    const threadRepresentatives = Array.from(threadMap.entries()).map(([threadId, emails]) => {
+      // Sort emails in thread by date (most recent first)
+      const sortedEmails = emails.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const latestEmail = sortedEmails[0];
+      
+      // Add thread metadata
+      return {
+        ...latestEmail,
+        threadMessageCount: emails.length,
+        threadEmails: sortedEmails,
+      };
+    });
+
     // Sort by unread status first, then by date descending
-    return Array.from(emailMap.values()).sort((a, b) => {
+    return threadRepresentatives.sort((a, b) => {
       const aUnread = a.thread?.isUnread ?? true;
       const bUnread = b.thread?.isUnread ?? true;
       
@@ -991,17 +1017,24 @@ export default function InboxPage() {
                                     {relativeTime(email.createdAt)}
                                   </span>
                                 </div>
-                                <p
-                                  className={`text-xs truncate mb-1 ${
-                                    isUnread
-                                      ? 'font-medium text-stone-900'
-                                      : 'text-stone-600'
-                                  }`}
-                                >
-                                  {email.subject ||
-                                    email.thread?.subject ||
-                                    'No subject'}
-                                </p>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p
+                                    className={`text-xs truncate ${
+                                      isUnread
+                                        ? 'font-medium text-stone-900'
+                                        : 'text-stone-600'
+                                    }`}
+                                  >
+                                    {email.subject ||
+                                      email.thread?.subject ||
+                                      'No subject'}
+                                  </p>
+                                  {email.threadMessageCount > 1 && (
+                                    <span className="text-xs text-stone-400 flex-shrink-0">
+                                      ({email.threadMessageCount})
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-stone-500 line-clamp-1">
                                   {email.snippet || email.body?.slice(0, 80)}
                                 </p>
