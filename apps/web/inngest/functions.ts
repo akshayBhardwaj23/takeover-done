@@ -1,5 +1,5 @@
 import { inngest } from './client';
-import { prisma } from '@ai-ecom/db';
+import { prisma, canUseAI, incrementAISuggestion } from '@ai-ecom/db';
 
 // Process inbound email and generate AI suggestion
 // This replaces the BullMQ worker job
@@ -53,15 +53,28 @@ export const processInboundEmail = inngest.createFunction(
       const signatureBlock = `${storeName}\nCustomer Support Team`;
 
       // Check AI usage limit before generating suggestion
-      // NOTE: AI limit check temporarily disabled for demo
-      // TODO: Re-enable canUseAI check after demo
       const userId = connection?.userId;
-      // if (userId) {
-      //   const aiUsage = await canUseAI(userId);
-      //   if (!aiUsage.allowed) {
-      //     ...
-      //   }
-      // }
+      if (userId) {
+        const aiUsage = await canUseAI(userId);
+        if (!aiUsage.allowed) {
+          console.warn(`[Inngest] AI usage limit reached for user ${userId}`);
+          await prisma.aISuggestion.upsert({
+            where: { messageId },
+            update: {
+              reply: "AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.",
+              proposedAction: 'NONE',
+              confidence: 0
+            },
+            create: {
+              messageId,
+              reply: "AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.",
+              proposedAction: 'NONE',
+              confidence: 0
+            }
+          });
+          return;
+        }
+      }
 
       // Extract customer name from email
       const customerName = customerEmail
@@ -267,18 +280,16 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
 
       // Increment AI suggestion count after successfully generating
-      // NOTE: Temporarily disabled for demo
-      // TODO: Re-enable incrementAISuggestion after demo
-      // if (userId) {
-      //   try {
-      //     await incrementAISuggestion(userId);
-      //   } catch (error) {
-      //     console.error(
-      //       '[Inngest] Failed to increment AI suggestion count:',
-      //       error,
-      //     );
-      //   }
-      // }
+      if (userId) {
+        try {
+          await incrementAISuggestion(userId);
+        } catch (error) {
+          console.error(
+            '[Inngest] Failed to increment AI suggestion count:',
+            error,
+          );
+        }
+      }
 
       console.log(`[Inngest] AI suggestion generated for message ${messageId}`);
 
