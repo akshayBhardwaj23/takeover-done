@@ -1084,7 +1084,11 @@ export default function InboxPage() {
               {/* ============================================================= */}
               {/* CENTER PANEL - Conversation / Email Detail */}
               {/* ============================================================= */}
-              <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+              {/* ============================================================= */}
+              {/* CENTER PANEL - Conversation / Email Detail */}
+              {/* ============================================================= */}
+              {view !== 'orders' && (
+                <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
                 {view === 'inbox' && selectedEmail ? (
                   <>
                     {/* Header */}
@@ -1280,172 +1284,28 @@ export default function InboxPage() {
                       </div>
                     </div>
                   </>
-                ) : view === 'orders' && selectedOrderId ? (
-                  // Order Detail View
-                  (() => {
-                    const selectedOrder = ordersAccum.find(
-                      (o) => o.shopifyId === selectedOrderId,
-                    );
-                    const detailStoreName = getStoreName(
-                      selectedOrder?.shopDomain,
-                      selectedOrder?.connectionId ? connectionsMap.get(selectedOrder.connectionId)?.metadata : null,
-                    );
-                    const detailStoreColor = getStoreColor(selectedOrder?.shopDomain || 'default');
-                    return (
-                  <>
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-stone-100 flex items-center justify-center">
-                          <ShoppingBag className="h-5 w-5 text-stone-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-semibold text-stone-900">
-                              {selectedOrder?.name || `Order ${selectedOrderId.slice(-6)}`}
-                            </h2>
-                            {selectedOrder?.shopDomain && (
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${detailStoreColor}`}
-                              >
-                                <Store className="h-3 w-3" />
-                                {detailStoreName}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-stone-500">
-                            {selectedOrder?.email || 'No email'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            refreshOrder.mutate({
-                              shop,
-                              orderId: selectedOrderId,
-                            })
-                          }
-                          disabled={refreshOrder.isPending}
-                          className="rounded-lg text-xs"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 mr-1.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
-                          />
-                          Sync
-                        </Button>
-                      </div>
-                    </div>
 
-                    <ScrollArea className="flex-1 p-6">
-                      {/* Order Messages Thread */}
-                      {orderMessages.isLoading ? (
-                        <ConversationSkeleton />
-                      ) : (orderMessages.data?.messages ?? []).length > 0 ? (
-                        <div className="space-y-6">
-                          {(orderMessages.data?.messages as any[]).map(
-                            (message) => (
-                              <div
-                                key={message.id}
-                                className="flex items-start gap-3"
-                              >
-                                <div
-                                  className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${
-                                    message.direction === 'INBOUND'
-                                      ? getAvatarColor(
-                                          message.from || 'customer',
-                                        )
-                                      : 'bg-stone-900'
-                                  }`}
-                                >
-                                  {message.direction === 'INBOUND'
-                                    ? getInitials(null, message.from)
-                                    : 'ZY'}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-semibold text-stone-900">
-                                      {message.direction === 'INBOUND'
-                                        ? getSenderName(message.from)
-                                        : 'You'}
-                                    </span>
-                                    <span className="text-xs text-stone-500">
-                                      {formatTime(message.createdAt)}
-                                    </span>
-                                    <Badge
-                                      className={`text-xs ${
-                                        message.direction === 'INBOUND'
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : 'bg-sky-100 text-sky-700'
-                                      }`}
-                                    >
-                                      {message.direction}
-                                    </Badge>
-                                  </div>
-                                  <div
-                                    className={`rounded-2xl p-4 ${
-                                      message.direction === 'INBOUND'
-                                        ? 'rounded-tl-none bg-stone-100'
-                                        : 'rounded-tr-none bg-stone-900 text-white'
-                                    }`}
-                                  >
-                                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                      {message.body}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                          <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
-                            <MessageSquare className="h-6 w-6 text-stone-400" />
-                          </div>
-                          <p className="text-sm font-medium text-stone-900">
-                            No messages yet
-                          </p>
-                          <p className="text-xs text-stone-500 mt-1">
-                            Start a conversation with this customer
-                          </p>
-                        </div>
-                      )}
-                    </ScrollArea>
-
-
-                  </>
-                    );
-                  })()
                 ) : (
                   // Empty State
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                     <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
-                      {view === 'inbox' ? (
-                        <Mail className="h-8 w-8 text-stone-400" />
-                      ) : (
-                        <ShoppingBag className="h-8 w-8 text-stone-400" />
-                      )}
+                      <Mail className="h-8 w-8 text-stone-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-stone-900 mb-1">
-                      {view === 'inbox'
-                        ? 'Select a conversation'
-                        : 'Select an order'}
+                      Select a conversation
                     </h3>
                     <p className="text-sm text-stone-500 max-w-sm">
-                      {view === 'inbox'
-                        ? 'Choose an email from the list to view the conversation and reply'
-                        : 'Choose an order to view details and communicate with the customer'}
+                      Choose an email from the list to view the conversation and reply
                     </p>
                   </div>
                 )}
               </div>
+            )}
 
               {/* ============================================================= */}
               {/* RIGHT PANEL - Profile / Order Details */}
               {/* ============================================================= */}
-              <div className="w-80 flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className={`${view === 'orders' ? 'flex-1' : 'w-80'} flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden`}>
                 {view === 'inbox' && selectedEmail ? (
                   <>
                     {/* Profile Header */}
@@ -1502,6 +1362,7 @@ export default function InboxPage() {
                                 ).toLocaleDateString()}
                               </p>
                             </div>
+
                           </div>
                         </div>
 
@@ -1600,9 +1461,31 @@ export default function InboxPage() {
                       <span className="text-sm font-semibold text-stone-900">
                         Order Details
                       </span>
-                      <button className="p-1 rounded-lg hover:bg-stone-100 transition">
-                        <X className="h-4 w-4 text-stone-400" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            refreshOrder.mutate({
+                              shop,
+                              orderId: selectedOrderId,
+                            })
+                          }
+                          disabled={refreshOrder.isPending}
+                          className="h-8 rounded-lg text-xs"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 mr-1.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                          />
+                          Sync
+                        </Button>
+                        <button 
+                          className="p-1 rounded-lg hover:bg-stone-100 transition"
+                          onClick={() => setSelectedOrderId(null)}
+                        >
+                          <X className="h-4 w-4 text-stone-400" />
+                        </button>
+                      </div>
                     </div>
 
                     <ScrollArea className="flex-1">
