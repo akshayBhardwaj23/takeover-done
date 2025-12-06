@@ -2034,7 +2034,7 @@ export const appRouter = t.router({
           ? prisma.message.findMany({
               where: {
                 // Show ALL emails in inbox (both inbound and outbound)
-                thread: { connectionId: { in: unassignedConnectionIds } },
+                connectionId: { in: unassignedConnectionIds },
               },
               orderBy: { createdAt: 'desc' },
               take: unassignedTake,
@@ -2693,6 +2693,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               select: {
                 id: true,
                 subject: true,
+                connectionId: true,
                 connection: {
                   select: {
                     id: true,
@@ -2875,6 +2876,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: message.from,
             body: safeBody,
             direction: 'OUTBOUND',
+            connectionId: message.thread.connectionId,
           },
         });
 
