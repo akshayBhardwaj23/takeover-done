@@ -34,6 +34,7 @@ import {
   Store,
   Flag,
   MailOpen,
+  GripVertical,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
@@ -1207,7 +1208,7 @@ export default function InboxPage() {
                               }}
                               disabled={markThreadUnread.isPending}
                             >
-                              {selectedEmail.thread.isUnread ? (
+                              {selectedEmail.thread?.isUnread ? (
                                 <>
                                   <MailOpen className="h-3.5 w-3.5 mr-1.5" />
                                   Mark as read
@@ -1223,7 +1224,7 @@ export default function InboxPage() {
                               variant="ghost"
                               size="sm"
                               className={`rounded-lg text-xs ${
-                                selectedEmail.thread.isFlagged
+                                selectedEmail.thread?.isFlagged
                                   ? 'text-orange-600 hover:text-orange-700'
                                   : 'text-stone-600 hover:text-stone-900'
                               }`}
@@ -1245,12 +1246,12 @@ export default function InboxPage() {
                             >
                               <Flag
                                 className={`h-3.5 w-3.5 mr-1.5 ${
-                                  selectedEmail.thread.isFlagged
+                                  selectedEmail.thread?.isFlagged
                                     ? 'fill-orange-600'
                                     : ''
                                 }`}
                               />
-                              {selectedEmail.thread.isFlagged
+                              {selectedEmail.thread?.isFlagged
                                 ? 'Unflag'
                                 : 'Flag this mail'}
                             </Button>
