@@ -2033,8 +2033,7 @@ export const appRouter = t.router({
         unassignedConnectionIds.length
           ? prisma.message.findMany({
               where: {
-                // Show ALL inbound emails in inbox (not just unassigned)
-                direction: 'INBOUND' as any,
+                // Show ALL emails in inbox (both inbound and outbound)
                 thread: { connectionId: { in: unassignedConnectionIds } },
               },
               orderBy: { createdAt: 'desc' },
@@ -2965,8 +2964,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const msgs = await prisma.message.findMany({
           where: {
-            // Show ALL inbound emails in inbox (not just unassigned)
-            direction: 'INBOUND' as any,
+            // Show ALL emails in inbox (both inbound and outbound)
             thread: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
           },
           orderBy: { createdAt: 'desc' },
