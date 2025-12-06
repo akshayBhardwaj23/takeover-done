@@ -499,10 +499,14 @@ export default function InboxPage() {
   }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
 
   // Filter emails by search
+  // Filter emails by search
   const filteredEmails = useMemo(() => {
-    if (!searchQuery.trim()) return allEmails;
+    // Filter out outbound emails from the list
+    const inboundEmails = allEmails.filter(email => email.direction !== 'OUTBOUND');
+    
+    if (!searchQuery.trim()) return inboundEmails;
     const q = searchQuery.toLowerCase();
-    return allEmails.filter(
+    return inboundEmails.filter(
       (email) =>
         email.from?.toLowerCase().includes(q) ||
         email.subject?.toLowerCase().includes(q) ||
@@ -1608,8 +1612,20 @@ export default function InboxPage() {
                                 <Mail className="h-4 w-4" />
                                 Related Emails
                               </h4>
-                              {(orderMessages.data?.messages ?? []).length >
-                              0 ? (
+                              {orderMessages.isLoading ? (
+                                <div className="space-y-2">
+                                  {[1, 2].map((i) => (
+                                    <div key={i} className="rounded-lg bg-stone-50 p-3 animate-pulse">
+                                      <div className="flex justify-between mb-2">
+                                        <div className="h-4 w-16 bg-stone-200 rounded" />
+                                        <div className="h-3 w-12 bg-stone-200 rounded" />
+                                      </div>
+                                      <div className="h-3 w-full bg-stone-200 rounded mb-1" />
+                                      <div className="h-3 w-2/3 bg-stone-200 rounded" />
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (orderMessages.data?.messages ?? []).length > 0 ? (
                                 <div className="space-y-2">
                                   {(orderMessages.data?.messages as any[])
                                     .slice(0, 3)

@@ -125,7 +125,10 @@ Basics of implementations by area:
 
 - `apps/web/app/api/shopify/*`: Implements OAuth start/callback, HMAC/state verification, access token exchange, `Connection` persistence, and conditional webhook registration + mock seeding.
 - `apps/web/app/api/webhooks/shopify/route.ts`: Verifies HMAC, logs event, and persists/updates `Order` rows on `orders/create`, `orders/fulfilled`, `refunds/create`.
-- `apps/web/app/inbox/page.tsx`: Unified inbox UI with email threads, order details, and AI suggestions. Real email sending via Mailgun API.
+- `apps/web/app/inbox/page.tsx`: Unified inbox UI with two main views:
+  - **Inbox View**: 3-column layout (Email List, Conversation Thread, Customer/Order Details).
+  - **Orders View**: 2-column layout (Order List, Order Details).
+  - Features: Real email sending via Mailgun API, AI suggestions, and order management.
 - `apps/web/inngest/functions.ts`: Inngest functions for async email processing and AI suggestion generation.
 - `packages/api/src/index.ts`: tRPC router with read queries (health, orders, connections) and write mutations (AI draft stub, action create/approve-send stub).
 - `packages/db`: Prisma schema and `logEvent` utility to persist `Event` rows for auditing.
@@ -153,7 +156,8 @@ Basics of implementations by area:
 
 1. Connect Shopify on `/integrations`
 2. Browse `/inbox?shop=your-shop.myshopify.com`
-3. Select an order, generate AI suggestion (stub), Approve & Send (stub)
+3. Switch between "Inbox" (conversations) and "Orders" (order management) views
+4. Select an email or order to view details, generate AI suggestions, and take actions
 
 ### Current Status (Production Ready)
 
