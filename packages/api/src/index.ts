@@ -2048,7 +2048,10 @@ export const appRouter = t.router({
                 orderId: true,
                 thread: {
                   select: {
+                    id: true,
                     subject: true,
+                    isUnread: true,
+                    isFlagged: true,
                     connectionId: true,
                     connection: {
                       select: {
@@ -2979,7 +2982,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             orderId: true,
             thread: {
               select: {
+                id: true,
                 subject: true,
+                isUnread: true,
+                isFlagged: true,
                 connectionId: true,
                 connection: {
                   select: {
@@ -3043,6 +3049,92 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       } catch (error) {
         if (error instanceof TRPCError) throw error;
         return { ok: false } as any;
+      }
+    }),
+  markThreadUnread: protectedProcedure
+    .input(
+      z.object({
+        threadId: z.string(),
+        isUnread: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify user owns the thread
+        const thread = await prisma.thread.findUnique({
+          where: { id: input.threadId },
+          include: { connection: true },
+        });
+
+        if (!thread || thread.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Thread access denied',
+          });
+        }
+
+        await prisma.thread.update({
+          where: { id: input.threadId },
+          data: { isUnread: input.isUnread },
+        });
+
+        await logEvent(
+          'thread.mark_unread',
+          { threadId: input.threadId, isUnread: input.isUnread },
+          'thread',
+          input.threadId,
+        );
+
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update thread read status',
+        });
+      }
+    }),
+  flagThread: protectedProcedure
+    .input(
+      z.object({
+        threadId: z.string(),
+        isFlagged: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        // Verify user owns the thread
+        const thread = await prisma.thread.findUnique({
+          where: { id: input.threadId },
+          include: { connection: true },
+        });
+
+        if (!thread || thread.connection.userId !== ctx.userId) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Thread access denied',
+          });
+        }
+
+        await prisma.thread.update({
+          where: { id: input.threadId },
+          data: { isFlagged: input.isFlagged },
+        });
+
+        await logEvent(
+          'thread.flag',
+          { threadId: input.threadId, isFlagged: input.isFlagged },
+          'thread',
+          input.threadId,
+        );
+
+        return { success: true };
+      } catch (error) {
+        if (error instanceof TRPCError) throw error;
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update thread flag status',
+        });
       }
     }),
   refreshOrderFromShopify: protectedProcedure

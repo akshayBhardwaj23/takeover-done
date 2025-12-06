@@ -17,7 +17,6 @@ import {
   MessageSquare,
   Inbox,
   Search,
-  MoreVertical,
   Clock,
   ChevronDown,
   Paperclip,
@@ -32,10 +31,9 @@ import {
   ShoppingBag,
   DollarSign,
   Calendar,
-  Bell,
-  BellOff,
   Store,
-  GripVertical,
+  Flag,
+  MailOpen,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
@@ -81,7 +79,10 @@ type EmailMessage = {
   snippet?: string;
   orderId?: string | null;
   thread?: {
+    id?: string;
     subject?: string;
+    isUnread?: boolean;
+    isFlagged?: boolean;
     connectionId?: string;
     connection?: {
       shopDomain?: string | null;
@@ -457,6 +458,30 @@ export default function InboxPage() {
     },
   });
 
+  const markThreadUnread = trpc.markThreadUnread.useMutation({
+    onSuccess: () => {
+      unassignedQuery.refetch();
+      inboxBootstrap.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update read status');
+      unassignedQuery.refetch();
+      inboxBootstrap.refetch();
+    },
+  });
+
+  const flagThread = trpc.flagThread.useMutation({
+    onSuccess: () => {
+      unassignedQuery.refetch();
+      inboxBootstrap.refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to update flag status');
+      unassignedQuery.refetch();
+      inboxBootstrap.refetch();
+    },
+  });
+
   // =============================================================================
   // COMPUTED DATA
   // =============================================================================
@@ -491,11 +516,18 @@ export default function InboxPage() {
       }
     });
 
-    // Sort by date descending
-    return Array.from(emailMap.values()).sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    // Sort by unread status first, then by date descending
+    return Array.from(emailMap.values()).sort((a, b) => {
+      const aUnread = a.thread?.isUnread ?? true;
+      const bUnread = b.thread?.isUnread ?? true;
+      
+      // Unread items first
+      if (aUnread && !bUnread) return -1;
+      if (!aUnread && bUnread) return 1;
+      
+      // Then by date descending
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
   }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
 
   // Filter emails by search
@@ -891,6 +923,8 @@ export default function InboxPage() {
                           const isSelected = selectedEmailId === email.id;
                           const senderName = getSenderName(email.from);
                           const hasAiSuggestion = !!email.aiSuggestion?.reply;
+                          const isUnread = email.thread?.isUnread ?? true;
+                          const isFlagged = email.thread?.isFlagged ?? false;
                           const emailStoreName = getStoreName(
                             email.thread?.connection?.shopDomain,
                             email.thread?.connection?.metadata as { storeName?: string } | null,
@@ -908,23 +942,45 @@ export default function InboxPage() {
                               } ${isReplied ? 'opacity-60' : ''}`}
                             >
                               {/* Avatar */}
-                              <div
-                                className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(email.from)}`}
-                              >
-                                {getInitials(null, email.from)}
+                              <div className="relative flex-shrink-0">
+                                <div
+                                  className={`h-11 w-11 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(email.from)}`}
+                                >
+                                  {getInitials(null, email.from)}
+                                </div>
+                                {isUnread && (
+                                  <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-white" />
+                                )}
                               </div>
 
                               {/* Content */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between mb-0.5">
-                                  <span className="text-sm font-semibold text-stone-900 truncate">
-                                    {senderName}
-                                  </span>
+                                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <span
+                                      className={`text-sm truncate ${
+                                        isUnread
+                                          ? 'font-bold text-stone-900'
+                                          : 'font-semibold text-stone-900'
+                                      }`}
+                                    >
+                                      {senderName}
+                                    </span>
+                                    {isFlagged && (
+                                      <Flag className="h-3.5 w-3.5 text-orange-600 fill-orange-600 flex-shrink-0" />
+                                    )}
+                                  </div>
                                   <span className="text-xs text-stone-500 flex-shrink-0 ml-2">
                                     {relativeTime(email.createdAt)}
                                   </span>
                                 </div>
-                                <p className="text-xs text-stone-600 truncate mb-1">
+                                <p
+                                  className={`text-xs truncate mb-1 ${
+                                    isUnread
+                                      ? 'font-medium text-stone-900'
+                                      : 'text-stone-600'
+                                  }`}
+                                >
                                   {email.subject ||
                                     email.thread?.subject ||
                                     'No subject'}
@@ -1108,6 +1164,9 @@ export default function InboxPage() {
                             <h2 className="text-sm font-semibold text-stone-900">
                               {getSenderName(selectedEmail.from)}
                             </h2>
+                            {selectedEmail.thread?.isFlagged && (
+                              <Flag className="h-4 w-4 text-orange-600 fill-orange-600" />
+                            )}
                             {selectedEmail.thread?.connection?.shopDomain && (
                               <span
                                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${getStoreColor(selectedEmail.thread.connection.shopDomain)}`}
@@ -1126,21 +1185,77 @@ export default function InboxPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg text-xs"
-                        >
-                          <BellOff className="h-3.5 w-3.5 mr-1.5" />
-                          Snooze
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="rounded-lg"
-                        >
-                          <MoreVertical className="h-4 w-4 text-stone-500" />
-                        </Button>
+                        {selectedEmail.thread?.id && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-lg text-xs text-stone-600 hover:text-stone-900"
+                              onClick={() => {
+                                if (selectedEmail.thread?.id) {
+                                  const currentUnread = selectedEmail.thread.isUnread ?? true;
+                                  markThreadUnread.mutate({
+                                    threadId: selectedEmail.thread.id,
+                                    isUnread: !currentUnread,
+                                  });
+                                  toast.success(
+                                    !currentUnread
+                                      ? 'Marked as unread'
+                                      : 'Marked as read',
+                                  );
+                                }
+                              }}
+                              disabled={markThreadUnread.isPending}
+                            >
+                              {selectedEmail.thread.isUnread ? (
+                                <>
+                                  <MailOpen className="h-3.5 w-3.5 mr-1.5" />
+                                  Mark as read
+                                </>
+                              ) : (
+                                <>
+                                  <Mail className="h-3.5 w-3.5 mr-1.5" />
+                                  Mark as unread
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`rounded-lg text-xs ${
+                                selectedEmail.thread.isFlagged
+                                  ? 'text-orange-600 hover:text-orange-700'
+                                  : 'text-stone-600 hover:text-stone-900'
+                              }`}
+                              onClick={() => {
+                                if (selectedEmail.thread?.id) {
+                                  const currentFlagged = selectedEmail.thread.isFlagged ?? false;
+                                  flagThread.mutate({
+                                    threadId: selectedEmail.thread.id,
+                                    isFlagged: !currentFlagged,
+                                  });
+                                  toast.success(
+                                    !currentFlagged
+                                      ? 'Flagged'
+                                      : 'Unflagged',
+                                  );
+                                }
+                              }}
+                              disabled={flagThread.isPending}
+                            >
+                              <Flag
+                                className={`h-3.5 w-3.5 mr-1.5 ${
+                                  selectedEmail.thread.isFlagged
+                                    ? 'fill-orange-600'
+                                    : ''
+                                }`}
+                              />
+                              {selectedEmail.thread.isFlagged
+                                ? 'Unflag'
+                                : 'Flag this mail'}
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
 

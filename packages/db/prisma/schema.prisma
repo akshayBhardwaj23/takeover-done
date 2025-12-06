@@ -170,6 +170,8 @@ model Thread {
   id            String     @id @default(cuid())
   subject       String?
   customerEmail String
+  isUnread      Boolean    @default(true)
+  isFlagged     Boolean    @default(false)
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
   connectionId  String
@@ -177,6 +179,8 @@ model Thread {
   connection    Connection @relation(fields: [connectionId], references: [id])
 
   @@index([connectionId])
+  @@index([isUnread])
+  @@index([isFlagged])
 }
 
 model Message {
