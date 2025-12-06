@@ -23,7 +23,7 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
 - Web pages
   - `/` — Marketing homepage with CTAs
   - `/integrations` — Connect Shopify; list connections
-  - `/inbox` — Recent orders list and order details + AI draft
+  - `/inbox` — Unified inbox with "Inbox" (conversations) and "Orders" (management) views
 - API routes (Next.js)
   - `app/api/shopify/install` — Starts Shopify OAuth
   - `app/api/shopify/callback` — Verifies HMAC, exchanges token, stores `Connection`, registers webhooks (feature-flagged), redirects to `/integrations`
@@ -86,8 +86,9 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
 ### Current UX flow
 
 1. Connect Shopify on `/integrations`
-2. Visit `/inbox?shop=your-shop.myshopify.com` to load recent orders and select one
-3. Generate AI suggestion (stub), “Approve & Send (stub)” to create `Action` and log send event
+2. Visit `/inbox?shop=your-shop.myshopify.com`
+3. Switch between "Inbox" and "Orders" views to manage conversations or orders
+4. Generate AI suggestion, “Approve & Send” to create `Action` and log send event
 
 ### Roadmap (high level)
 
