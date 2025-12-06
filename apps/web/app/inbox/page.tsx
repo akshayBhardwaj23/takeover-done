@@ -35,6 +35,7 @@ import {
   Bell,
   BellOff,
   Store,
+  GripVertical,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import { UpgradePrompt } from '../../components/UpgradePrompt';
@@ -325,6 +326,8 @@ export default function InboxPage() {
   const [repliedMessageIds, setRepliedMessageIds] = useState<Set<string>>(
     new Set(),
   );
+  const [inboxTextareaHeight, setInboxTextareaHeight] = useState(100);
+  const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -372,16 +375,19 @@ export default function InboxPage() {
     { keepPreviousData: true, staleTime: 30_000, refetchOnWindowFocus: false },
   );
 
-  const [ordersAccum, setOrdersAccum] = useState<DbOrder[]>([]);
+  const [ordersAccum, setOrdersAccum] = useState<any[]>([]);
   useEffect(() => {
-    const incoming = (ordersPage.data?.orders as DbOrder[] | undefined) ?? [];
-    const bootstrapOrders =
-      (inboxBootstrap.data?.orders as DbOrder[] | undefined) ?? [];
+    const incoming = Array.isArray(ordersPage.data?.orders)
+      ? ordersPage.data.orders
+      : [];
+    const bootstrapOrders = Array.isArray(inboxBootstrap.data?.orders)
+      ? inboxBootstrap.data.orders
+      : [];
 
     // Merge orders from both sources, deduplicating by id
     const allOrders = [...bootstrapOrders, ...incoming];
-    const orderMap = new Map<string, DbOrder>();
-    allOrders.forEach((order) => {
+    const orderMap = new Map<string, any>();
+    allOrders.forEach((order: any) => {
       if (!orderMap.has(order.id)) {
         orderMap.set(order.id, order);
       }
@@ -455,15 +461,31 @@ export default function InboxPage() {
   // COMPUTED DATA
   // =============================================================================
 
+  // Create a lookup map for connections by connectionId
+  const connectionsMap = useMemo(() => {
+    const connections = inboxBootstrap.data?.connections || [];
+    const map = new Map<string, { shopDomain?: string | null; metadata?: { storeName?: string } | null }>();
+    connections.forEach((conn: any) => {
+      map.set(conn.id, {
+        shopDomain: conn.shopDomain,
+        metadata: conn.metadata,
+      });
+    });
+    return map;
+  }, [inboxBootstrap.data?.connections]);
+
   // Combine all emails for the email list view
   const allEmails = useMemo(() => {
-    const unassigned = (unassignedQuery.data?.messages ?? []) as EmailMessage[];
-    const bootstrapUnassigned = (inboxBootstrap.data?.unassigned ??
-      []) as EmailMessage[];
+    const unassigned = Array.isArray(unassignedQuery.data?.messages) 
+      ? unassignedQuery.data.messages 
+      : [];
+    const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
+      ? inboxBootstrap.data.unassigned
+      : [];
 
     // Combine and dedupe
-    const emailMap = new Map<string, EmailMessage>();
-    [...unassigned, ...bootstrapUnassigned].forEach((email) => {
+    const emailMap = new Map<string, any>();
+    [...unassigned, ...bootstrapUnassigned].forEach((email: any) => {
       if (!emailMap.has(email.id)) {
         emailMap.set(email.id, email);
       }
@@ -605,7 +627,8 @@ export default function InboxPage() {
       if (shop && selectedOrderId) {
         await refreshOrder.mutateAsync({ shop, orderId: selectedOrderId });
       }
-      await Promise.all([inboxBootstrap.refetch(), unassignedQuery.refetch()]);
+      void inboxBootstrap.refetch();
+      void unassignedQuery.refetch();
       toast.success('Inbox refreshed');
     } catch (error: any) {
       toast.error(error?.message ?? 'Failed to refresh');
@@ -718,7 +741,7 @@ export default function InboxPage() {
 
       <div className="min-h-screen bg-[#f8f6f3] pt-20">
         {/* Top Bar */}
-        <div className="fixed top-16 left-0 right-0 z-40 bg-[#f8f6f3] border-b border-stone-200/60">
+        <div className="fixed top-20 left-0 right-0 z-40 bg-[#f8f6f3] border-b border-stone-200/60">
           <div className="flex items-center justify-between px-6 py-3">
             <div className="flex items-center gap-6">
               {/* Tab Switcher */}
@@ -957,7 +980,10 @@ export default function InboxPage() {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
                           (order.pendingEmailCount ?? 0) > 0;
-                        const orderStoreName = getStoreName(order.shopDomain, null);
+                        const orderStoreName = getStoreName(
+                          order.shopDomain,
+                          order.connectionId ? connectionsMap.get(order.connectionId)?.metadata : null,
+                        );
                         const orderStoreColor = getStoreColor(
                           order.shopDomain || 'default',
                         );
@@ -1058,7 +1084,11 @@ export default function InboxPage() {
               {/* ============================================================= */}
               {/* CENTER PANEL - Conversation / Email Detail */}
               {/* ============================================================= */}
-              <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+              {/* ============================================================= */}
+              {/* CENTER PANEL - Conversation / Email Detail */}
+              {/* ============================================================= */}
+              {view !== 'orders' && (
+                <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
                 {view === 'inbox' && selectedEmail ? (
                   <>
                     {/* Header */}
@@ -1182,14 +1212,40 @@ export default function InboxPage() {
                     {/* Reply Input */}
                     <div className="p-4 border-t border-stone-100">
                       <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300 focus-within:border-stone-300">
-                        <textarea
-                          ref={messageInputRef}
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          placeholder="Write a message..."
-                          rows={4}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
-                        />
+                        <div className="relative">
+                          <div
+                            className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              const startY = e.clientY;
+                              const startHeight = inboxTextareaHeight;
+                              
+                              const handleMouseMove = (moveEvent: MouseEvent) => {
+                                const deltaY = moveEvent.clientY - startY;
+                                const newHeight = Math.max(100, Math.min(500, startHeight + deltaY));
+                                setInboxTextareaHeight(newHeight);
+                              };
+                              
+                              const handleMouseUp = () => {
+                                document.removeEventListener('mousemove', handleMouseMove);
+                                document.removeEventListener('mouseup', handleMouseUp);
+                              };
+                              
+                              document.addEventListener('mousemove', handleMouseMove);
+                              document.addEventListener('mouseup', handleMouseUp);
+                            }}
+                          >
+                            <GripVertical className="h-4 w-4 text-stone-400" />
+                          </div>
+                          <textarea
+                            ref={messageInputRef}
+                            value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            placeholder="Write a message..."
+                            style={{ height: `${inboxTextareaHeight}px` }}
+                            className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                          />
+                        </div>
                         <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
                           <div className="flex items-center gap-2">
                             <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
@@ -1203,16 +1259,6 @@ export default function InboxPage() {
                             </button>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleGenerateAi}
-                              disabled={suggest.isPending}
-                              className="rounded-lg text-xs"
-                            >
-                              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                              {suggest.isPending ? 'Generating...' : 'AI Reply'}
-                            </Button>
                             <Button
                               size="sm"
                               onClick={handleSendReply}
@@ -1238,204 +1284,28 @@ export default function InboxPage() {
                       </div>
                     </div>
                   </>
-                ) : view === 'orders' && selectedOrderId ? (
-                  // Order Detail View
-                  (() => {
-                    const selectedOrder = ordersAccum.find(
-                      (o) => o.shopifyId === selectedOrderId,
-                    );
-                    const detailStoreName = getStoreName(selectedOrder?.shopDomain, null);
-                    const detailStoreColor = getStoreColor(selectedOrder?.shopDomain || 'default');
-                    return (
-                  <>
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-stone-100 flex items-center justify-center">
-                          <ShoppingBag className="h-5 w-5 text-stone-600" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-semibold text-stone-900">
-                              {selectedOrder?.name || `Order ${selectedOrderId.slice(-6)}`}
-                            </h2>
-                            {selectedOrder?.shopDomain && (
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${detailStoreColor}`}
-                              >
-                                <Store className="h-3 w-3" />
-                                {detailStoreName}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-stone-500">
-                            {selectedOrder?.email || 'No email'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            refreshOrder.mutate({
-                              shop,
-                              orderId: selectedOrderId,
-                            })
-                          }
-                          disabled={refreshOrder.isPending}
-                          className="rounded-lg text-xs"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 mr-1.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
-                          />
-                          Sync
-                        </Button>
-                      </div>
-                    </div>
 
-                    <ScrollArea className="flex-1 p-6">
-                      {/* Order Messages Thread */}
-                      {orderMessages.isLoading ? (
-                        <ConversationSkeleton />
-                      ) : (orderMessages.data?.messages ?? []).length > 0 ? (
-                        <div className="space-y-6">
-                          {(orderMessages.data?.messages as any[]).map(
-                            (message) => (
-                              <div
-                                key={message.id}
-                                className="flex items-start gap-3"
-                              >
-                                <div
-                                  className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${
-                                    message.direction === 'INBOUND'
-                                      ? getAvatarColor(
-                                          message.from || 'customer',
-                                        )
-                                      : 'bg-stone-900'
-                                  }`}
-                                >
-                                  {message.direction === 'INBOUND'
-                                    ? getInitials(null, message.from)
-                                    : 'ZY'}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-semibold text-stone-900">
-                                      {message.direction === 'INBOUND'
-                                        ? getSenderName(message.from)
-                                        : 'You'}
-                                    </span>
-                                    <span className="text-xs text-stone-500">
-                                      {formatTime(message.createdAt)}
-                                    </span>
-                                    <Badge
-                                      className={`text-xs ${
-                                        message.direction === 'INBOUND'
-                                          ? 'bg-emerald-100 text-emerald-700'
-                                          : 'bg-sky-100 text-sky-700'
-                                      }`}
-                                    >
-                                      {message.direction}
-                                    </Badge>
-                                  </div>
-                                  <div
-                                    className={`rounded-2xl p-4 ${
-                                      message.direction === 'INBOUND'
-                                        ? 'rounded-tl-none bg-stone-100'
-                                        : 'rounded-tr-none bg-stone-900 text-white'
-                                    }`}
-                                  >
-                                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                                      {message.body}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                          <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
-                            <MessageSquare className="h-6 w-6 text-stone-400" />
-                          </div>
-                          <p className="text-sm font-medium text-stone-900">
-                            No messages yet
-                          </p>
-                          <p className="text-xs text-stone-500 mt-1">
-                            Start a conversation with this customer
-                          </p>
-                        </div>
-                      )}
-                    </ScrollArea>
-
-                    {/* Reply Input for Orders */}
-                    <div className="p-4 border-t border-stone-100">
-                      <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300">
-                        <textarea
-                          value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
-                          placeholder="Reply to customer..."
-                          rows={3}
-                          className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
-                        />
-                        <div className="flex items-center justify-end px-4 py-2 border-t border-stone-100 bg-white">
-                          <Button
-                            size="sm"
-                            onClick={handleSendOrderReply}
-                            disabled={
-                              !draft.trim() ||
-                              createAction.isPending ||
-                              approveSend.isPending
-                            }
-                            className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
-                          >
-                            {createAction.isPending || approveSend.isPending ? (
-                              <>
-                                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-3.5 w-3.5 mr-1.5" />
-                                Send Reply
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                    );
-                  })()
                 ) : (
                   // Empty State
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
                     <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
-                      {view === 'inbox' ? (
-                        <Mail className="h-8 w-8 text-stone-400" />
-                      ) : (
-                        <ShoppingBag className="h-8 w-8 text-stone-400" />
-                      )}
+                      <Mail className="h-8 w-8 text-stone-400" />
                     </div>
                     <h3 className="text-lg font-semibold text-stone-900 mb-1">
-                      {view === 'inbox'
-                        ? 'Select a conversation'
-                        : 'Select an order'}
+                      Select a conversation
                     </h3>
                     <p className="text-sm text-stone-500 max-w-sm">
-                      {view === 'inbox'
-                        ? 'Choose an email from the list to view the conversation and reply'
-                        : 'Choose an order to view details and communicate with the customer'}
+                      Choose an email from the list to view the conversation and reply
                     </p>
                   </div>
                 )}
               </div>
+            )}
 
               {/* ============================================================= */}
               {/* RIGHT PANEL - Profile / Order Details */}
               {/* ============================================================= */}
-              <div className="w-80 flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className={`${view === 'orders' ? 'flex-1' : 'w-80'} flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden`}>
                 {view === 'inbox' && selectedEmail ? (
                   <>
                     {/* Profile Header */}
@@ -1492,6 +1362,7 @@ export default function InboxPage() {
                                 ).toLocaleDateString()}
                               </p>
                             </div>
+
                           </div>
                         </div>
 
@@ -1590,9 +1461,31 @@ export default function InboxPage() {
                       <span className="text-sm font-semibold text-stone-900">
                         Order Details
                       </span>
-                      <button className="p-1 rounded-lg hover:bg-stone-100 transition">
-                        <X className="h-4 w-4 text-stone-400" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            refreshOrder.mutate({
+                              shop,
+                              orderId: selectedOrderId,
+                            })
+                          }
+                          disabled={refreshOrder.isPending}
+                          className="h-8 rounded-lg text-xs"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 mr-1.5 ${refreshOrder.isPending ? 'animate-spin' : ''}`}
+                          />
+                          Sync
+                        </Button>
+                        <button 
+                          className="p-1 rounded-lg hover:bg-stone-100 transition"
+                          onClick={() => setSelectedOrderId(null)}
+                        >
+                          <X className="h-4 w-4 text-stone-400" />
+                        </button>
+                      </div>
                     </div>
 
                     <ScrollArea className="flex-1">
@@ -1682,7 +1575,7 @@ export default function InboxPage() {
                                     Items ({items.length})
                                   </h4>
                                   <div className="space-y-2">
-                                    {items.map((item) => (
+                                    {items.map((item: any) => (
                                       <div
                                         key={item.id}
                                         className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
@@ -1721,9 +1614,13 @@ export default function InboxPage() {
                                   {(orderMessages.data?.messages as any[])
                                     .slice(0, 3)
                                     .map((msg: any) => (
-                                      <div
+                                      <button
                                         key={msg.id}
-                                        className="rounded-lg bg-stone-50 p-3"
+                                        onClick={() => {
+                                          setView('inbox');
+                                          handleSelectEmail(msg);
+                                        }}
+                                        className="w-full text-left rounded-lg bg-stone-50 p-3 hover:bg-stone-100 transition-colors"
                                       >
                                         <div className="flex items-center justify-between mb-1">
                                           <Badge
@@ -1738,7 +1635,7 @@ export default function InboxPage() {
                                         <p className="text-xs text-stone-600 line-clamp-2">
                                           {msg.body}
                                         </p>
-                                      </div>
+                                      </button>
                                     ))}
                                 </div>
                               ) : (

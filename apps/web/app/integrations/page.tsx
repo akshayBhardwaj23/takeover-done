@@ -328,7 +328,7 @@ function IntegrationsInner() {
           id: c.id,
           type: 'SHOPIFY',
           name: deriveStoreName(c),
-          description: `Connected to ${c.shopDomain}. Syncs orders and customers.`,
+          description: `Connected to ${deriveStoreName(c)}. Syncs orders and customers.`,
           category: 'Sales & Marketing Tools',
           status: 'connected',
           icon: Store,
@@ -401,7 +401,7 @@ function IntegrationsInner() {
           type: 'EMAIL',
           name: isStandalone 
             ? `Standalone Email Alias${isDisabled ? ' (Disabled)' : ''}` 
-            : `Email for ${meta.shopDomain?.split('.')[0] || 'Store'}${isDisabled ? ' (Disabled)' : ''}`,
+            : `Email for ${meta.storeName || meta.shopDomain?.split('.')[0] || 'Store'}${isDisabled ? ' (Disabled)' : ''}`,
           description: `${meta.alias || 'Email Alias'}${isStandalone ? ' (General Support)' : ''}${isDisabled ? ' - Not receiving emails' : ''}`,
           category: 'Communication & Collaboration',
           status: 'connected',
@@ -424,7 +424,7 @@ function IntegrationsInner() {
           id: `email-add-${store.id}`,
           type: 'EMAIL',
           name: `Add Email Alias for ${deriveStoreName(store)}`,
-          description: `Create an email alias for ${store.shopDomain}.`,
+          description: `Create an email alias for ${deriveStoreName(store)}.`,
           category: 'Communication & Collaboration',
           status: 'disconnected',
           icon: Plus,

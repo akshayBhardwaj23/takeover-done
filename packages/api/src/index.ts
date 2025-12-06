@@ -1982,7 +1982,7 @@ export const appRouter = t.router({
       // Fetch all connections once to avoid multiple round-trips
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
-        select: { id: true, type: true },
+        select: { id: true, type: true, shopDomain: true, metadata: true },
       });
 
       if (connections.length === 0) {
@@ -1990,6 +1990,7 @@ export const appRouter = t.router({
           orders: [],
           unassigned: [],
           emailLimit: await canSendEmail(ctx.userId),
+          connections: [], // Include empty connections array for consistent return type
         };
       }
 
@@ -2032,8 +2033,7 @@ export const appRouter = t.router({
         unassignedConnectionIds.length
           ? prisma.message.findMany({
               where: {
-                // Show ALL inbound emails in inbox (not just unassigned)
-                direction: 'INBOUND' as any,
+                // Show ALL emails in inbox (both inbound and outbound)
                 thread: { connectionId: { in: unassignedConnectionIds } },
               },
               orderBy: { createdAt: 'desc' },
@@ -2118,6 +2118,7 @@ export const appRouter = t.router({
         orders: ordersWithPending,
         unassigned: unassignedMessages,
         emailLimit,
+        connections, // Include connections for store name lookup
       };
     }),
   orderGet: protectedProcedure
@@ -2963,8 +2964,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const msgs = await prisma.message.findMany({
           where: {
-            // Show ALL inbound emails in inbox (not just unassigned)
-            direction: 'INBOUND' as any,
+            // Show ALL emails in inbox (both inbound and outbound)
             thread: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
           },
           orderBy: { createdAt: 'desc' },
