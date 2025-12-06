@@ -33,7 +33,6 @@ import {
   Calendar,
   Store,
   Flag,
-  MailOpen,
   GripVertical,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
@@ -329,6 +328,8 @@ export default function InboxPage() {
     new Set(),
   );
   const [inboxTextareaHeight, setInboxTextareaHeight] = useState(100);
+  // Local state to track flagged threads without refetching
+  const [flaggedThreads, setFlaggedThreads] = useState<Set<string>>(new Set());
   const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
@@ -459,25 +460,15 @@ export default function InboxPage() {
     },
   });
 
-  const markThreadUnread = trpc.markThreadUnread.useMutation({
-    onSuccess: () => {
-      unassignedQuery.refetch();
-      inboxBootstrap.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to update read status');
-      unassignedQuery.refetch();
-      inboxBootstrap.refetch();
-    },
-  });
-
   const flagThread = trpc.flagThread.useMutation({
     onSuccess: () => {
-      unassignedQuery.refetch();
-      inboxBootstrap.refetch();
+      // Don't refetch to prevent emails from moving position
+      // The flag state is saved to database and will persist
+      // The UI will update on next natural refresh
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to update flag status');
+      // Only refetch on error to sync state
       unassignedQuery.refetch();
       inboxBootstrap.refetch();
     },
@@ -513,6 +504,17 @@ export default function InboxPage() {
     const emailMap = new Map<string, any>();
     [...unassigned, ...bootstrapUnassigned].forEach((email: any) => {
       if (!emailMap.has(email.id)) {
+        // Merge local flagged state with email data
+        const threadId = email.thread?.id;
+        if (threadId && flaggedThreads.has(threadId)) {
+          email = {
+            ...email,
+            thread: {
+              ...email.thread,
+              isFlagged: true,
+            },
+          };
+        }
         emailMap.set(email.id, email);
       }
     });
@@ -529,7 +531,7 @@ export default function InboxPage() {
       // Then by date descending
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
+  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned, flaggedThreads]);
 
   // Filter emails by search
   // Filter emails by search
@@ -550,8 +552,22 @@ export default function InboxPage() {
   // Selected email data
   const selectedEmail = useMemo(() => {
     if (!selectedEmailId) return null;
-    return allEmails.find((e) => e.id === selectedEmailId) ?? null;
-  }, [selectedEmailId, allEmails]);
+    const email = allEmails.find((e) => e.id === selectedEmailId);
+    if (!email) return null;
+    
+    // Merge local flagged state
+    const threadId = email.thread?.id;
+    if (threadId && flaggedThreads.has(threadId)) {
+      return {
+        ...email,
+        thread: {
+          ...email.thread,
+          isFlagged: true,
+        },
+      };
+    }
+    return email;
+  }, [selectedEmailId, allEmails, flaggedThreads]);
 
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
@@ -1187,40 +1203,7 @@ export default function InboxPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {selectedEmail.thread?.id && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="rounded-lg text-xs text-stone-600 hover:text-stone-900"
-                              onClick={() => {
-                                if (selectedEmail.thread?.id) {
-                                  const currentUnread = selectedEmail.thread.isUnread ?? true;
-                                  markThreadUnread.mutate({
-                                    threadId: selectedEmail.thread.id,
-                                    isUnread: !currentUnread,
-                                  });
-                                  toast.success(
-                                    !currentUnread
-                                      ? 'Marked as unread'
-                                      : 'Marked as read',
-                                  );
-                                }
-                              }}
-                              disabled={markThreadUnread.isPending}
-                            >
-                              {selectedEmail.thread?.isUnread ? (
-                                <>
-                                  <MailOpen className="h-3.5 w-3.5 mr-1.5" />
-                                  Mark as read
-                                </>
-                              ) : (
-                                <>
-                                  <Mail className="h-3.5 w-3.5 mr-1.5" />
-                                  Mark as unread
-                                </>
-                              )}
-                            </Button>
-                            <Button
+                          <Button
                               variant="ghost"
                               size="sm"
                               className={`rounded-lg text-xs ${
@@ -1230,13 +1213,27 @@ export default function InboxPage() {
                               }`}
                               onClick={() => {
                                 if (selectedEmail.thread?.id) {
+                                  const threadId = selectedEmail.thread.id;
                                   const currentFlagged = selectedEmail.thread.isFlagged ?? false;
+                                  const newFlaggedState = !currentFlagged;
+                                  
+                                  // Update local state immediately (optimistic update)
+                                  setFlaggedThreads((prev) => {
+                                    const next = new Set(prev);
+                                    if (newFlaggedState) {
+                                      next.add(threadId);
+                                    } else {
+                                      next.delete(threadId);
+                                    }
+                                    return next;
+                                  });
+                                  
                                   flagThread.mutate({
-                                    threadId: selectedEmail.thread.id,
-                                    isFlagged: !currentFlagged,
+                                    threadId,
+                                    isFlagged: newFlaggedState,
                                   });
                                   toast.success(
-                                    !currentFlagged
+                                    newFlaggedState
                                       ? 'Flagged'
                                       : 'Unflagged',
                                   );
@@ -1255,7 +1252,6 @@ export default function InboxPage() {
                                 ? 'Unflag'
                                 : 'Flag this mail'}
                             </Button>
-                          </>
                         )}
                       </div>
                     </div>
