@@ -79,6 +79,7 @@ model Connection {
   user         User           @relation(fields: [userId], references: [id])
   orders       Order[]
   threads      Thread[]
+  messages     Message[]
   customers    Customer[]
 
   @@index([userId])
@@ -195,12 +196,15 @@ model Message {
   headers      Json?
   messageId    String?          @unique
   aiSuggestion AISuggestion?
+  connectionId String?
+  connection   Connection?      @relation(fields: [connectionId], references: [id])
   order        Order?           @relation(fields: [orderId], references: [id])
   thread       Thread           @relation(fields: [threadId], references: [id])
 
   @@index([direction, createdAt])
   @@index([threadId])
   @@index([orderId])
+  @@index([connectionId, createdAt])
 }
 
 model AISuggestion {
