@@ -1720,13 +1720,36 @@ export default function InboxPage() {
                               </div>
                             </div>
 
-                            {/* Line Items - from database for fast display */}
+                            {/* Line Items - fetched on demand */}
                             {(() => {
-                              const selectedOrderForItems = ordersAccum.find(
-                                (o) => o.shopifyId === selectedOrderId,
+                              // Use the new query to fetch details including line items
+                              const { data: orderDetails, isLoading: isLoadingDetails } = trpc.shopify.getOrderDetails.useQuery(
+                                { orderId: selectedOrderId || '' },
+                                { 
+                                  enabled: !!selectedOrderId,
+                                  staleTime: 300000, // Cache for 5 minutes
+                                }
                               );
-                              const items = selectedOrderForItems?.lineItems || [];
+
+                              if (!selectedOrderId) return null;
+                              
+                              if (isLoadingDetails) {
+                                return (
+                                  <div className="mb-4">
+                                    <h4 className="text-sm font-semibold text-stone-900 mb-3">Items</h4>
+                                    <div className="space-y-2">
+                                      {[1, 2].map((i) => (
+                                        <div key={i} className="h-16 rounded-lg bg-stone-100 animate-pulse" />
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              const items = orderDetails?.lineItems || [];
+                              
                               if (items.length === 0) return null;
+                              
                               return (
                                 <div className="mb-4">
                                   <h4 className="text-sm font-semibold text-stone-900 mb-3">
@@ -1748,10 +1771,7 @@ export default function InboxPage() {
                                           </p>
                                         </div>
                                         <span className="text-sm font-medium text-stone-900">
-                                          {formatCurrency(
-                                            item.price,
-                                            selectedOrderForItems?.currency || 'INR',
-                                          )}
+                                          {formatCurrency(item.price, orderDetails?.currency || 'INR')}
                                         </span>
                                       </div>
                                     ))}
@@ -1759,6 +1779,7 @@ export default function InboxPage() {
                                 </div>
                               );
                             })()}
+
 
                             {/* Linked Emails */}
                             <div>

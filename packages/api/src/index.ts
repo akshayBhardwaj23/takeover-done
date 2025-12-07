@@ -1291,11 +1291,17 @@ const shopifyRouter = t.router({
     .input(z.object({ orderId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const order = await prisma.order.findFirst({
-        where: { id: input.orderId },
+        where: { 
+          OR: [
+            { shopifyId: input.orderId },
+            { id: input.orderId }
+          ]
+        },
         include: {
           connection: {
             select: { userId: true, shopDomain: true },
           },
+          lineItems: true, // Included for inbox details view
           customer: true, // Include linked customer with full PII
           actions: {
             orderBy: { createdAt: 'desc' },
@@ -1331,6 +1337,14 @@ const shopifyRouter = t.router({
         shopDomain: order.shopDomain,
         processedAt: order.processedAt,
         statusUpdatedAt: order.statusUpdatedAt,
+        lineItems: order.lineItems.map((item) => ({
+          id: item.id,
+          shopifyId: item.shopifyId,
+          title: item.title,
+          quantity: item.quantity,
+          price: item.price,
+          sku: item.sku,
+        })),
         // Customer PII from webhooks
         customer: order.customer
           ? {
@@ -2018,16 +2032,7 @@ export const appRouter = t.router({
             updatedAt: true,
             shopDomain: true,
             connectionId: true,
-            lineItems: {
-              select: {
-                id: true,
-                shopifyId: true,
-                title: true,
-                quantity: true,
-                price: true,
-                sku: true,
-              },
-            },
+            // lineItems removed for performance - fetched on demand via getOrderDetails
           },
         }),
         unassignedConnectionIds.length
@@ -3480,16 +3485,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         updatedAt: true,
         shopDomain: true,
         connectionId: true,
-        lineItems: {
-          select: {
-            id: true,
-            shopifyId: true,
-            title: true,
-            quantity: true,
-            price: true,
-            sku: true,
-          },
-        },
+        // lineItems removed for performance - fetched on demand via getOrderDetails
       };
 
       if (input.cursor) {
@@ -3518,42 +3514,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       const hasMore = orders.length > input.limit;
       const page = hasMore ? orders.slice(0, input.limit) : orders;
 
-      // Calculate pending email counts for each order (optimized: single query)
+      // Get pending email counts for these orders
       const orderIds = page.map((o) => o.id);
-      const allMessages =
-        orderIds.length > 0
-          ? await prisma.message.findMany({
-              where: { orderId: { in: orderIds } },
-              orderBy: { createdAt: 'desc' },
-              select: { orderId: true, direction: true },
-            })
-          : [];
+      
+      // Optimized: Use groupBy to count outbound messages for these orders
+      const pendingCounts = await prisma.message.groupBy({
+        by: ['orderId'],
+        where: {
+          orderId: { in: orderIds },
+          direction: 'OUTBOUND',
+        },
+        _count: {
+          id: true,
+        },
+      });
 
-      // Group messages by orderId
-      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
-      for (const msg of allMessages) {
-        if (msg.orderId) {
-          if (!messagesByOrder.has(msg.orderId)) {
-            messagesByOrder.set(msg.orderId, []);
-          }
-          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
-        }
-      }
-
-      // Calculate pending counts for each order
-      const pendingCountsMap = new Map<string, number>();
-      for (const orderId of orderIds) {
-        const messages = messagesByOrder.get(orderId) ?? [];
-        let pendingCount = 0;
-        for (const msg of messages) {
-          if (msg.direction === 'OUTBOUND') {
-            break; // Stop counting once we hit an OUTBOUND
-          } else if (msg.direction === 'INBOUND') {
-            pendingCount++;
-          }
-        }
-        pendingCountsMap.set(orderId, pendingCount);
-      }
+      const pendingCountsMap = new Map(
+        pendingCounts.map((c) => [c.orderId, c._count.id]),
+      );
 
       // Add pending email counts to orders
       const ordersWithPending = page.map((order) => ({
