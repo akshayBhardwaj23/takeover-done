@@ -368,7 +368,9 @@ export default function InboxPage() {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
-      enabled: !inboxBootstrap.isLoading || !!inboxBootstrap.data,
+      // Enable parallel execution - both queries can run simultaneously
+      // They're independent and will be merged/deduped on the frontend
+      enabled: true,
     },
   );
 

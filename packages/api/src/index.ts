@@ -1,5 +1,6 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import {
   prisma,
   logEvent,
@@ -1990,10 +1991,12 @@ export const appRouter = t.router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
+      const startTime = Date.now();
       const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
       const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
 
       // Fetch all connections once to avoid multiple round-trips
+      const connectionsStart = Date.now();
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
         select: { id: true, type: true, shopDomain: true, metadata: true },
@@ -2079,41 +2082,84 @@ export const appRouter = t.router({
         canSendEmail(ctx.userId),
       ]);
 
-      // Calculate pending email counts for each order (optimized: single query)
+      // Calculate pending email counts for each order (optimized: SQL aggregation)
       const orderIds = orders.map((o) => o.id);
-      const allMessages =
-        orderIds.length > 0
-          ? await prisma.message.findMany({
-              where: { orderId: { in: orderIds } },
-              orderBy: { createdAt: 'desc' },
-              select: { orderId: true, direction: true },
-            })
-          : [];
-
-      // Group messages by orderId
-      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
-      for (const msg of allMessages) {
-        if (msg.orderId) {
-          if (!messagesByOrder.has(msg.orderId)) {
-            messagesByOrder.set(msg.orderId, []);
-          }
-          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
-        }
-      }
-
-      // Calculate pending counts for each order
       const pendingCountsMap = new Map<string, number>();
-      for (const orderId of orderIds) {
-        const messages = messagesByOrder.get(orderId) ?? [];
-        let pendingCount = 0;
-        for (const msg of messages) {
-          if (msg.direction === 'OUTBOUND') {
-            break; // Stop counting once we hit an OUTBOUND
-          } else if (msg.direction === 'INBOUND') {
-            pendingCount++;
+
+      if (orderIds.length > 0) {
+        try {
+          // Use SQL to efficiently calculate pending counts
+          // Pending = count of INBOUND messages from newest until first OUTBOUND
+          // We use a window function approach: for each order, count INBOUND messages
+          // in rows where no OUTBOUND has appeared yet (when ordered by createdAt desc)
+          // Properly parameterize the orderIds array for SQL IN clause
+          const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ');
+          const pendingCounts = await prisma.$queryRawUnsafe<Array<{ orderId: string; count: bigint }>>(
+            `WITH ordered_messages AS (
+              SELECT 
+                "orderId",
+                direction,
+                ROW_NUMBER() OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC) as rn,
+                SUM(CASE WHEN direction = 'OUTBOUND' THEN 1 ELSE 0 END) 
+                  OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as outbound_count
+              FROM "Message"
+              WHERE "orderId" IN (${placeholders})
+                AND "orderId" IS NOT NULL
+            ),
+            pending_candidates AS (
+              SELECT 
+                "orderId",
+                direction,
+                rn,
+                outbound_count
+              FROM ordered_messages
+              WHERE outbound_count = 0
+            )
+            SELECT 
+              "orderId",
+              COUNT(*)::bigint as count
+            FROM pending_candidates
+            WHERE direction = 'INBOUND'
+            GROUP BY "orderId"`,
+            ...orderIds
+          );
+
+          // Convert results to Map (handle bigint conversion)
+          for (const row of pendingCounts) {
+            pendingCountsMap.set(row.orderId, Number(row.count));
+          }
+        } catch (error) {
+          // Fallback to original approach if SQL aggregation fails
+          console.error('[inboxBootstrap] Error in pending count SQL query, using fallback:', error);
+          const allMessages = await prisma.message.findMany({
+            where: { orderId: { in: orderIds } },
+            orderBy: { createdAt: 'desc' },
+            select: { orderId: true, direction: true },
+          });
+
+          const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+          for (const msg of allMessages) {
+            if (msg.orderId) {
+              if (!messagesByOrder.has(msg.orderId)) {
+                messagesByOrder.set(msg.orderId, []);
+              }
+              messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+            }
+          }
+
+          for (const orderId of orderIds) {
+            const messages = messagesByOrder.get(orderId) ?? [];
+            let pendingCount = 0;
+            for (const msg of messages) {
+              if (msg.direction === 'OUTBOUND') {
+                break;
+              } else if (msg.direction === 'INBOUND') {
+                pendingCount++;
+              }
+            }
+            pendingCountsMap.set(orderId, pendingCount);
           }
         }
-        pendingCountsMap.set(orderId, pendingCount);
       }
 
       // Add pending email counts to orders
@@ -2121,6 +2167,12 @@ export const appRouter = t.router({
         ...order,
         pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
       }));
+
+      const totalTime = Date.now() - startTime;
+      // Log slow queries for monitoring
+      if (totalTime > 2000) {
+        console.warn(`[inboxBootstrap] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
+      }
 
       return {
         orders: ordersWithPending,
@@ -2949,8 +3001,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             },
           },
         });
+        const totalTime = Date.now() - startTime;
+        // Log slow queries for monitoring
+        if (totalTime > 1000) {
+          console.warn(`[unassignedInbound] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
+        }
         return { messages: msgs };
-      } catch {
+      } catch (error) {
+        console.error('[unassignedInbound] Error:', error);
         return { messages: [] };
       }
     }),
@@ -2960,8 +3018,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     )
     .query(async ({ input, ctx }) => {
       try {
+        const startTime = Date.now();
         const take = input?.take ?? 20;
-        // Get user's connections to filter messages
+        // Get user's CUSTOM_EMAIL connections to filter messages
         const connections = await prisma.connection.findMany({
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
           select: { id: true },
@@ -2972,10 +3031,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           return { messages: [] };
         }
 
+        // Optimized: Filter by connectionId directly (same as inboxBootstrap)
+        // This uses the existing index on (connectionId, createdAt) for better performance
+        // Also include messages that might only have connectionId through thread
         const msgs = await prisma.message.findMany({
           where: {
-            // Show ALL emails in inbox (both inbound and outbound)
-            thread: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
+            OR: [
+              { connectionId: { in: connectionIds } }, // Direct connectionId match
+              { thread: { connectionId: { in: connectionIds } } }, // Through thread
+            ],
           },
           orderBy: { createdAt: 'desc' },
           take,
@@ -2987,6 +3051,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             body: true,
             createdAt: true,
             orderId: true,
+            connectionId: true, // Include for filtering/deduplication
             thread: {
               select: {
                 id: true,
@@ -3011,8 +3076,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             },
           },
         });
+        const totalTime = Date.now() - startTime;
+        // Log slow queries for monitoring
+        if (totalTime > 1000) {
+          console.warn(`[unassignedInbound] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
+        }
         return { messages: msgs };
-      } catch {
+      } catch (error) {
+        console.error('[unassignedInbound] Error:', error);
         return { messages: [] };
       }
     }),

@@ -203,7 +203,9 @@ model Message {
 
   @@index([direction, createdAt])
   @@index([threadId])
+  @@index([threadId, createdAt])  // For thread-based queries with ordering
   @@index([orderId])
+  @@index([orderId, createdAt, direction])  // For pending email count calculation
   @@index([connectionId, createdAt])
 }
 
