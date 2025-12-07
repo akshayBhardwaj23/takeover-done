@@ -1,6 +1,5 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
 import {
   prisma,
   logEvent,
@@ -3001,14 +3000,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             },
           },
         });
-        const totalTime = Date.now() - startTime;
-        // Log slow queries for monitoring
-        if (totalTime > 1000) {
-          console.warn(`[unassignedInbound] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
-        }
         return { messages: msgs };
-      } catch (error) {
-        console.error('[unassignedInbound] Error:', error);
+      } catch {
         return { messages: [] };
       }
     }),
