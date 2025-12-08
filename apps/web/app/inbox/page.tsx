@@ -350,19 +350,6 @@ export default function InboxPage() {
     };
   }, []);
 
-  // Auto-scroll to bottom when thread messages load
-  useEffect(() => {
-    if (threadMessages.data?.messages && conversationScrollRef.current) {
-      // Small delay to ensure DOM is updated
-      setTimeout(() => {
-        const scrollContainer = conversationScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        }
-      }, 100);
-    }
-  }, [threadMessages.data?.messages]);
-
   useEffect(() => {
     const url = new URL(window.location.href);
     const s = url.searchParams.get('shop');
@@ -440,22 +427,6 @@ export default function InboxPage() {
     {
       enabled: !!shop && !!selectedOrderId,
       staleTime: 60_000,
-      refetchOnWindowFocus: false,
-    },
-  );
-
-  // Get threadId from selected email
-  const selectedThreadId = useMemo(() => {
-    if (!selectedEmail) return null;
-    return selectedEmail.thread?.id || selectedEmail.id;
-  }, [selectedEmail]);
-
-  // Fetch all messages in the selected thread
-  const threadMessages = trpc.threadMessages.useQuery(
-    { threadId: selectedThreadId ?? '' },
-    {
-      enabled: !!selectedThreadId,
-      staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
   );
@@ -634,6 +605,35 @@ export default function InboxPage() {
     }
     return email;
   }, [selectedEmailId, allEmails, flaggedThreads]);
+
+  // Get threadId from selected email
+  const selectedThreadId = useMemo(() => {
+    if (!selectedEmail) return null;
+    return selectedEmail.thread?.id || selectedEmail.id;
+  }, [selectedEmail]);
+
+  // Fetch all messages in the selected thread
+  const threadMessages = trpc.threadMessages.useQuery(
+    { threadId: selectedThreadId ?? '' },
+    {
+      enabled: !!selectedThreadId,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  // Auto-scroll to bottom when thread messages load
+  useEffect(() => {
+    if (threadMessages.data?.messages && conversationScrollRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        const scrollContainer = conversationScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [threadMessages.data?.messages]);
 
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
