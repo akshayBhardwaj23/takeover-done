@@ -206,7 +206,8 @@ model Message {
   @@index([threadId, createdAt])  // For thread-based queries with ordering
   @@index([orderId])
   @@index([orderId, createdAt, direction])  // For pending email count calculation
-  @@index([connectionId, createdAt])
+  // Note: connectionId column may not exist in database, filtering via thread.connectionId instead
+  // @@index([connectionId, createdAt])  // Uncomment if connectionId column is added
 }
 
 model AISuggestion {

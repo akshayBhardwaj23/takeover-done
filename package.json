@@ -20,8 +20,7 @@
     "tunnel:dev": "cloudflared tunnel --config infra/cloudflared/config.yml run",
     "redis:start": "./scripts/start-redis.sh",
     "redis:stop": "./scripts/stop-redis.sh",
-    "test:mailgun:local": "cd apps/web && npx tsx ../../scripts/test-mailgun-webhook-local.ts",
-    "test:inbox-performance": "tsx scripts/test-inbox-performance.ts"
+    "test:mailgun:local": "cd apps/web && npx tsx ../../scripts/test-mailgun-webhook-local.ts"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

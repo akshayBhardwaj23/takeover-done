@@ -1291,11 +1291,8 @@ const shopifyRouter = t.router({
     .input(z.object({ orderId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const order = await prisma.order.findFirst({
-        where: { 
-          OR: [
-            { shopifyId: input.orderId },
-            { id: input.orderId }
-          ]
+        where: {
+          OR: [{ shopifyId: input.orderId }, { id: input.orderId }],
         },
         include: {
           connection: {
@@ -1388,7 +1385,7 @@ const emailRouter = t.router({
     .mutation(async ({ input, ctx }) => {
       const cleanEmail = safeEmail(input.userEmail);
       const domain = sanitizeLimited(input.domain, 255);
-      
+
       if (!cleanEmail) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -1412,7 +1409,7 @@ const emailRouter = t.router({
       if (isStandalone) {
         // STANDALONE ALIAS - Check if user already has one
         const hasStandalone = existingAliases.some(
-          (a) => !(a.metadata as any)?.shopDomain
+          (a) => !(a.metadata as any)?.shopDomain,
         );
 
         if (hasStandalone) {
@@ -1426,7 +1423,7 @@ const emailRouter = t.router({
         // STORE-LINKED ALIAS
         const shopDomainResult = safeShopDomain(input.shop);
         cleanShop = shopDomainResult || undefined;
-        
+
         if (!cleanShop) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -1452,12 +1449,12 @@ const emailRouter = t.router({
 
         // Check if this store already has an alias
         const storeHasAlias = existingAliases.some(
-          (a) => (a.metadata as any)?.shopDomain === cleanShop
+          (a) => (a.metadata as any)?.shopDomain === cleanShop,
         );
 
         if (storeHasAlias) {
           const existing = existingAliases.find(
-            (a) => (a.metadata as any)?.shopDomain === cleanShop
+            (a) => (a.metadata as any)?.shopDomain === cleanShop,
           );
           return {
             id: existing!.id,
@@ -1475,10 +1472,13 @@ const emailRouter = t.router({
 
       // Generate alias
       const short = Math.random().toString(36).slice(2, 6);
-      
+
       // For standalone, use generic prefix; for store, use shop slug
       const prefix = cleanShop
-        ? cleanShop.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+        ? cleanShop
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .slice(0, 8)
+            .toLowerCase()
         : 'support';
 
       // Add environment suffix to alias for routing (local/staging/production)
@@ -1515,7 +1515,7 @@ const emailRouter = t.router({
         'email.alias.created',
         { alias, type: isStandalone ? 'standalone' : 'store-linked' },
         'connection',
-        conn.id
+        conn.id,
       );
       return { id: conn.id, alias };
     }),
@@ -1610,7 +1610,7 @@ const emailRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
-  
+
   deleteAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -1639,7 +1639,7 @@ const emailRouter = t.router({
         'email.alias.deleted',
         { alias: (alias.metadata as any)?.alias },
         'connection',
-        input.id
+        input.id,
       );
 
       return { success: true };
@@ -1664,11 +1664,11 @@ const emailRouter = t.router({
     });
 
     const standaloneCount = aliases.filter(
-      (a) => !(a.metadata as any)?.shopDomain
+      (a) => !(a.metadata as any)?.shopDomain,
     ).length;
 
     const storeLinkCount = aliases.filter(
-      (a) => !!(a.metadata as any)?.shopDomain
+      (a) => !!(a.metadata as any)?.shopDomain,
     ).length;
 
     return {
@@ -1990,12 +1990,10 @@ export const appRouter = t.router({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const startTime = Date.now();
       const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
       const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
 
       // Fetch all connections once to avoid multiple round-trips
-      const connectionsStart = Date.now();
       const connections = await prisma.connection.findMany({
         where: { userId: ctx.userId },
         select: { id: true, type: true, shopDomain: true, metadata: true },
@@ -2041,7 +2039,8 @@ export const appRouter = t.router({
           ? prisma.message.findMany({
               where: {
                 // Show ALL emails in inbox (both inbound and outbound)
-                connectionId: { in: unassignedConnectionIds },
+                // Filter by thread.connectionId since Message.connectionId may not exist in DB
+                thread: { connectionId: { in: unassignedConnectionIds } },
               },
               orderBy: { createdAt: 'desc' },
               take: unassignedTake,
@@ -2093,7 +2092,9 @@ export const appRouter = t.router({
           // in rows where no OUTBOUND has appeared yet (when ordered by createdAt desc)
           // Properly parameterize the orderIds array for SQL IN clause
           const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ');
-          const pendingCounts = await prisma.$queryRawUnsafe<Array<{ orderId: string; count: bigint }>>(
+          const pendingCounts = await prisma.$queryRawUnsafe<
+            Array<{ orderId: string; count: bigint }>
+          >(
             `WITH ordered_messages AS (
               SELECT 
                 "orderId",
@@ -2120,7 +2121,7 @@ export const appRouter = t.router({
             FROM pending_candidates
             WHERE direction = 'INBOUND'
             GROUP BY "orderId"`,
-            ...orderIds
+            ...orderIds,
           );
 
           // Convert results to Map (handle bigint conversion)
@@ -2129,20 +2130,28 @@ export const appRouter = t.router({
           }
         } catch (error) {
           // Fallback to original approach if SQL aggregation fails
-          console.error('[inboxBootstrap] Error in pending count SQL query, using fallback:', error);
+          console.error(
+            '[inboxBootstrap] Error in pending count SQL query, using fallback:',
+            error,
+          );
           const allMessages = await prisma.message.findMany({
             where: { orderId: { in: orderIds } },
             orderBy: { createdAt: 'desc' },
             select: { orderId: true, direction: true },
           });
 
-          const messagesByOrder = new Map<string, Array<{ direction: string }>>();
+          const messagesByOrder = new Map<
+            string,
+            Array<{ direction: string }>
+          >();
           for (const msg of allMessages) {
             if (msg.orderId) {
               if (!messagesByOrder.has(msg.orderId)) {
                 messagesByOrder.set(msg.orderId, []);
               }
-              messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
+              messagesByOrder
+                .get(msg.orderId)!
+                .push({ direction: msg.direction });
             }
           }
 
@@ -2166,12 +2175,6 @@ export const appRouter = t.router({
         ...order,
         pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
       }));
-
-      const totalTime = Date.now() - startTime;
-      // Log slow queries for monitoring
-      if (totalTime > 2000) {
-        console.warn(`[inboxBootstrap] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
-      }
 
       return {
         orders: ordersWithPending,
@@ -3011,7 +3014,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     )
     .query(async ({ input, ctx }) => {
       try {
-        const startTime = Date.now();
         const take = input?.take ?? 20;
         // Get user's CUSTOM_EMAIL connections to filter messages
         const connections = await prisma.connection.findMany({
@@ -3024,15 +3026,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           return { messages: [] };
         }
 
-        // Optimized: Filter by connectionId directly (same as inboxBootstrap)
-        // This uses the existing index on (connectionId, createdAt) for better performance
-        // Also include messages that might only have connectionId through thread
+        // Filter by thread.connectionId since Message.connectionId may not exist in DB
         const msgs = await prisma.message.findMany({
           where: {
-            OR: [
-              { connectionId: { in: connectionIds } }, // Direct connectionId match
-              { thread: { connectionId: { in: connectionIds } } }, // Through thread
-            ],
+            thread: { connectionId: { in: connectionIds } },
           },
           orderBy: { createdAt: 'desc' },
           take,
@@ -3044,7 +3041,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             body: true,
             createdAt: true,
             orderId: true,
-            connectionId: true, // Include for filtering/deduplication
             thread: {
               select: {
                 id: true,
@@ -3069,14 +3065,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             },
           },
         });
-        const totalTime = Date.now() - startTime;
-        // Log slow queries for monitoring
-        if (totalTime > 1000) {
-          console.warn(`[unassignedInbound] Slow query detected: ${totalTime}ms for user ${ctx.userId}`);
-        }
         return { messages: msgs };
-      } catch (error) {
-        console.error('[unassignedInbound] Error:', error);
+      } catch {
         return { messages: [] };
       }
     }),
@@ -3580,7 +3570,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
       // Get pending email counts for these orders
       const orderIds = page.map((o) => o.id);
-      
+
       // Optimized: Use groupBy to count outbound messages for these orders
       const pendingCounts = await prisma.message.groupBy({
         by: ['orderId'],
