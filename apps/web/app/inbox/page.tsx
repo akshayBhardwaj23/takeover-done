@@ -431,6 +431,16 @@ export default function InboxPage() {
     },
   );
 
+  // Get order details with line items (for order view)
+  const orderDetailsWithItems = trpc.shopify.getOrderDetails.useQuery(
+    { orderId: selectedOrderId || '' },
+    {
+      enabled: !!selectedOrderId,
+      staleTime: 300000, // Cache for 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  );
+
   // =============================================================================
   // MUTATIONS
   // =============================================================================
@@ -1789,18 +1799,9 @@ export default function InboxPage() {
 
                             {/* Line Items - fetched on demand */}
                             {(() => {
-                              // Use the new query to fetch details including line items
-                              const { data: orderDetails, isLoading: isLoadingDetails } = trpc.shopify.getOrderDetails.useQuery(
-                                { orderId: selectedOrderId || '' },
-                                { 
-                                  enabled: !!selectedOrderId,
-                                  staleTime: 300000, // Cache for 5 minutes
-                                }
-                              );
-
                               if (!selectedOrderId) return null;
                               
-                              if (isLoadingDetails) {
+                              if (orderDetailsWithItems.isLoading) {
                                 return (
                                   <div className="mb-4">
                                     <h4 className="text-sm font-semibold text-stone-900 mb-3">Items</h4>
@@ -1813,7 +1814,7 @@ export default function InboxPage() {
                                 );
                               }
 
-                              const items = orderDetails?.lineItems || [];
+                              const items = orderDetailsWithItems.data?.lineItems || [];
                               
                               if (items.length === 0) return null;
                               
