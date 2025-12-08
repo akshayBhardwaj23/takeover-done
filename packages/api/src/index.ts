@@ -2928,6 +2928,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const result = await response.json();
 
         // Create outbound message record
+        // Note: connectionId column doesn't exist in database, connection is tracked via thread
         await prisma.message.create({
           data: {
             threadId: message.thread.id,
@@ -2935,7 +2936,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: message.from,
             body: safeBody,
             direction: 'OUTBOUND',
-            connectionId: message.thread.connectionId,
           },
         });
 
