@@ -1,4 +1,4 @@
-import { prisma } from './index.js';
+import { prisma } from './prisma.js';
 
 // Base plan limits (without pricing - pricing is currency-dependent)
 export const PLAN_LIMITS = {
@@ -232,7 +232,7 @@ export async function canReceiveEmail(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  
+
   const usageRecord = await getCurrentUsageRecord(subscription);
 
   const limit = planLimits.emailsReceivedLimit ?? -1;
@@ -351,7 +351,7 @@ export async function canSendEmail(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  
+
   // Optimized: Pass subscription object directly
   const usageRecord = await getCurrentUsageRecord(subscription);
 
@@ -432,7 +432,7 @@ export async function canUseAI(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  
+
   const usageRecord = await getCurrentUsageRecord(subscription);
 
   const limit = planLimits.aiRepliesLimit;
@@ -525,7 +525,8 @@ export async function getUsageSummary(userId: string) {
   const canUseAIMore =
     (aiLimit === -1 || aiCurrent < aiLimit) && !(isTrial && expired);
   const canReceiveMore =
-    (emailsReceivedLimit === -1 || emailsReceivedCurrent < emailsReceivedLimit) &&
+    (emailsReceivedLimit === -1 ||
+      emailsReceivedCurrent < emailsReceivedLimit) &&
     !(isTrial && expired);
 
   return {
@@ -544,7 +545,8 @@ export async function getUsageSummary(userId: string) {
     emailsReceivedUsagePercentage:
       emailsReceivedLimit === -1
         ? 0
-        : Math.round((emailsReceivedCurrent / emailsReceivedLimit) * 10000) / 100,
+        : Math.round((emailsReceivedCurrent / emailsReceivedLimit) * 10000) /
+          100,
     canSendEmail: canSendMore,
     canUseAI: canUseAIMore,
     canReceiveEmail: canReceiveMore,
@@ -555,7 +557,11 @@ export async function getUsageSummary(userId: string) {
     emailsRemaining:
       limit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, limit - current),
     aiRemaining:
-      aiLimit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, aiLimit - aiCurrent),
+      aiLimit === -1
+        ? -1
+        : isTrial && expired
+          ? 0
+          : Math.max(0, aiLimit - aiCurrent),
     emailsReceivedRemaining:
       emailsReceivedLimit === -1
         ? -1

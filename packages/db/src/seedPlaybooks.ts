@@ -1,4 +1,4 @@
-import { prisma } from './index';
+import { prisma } from './prisma.js';
 import { PlaybookCategory } from '@prisma/client';
 
 const DEFAULT_PLAYBOOKS = [
