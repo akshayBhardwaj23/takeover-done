@@ -157,6 +157,12 @@ function formatTime(date: string) {
   });
 }
 
+function isDifferentDay(date1: string, date2: string): boolean {
+  const d1 = new Date(date1);
+  const d2 = new Date(date2);
+  return d1.toDateString() !== d2.toDateString();
+}
+
 const extractEmailAddress = (value?: string | null): string | null => {
   if (!value) return null;
   const match = value.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -334,6 +340,7 @@ export default function InboxPage() {
   const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
+  const conversationScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     return () => {
@@ -342,6 +349,19 @@ export default function InboxPage() {
       }
     };
   }, []);
+
+  // Auto-scroll to bottom when thread messages load
+  useEffect(() => {
+    if (threadMessages.data?.messages && conversationScrollRef.current) {
+      // Small delay to ensure DOM is updated
+      setTimeout(() => {
+        const scrollContainer = conversationScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      }, 100);
+    }
+  }, [threadMessages.data?.messages]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -424,6 +444,22 @@ export default function InboxPage() {
     },
   );
 
+  // Get threadId from selected email
+  const selectedThreadId = useMemo(() => {
+    if (!selectedEmail) return null;
+    return selectedEmail.thread?.id || selectedEmail.id;
+  }, [selectedEmail]);
+
+  // Fetch all messages in the selected thread
+  const threadMessages = trpc.threadMessages.useQuery(
+    { threadId: selectedThreadId ?? '' },
+    {
+      enabled: !!selectedThreadId,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
+
   // =============================================================================
   // MUTATIONS
   // =============================================================================
@@ -448,6 +484,7 @@ export default function InboxPage() {
       }
       unassignedQuery.refetch();
       inboxBootstrap.refetch();
+      threadMessages.refetch();
       toast.success('Reply sent successfully');
     },
     onError: (error) => {
@@ -1295,70 +1332,104 @@ export default function InboxPage() {
                     </div>
 
                     {/* Conversation Area */}
-                    <ScrollArea className="flex-1 p-6">
-                      {/* Date Header */}
-                      <div className="flex items-center justify-center mb-6">
-                        <button className="flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-200 transition">
-                          {formatDateHeader(selectedEmail.createdAt)}
-                          <ChevronDown className="h-3 w-3" />
-                        </button>
-                      </div>
-
-                      {/* Message */}
-                      <div className="flex items-start gap-3 mb-6">
-                        <div
-                          className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(selectedEmail.from)}`}
-                        >
-                          {getInitials(null, selectedEmail.from)}
+                    <ScrollArea ref={conversationScrollRef} className="flex-1 p-6">
+                      {threadMessages.isLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <LumaSpin />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-semibold text-stone-900">
-                              {getSenderName(selectedEmail.from)}
-                            </span>
-                            <span className="text-xs text-stone-500">
-                              {formatTime(selectedEmail.createdAt)}
-                            </span>
-                          </div>
-                          {(selectedEmail.subject ||
-                            selectedEmail.thread?.subject) && (
-                            <p className="text-sm font-medium text-stone-800 mb-2">
-                              {selectedEmail.subject ||
-                                selectedEmail.thread?.subject}
-                            </p>
-                          )}
-                          <div className="rounded-2xl rounded-tl-none bg-stone-100 p-4">
-                            <p className="text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">
-                              {selectedEmail.body}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      ) : threadMessages.data?.messages && threadMessages.data.messages.length > 0 ? (
+                        <div className="space-y-4">
+                          {threadMessages.data.messages.map((message: any, index: number) => {
+                            const isInbound = message.direction === 'INBOUND';
+                            const isFirstMessage = index === 0;
+                            const prevMessage = index > 0 ? threadMessages.data.messages[index - 1] : null;
+                            const showDateSeparator = !prevMessage || isDifferentDay(message.createdAt, prevMessage.createdAt);
+                            const subject = isFirstMessage ? (selectedEmail.subject || selectedEmail.thread?.subject) : null;
 
-                      {/* AI Suggestion Section */}
-                      {(selectedEmail.aiSuggestion || draft) && (
-                        <div className="mt-6 pt-6 border-t border-stone-100">
-                          <div className="flex items-center gap-2 mb-4">
-                            <Sparkles className="h-4 w-4 text-violet-500" />
-                            <span className="text-sm font-semibold text-stone-900">
-                              AI Suggested Reply
-                            </span>
-                            {selectedEmail.aiSuggestion?.confidence && (
-                              <Badge className="bg-violet-100 text-violet-700 text-xs">
-                                {Math.round(
-                                  selectedEmail.aiSuggestion.confidence * 100,
+                            return (
+                              <div key={message.id}>
+                                {/* Date Separator */}
+                                {showDateSeparator && (
+                                  <div className="flex items-center justify-center my-6">
+                                    <div className="flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs text-stone-600">
+                                      {formatDateHeader(message.createdAt)}
+                                    </div>
+                                  </div>
                                 )}
-                                % confidence
-                              </Badge>
-                            )}
-                          </div>
 
-                          {selectedEmail.aiSuggestion?.rationale && (
-                            <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
-                              <strong>Analysis:</strong>{' '}
-                              {selectedEmail.aiSuggestion.rationale}
-                            </p>
+                                {/* Message Bubble */}
+                                <div className={`flex items-start gap-3 mb-4 ${isInbound ? 'justify-start' : 'justify-end'}`}>
+                                  {isInbound && (
+                                    <div
+                                      className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(message.from)}`}
+                                    >
+                                      {getInitials(null, message.from)}
+                                    </div>
+                                  )}
+                                  <div className={`flex-1 ${isInbound ? 'max-w-[75%]' : 'max-w-[75%] flex flex-col items-end'}`}>
+                                    <div className={`flex items-center gap-2 mb-1 ${isInbound ? '' : 'flex-row-reverse'}`}>
+                                      <span className={`text-sm font-semibold ${isInbound ? 'text-stone-900' : 'text-white'}`}>
+                                        {isInbound ? getSenderName(message.from) : 'Bruno Perez'}
+                                      </span>
+                                      <span className={`text-xs ${isInbound ? 'text-stone-500' : 'text-stone-300'}`}>
+                                        {formatTime(message.createdAt)}
+                                      </span>
+                                    </div>
+                                    {subject && (
+                                      <p className={`text-sm font-medium mb-2 ${isInbound ? 'text-stone-800' : 'text-white'}`}>
+                                        {subject}
+                                      </p>
+                                    )}
+                                    <div className={`rounded-2xl p-4 ${
+                                      isInbound 
+                                        ? 'rounded-tl-none bg-stone-100' 
+                                        : 'rounded-tr-none bg-stone-900 text-white'
+                                    }`}>
+                                      <p className={`text-sm whitespace-pre-wrap leading-relaxed ${
+                                        isInbound ? 'text-stone-700' : 'text-white'
+                                      }`}>
+                                        {message.body}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {!isInbound && (
+                                    <div className="flex-shrink-0 w-10" />
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* AI Suggestion Section */}
+                          {(selectedEmail.aiSuggestion || draft) && (
+                            <div className="mt-6 pt-6 border-t border-stone-100">
+                              <div className="flex items-center gap-2 mb-4">
+                                <Sparkles className="h-4 w-4 text-violet-500" />
+                                <span className="text-sm font-semibold text-stone-900">
+                                  AI Suggested Reply
+                                </span>
+                                {selectedEmail.aiSuggestion?.confidence && (
+                                  <Badge className="bg-violet-100 text-violet-700 text-xs">
+                                    {Math.round(
+                                      selectedEmail.aiSuggestion.confidence * 100,
+                                    )}
+                                    % confidence
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {selectedEmail.aiSuggestion?.rationale && (
+                                <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
+                                  <strong>Analysis:</strong>{' '}
+                                  {selectedEmail.aiSuggestion.rationale}
+                                </p>
+                              )}
+                            </div>
                           )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center py-12 text-stone-500 text-sm">
+                          No messages found in this thread
                         </div>
                       )}
                     </ScrollArea>

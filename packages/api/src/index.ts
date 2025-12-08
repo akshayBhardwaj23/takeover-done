@@ -2927,8 +2927,32 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const result = await response.json();
 
+        // Extract Message-ID from Mailgun response (format: "<message-id@mailgun.org>")
+        // Mailgun returns the Message-ID in the 'id' field
+        const mailgunMessageId = result.id || null;
+
+        // Store headers we sent for threading (In-Reply-To, References)
+        const outboundHeaders: Record<string, any> = {
+          'message-id': mailgunMessageId,
+          subject: `Re: ${message.thread.subject || 'Your inquiry'}`,
+          from: fromEmail,
+          to: message.from,
+        };
+
+        if (originalMessageId) {
+          outboundHeaders['in-reply-to'] = originalMessageId;
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          outboundHeaders['references'] = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+        }
+
         // Create outbound message record
         // Note: connectionId column doesn't exist in database, connection is tracked via thread
+        // Store Message-ID and headers for proper email threading
         await prisma.message.create({
           data: {
             threadId: message.thread.id,
@@ -2936,6 +2960,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: message.from,
             body: safeBody,
             direction: 'OUTBOUND',
+            messageId: mailgunMessageId,
+            headers: outboundHeaders,
           },
         });
 
