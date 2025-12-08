@@ -79,8 +79,8 @@ model Connection {
   user         User           @relation(fields: [userId], references: [id])
   orders       Order[]
   threads      Thread[]
-  messages     Message[]
   customers    Customer[]
+  // Note: Messages are related via threads, not directly via connectionId
 
   @@index([userId])
   @@index([userId, createdAt])
@@ -196,8 +196,7 @@ model Message {
   headers      Json?
   messageId    String?          @unique
   aiSuggestion AISuggestion?
-  connectionId String?
-  connection   Connection?      @relation(fields: [connectionId], references: [id])
+  // Note: connectionId column does not exist in database, connection is accessed via thread.connectionId
   order        Order?           @relation(fields: [orderId], references: [id])
   thread       Thread           @relation(fields: [threadId], references: [id])
 
@@ -206,8 +205,6 @@ model Message {
   @@index([threadId, createdAt])  // For thread-based queries with ordering
   @@index([orderId])
   @@index([orderId, createdAt, direction])  // For pending email count calculation
-  // Note: connectionId column may not exist in database, filtering via thread.connectionId instead
-  // @@index([connectionId, createdAt])  // Uncomment if connectionId column is added
 }
 
 model AISuggestion {
