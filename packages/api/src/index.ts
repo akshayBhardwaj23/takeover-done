@@ -3237,19 +3237,22 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           };
         }
 
-        // Build query params - fetch orders updated in last 30 days by default
+        // Build query params - fetch as many orders as possible
+        // Note: Shopify Admin API typically returns orders from last 60 days by default
+        // but we'll try to get all available orders
         const params = new URLSearchParams({
           status: 'any',
-          limit: '250', // Max allowed by Shopify
+          limit: '250', // Max allowed by Shopify per request
         });
 
         if (input.updatedAfter) {
           params.set('updated_at_min', input.updatedAfter);
         } else {
-          // Default: last 30 days
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          params.set('updated_at_min', thirtyDaysAgo.toISOString());
+          // Try to get orders from a long time ago (10 years)
+          // Shopify will still limit to what's available, but this maximizes our chances
+          const tenYearsAgo = new Date();
+          tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
+          params.set('created_at_min', tenYearsAgo.toISOString());
         }
 
         const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
