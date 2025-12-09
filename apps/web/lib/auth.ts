@@ -11,9 +11,20 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: 'jwt' },
   callbacks: {
     async redirect({ url, baseUrl }) {
-      // If there's a callbackUrl in the query, use it
-      if (url.startsWith(baseUrl)) return url;
-      // Otherwise, redirect to integrations page after login
+      // If url is a relative path or external, make it absolute
+      const callbackUrl = url.startsWith('/') ? `${baseUrl}${url}` : url;
+
+      // If callbackUrl is the home page, redirect to integrations instead
+      if (callbackUrl === baseUrl || callbackUrl === `${baseUrl}/`) {
+        return `${baseUrl}/integrations`;
+      }
+
+      // If there's a valid callbackUrl that's not the home page, use it
+      if (callbackUrl.startsWith(baseUrl)) {
+        return callbackUrl;
+      }
+
+      // Default: redirect to integrations page after login
       return `${baseUrl}/integrations`;
     },
   },

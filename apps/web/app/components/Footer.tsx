@@ -95,7 +95,7 @@ export default function Footer() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => signIn('google')}
+                      onClick={() => signIn('google', { callbackUrl: '/integrations' })}
                       className="tracking-tight text-white transition hover:text-white/70"
                     >
                       Login
