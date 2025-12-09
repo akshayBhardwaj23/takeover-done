@@ -406,11 +406,13 @@ export default function InboxPage() {
       }
     });
 
-    // Sort newest first (createdAt descending)
-    const sorted = Array.from(orderMap.values()).sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    // Sort by order number (highest/newest first)
+    const sorted = Array.from(orderMap.values()).sort((a, b) => {
+      // Extract numeric part from shopifyId (e.g., "304325" -> 304325)
+      const numA = parseInt(a.shopifyId || '0', 10);
+      const numB = parseInt(b.shopifyId || '0', 10);
+      return numB - numA; // Descending order (highest number first)
+    });
 
     setOrdersAccum(sorted);
   }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
