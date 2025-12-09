@@ -2,7 +2,6 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { NormalModuleReplacementPlugin } from 'webpack';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,7 +44,7 @@ const nextConfig = {
     '@ai-ecom/db',
     // @ai-ecom/worker is not transpiled - it's only dynamically imported at runtime
   ],
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, webpack }) => {
     // Ensure dependencies from transpiled workspace packages resolve correctly
     // This fixes issues where Radix UI packages aren't found during transpilation
     if (!isServer) {
@@ -83,7 +82,7 @@ const nextConfig = {
     // This ensures that when webpack encounters relative .js imports, it resolves to .ts files
     config.plugins = config.plugins || [];
     config.plugins.push(
-      new NormalModuleReplacementPlugin(
+      new webpack.NormalModuleReplacementPlugin(
         /^\.\/.*\.js$/,
         (resource) => {
           // Only apply to files in @ai-ecom/db package
