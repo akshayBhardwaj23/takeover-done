@@ -13,18 +13,19 @@ export const authOptions: NextAuthOptions = {
     async redirect({ url, baseUrl }) {
       // If url is a relative path or external, make it absolute
       const callbackUrl = url.startsWith('/') ? `${baseUrl}${url}` : url;
-
-      // If callbackUrl is the home page, redirect to integrations instead
+      
+      // If callbackUrl is the home page, allow it (for signOut)
+      // signOut calls with callbackUrl: '/' should redirect to home
       if (callbackUrl === baseUrl || callbackUrl === `${baseUrl}/`) {
-        return `${baseUrl}/integrations`;
+        return callbackUrl;
       }
-
+      
       // If there's a valid callbackUrl that's not the home page, use it
       if (callbackUrl.startsWith(baseUrl)) {
         return callbackUrl;
       }
-
-      // Default: redirect to integrations page after login
+      
+      // Default: redirect to integrations page after login (signIn case)
       return `${baseUrl}/integrations`;
     },
   },

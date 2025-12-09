@@ -303,7 +303,9 @@ export default function Header() {
                 <div className="hidden h-8 items-center gap-2 rounded-full border px-3 text-xs font-medium md:flex">
                   <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-slate-100 px-2 leading-none text-slate-700">
                     <Mail className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="translate-y-[0.5px]">{emailsRemainingLabel}</span>
+                    <span className="translate-y-[0.5px]">
+                      {emailsRemainingLabel}
+                    </span>
                   </span>
                   {isTrial && (
                     <span
