@@ -1839,7 +1839,7 @@ export default function InboxPage() {
                                           </p>
                                         </div>
                                         <span className="text-sm font-medium text-stone-900">
-                                          {formatCurrency(item.price, orderDetails?.currency || 'INR')}
+                                          {formatCurrency(item.price, orderDetailsWithItems.data?.currency || orderDetail.data?.currency || 'INR')}
                                         </span>
                                       </div>
                                     ))}
