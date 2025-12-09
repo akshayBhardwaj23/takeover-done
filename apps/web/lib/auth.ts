@@ -9,4 +9,12 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt' },
+  callbacks: {
+    async redirect({ url, baseUrl }) {
+      // If there's a callbackUrl in the query, use it
+      if (url.startsWith(baseUrl)) return url;
+      // Otherwise, redirect to integrations page after login
+      return `${baseUrl}/integrations`;
+    },
+  },
 };
