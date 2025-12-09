@@ -1,7 +1,7 @@
 // Re-export prisma from separate file to avoid circular dependencies
 export { prisma } from './prisma.js';
 export { logEvent } from './logger.js';
-// Explicit exports from usage.ts to avoid Next.js bundling issues
+// Explicit exports from usage to avoid Next.js bundling issues
 export {
   PLAN_LIMITS,
   PLAN_LIMITS_WITH_PRICE,
@@ -16,5 +16,5 @@ export {
   canUseAI,
   getUsageSummary,
   getUsageHistory,
-} from './usage.ts';
+} from './usage.js';
 export { seedDefaultPlaybooks } from './seedPlaybooks.js';
