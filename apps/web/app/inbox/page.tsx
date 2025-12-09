@@ -406,7 +406,13 @@ export default function InboxPage() {
       }
     });
 
-    setOrdersAccum(Array.from(orderMap.values()));
+    // Sort newest first (createdAt descending)
+    const sorted = Array.from(orderMap.values()).sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    setOrdersAccum(sorted);
   }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
 
   const hasMoreOrders = ordersPage.data?.hasMore ?? false;
@@ -1012,7 +1018,7 @@ export default function InboxPage() {
                               syncAllOrders.isPending ? 'animate-spin' : ''
                             }`}
                           />
-                          {syncAllOrders.isPending ? 'Syncing...' : 'Sync'}
+                          {syncAllOrders.isPending ? 'Syncing...' : 'Sync orders'}
                         </Button>
                       )}
                       <button className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700">

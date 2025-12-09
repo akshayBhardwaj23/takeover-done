@@ -3327,7 +3327,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // but we'll try to get all available orders
         const params = new URLSearchParams({
           status: 'any',
-          limit: '250', // Max allowed by Shopify per request
+          limit: '100', // Fetch latest 100 orders
         });
 
         if (input.updatedAfter) {
