@@ -1021,10 +1021,6 @@ export default function InboxPage() {
                           {syncAllOrders.isPending ? 'Syncing...' : 'Sync orders'}
                         </Button>
                       )}
-                      <button className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700">
-                        Newest
-                        <ChevronDown className="h-3 w-3" />
-                      </button>
                     </div>
                   </div>
                   <div className="relative">
