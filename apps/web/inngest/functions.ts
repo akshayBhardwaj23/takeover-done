@@ -61,16 +61,18 @@ export const processInboundEmail = inngest.createFunction(
           await prisma.aISuggestion.upsert({
             where: { messageId },
             update: {
-              reply: "AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.",
+              reply:
+                'AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.',
               proposedAction: 'NONE',
-              confidence: 0
+              confidence: 0,
             },
             create: {
               messageId,
-              reply: "AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.",
+              reply:
+                'AI usage limit reached. Please upgrade your plan to continue using AI-assisted replies.',
               proposedAction: 'NONE',
-              confidence: 0
-            }
+              confidence: 0,
+            },
           });
           return;
         }
