@@ -3454,12 +3454,21 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               err,
             );
             errors++;
+            // Don't stop the entire sync if one order fails
           }
         }
 
         console.log(
-          `[syncAllOrders] Synced ${synced} orders with line items for ${input.shopDomain}, ${errors} errors`,
+          `[syncAllOrders] Completed sync: ${synced} orders synced, ${errors} errors, ${orders.length} total for ${input.shopDomain}`,
         );
+        
+        await logEvent(
+          'shopify.sync.completed',
+          { synced, errors, total: orders.length, shopDomain: input.shopDomain },
+          'connection',
+          conn.id,
+        );
+        
         return { ok: true, synced, errors, total: orders.length };
       } catch (error: any) {
         console.error('[syncAllOrders] Error:', error);

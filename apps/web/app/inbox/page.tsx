@@ -503,16 +503,18 @@ export default function InboxPage() {
 
   const syncAllOrders = trpc.syncAllOrdersFromShopify.useMutation({
     onSuccess: (data) => {
-      if (data.ok) {
+      console.log('[Sync Orders] Success response:', data);
+      if (data?.ok) {
         toast.success(`Synced ${data.synced} orders from Shopify`);
+        // Refetch orders to show newly synced data
         ordersPage.refetch();
-        // Also refetch inbox to update any order-related data
         inboxBootstrap.refetch();
       } else {
-        toast.error(data.error || 'Failed to sync orders');
+        toast.error(data?.error || 'Failed to sync orders');
       }
     },
     onError: (error) => {
+      console.error('[Sync Orders] Error:', error);
       toast.error(error.message || 'Failed to sync orders');
     },
   });
