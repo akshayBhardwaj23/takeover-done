@@ -415,7 +415,10 @@ export default function Header() {
               </div>
               <button
                 className="hidden rounded-full border border-slate-900/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-700 transition hover:border-slate-900/40 hover:text-slate-900 md:block"
-                onClick={() => signOut({ callbackUrl: '/' })}
+                onClick={async () => {
+                  await signOut({ redirect: false });
+                  window.location.href = '/';
+                }}
               >
                 Sign out
               </button>
@@ -563,9 +566,10 @@ export default function Header() {
                       Account
                     </Link>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setMobileMenuOpen(false);
-                        signOut({ callbackUrl: '/' });
+                        await signOut({ redirect: false });
+                        window.location.href = '/';
                       }}
                       className="block text-rose-600 hover:text-rose-700"
                     >
