@@ -3341,6 +3341,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
         
+        let orders: any[] = [];
+        
         try {
           const resp = await fetch(url, {
             headers: {
@@ -3366,7 +3368,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           }
 
           const json: any = await resp.json();
-          const orders = json.orders || [];
+          orders = json.orders || [];
 
           // CRITICAL DEBUG: Log what Shopify actually returned
           console.log('[SYNC] ========== SHOPIFY RESPONSE DEBUG ==========');
