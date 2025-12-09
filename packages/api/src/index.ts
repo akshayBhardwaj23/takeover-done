@@ -1291,11 +1291,14 @@ const shopifyRouter = t.router({
     .input(z.object({ orderId: z.string().min(1) }))
     .query(async ({ input, ctx }) => {
       const order = await prisma.order.findFirst({
-        where: { id: input.orderId },
+        where: {
+          OR: [{ shopifyId: input.orderId }, { id: input.orderId }],
+        },
         include: {
           connection: {
             select: { userId: true, shopDomain: true },
           },
+          lineItems: true, // Included for inbox details view
           customer: true, // Include linked customer with full PII
           actions: {
             orderBy: { createdAt: 'desc' },
@@ -1331,6 +1334,14 @@ const shopifyRouter = t.router({
         shopDomain: order.shopDomain,
         processedAt: order.processedAt,
         statusUpdatedAt: order.statusUpdatedAt,
+        lineItems: order.lineItems.map((item) => ({
+          id: item.id,
+          shopifyId: item.shopifyId,
+          title: item.title,
+          quantity: item.quantity,
+          price: item.price,
+          sku: item.sku,
+        })),
         // Customer PII from webhooks
         customer: order.customer
           ? {
@@ -1374,7 +1385,7 @@ const emailRouter = t.router({
     .mutation(async ({ input, ctx }) => {
       const cleanEmail = safeEmail(input.userEmail);
       const domain = sanitizeLimited(input.domain, 255);
-      
+
       if (!cleanEmail) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
@@ -1398,7 +1409,7 @@ const emailRouter = t.router({
       if (isStandalone) {
         // STANDALONE ALIAS - Check if user already has one
         const hasStandalone = existingAliases.some(
-          (a) => !(a.metadata as any)?.shopDomain
+          (a) => !(a.metadata as any)?.shopDomain,
         );
 
         if (hasStandalone) {
@@ -1412,7 +1423,7 @@ const emailRouter = t.router({
         // STORE-LINKED ALIAS
         const shopDomainResult = safeShopDomain(input.shop);
         cleanShop = shopDomainResult || undefined;
-        
+
         if (!cleanShop) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -1438,12 +1449,12 @@ const emailRouter = t.router({
 
         // Check if this store already has an alias
         const storeHasAlias = existingAliases.some(
-          (a) => (a.metadata as any)?.shopDomain === cleanShop
+          (a) => (a.metadata as any)?.shopDomain === cleanShop,
         );
 
         if (storeHasAlias) {
           const existing = existingAliases.find(
-            (a) => (a.metadata as any)?.shopDomain === cleanShop
+            (a) => (a.metadata as any)?.shopDomain === cleanShop,
           );
           return {
             id: existing!.id,
@@ -1461,10 +1472,13 @@ const emailRouter = t.router({
 
       // Generate alias
       const short = Math.random().toString(36).slice(2, 6);
-      
+
       // For standalone, use generic prefix; for store, use shop slug
       const prefix = cleanShop
-        ? cleanShop.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+        ? cleanShop
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .slice(0, 8)
+            .toLowerCase()
         : 'support';
 
       // Add environment suffix to alias for routing (local/staging/production)
@@ -1501,7 +1515,7 @@ const emailRouter = t.router({
         'email.alias.created',
         { alias, type: isStandalone ? 'standalone' : 'store-linked' },
         'connection',
-        conn.id
+        conn.id,
       );
       return { id: conn.id, alias };
     }),
@@ -1596,7 +1610,7 @@ const emailRouter = t.router({
       );
       return { ok: true, connection: updated } as any;
     }),
-  
+
   deleteAlias: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
@@ -1625,7 +1639,7 @@ const emailRouter = t.router({
         'email.alias.deleted',
         { alias: (alias.metadata as any)?.alias },
         'connection',
-        input.id
+        input.id,
       );
 
       return { success: true };
@@ -1650,11 +1664,11 @@ const emailRouter = t.router({
     });
 
     const standaloneCount = aliases.filter(
-      (a) => !(a.metadata as any)?.shopDomain
+      (a) => !(a.metadata as any)?.shopDomain,
     ).length;
 
     const storeLinkCount = aliases.filter(
-      (a) => !!(a.metadata as any)?.shopDomain
+      (a) => !!(a.metadata as any)?.shopDomain,
     ).length;
 
     return {
@@ -2018,23 +2032,15 @@ export const appRouter = t.router({
             updatedAt: true,
             shopDomain: true,
             connectionId: true,
-            lineItems: {
-              select: {
-                id: true,
-                shopifyId: true,
-                title: true,
-                quantity: true,
-                price: true,
-                sku: true,
-              },
-            },
+            // lineItems removed for performance - fetched on demand via getOrderDetails
           },
         }),
         unassignedConnectionIds.length
           ? prisma.message.findMany({
               where: {
                 // Show ALL emails in inbox (both inbound and outbound)
-                connectionId: { in: unassignedConnectionIds },
+                // Filter by thread.connectionId since Message.connectionId may not exist in DB
+                thread: { connectionId: { in: unassignedConnectionIds } },
               },
               orderBy: { createdAt: 'desc' },
               take: unassignedTake,
@@ -2074,41 +2080,94 @@ export const appRouter = t.router({
         canSendEmail(ctx.userId),
       ]);
 
-      // Calculate pending email counts for each order (optimized: single query)
+      // Calculate pending email counts for each order (optimized: SQL aggregation)
       const orderIds = orders.map((o) => o.id);
-      const allMessages =
-        orderIds.length > 0
-          ? await prisma.message.findMany({
-              where: { orderId: { in: orderIds } },
-              orderBy: { createdAt: 'desc' },
-              select: { orderId: true, direction: true },
-            })
-          : [];
-
-      // Group messages by orderId
-      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
-      for (const msg of allMessages) {
-        if (msg.orderId) {
-          if (!messagesByOrder.has(msg.orderId)) {
-            messagesByOrder.set(msg.orderId, []);
-          }
-          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
-        }
-      }
-
-      // Calculate pending counts for each order
       const pendingCountsMap = new Map<string, number>();
-      for (const orderId of orderIds) {
-        const messages = messagesByOrder.get(orderId) ?? [];
-        let pendingCount = 0;
-        for (const msg of messages) {
-          if (msg.direction === 'OUTBOUND') {
-            break; // Stop counting once we hit an OUTBOUND
-          } else if (msg.direction === 'INBOUND') {
-            pendingCount++;
+
+      if (orderIds.length > 0) {
+        try {
+          // Use SQL to efficiently calculate pending counts
+          // Pending = count of INBOUND messages from newest until first OUTBOUND
+          // We use a window function approach: for each order, count INBOUND messages
+          // in rows where no OUTBOUND has appeared yet (when ordered by createdAt desc)
+          // Properly parameterize the orderIds array for SQL IN clause
+          const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ');
+          const pendingCounts = await prisma.$queryRawUnsafe<
+            Array<{ orderId: string; count: bigint }>
+          >(
+            `WITH ordered_messages AS (
+              SELECT 
+                "orderId",
+                direction,
+                ROW_NUMBER() OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC) as rn,
+                SUM(CASE WHEN direction = 'OUTBOUND' THEN 1 ELSE 0 END) 
+                  OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as outbound_count
+              FROM "Message"
+              WHERE "orderId" IN (${placeholders})
+                AND "orderId" IS NOT NULL
+            ),
+            pending_candidates AS (
+              SELECT 
+                "orderId",
+                direction,
+                rn,
+                outbound_count
+              FROM ordered_messages
+              WHERE outbound_count = 0
+            )
+            SELECT 
+              "orderId",
+              COUNT(*)::bigint as count
+            FROM pending_candidates
+            WHERE direction = 'INBOUND'
+            GROUP BY "orderId"`,
+            ...orderIds,
+          );
+
+          // Convert results to Map (handle bigint conversion)
+          for (const row of pendingCounts) {
+            pendingCountsMap.set(row.orderId, Number(row.count));
+          }
+        } catch (error) {
+          // Fallback to original approach if SQL aggregation fails
+          console.error(
+            '[inboxBootstrap] Error in pending count SQL query, using fallback:',
+            error,
+          );
+          const allMessages = await prisma.message.findMany({
+            where: { orderId: { in: orderIds } },
+            orderBy: { createdAt: 'desc' },
+            select: { orderId: true, direction: true },
+          });
+
+          const messagesByOrder = new Map<
+            string,
+            Array<{ direction: string }>
+          >();
+          for (const msg of allMessages) {
+            if (msg.orderId) {
+              if (!messagesByOrder.has(msg.orderId)) {
+                messagesByOrder.set(msg.orderId, []);
+              }
+              messagesByOrder
+                .get(msg.orderId)!
+                .push({ direction: msg.direction });
+            }
+          }
+
+          for (const orderId of orderIds) {
+            const messages = messagesByOrder.get(orderId) ?? [];
+            let pendingCount = 0;
+            for (const msg of messages) {
+              if (msg.direction === 'OUTBOUND') {
+                break;
+              } else if (msg.direction === 'INBOUND') {
+                pendingCount++;
+              }
+            }
+            pendingCountsMap.set(orderId, pendingCount);
           }
         }
-        pendingCountsMap.set(orderId, pendingCount);
       }
 
       // Add pending email counts to orders
@@ -2868,7 +2927,32 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const result = await response.json();
 
+        // Extract Message-ID from Mailgun response (format: "<message-id@mailgun.org>")
+        // Mailgun returns the Message-ID in the 'id' field
+        const mailgunMessageId = result.id || null;
+
+        // Store headers we sent for threading (In-Reply-To, References)
+        const outboundHeaders: Record<string, any> = {
+          'message-id': mailgunMessageId,
+          subject: `Re: ${message.thread.subject || 'Your inquiry'}`,
+          from: fromEmail,
+          to: message.from,
+        };
+
+        if (originalMessageId) {
+          outboundHeaders['in-reply-to'] = originalMessageId;
+          const existingReferences =
+            originalHeaders['references'] ||
+            originalHeaders['References'] ||
+            '';
+          outboundHeaders['references'] = existingReferences
+            ? `${existingReferences} ${originalMessageId}`.trim()
+            : originalMessageId;
+        }
+
         // Create outbound message record
+        // Note: connectionId column doesn't exist in database, connection is tracked via thread
+        // Store Message-ID and headers for proper email threading
         await prisma.message.create({
           data: {
             threadId: message.thread.id,
@@ -2876,7 +2960,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             to: message.from,
             body: safeBody,
             direction: 'OUTBOUND',
-            connectionId: message.thread.connectionId,
+            messageId: mailgunMessageId,
+            headers: outboundHeaders,
           },
         });
 
@@ -2956,7 +3041,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     .query(async ({ input, ctx }) => {
       try {
         const take = input?.take ?? 20;
-        // Get user's connections to filter messages
+        // Get user's CUSTOM_EMAIL connections to filter messages
         const connections = await prisma.connection.findMany({
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
           select: { id: true },
@@ -2967,10 +3052,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           return { messages: [] };
         }
 
+        // Filter by thread.connectionId since Message.connectionId may not exist in DB
         const msgs = await prisma.message.findMany({
           where: {
-            // Show ALL emails in inbox (both inbound and outbound)
-            thread: { connectionId: { in: connectionIds } }, // Multi-tenant scoping
+            thread: { connectionId: { in: connectionIds } },
           },
           orderBy: { createdAt: 'desc' },
           take,
@@ -3483,16 +3568,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         updatedAt: true,
         shopDomain: true,
         connectionId: true,
-        lineItems: {
-          select: {
-            id: true,
-            shopifyId: true,
-            title: true,
-            quantity: true,
-            price: true,
-            sku: true,
-          },
-        },
+        // lineItems removed for performance - fetched on demand via getOrderDetails
       };
 
       if (input.cursor) {
@@ -3521,42 +3597,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       const hasMore = orders.length > input.limit;
       const page = hasMore ? orders.slice(0, input.limit) : orders;
 
-      // Calculate pending email counts for each order (optimized: single query)
+      // Get pending email counts for these orders
       const orderIds = page.map((o) => o.id);
-      const allMessages =
-        orderIds.length > 0
-          ? await prisma.message.findMany({
-              where: { orderId: { in: orderIds } },
-              orderBy: { createdAt: 'desc' },
-              select: { orderId: true, direction: true },
-            })
-          : [];
 
-      // Group messages by orderId
-      const messagesByOrder = new Map<string, Array<{ direction: string }>>();
-      for (const msg of allMessages) {
-        if (msg.orderId) {
-          if (!messagesByOrder.has(msg.orderId)) {
-            messagesByOrder.set(msg.orderId, []);
-          }
-          messagesByOrder.get(msg.orderId)!.push({ direction: msg.direction });
-        }
-      }
+      // Optimized: Use groupBy to count outbound messages for these orders
+      const pendingCounts = await prisma.message.groupBy({
+        by: ['orderId'],
+        where: {
+          orderId: { in: orderIds },
+          direction: 'OUTBOUND',
+        },
+        _count: {
+          id: true,
+        },
+      });
 
-      // Calculate pending counts for each order
-      const pendingCountsMap = new Map<string, number>();
-      for (const orderId of orderIds) {
-        const messages = messagesByOrder.get(orderId) ?? [];
-        let pendingCount = 0;
-        for (const msg of messages) {
-          if (msg.direction === 'OUTBOUND') {
-            break; // Stop counting once we hit an OUTBOUND
-          } else if (msg.direction === 'INBOUND') {
-            pendingCount++;
-          }
-        }
-        pendingCountsMap.set(orderId, pendingCount);
-      }
+      const pendingCountsMap = new Map(
+        pendingCounts.map((c) => [c.orderId, c._count.id]),
+      );
 
       // Add pending email counts to orders
       const ordersWithPending = page.map((order) => ({

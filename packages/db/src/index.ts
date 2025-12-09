@@ -1,22 +1,20 @@
-import { PrismaClient } from '@prisma/client';
-
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
-}
-
-// Optimize Prisma for serverless (Vercel) environments
-// Connection pooling is critical for performance on free tier
-// Note: Connection pooling is handled by DATABASE_URL (use pooler URL in production)
-export const prisma: PrismaClient =
-  global.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === 'development'
-        ? (['error', 'warn'] as const)
-        : (['error'] as const),
-  });
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+// Re-export prisma from separate file to avoid circular dependencies
+export { prisma } from './prisma.js';
 export { logEvent } from './logger.js';
-export * from './usage.js';
+// Explicit exports from usage to avoid Next.js bundling issues
+export {
+  PLAN_LIMITS,
+  PLAN_LIMITS_WITH_PRICE,
+  type PlanType,
+  ensureSubscription,
+  getCurrentUsageRecord,
+  incrementEmailSent,
+  canReceiveEmail,
+  incrementEmailReceived,
+  incrementAISuggestion,
+  canSendEmail,
+  canUseAI,
+  getUsageSummary,
+  getUsageHistory,
+} from './usage.js';
 export { seedDefaultPlaybooks } from './seedPlaybooks.js';

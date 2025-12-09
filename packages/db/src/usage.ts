@@ -1,4 +1,4 @@
-import { prisma } from './index.js';
+import { prisma } from './prisma.js';
 
 // Base plan limits (without pricing - pricing is currency-dependent)
 export const PLAN_LIMITS = {
@@ -110,23 +110,13 @@ export async function ensureSubscription(userId: string) {
  * Get current usage record for a subscription in the current billing period
  * Optimized: Use indexed queries and reduce database round trips
  */
-export async function getCurrentUsageRecord(subscriptionId: string) {
-  // Fetch subscription and current period info in one query
-  const subscription = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    select: {
-      id: true,
-      planType: true,
-      status: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
-    },
-  });
-
-  if (!subscription) {
-    throw new Error('Subscription not found');
-  }
-
+export async function getCurrentUsageRecord(subscription: {
+  id: string;
+  planType: PlanType;
+  status: string;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+}) {
   const now = new Date();
   const periodStart = subscription.currentPeriodStart;
   const periodEnd = subscription.currentPeriodEnd;
@@ -138,7 +128,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
     let usageRecord = await prisma.usageRecord.findUnique({
       where: {
         subscriptionId_periodStart: {
-          subscriptionId,
+          subscriptionId: subscription.id,
           periodStart,
         },
       },
@@ -147,7 +137,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
     if (!usageRecord) {
       usageRecord = await prisma.usageRecord.create({
         data: {
-          subscriptionId,
+          subscriptionId: subscription.id,
           periodStart,
           periodEnd,
           emailsSent: 0,
@@ -172,7 +162,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
 
       // Use indexed query: subscriptionId + periodStart (desc) - limit to 1
       const latestRecord = await prisma.usageRecord.findFirst({
-        where: { subscriptionId },
+        where: { subscriptionId: subscription.id },
         orderBy: { periodStart: 'desc' },
         take: 1, // Only need the latest one
       });
@@ -190,7 +180,7 @@ export async function getCurrentUsageRecord(subscriptionId: string) {
 
     return await prisma.usageRecord.create({
       data: {
-        subscriptionId,
+        subscriptionId: subscription.id,
         periodStart: newPeriodStart,
         periodEnd: newPeriodEnd,
         emailsSent: 0,
@@ -209,7 +199,7 @@ export async function incrementEmailSent(userId: string) {
   if (subscription.planType === 'TRIAL' && subscription.status === 'expired') {
     throw new Error('Trial expired. Cannot send more emails.');
   }
-  const usageRecord = await getCurrentUsageRecord(subscription.id);
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   return await prisma.usageRecord.update({
     where: { id: usageRecord.id },
@@ -242,66 +232,8 @@ export async function canReceiveEmail(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  const periodStart = subscription.currentPeriodStart;
-  const periodEnd = subscription.currentPeriodEnd;
 
-  // Check if we're within the current billing period
-  const isWithinPeriod = now >= periodStart && now <= periodEnd;
-
-  // Get usage record
-  let usageRecord;
-  if (isWithinPeriod) {
-    usageRecord = await prisma.usageRecord.findUnique({
-      where: {
-        subscriptionId_periodStart: {
-          subscriptionId: subscription.id,
-          periodStart,
-        },
-      },
-    });
-
-    if (!usageRecord) {
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart,
-          periodEnd,
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  } else {
-    // Period expired
-    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
-      prisma.subscription
-        .update({
-          where: { id: subscription.id },
-          data: { status: 'expired' },
-        })
-        .catch((err) => console.error('Failed to expire trial:', err));
-    }
-
-    usageRecord = await prisma.usageRecord.findFirst({
-      where: { subscriptionId: subscription.id },
-      orderBy: { periodStart: 'desc' },
-      take: 1,
-    });
-
-    if (!usageRecord) {
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart: periodEnd,
-          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  }
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   const limit = planLimits.emailsReceivedLimit ?? -1;
   const current = usageRecord.emailsReceived;
@@ -367,7 +299,7 @@ export async function incrementEmailReceived(userId: string) {
   if (subscription.planType === 'TRIAL' && subscription.status === 'expired') {
     throw new Error('Trial expired. Cannot receive more emails.');
   }
-  const usageRecord = await getCurrentUsageRecord(subscription.id);
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   return await prisma.usageRecord.update({
     where: { id: usageRecord.id },
@@ -384,7 +316,7 @@ export async function incrementEmailReceived(userId: string) {
  */
 export async function incrementAISuggestion(userId: string) {
   const subscription = await ensureSubscription(userId);
-  const usageRecord = await getCurrentUsageRecord(subscription.id);
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   return await prisma.usageRecord.update({
     where: { id: usageRecord.id },
@@ -419,70 +351,9 @@ export async function canSendEmail(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  const periodStart = subscription.currentPeriodStart;
-  const periodEnd = subscription.currentPeriodEnd;
 
-  // Check if we're within the current billing period
-  const isWithinPeriod = now >= periodStart && now <= periodEnd;
-
-  // Optimized: Get usage record in single query using composite key
-  let usageRecord;
-  if (isWithinPeriod) {
-    // Try to get existing usage record (indexed lookup - fast)
-    usageRecord = await prisma.usageRecord.findUnique({
-      where: {
-        subscriptionId_periodStart: {
-          subscriptionId: subscription.id,
-          periodStart,
-        },
-      },
-    });
-
-    // Create if doesn't exist (only happens once per period)
-    if (!usageRecord) {
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart,
-          periodEnd,
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  } else {
-    // Period expired - get latest record (indexed query with limit)
-    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
-      // Update in background, don't wait
-      prisma.subscription
-        .update({
-          where: { id: subscription.id },
-          data: { status: 'expired' },
-        })
-        .catch((err) => console.error('Failed to expire trial:', err));
-    }
-
-    usageRecord = await prisma.usageRecord.findFirst({
-      where: { subscriptionId: subscription.id },
-      orderBy: { periodStart: 'desc' },
-      take: 1,
-    });
-
-    if (!usageRecord) {
-      // Fallback: create a new record
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart: periodEnd,
-          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000), // +30 days
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  }
+  // Optimized: Pass subscription object directly
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   const limit = planLimits.emailsPerMonth;
   const current = usageRecord.emailsSent;
@@ -561,66 +432,8 @@ export async function canUseAI(userId: string): Promise<{
   const planLimits = PLAN_LIMITS[subscription.planType];
   const now = new Date();
   const isTrial = subscription.planType === 'TRIAL';
-  const periodStart = subscription.currentPeriodStart;
-  const periodEnd = subscription.currentPeriodEnd;
 
-  // Check if we're within the current billing period
-  const isWithinPeriod = now >= periodStart && now <= periodEnd;
-
-  // Get usage record
-  let usageRecord;
-  if (isWithinPeriod) {
-    usageRecord = await prisma.usageRecord.findUnique({
-      where: {
-        subscriptionId_periodStart: {
-          subscriptionId: subscription.id,
-          periodStart,
-        },
-      },
-    });
-
-    if (!usageRecord) {
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart,
-          periodEnd,
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  } else {
-    // Period expired
-    if (subscription.planType === 'TRIAL' && subscription.status === 'active') {
-      prisma.subscription
-        .update({
-          where: { id: subscription.id },
-          data: { status: 'expired' },
-        })
-        .catch((err) => console.error('Failed to expire trial:', err));
-    }
-
-    usageRecord = await prisma.usageRecord.findFirst({
-      where: { subscriptionId: subscription.id },
-      orderBy: { periodStart: 'desc' },
-      take: 1,
-    });
-
-    if (!usageRecord) {
-      usageRecord = await prisma.usageRecord.create({
-        data: {
-          subscriptionId: subscription.id,
-          periodStart: periodEnd,
-          periodEnd: new Date(periodEnd.getTime() + 30 * 24 * 60 * 60 * 1000),
-          emailsSent: 0,
-          emailsReceived: 0,
-          aiSuggestions: 0,
-        },
-      });
-    }
-  }
+  const usageRecord = await getCurrentUsageRecord(subscription);
 
   const limit = planLimits.aiRepliesLimit;
   const current = usageRecord.aiSuggestions;
@@ -683,7 +496,7 @@ export async function canUseAI(userId: string): Promise<{
  */
 export async function getUsageSummary(userId: string) {
   const subscription = await ensureSubscription(userId);
-  const usageRecord = await getCurrentUsageRecord(subscription.id);
+  const usageRecord = await getCurrentUsageRecord(subscription);
   const planLimits = PLAN_LIMITS[subscription.planType];
 
   const limit = planLimits.emailsPerMonth;
@@ -712,7 +525,8 @@ export async function getUsageSummary(userId: string) {
   const canUseAIMore =
     (aiLimit === -1 || aiCurrent < aiLimit) && !(isTrial && expired);
   const canReceiveMore =
-    (emailsReceivedLimit === -1 || emailsReceivedCurrent < emailsReceivedLimit) &&
+    (emailsReceivedLimit === -1 ||
+      emailsReceivedCurrent < emailsReceivedLimit) &&
     !(isTrial && expired);
 
   return {
@@ -731,7 +545,8 @@ export async function getUsageSummary(userId: string) {
     emailsReceivedUsagePercentage:
       emailsReceivedLimit === -1
         ? 0
-        : Math.round((emailsReceivedCurrent / emailsReceivedLimit) * 10000) / 100,
+        : Math.round((emailsReceivedCurrent / emailsReceivedLimit) * 10000) /
+          100,
     canSendEmail: canSendMore,
     canUseAI: canUseAIMore,
     canReceiveEmail: canReceiveMore,
@@ -742,7 +557,11 @@ export async function getUsageSummary(userId: string) {
     emailsRemaining:
       limit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, limit - current),
     aiRemaining:
-      aiLimit === -1 ? -1 : isTrial && expired ? 0 : Math.max(0, aiLimit - aiCurrent),
+      aiLimit === -1
+        ? -1
+        : isTrial && expired
+          ? 0
+          : Math.max(0, aiLimit - aiCurrent),
     emailsReceivedRemaining:
       emailsReceivedLimit === -1
         ? -1

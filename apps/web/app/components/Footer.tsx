@@ -84,9 +84,9 @@ export default function Footer() {
                 {pageLinks.map((link) => (
                   <li key={link.label}>
                     <Link
-                    href={link.href as Route}
-                    className="tracking-tight text-white hover:text-white/70"
-                  >
+                      href={link.href as Route}
+                      className="tracking-tight text-white hover:text-white/70"
+                    >
                       {link.label}
                     </Link>
                   </li>
@@ -95,7 +95,9 @@ export default function Footer() {
                   <li>
                     <button
                       type="button"
-                      onClick={() => signIn('google')}
+                      onClick={() =>
+                        signIn('google', { callbackUrl: '/integrations' })
+                      }
                       className="tracking-tight text-white transition hover:text-white/70"
                     >
                       Login
@@ -141,9 +143,9 @@ export default function Footer() {
                   {policyLinks.map((link) => (
                     <li key={link.label}>
                       <Link
-                      href={link.href as Route}
-                      className="text-white hover:text-white/70"
-                    >
+                        href={link.href as Route}
+                        className="text-white hover:text-white/70"
+                      >
                         {link.label}
                       </Link>
                     </li>
