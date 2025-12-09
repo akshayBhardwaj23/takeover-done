@@ -2,6 +2,7 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { NormalModuleReplacementPlugin } from 'webpack';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,6 +55,44 @@ const nextConfig = {
         ...(config.resolve.modules || []),
       ];
     }
+
+    // Resolve .js imports to .ts files for TypeScript packages
+    // This is needed because TypeScript uses .js extensions in imports
+    // but the actual source files are .ts
+    // Use extensionAlias for webpack 5+ which properly handles this
+    config.resolve.extensionAlias = {
+      '.js': ['.ts', '.tsx', '.js', '.jsx'],
+      '.mjs': ['.mts', '.mjs'],
+      ...(config.resolve.extensionAlias || {}),
+    };
+    
+    // Also ensure extensions array includes .ts before .js as fallback
+    const extensions = config.resolve.extensions || ['.tsx', '.ts', '.jsx', '.js', '.json'];
+    const tsIndex = extensions.indexOf('.ts');
+    const jsIndex = extensions.indexOf('.js');
+    if (tsIndex === -1 && jsIndex !== -1) {
+      extensions.splice(jsIndex, 0, '.ts', '.tsx');
+    } else if (tsIndex !== -1 && jsIndex !== -1 && tsIndex > jsIndex) {
+      // Move .ts before .js
+      extensions.splice(tsIndex, 1);
+      extensions.splice(jsIndex, 0, '.ts');
+    }
+    config.resolve.extensions = extensions;
+
+    // Add plugin to handle .js -> .ts resolution for @ai-ecom/db package
+    // This ensures that when webpack encounters relative .js imports, it resolves to .ts files
+    config.plugins = config.plugins || [];
+    config.plugins.push(
+      new NormalModuleReplacementPlugin(
+        /^\.\/.*\.js$/,
+        (resource) => {
+          // Only apply to files in @ai-ecom/db package
+          if (resource.context && resource.context.includes('packages/db/src')) {
+            resource.request = resource.request.replace(/\.js$/, '.ts');
+          }
+        }
+      )
+    );
 
     // Externalize worker package for dynamic imports (it's only used at runtime)
     // This prevents webpack from trying to bundle it during build
