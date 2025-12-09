@@ -3322,47 +3322,79 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           };
         }
 
-        // Build query params - fetch as many orders as possible
-        // Note: Shopify Admin API typically returns orders from last 60 days by default
-        // but we'll try to get all available orders
+        // Build query params - CRITICAL: Shopify does NOT sort by newest automatically!
         const params = new URLSearchParams({
           status: 'any',
           limit: '100', // Fetch latest 100 orders
+          order: 'created_at desc', // REQUIRED: Sort by newest first
+          fields: 'id,created_at,order_number,updated_at,name,email,total_price,currency,financial_status,fulfillment_status,customer,line_items,cancelled_at,processed_at,contact_email',
         });
 
         if (input.updatedAfter) {
           params.set('updated_at_min', input.updatedAfter);
-        } else {
-          // Try to get orders from a long time ago (10 years)
-          // Shopify will still limit to what's available, but this maximizes our chances
-          const tenYearsAgo = new Date();
-          tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-          params.set('created_at_min', tenYearsAgo.toISOString());
         }
+        // Don't set created_at_min - let Shopify return the latest 100 orders
 
         const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
-        const resp = await fetch(url, {
-          headers: {
-            'X-Shopify-Access-Token': credentials.accessToken,
-          },
-        });
+        
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        
+        try {
+          const resp = await fetch(url, {
+            headers: {
+              'X-Shopify-Access-Token': credentials.accessToken,
+            },
+            signal: controller.signal,
+          });
 
-        if (!resp.ok) {
-          const errorText = await resp.text().catch(() => '');
-          console.error(
-            '[syncAllOrders] Shopify API error:',
-            resp.status,
-            errorText,
-          );
-          return {
-            ok: false,
-            error: `Shopify API error: ${resp.status}`,
-            synced: 0,
-          };
+          clearTimeout(timeout);
+
+          if (!resp.ok) {
+            const errorText = await resp.text().catch(() => '');
+            console.error(
+              '[syncAllOrders] Shopify API error:',
+              resp.status,
+              errorText,
+            );
+            return {
+              ok: false,
+              error: `Shopify API error: ${resp.status}`,
+              synced: 0,
+            };
+          }
+
+          const json: any = await resp.json();
+          const orders = json.orders || [];
+
+          // CRITICAL DEBUG: Log what Shopify actually returned
+          console.log('[SYNC] ========== SHOPIFY RESPONSE DEBUG ==========');
+          console.log('[SYNC] Total orders returned by Shopify:', orders.length);
+          console.log('[SYNC] Shop:', input.shopDomain);
+          if (orders.length > 0) {
+            console.log('[SYNC] Top 3 orders from Shopify (should be newest):');
+            orders.slice(0, 3).forEach((o: any, idx: number) => {
+              console.log(`[SYNC]   ${idx + 1}. Order #${o.order_number || o.name} (ID: ${o.id}) - Created: ${o.created_at}`);
+            });
+            console.log('[SYNC] Highest order number returned:', orders[0]?.order_number || orders[0]?.name);
+            console.log('[SYNC] Lowest order number returned:', orders[orders.length - 1]?.order_number || orders[orders.length - 1]?.name);
+          } else {
+            console.log('[SYNC] WARNING: Shopify returned 0 orders!');
+          }
+          console.log('[SYNC] ===============================================');
+        } catch (fetchError: any) {
+          clearTimeout(timeout);
+          if (fetchError.name === 'AbortError') {
+            console.error('[syncAllOrders] Request timed out after 60 seconds');
+            return {
+              ok: false,
+              error: 'Request timed out',
+              synced: 0,
+            };
+          }
+          throw fetchError;
         }
-
-        const json: any = await resp.json();
-        const orders = json.orders || [];
 
         let synced = 0;
         let errors = 0;
@@ -3400,15 +3432,26 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                 : new Date(),
             };
 
+            // CRITICAL: Store created_at from Shopify to maintain proper order
+            const orderDataWithDate = {
+              ...orderData,
+              createdAt: order.created_at ? new Date(order.created_at) : new Date(),
+            };
+
             const upsertedOrder = await prisma.order.upsert({
               where: { shopifyId: order.id.toString() },
               create: {
                 shopifyId: order.id.toString(),
                 connectionId: conn.id,
-                ...orderData,
+                ...orderDataWithDate,
               },
-              update: orderData,
+              update: orderDataWithDate, // Update ALL fields including createdAt to ensure latest data
             });
+
+            // Log first 3 orders being saved to verify newest is first
+            if (synced < 3) {
+              console.log(`[SYNC] Saving order ${synced + 1}: #${order.order_number || order.name} (ID: ${order.id}) to database`);
+            }
 
             // Sync line items if present (only if table exists)
             if (order.line_items && order.line_items.length > 0) {
