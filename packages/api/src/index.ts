@@ -2018,6 +2018,7 @@ export const appRouter = t.router({
           ordersTake: z.number().min(1).max(100).default(25),
           unassignedTake: z.number().min(1).max(100).default(40),
           unassignedOffset: z.number().min(0).default(0),
+          search: z.string().optional(),
         })
         .optional(),
     )
@@ -2025,6 +2026,7 @@ export const appRouter = t.router({
       const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
       const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
       const unassignedOffset = input?.unassignedOffset ?? 0;
+      const search = input?.search?.trim() || undefined;
 
       // Fetch all connections once to avoid multiple round-trips
       const connections = await prisma.connection.findMany({
@@ -2070,6 +2072,34 @@ export const appRouter = t.router({
         }),
         unassignedConnectionIds.length
           ? (async () => {
+              // Build search filter conditions
+              const searchFilter = search
+                ? {
+                    OR: [
+                      {
+                        from: {
+                          contains: search,
+                          mode: 'insensitive' as const,
+                        },
+                      },
+                      {
+                        body: {
+                          contains: search,
+                          mode: 'insensitive' as const,
+                        },
+                      },
+                      {
+                        thread: {
+                          subject: {
+                            contains: search,
+                            mode: 'insensitive' as const,
+                          },
+                        },
+                      },
+                    ],
+                  }
+                : undefined;
+
               const [unassignedMessages, totalCount] = await Promise.all([
                 prisma.message.findMany({
                   where: {
@@ -2077,6 +2107,7 @@ export const appRouter = t.router({
                     direction: 'INBOUND' as any,
                     // Filter by thread.connectionId since Message.connectionId may not exist in DB
                     thread: { connectionId: { in: unassignedConnectionIds } },
+                    ...(searchFilter || {}),
                   },
                   orderBy: { createdAt: 'desc' },
                   skip: unassignedOffset,
@@ -2118,6 +2149,7 @@ export const appRouter = t.router({
                   where: {
                     direction: 'INBOUND' as any,
                     thread: { connectionId: { in: unassignedConnectionIds } },
+                    ...(searchFilter || {}),
                   },
                 }),
               ]);
@@ -3116,6 +3148,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         .object({
           take: z.number().min(1).max(100).default(20),
           offset: z.number().min(0).default(0),
+          search: z.string().optional(),
         })
         .optional(),
     )
@@ -3123,6 +3156,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       try {
         const take = input?.take ?? 20;
         const offset = input?.offset ?? 0;
+        const search = input?.search?.trim() || undefined;
         // Get user's CUSTOM_EMAIL connections to filter messages
         const connections = await prisma.connection.findMany({
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
@@ -3136,11 +3170,27 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         // Filter by thread.connectionId since Message.connectionId may not exist in DB
         // Only return INBOUND messages (filter out outbound)
+        // Build search filter conditions
+        const searchFilter = search
+          ? {
+              OR: [
+                { from: { contains: search, mode: 'insensitive' as const } },
+                { body: { contains: search, mode: 'insensitive' as const } },
+                {
+                  thread: {
+                    subject: { contains: search, mode: 'insensitive' as const },
+                  },
+                },
+              ],
+            }
+          : undefined;
+
         const [msgs, totalCount] = await Promise.all([
           prisma.message.findMany({
             where: {
               direction: 'INBOUND' as any,
               thread: { connectionId: { in: connectionIds } },
+              ...(searchFilter || {}),
             },
             orderBy: { createdAt: 'desc' },
             skip: offset,
@@ -3182,6 +3232,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             where: {
               direction: 'INBOUND' as any,
               thread: { connectionId: { in: connectionIds } },
+              ...(searchFilter || {}),
             },
           }),
         ]);

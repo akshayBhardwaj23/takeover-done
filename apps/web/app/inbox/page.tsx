@@ -330,6 +330,7 @@ export default function InboxPage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchAllHistory, setSearchAllHistory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   // Note: repliedMessageIds removed - we now use thread.isUnread from database
   // If thread.isUnread === false, it means we've replied
@@ -377,7 +378,14 @@ export default function InboxPage() {
   const [emailsAccum, setEmailsAccum] = useState<any[]>([]);
 
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
-    { ordersTake: 25, unassignedTake: 40, unassignedOffset: 0 },
+    {
+      ordersTake: 25,
+      unassignedTake: 40,
+      unassignedOffset: 0,
+      ...(searchAllHistory && searchQuery.trim()
+        ? { search: searchQuery.trim() }
+        : {}),
+    },
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
@@ -386,7 +394,13 @@ export default function InboxPage() {
   );
 
   const unassignedQuery = trpc.unassignedInbound.useQuery(
-    { take: 50, offset: emailsOffset },
+    {
+      take: 50,
+      offset: emailsOffset,
+      ...(searchAllHistory && searchQuery.trim()
+        ? { search: searchQuery.trim() }
+        : {}),
+    },
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
@@ -394,7 +408,6 @@ export default function InboxPage() {
       // Enable parallel execution - both queries can run simultaneously
       // They're independent and will be merged/deduped on the frontend
       enabled: true,
-      keepPreviousData: true,
     },
   );
 
@@ -621,6 +634,13 @@ export default function InboxPage() {
     return map;
   }, [inboxBootstrap.data?.connections]);
 
+  // Reset pagination when search mode changes or search query changes while searchAllHistory is true
+  useEffect(() => {
+    if (searchAllHistory) {
+      setEmailsOffset(0);
+    }
+  }, [searchAllHistory, searchQuery]);
+
   // Accumulate emails from pagination (similar to orders)
   useEffect(() => {
     const unassigned = Array.isArray(unassignedQuery.data?.messages)
@@ -634,7 +654,7 @@ export default function InboxPage() {
     const allIncoming = [...bootstrapUnassigned, ...unassigned];
 
     if (emailsOffset === 0) {
-      // First load: replace accumulated emails
+      // First load or reset: replace accumulated emails
       setEmailsAccum(allIncoming);
     } else {
       // Subsequent loads: append new emails, deduplicating by ID
@@ -657,6 +677,7 @@ export default function InboxPage() {
     unassignedQuery.data?.messages,
     inboxBootstrap.data?.unassigned,
     emailsOffset,
+    searchAllHistory,
   ]);
 
   // Combine all emails for the email list view
@@ -749,13 +770,20 @@ export default function InboxPage() {
   }, [unassignedQuery.data, inboxBootstrap.data]);
 
   // Filter emails by search
-  // Filter emails by search
+  // When searchAllHistory is true, backend handles filtering, so skip client-side filtering
+  // When searchAllHistory is false, apply client-side filtering on loaded emails
   const filteredEmails = useMemo(() => {
     // Filter out outbound emails from the list
     const inboundEmails = allEmails.filter(
       (email) => email.direction !== 'OUTBOUND',
     );
 
+    // If searchAllHistory is enabled, backend handles filtering - just return inbound emails
+    if (searchAllHistory) {
+      return inboundEmails;
+    }
+
+    // Client-side filtering for loaded emails only
     if (!searchQuery.trim()) return inboundEmails;
     const q = searchQuery.toLowerCase();
     return inboundEmails.filter(
@@ -765,7 +793,7 @@ export default function InboxPage() {
         email.thread?.subject?.toLowerCase().includes(q) ||
         email.body?.toLowerCase().includes(q),
     );
-  }, [allEmails, searchQuery]);
+  }, [allEmails, searchQuery, searchAllHistory]);
 
   // Selected email data
   const selectedEmail = useMemo(() => {
@@ -1214,6 +1242,23 @@ export default function InboxPage() {
                       className="w-full rounded-xl bg-stone-50 border-0 py-2.5 pl-10 pr-4 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-200"
                     />
                   </div>
+                  {view === 'inbox' && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        type="checkbox"
+                        id="search-all-history"
+                        checked={searchAllHistory}
+                        onChange={(e) => setSearchAllHistory(e.target.checked)}
+                        className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-200"
+                      />
+                      <label
+                        htmlFor="search-all-history"
+                        className="text-xs text-stone-600 cursor-pointer select-none"
+                      >
+                        Search all history
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* List */}
