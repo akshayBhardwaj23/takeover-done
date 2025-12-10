@@ -3370,17 +3370,24 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           const json: any = await resp.json();
           orders = json.orders || [];
 
+          // CRITICAL: Sort orders by created_at DESC (newest first) - Shopify API may not respect order parameter
+          orders.sort((a: any, b: any) => {
+            const dateA = new Date(a.created_at || 0).getTime();
+            const dateB = new Date(b.created_at || 0).getTime();
+            return dateB - dateA; // Descending (newest first)
+          });
+
           // CRITICAL DEBUG: Log what Shopify actually returned
           console.log('[SYNC] ========== SHOPIFY RESPONSE DEBUG ==========');
           console.log('[SYNC] Total orders returned by Shopify:', orders.length);
           console.log('[SYNC] Shop:', input.shopDomain);
           if (orders.length > 0) {
-            console.log('[SYNC] Top 3 orders from Shopify (should be newest):');
+            console.log('[SYNC] Top 3 orders AFTER SORTING (newest first):');
             orders.slice(0, 3).forEach((o: any, idx: number) => {
               console.log(`[SYNC]   ${idx + 1}. Order #${o.order_number || o.name} (ID: ${o.id}) - Created: ${o.created_at}`);
             });
-            console.log('[SYNC] Highest order number returned:', orders[0]?.order_number || orders[0]?.name);
-            console.log('[SYNC] Lowest order number returned:', orders[orders.length - 1]?.order_number || orders[orders.length - 1]?.name);
+            console.log('[SYNC] Highest order number (first):', orders[0]?.order_number || orders[0]?.name);
+            console.log('[SYNC] Lowest order number (last):', orders[orders.length - 1]?.order_number || orders[orders.length - 1]?.name);
           } else {
             console.log('[SYNC] WARNING: Shopify returned 0 orders!');
           }

@@ -338,6 +338,7 @@ export default function InboxPage() {
   // Local state to track flagged threads without refetching
   const [flaggedThreads, setFlaggedThreads] = useState<Set<string>>(new Set());
   const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; isSyncing: boolean } | null>(null);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const conversationScrollRef = useRef<HTMLDivElement>(null);
@@ -389,6 +390,7 @@ export default function InboxPage() {
   );
 
   const [ordersAccum, setOrdersAccum] = useState<any[]>([]);
+  
   useEffect(() => {
     const incoming = Array.isArray(ordersPage.data?.orders)
       ? ordersPage.data.orders
@@ -504,8 +506,13 @@ export default function InboxPage() {
   });
 
   const syncAllOrders = trpc.syncAllOrdersFromShopify.useMutation({
+    onMutate: () => {
+      // Set initial progress state - start at 0, total will be updated when we know
+      setSyncProgress({ current: 0, total: 100, isSyncing: true });
+    },
     onSuccess: (data) => {
       console.log('[Sync Orders] Success response:', data);
+      setSyncProgress(null); // Clear progress
       if (data?.ok) {
         toast.success(`Synced ${data.synced} orders from Shopify`);
         // Refetch orders to show newly synced data
@@ -517,9 +524,29 @@ export default function InboxPage() {
     },
     onError: (error) => {
       console.error('[Sync Orders] Error:', error);
+      setSyncProgress(null); // Clear progress on error
       toast.error(error.message || 'Failed to sync orders');
     },
   });
+
+  // Simulate progress updates while syncing (since tRPC doesn't support streaming)
+  useEffect(() => {
+    if (syncProgress?.isSyncing) {
+      const interval = setInterval(() => {
+        setSyncProgress((prev) => {
+          if (!prev) return null;
+          // Estimate progress based on time (assuming ~0.5s per order)
+          const estimatedProgress = Math.min(
+            prev.current + 2,
+            prev.total
+          );
+          return { ...prev, current: estimatedProgress };
+        });
+      }, 500); // Update every 500ms
+
+      return () => clearInterval(interval);
+    }
+  }, [syncProgress?.isSyncing]);
 
   // =============================================================================
   // COMPUTED DATA
@@ -1014,15 +1041,19 @@ export default function InboxPage() {
                               toast.error('No Shopify store connected');
                             }
                           }}
-                          disabled={syncAllOrders.isPending}
+                          disabled={syncAllOrders.isPending || syncProgress?.isSyncing}
                           className="h-7 px-2 text-xs text-stone-600 hover:text-stone-900"
                         >
                           <RefreshCw
                             className={`h-3 w-3 mr-1.5 ${
-                              syncAllOrders.isPending ? 'animate-spin' : ''
+                              (syncAllOrders.isPending || syncProgress?.isSyncing) ? 'animate-spin' : ''
                             }`}
                           />
-                          {syncAllOrders.isPending ? 'Syncing...' : 'Sync orders'}
+                          {syncProgress?.isSyncing
+                            ? `Syncing ${syncProgress.current}/${syncProgress.total}...`
+                            : syncAllOrders.isPending
+                            ? 'Syncing...'
+                            : 'Sync orders'}
                         </Button>
                       )}
                     </div>
