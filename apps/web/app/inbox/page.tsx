@@ -507,19 +507,25 @@ export default function InboxPage() {
 
   const syncAllOrders = trpc.syncAllOrdersFromShopify.useMutation({
     onMutate: () => {
-      // Set initial progress state - start at 0, total will be updated when we know
-      setSyncProgress({ current: 0, total: 100, isSyncing: true });
+      // Set initial progress state - will be updated by polling
+      setSyncProgress({ current: 0, total: 0, isSyncing: true });
     },
     onSuccess: (data) => {
       console.log('[Sync Orders] Success response:', data);
-      setSyncProgress(null); // Clear progress
+      // Don't clear progress immediately - let polling show final state
       if (data?.ok) {
-        toast.success(`Synced ${data.synced} orders from Shopify`);
-        // Refetch orders to show newly synced data
-        ordersPage.refetch();
-        inboxBootstrap.refetch();
+        // Wait a bit for final progress update, then show success
+        setTimeout(() => {
+          toast.success(`Synced ${data.synced} orders from Shopify`);
+          setSyncProgress(null);
+          // Refetch orders to show newly synced data
+          ordersPage.refetch();
+          inboxBootstrap.refetch();
+        }, 1000);
       } else {
-        toast.error(data?.error || 'Failed to sync orders');
+        setSyncProgress(null);
+        const errorMsg = 'error' in data ? data.error : 'Failed to sync orders';
+        toast.error(errorMsg);
       }
     },
     onError: (error) => {
@@ -529,24 +535,50 @@ export default function InboxPage() {
     },
   });
 
-  // Simulate progress updates while syncing (since tRPC doesn't support streaming)
-  useEffect(() => {
-    if (syncProgress?.isSyncing) {
-      const interval = setInterval(() => {
-        setSyncProgress((prev) => {
-          if (!prev) return null;
-          // Estimate progress based on time (assuming ~0.5s per order)
-          const estimatedProgress = Math.min(
-            prev.current + 2,
-            prev.total
-          );
-          return { ...prev, current: estimatedProgress };
-        });
-      }, 500); // Update every 500ms
+  // Get the shop domain for progress polling
+  const shopifyConnection = useMemo(() => {
+    return inboxBootstrap.data?.connections?.find(
+      (conn: any) => conn.type === 'SHOPIFY' && conn.shopDomain
+    );
+  }, [inboxBootstrap.data?.connections]);
 
-      return () => clearInterval(interval);
+  // Poll for sync progress
+  const syncProgressQuery = trpc.getSyncProgress.useQuery(
+    { shopDomain: shopifyConnection?.shopDomain || '' },
+    {
+      enabled: !!shopifyConnection?.shopDomain && (syncAllOrders.isPending || syncProgress?.isSyncing),
+      refetchInterval: (query) => {
+        // Poll every 500ms while syncing
+        const data = query.data;
+        return data?.isSyncing ? 500 : false;
+      },
     }
-  }, [syncProgress?.isSyncing]);
+  );
+
+  // Update local progress state from server
+  useEffect(() => {
+    if (syncProgressQuery.data) {
+      const serverProgress = syncProgressQuery.data;
+      if (serverProgress.isSyncing) {
+        setSyncProgress({
+          current: serverProgress.current,
+          total: serverProgress.total,
+          isSyncing: true,
+        });
+      } else if (serverProgress.current > 0) {
+        // Sync just completed
+        setSyncProgress({
+          current: serverProgress.current,
+          total: serverProgress.total,
+          isSyncing: false,
+        });
+        // Clear after showing final state
+        setTimeout(() => setSyncProgress(null), 2000);
+      } else {
+        setSyncProgress(null);
+      }
+    }
+  }, [syncProgressQuery.data]);
 
   // =============================================================================
   // COMPUTED DATA
@@ -1024,7 +1056,7 @@ export default function InboxPage() {
                       {view === 'inbox' ? 'All Inbox' : 'All Orders'}
                     </span>
                     <div className="flex items-center gap-2">
-                      {view === 'orders' && inboxBootstrap.data?.connections?.length > 0 && (
+                      {view === 'orders' && (inboxBootstrap.data?.connections?.length ?? 0) > 0 && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1049,8 +1081,10 @@ export default function InboxPage() {
                               (syncAllOrders.isPending || syncProgress?.isSyncing) ? 'animate-spin' : ''
                             }`}
                           />
-                          {syncProgress?.isSyncing
-                            ? `Syncing ${syncProgress.current}/${syncProgress.total}...`
+                          {syncProgress?.isSyncing && syncProgress.total > 0
+                            ? `Syncing ${syncProgress.current}/${syncProgress.total} (${syncProgress.current === syncProgress.total ? 'Finalizing...' : 'In progress'})`
+                            : syncProgress?.isSyncing
+                            ? 'Starting sync...'
                             : syncAllOrders.isPending
                             ? 'Syncing...'
                             : 'Sync orders'}

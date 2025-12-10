@@ -140,6 +140,60 @@ const protectedProcedure = t.procedure.use(isAuthenticated).use(withRateLimit);
 // AI procedure (authentication + AI rate limiting)
 const aiProcedure = t.procedure.use(isAuthenticated).use(withAIRateLimit);
 
+// =============================================================================
+// SYNC PROGRESS TRACKING
+// =============================================================================
+// In-memory store for sync progress (keyed by userId:shopDomain)
+type SyncProgress = {
+  current: number;
+  total: number;
+  synced: number;
+  errors: number;
+  isSyncing: boolean;
+  startedAt: number;
+};
+
+const syncProgressStore = new Map<string, SyncProgress>();
+
+function getSyncProgressKey(userId: string, shopDomain: string): string {
+  return `${userId}:${shopDomain}`;
+}
+
+function updateSyncProgress(
+  userId: string,
+  shopDomain: string,
+  progress: Partial<SyncProgress>,
+): void {
+  const key = getSyncProgressKey(userId, shopDomain);
+  const existing = syncProgressStore.get(key);
+  syncProgressStore.set(key, {
+    ...existing,
+    current: existing?.current ?? 0,
+    total: existing?.total ?? 0,
+    synced: existing?.synced ?? 0,
+    errors: existing?.errors ?? 0,
+    isSyncing: true,
+    startedAt: existing?.startedAt ?? Date.now(),
+    ...progress,
+  });
+}
+
+function clearSyncProgress(userId: string, shopDomain: string): void {
+  const key = getSyncProgressKey(userId, shopDomain);
+  syncProgressStore.delete(key);
+}
+
+// Clean up old progress entries (older than 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+  for (const [key, progress] of syncProgressStore.entries()) {
+    if (now - progress.startedAt > fiveMinutes) {
+      syncProgressStore.delete(key);
+    }
+  }
+}, 60000); // Run cleanup every minute
+
 const STORE_DEFAULT_NAME = 'Your Store';
 
 function normalizeStoreNameFromDomain(domain?: string | null): string | null {
@@ -3288,6 +3342,22 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     }),
 
   // Sync all orders from Shopify - bulk resync for catching missed webhooks
+  // Query to check sync progress
+  getSyncProgress: protectedProcedure
+    .input(
+      z.object({
+        shopDomain: z.string(),
+      }),
+    )
+    .query(({ input, ctx }) => {
+      const key = getSyncProgressKey(ctx.userId, input.shopDomain);
+      const progress = syncProgressStore.get(key);
+      if (!progress) {
+        return { isSyncing: false, current: 0, total: 0, synced: 0, errors: 0 };
+      }
+      return progress;
+    }),
+
   syncAllOrdersFromShopify: protectedProcedure
     .input(
       z.object({
@@ -3321,6 +3391,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             synced: 0,
           };
         }
+
+        // Initialize progress tracking
+        updateSyncProgress(ctx.userId, input.shopDomain, {
+          current: 0,
+          total: 0,
+          synced: 0,
+          errors: 0,
+          isSyncing: true,
+        });
 
         // Build query params - CRITICAL: Shopify does NOT sort by newest automatically!
         const params = new URLSearchParams({
@@ -3371,10 +3450,33 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           orders = json.orders || [];
 
           // CRITICAL: Sort orders by created_at DESC (newest first) - Shopify API may not respect order parameter
+          // This ensures we sync the most recent orders first, which is what users expect
           orders.sort((a: any, b: any) => {
             const dateA = new Date(a.created_at || 0).getTime();
             const dateB = new Date(b.created_at || 0).getTime();
             return dateB - dateA; // Descending (newest first)
+          });
+
+          // Verify sorting worked correctly
+          if (orders.length > 0) {
+            const firstOrderDate = new Date(orders[0].created_at || 0).getTime();
+            const lastOrderDate = new Date(orders[orders.length - 1].created_at || 0).getTime();
+            if (firstOrderDate < lastOrderDate) {
+              console.warn('[SYNC] WARNING: Orders appear to be sorted oldest-first! Re-sorting...');
+              // Force re-sort if somehow wrong
+              orders.sort((a: any, b: any) => {
+                const dateA = new Date(a.created_at || 0).getTime();
+                const dateB = new Date(b.created_at || 0).getTime();
+                return dateB - dateA;
+              });
+            }
+            console.log(`[SYNC] Verified: Processing ${orders.length} orders from NEWEST (${orders[0].created_at}) to OLDEST (${orders[orders.length - 1].created_at})`);
+          }
+
+          // Update progress with total count
+          updateSyncProgress(ctx.userId, input.shopDomain, {
+            total: orders.length,
+            current: 0,
           });
 
           // CRITICAL DEBUG: Log what Shopify actually returned
@@ -3459,7 +3561,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
             // Log first 3 orders being saved to verify newest is first
             if (synced < 3) {
-              console.log(`[SYNC] Saving order ${synced + 1}: #${order.order_number || order.name} (ID: ${order.id}) to database`);
+              console.log(`[SYNC] Processing order ${synced + 1}/${orders.length}: #${order.order_number || order.name} (ID: ${order.id}) - Created: ${order.created_at} - This should be NEWEST first`);
             }
 
             // Sync line items if present (only if table exists)
@@ -3499,6 +3601,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             }
 
             synced++;
+            
+            // Update progress after each order
+            updateSyncProgress(ctx.userId, input.shopDomain, {
+              current: synced + errors,
+              synced,
+              errors,
+            });
           } catch (err) {
             console.error(
               '[syncAllOrders] Failed to sync order:',
@@ -3506,6 +3615,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               err,
             );
             errors++;
+            
+            // Update progress even on error
+            updateSyncProgress(ctx.userId, input.shopDomain, {
+              current: synced + errors,
+              synced,
+              errors,
+            });
             // Don't stop the entire sync if one order fails
           }
         }
@@ -3514,6 +3630,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           `[syncAllOrders] Completed sync: ${synced} orders synced, ${errors} errors, ${orders.length} total for ${input.shopDomain}`,
         );
         
+        // Mark sync as complete
+        updateSyncProgress(ctx.userId, input.shopDomain, {
+          current: orders.length,
+          synced,
+          errors,
+          isSyncing: false,
+        });
+        
         await logEvent(
           'shopify.sync.completed',
           { synced, errors, total: orders.length, shopDomain: input.shopDomain },
@@ -3521,9 +3645,16 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           conn.id,
         );
         
+        // Clear progress after a short delay to allow frontend to read final state
+        setTimeout(() => {
+          clearSyncProgress(ctx.userId, input.shopDomain);
+        }, 5000);
+        
         return { ok: true, synced, errors, total: orders.length };
       } catch (error: any) {
         console.error('[syncAllOrders] Error:', error);
+        // Clear progress on error
+        clearSyncProgress(ctx.userId, input.shopDomain);
         return {
           ok: false,
           error: error.message || 'Unknown error',
