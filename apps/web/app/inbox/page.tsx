@@ -331,9 +331,8 @@ export default function InboxPage() {
   const [draft, setDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [repliedMessageIds, setRepliedMessageIds] = useState<Set<string>>(
-    new Set(),
-  );
+  // Note: repliedMessageIds removed - we now use thread.isUnread from database
+  // If thread.isUnread === false, it means we've replied
   const [inboxTextareaHeight, setInboxTextareaHeight] = useState(100);
   // Local state to track flagged threads without refetching
   const [flaggedThreads, setFlaggedThreads] = useState<Set<string>>(new Set());
@@ -928,7 +927,8 @@ export default function InboxPage() {
         replyBody: draft,
       });
 
-      setRepliedMessageIds((prev) => new Set(prev).add(selectedEmail.id));
+      // Replied status is now determined by thread.isUnread from database
+      // No need to track in local state
       // Note: Draft is cleared in onMutate for immediate UI feedback
       // Don't auto-move to next email - stay on current conversation
     } catch (error: any) {
@@ -1166,11 +1166,13 @@ export default function InboxPage() {
                     ) : (
                       <div className="divide-y divide-stone-50">
                         {filteredEmails.map((email) => {
-                          const isReplied = repliedMessageIds.has(email.id);
+                          // Determine replied status from thread.isUnread (persisted in database)
+                          // If thread is read (isUnread === false), we've replied
+                          const isUnread = email.thread?.isUnread ?? true;
+                          const isReplied = !isUnread; // Thread is read = we've replied
                           const isSelected = selectedEmailId === email.id;
                           const senderName = getSenderName(email.from);
                           const hasAiSuggestion = !!email.aiSuggestion?.reply;
-                          const isUnread = email.thread?.isUnread ?? true;
                           const isFlagged = email.thread?.isFlagged ?? false;
                           const emailStoreName = getStoreName(
                             email.thread?.connection?.shopDomain,
@@ -1615,8 +1617,9 @@ export default function InboxPage() {
 
                             {/* AI Suggestion Section */}
                             {/* Only show AI suggestion if thread is unread (we haven't replied yet) */}
+                            {/* Explicitly check that isUnread is true (not false or undefined) */}
                             {(selectedEmail.aiSuggestion || draft) &&
-                              (selectedEmail.thread?.isUnread ?? true) && (
+                              selectedEmail.thread?.isUnread === true && (
                                 <div className="mt-6 pt-6 border-t border-stone-100">
                                   <div className="flex items-center gap-2 mb-4">
                                     <Sparkles className="h-4 w-4 text-violet-500" />
