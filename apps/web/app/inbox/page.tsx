@@ -547,11 +547,7 @@ export default function InboxPage() {
     { shopDomain: shopifyConnection?.shopDomain || '' },
     {
       enabled: !!shopifyConnection?.shopDomain && (syncAllOrders.isPending || syncProgress?.isSyncing),
-      refetchInterval: (query) => {
-        // Poll every 500ms while syncing
-        const data = query.data;
-        return data?.isSyncing ? 500 : false;
-      },
+      refetchInterval: syncProgress?.isSyncing ? 500 : false,
     }
   );
 
@@ -1956,7 +1952,7 @@ export default function InboxPage() {
                                           </p>
                                         </div>
                                         <span className="text-sm font-medium text-stone-900">
-                                          {formatCurrency(item.price, orderDetailsWithItems.data?.currency || orderDetail.data?.currency || 'INR')}
+                                          {formatCurrency(item.price, orderDetailsWithItems.data?.currency || (orderDetail.data?.order ? orderDetail.data.order.currency : undefined) || 'INR')}
                                         </span>
                                       </div>
                                     ))}
