@@ -3404,7 +3404,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Build query params - CRITICAL: Shopify does NOT sort by newest automatically!
         const params = new URLSearchParams({
           status: 'any',
-          limit: '100', // Fetch latest 100 orders
+          limit: '20', // Fetch latest 20 orders
           order: 'created_at desc', // REQUIRED: Sort by newest first
           fields: 'id,created_at,order_number,updated_at,name,email,total_price,currency,financial_status,fulfillment_status,customer,line_items,cancelled_at,processed_at,contact_email',
         });
@@ -3412,13 +3412,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         if (input.updatedAfter) {
           params.set('updated_at_min', input.updatedAfter);
         }
-        // Don't set created_at_min - let Shopify return the latest 100 orders
+        // Don't set created_at_min - let Shopify return the latest 20 orders
 
         const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
-        
-        // Add timeout to prevent hanging
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
         
         let orders: any[] = [];
         
@@ -3427,10 +3423,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             headers: {
               'X-Shopify-Access-Token': credentials.accessToken,
             },
-            signal: controller.signal,
           });
-
-          clearTimeout(timeout);
 
           if (!resp.ok) {
             const errorText = await resp.text().catch(() => '');
@@ -3495,15 +3488,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           }
           console.log('[SYNC] ===============================================');
         } catch (fetchError: any) {
-          clearTimeout(timeout);
-          if (fetchError.name === 'AbortError') {
-            console.error('[syncAllOrders] Request timed out after 60 seconds');
-            return {
-              ok: false,
-              error: 'Request timed out',
-              synced: 0,
-            };
-          }
           throw fetchError;
         }
 
