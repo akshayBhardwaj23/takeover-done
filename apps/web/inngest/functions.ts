@@ -206,6 +206,8 @@ Write a comprehensive reply that addresses their concern and provides clear next
 
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
+IMPORTANT: Do NOT include the email subject line in your reply. Only write the email body content. The subject will be set separately.
+
 Always end your response with:
 Warm Regards,
 
@@ -230,6 +232,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           reply =
             json.choices?.[0]?.message?.content ??
             "Thanks for reaching out. I'll follow up shortly with details.";
+
+          // Remove any "Subject:" lines that might have been included in the reply
+          reply = reply.replace(/^Subject:\s*.+$/gim, '').trim();
 
           // Lightweight action inference from LLM output
           const rlower = reply.toLowerCase();

@@ -1,6 +1,7 @@
 # Email Threading Implementation
 
 ## Overview
+
 Emails sent from the dashboard now appear as proper replies to customer emails in email clients (Gmail, Outlook, etc.) rather than as separate, unrelated emails. This is achieved through:
 
 1. **Email Threading Headers** - Using standard email headers (`In-Reply-To` and `References`)
@@ -18,11 +19,13 @@ Email clients use specific headers to group related emails into conversation thr
 #### Implementation Details
 
 When a customer sends an email to your support address:
+
 1. The email webhook captures the `Message-ID` header from the inbound email
 2. This is stored in the `Message.messageId` field in the database
 3. The headers are also stored as JSON in `Message.headers`
 
 When you send a reply from the dashboard:
+
 1. The system fetches the original inbound message's `messageId` and `headers`
 2. It sets the `In-Reply-To` header to the original message's ID
 3. It builds a `References` chain by:
@@ -31,6 +34,7 @@ When you send a reply from the dashboard:
 4. These headers are sent to Mailgun using the `h:` prefix (custom headers)
 
 **Code Location**: `packages/api/src/index.ts`
+
 - Lines 1257-1268 (for order-linked emails in `actionApproveAndSend`)
 - Lines 1528-1539 (for unassigned emails in `sendUnassignedReply`)
 
@@ -60,12 +64,14 @@ On Mon, Dec 16, 2024 at 10:30 AM, john@example.com wrote:
 #### Implementation Details
 
 The `formatEmailWithQuotedOriginal()` helper function:
+
 1. Takes the reply body, original sender, date, and original message body
 2. Formats the date in a readable format
 3. Prefixes each line of the original email with `>` (standard email quote marker)
 4. Combines them with a separator line
 
 **Code Location**: `packages/api/src/index.ts`
+
 - Lines 224-254 (helper function definition)
 - Lines 1236-1243 (applied in `actionApproveAndSend`)
 - Lines 1507-1514 (applied in `sendUnassignedReply`)
@@ -90,6 +96,7 @@ model Message {
 ## How It Works: Full Flow
 
 ### Inbound Email
+
 1. Customer sends email to `support@yourdomain.com`
 2. Mailgun forwards it to webhook: `/api/webhooks/email/custom`
 3. Webhook extracts the `Message-ID` header (e.g., `<abc123@mail.example.com>`)
@@ -99,6 +106,7 @@ model Message {
    - `direction`: `"INBOUND"`
 
 ### Outbound Reply
+
 1. You compose a reply in the dashboard
 2. Click "Send email"
 3. System queries the original inbound message
@@ -110,7 +118,9 @@ model Message {
 6. Creates `Message` record with `direction`: `"OUTBOUND"`
 
 ### Customer's Email Client
+
 When the customer receives your reply:
+
 - Their email client (Gmail, Outlook, etc.) sees the `In-Reply-To` header
 - It matches it to the original email they sent
 - It groups both emails into the same conversation thread
@@ -146,8 +156,8 @@ To test email threading:
 ## Future Enhancements
 
 Possible improvements:
+
 1. Store the outbound message's `Message-ID` from Mailgun's response
 2. Support multi-level threading for ongoing conversations
 3. Add HTML email support with better formatting for quoted text
 4. Allow users to toggle quoted original on/off per reply
-

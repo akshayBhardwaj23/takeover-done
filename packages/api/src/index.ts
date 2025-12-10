@@ -2381,6 +2381,8 @@ Write a comprehensive reply that addresses their concern and provides clear next
 
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
+IMPORTANT: Do NOT include the email subject line in your reply. Only write the email body content. The subject will be set separately.
+
 Always end your response with:
 Warm Regards,
 
@@ -2402,8 +2404,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const json: any = await resp.json();
         const fallbackSuggestion = buildFallback();
-        const suggestion =
+        let suggestion =
           json.choices?.[0]?.message?.content ?? fallbackSuggestion;
+
+        // Remove any "Subject:" lines that might have been included in the reply
+        suggestion = suggestion.replace(/^Subject:\s*.+$/gim, '').trim();
 
         // Increment AI usage counter after successful generation
         await incrementAISuggestion(ctx.userId);
@@ -2575,6 +2580,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           .replace(/\[Your Company\]/gi, storeName)
           .replace(/\[Your Contact Information\]/gi, '')
           .replace(/\[Store Name\]/gi, storeName);
+
+        // Remove any "Subject:" lines that might have been included
+        body = body.replace(/^Subject:\s*.+$/gim, '').trim();
 
         // Ensure signature is present
         body = ensureSignature(body, signatureBlock);
@@ -2854,6 +2862,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           .replace(/\[Your Company\]/gi, storeName)
           .replace(/\[Your Contact Information\]/gi, '')
           .replace(/\[Store Name\]/gi, storeName);
+
+        // Remove any "Subject:" lines that might have been included
+        cleanedBody = cleanedBody.replace(/^Subject:\s*.+$/gim, '').trim();
 
         // Ensure signature is present
         cleanedBody = ensureSignature(cleanedBody, signatureBlock);
