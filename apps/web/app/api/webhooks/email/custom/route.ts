@@ -48,6 +48,42 @@ function stripHtml(input: string): string {
     .trim();
 }
 
+// Clean email body by removing quoted conversation history
+function cleanEmailBody(body: string): string {
+  if (!body) return body;
+
+  let cleaned = body;
+
+  // Remove lines starting with > (quoted text)
+  cleaned = cleaned.replace(/^>.*$/gm, '');
+
+  // Remove "On [date], [sender] wrote:" sections and everything after
+  // Pattern: "On [date], [sender] wrote:" or "On [date] at [time], [sender] wrote:"
+  cleaned = cleaned.replace(
+    /On\s+.*?wrote:.*$/gims,
+    '',
+  );
+
+  // Remove content after "---" separator (common email separator)
+  const dashIndex = cleaned.indexOf('---');
+  if (dashIndex > 0) {
+    cleaned = cleaned.substring(0, dashIndex);
+  }
+
+  // Remove common email reply patterns
+  // "From: [email]" followed by quoted content
+  cleaned = cleaned.replace(/From:\s*.*$/gim, '');
+  // "Sent: [date]" followed by quoted content
+  cleaned = cleaned.replace(/Sent:\s*.*$/gim, '');
+  // "Date: [date]" followed by quoted content
+  cleaned = cleaned.replace(/Date:\s*.*$/gim, '');
+
+  // Remove multiple consecutive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  return cleaned.trim();
+}
+
 // Simple shared-secret verification for MVP. In production, verify provider signature (Mailgun/Postmark)
 // Note: This is for custom header authentication (optional, not used by Mailgun Routes by default)
 function verifySecret(req: NextRequest, secret: string | null) {
@@ -294,7 +330,9 @@ export async function POST(req: NextRequest) {
     const shopDomainForAlias: string | undefined = metadata.shopDomain;
 
     const rawBody = text || html || '';
-    const body = stripHtml(String(rawBody)).slice(0, 20000);
+    const strippedBody = stripHtml(String(rawBody)).slice(0, 20000);
+    // Clean the body to remove quoted conversation history
+    const body = cleanEmailBody(strippedBody);
 
     // Extract email from "Name <email@domain.com>" format
     const emailMatch =
@@ -483,12 +521,17 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if this is a reply to an existing thread by matching In-Reply-To or References headers
+    // Mailgun Routes may send headers with 'h:' prefix, so check both formats
     let existingThread = null;
     const inReplyTo =
+      (raw['h:In-Reply-To'] as string) ||
+      (raw['h:in-reply-to'] as string) ||
       (raw['In-Reply-To'] as string) ||
       (raw['in-reply-to'] as string) ||
       undefined;
     const references =
+      (raw['h:References'] as string) ||
+      (raw['h:references'] as string) ||
       (raw['References'] as string) ||
       (raw['references'] as string) ||
       undefined;
@@ -527,6 +570,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fallback: If header-based matching failed, try matching by customer email + subject
+    if (!existingThread && subject) {
+      const normalizedSubject = subject.trim();
+      if (normalizedSubject) {
+        // Try to find thread with same customer email and subject (case-insensitive)
+        // Also check for "Re:" prefix variations
+        const subjectVariations = [
+          normalizedSubject,
+          normalizedSubject.replace(/^Re:\s*/i, '').trim(),
+          `Re: ${normalizedSubject.replace(/^Re:\s*/i, '')}`,
+        ];
+
+        existingThread = await prisma.thread.findFirst({
+          where: {
+            customerEmail,
+            connectionId: conn.id,
+            subject: {
+              in: subjectVariations,
+            },
+          },
+          orderBy: { updatedAt: 'desc' },
+        });
+      }
+    }
+
     // Use existing thread if found, otherwise create a new one
     const thread =
       existingThread ||
@@ -538,13 +606,20 @@ export async function POST(req: NextRequest) {
         },
       }));
 
-    // Attempt to parse Message-ID header
+    // Store headers including threading information
     const headers: Record<string, any> = {
       'message-id': messageIdHeader,
       subject,
       from,
       to,
     };
+    // Store threading headers if present
+    if (inReplyTo) {
+      headers['in-reply-to'] = inReplyTo;
+    }
+    if (references) {
+      headers['references'] = references;
+    }
 
     const msg = await prisma.message.create({
       data: {
