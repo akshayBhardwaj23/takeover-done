@@ -2069,7 +2069,8 @@ export const appRouter = t.router({
         unassignedConnectionIds.length
           ? prisma.message.findMany({
               where: {
-                // Show ALL emails in inbox (both inbound and outbound)
+                // Only show INBOUND emails in inbox (filter out outbound)
+                direction: 'INBOUND' as any,
                 // Filter by thread.connectionId since Message.connectionId may not exist in DB
                 thread: { connectionId: { in: unassignedConnectionIds } },
               },
@@ -2083,6 +2084,7 @@ export const appRouter = t.router({
                 body: true,
                 createdAt: true,
                 orderId: true,
+                direction: true,
                 thread: {
                   select: {
                     id: true,
@@ -3095,8 +3097,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         }
 
         // Filter by thread.connectionId since Message.connectionId may not exist in DB
+        // Only return INBOUND messages (filter out outbound)
         const msgs = await prisma.message.findMany({
           where: {
+            direction: 'INBOUND' as any,
             thread: { connectionId: { in: connectionIds } },
           },
           orderBy: { createdAt: 'desc' },
@@ -3109,6 +3113,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             body: true,
             createdAt: true,
             orderId: true,
+            direction: true,
             thread: {
               select: {
                 id: true,
