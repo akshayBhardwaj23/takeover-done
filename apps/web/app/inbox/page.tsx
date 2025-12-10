@@ -662,26 +662,34 @@ export default function InboxPage() {
         );
         const latestEmail = sortedEmails[0];
 
+        // Find the latest INBOUND email in the thread for Gmail-style sorting
+        const inboundEmails = emails.filter((e) => e.direction === 'INBOUND');
+        const latestInboundEmail =
+          inboundEmails.length > 0
+            ? inboundEmails.sort(
+                (a, b) =>
+                  new Date(b.createdAt).getTime() -
+                  new Date(a.createdAt).getTime(),
+              )[0]
+            : latestEmail; // Fallback to latest email if no inbound found
+
         // Add thread metadata
         return {
           ...latestEmail,
           threadMessageCount: emails.length,
           threadEmails: sortedEmails,
+          latestInboundDate: latestInboundEmail.createdAt, // For Gmail-style sorting
         };
       },
     );
 
-    // Sort by unread status first, then by date descending
+    // Gmail-style sorting: by latest inbound email date (most recent first)
+    // Pure Gmail-style - no unread priority, just sort by latest customer message
     return threadRepresentatives.sort((a, b) => {
-      const aUnread = a.thread?.isUnread ?? true;
-      const bUnread = b.thread?.isUnread ?? true;
-
-      // Unread items first
-      if (aUnread && !bUnread) return -1;
-      if (!aUnread && bUnread) return 1;
-
-      // Then by date descending
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return (
+        new Date(b.latestInboundDate).getTime() -
+        new Date(a.latestInboundDate).getTime()
+      );
     });
   }, [
     unassignedQuery.data?.messages,
