@@ -337,6 +337,20 @@ export default function InboxPage() {
   const [inboxTextareaHeight, setInboxTextareaHeight] = useState(100);
   // Local state to track flagged threads without refetching
   const [flaggedThreads, setFlaggedThreads] = useState<Set<string>>(new Set());
+  // Optimistic replies - messages sent but not yet confirmed by server
+  const [optimisticReplies, setOptimisticReplies] = useState<
+    Map<
+      string,
+      Array<{
+        id: string;
+        from: string;
+        to: string;
+        body: string;
+        direction: string;
+        createdAt: string;
+      }>
+    >
+  >(new Map());
   const [orderTextareaHeight, setOrderTextareaHeight] = useState(80);
   const refreshTimer = useRef<NodeJS.Timeout | null>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
@@ -464,19 +478,73 @@ export default function InboxPage() {
     },
   });
   const sendUnassignedReply = trpc.sendUnassignedReply.useMutation({
+    onMutate: async (variables) => {
+      // Optimistically add the reply to the conversation
+      if (selectedEmail) {
+        const threadId = selectedEmail.thread?.id || selectedEmail.id;
+        const optimisticMessage = {
+          id: `optimistic-${Date.now()}`,
+          from: selectedEmail.to || '',
+          to: selectedEmail.from || '',
+          body: variables.replyBody,
+          direction: 'OUTBOUND',
+          createdAt: new Date().toISOString(),
+        };
+
+        setOptimisticReplies((prev) => {
+          const newMap = new Map(prev);
+          const existing = newMap.get(threadId) || [];
+          newMap.set(threadId, [...existing, optimisticMessage]);
+          return newMap;
+        });
+
+        // Clear draft immediately
+        setDraft('');
+      }
+    },
     onSuccess: (data: any) => {
       if (!data?.ok) {
         toast.error(data?.error || 'Failed to send reply');
+        // Remove optimistic reply on error
+        if (selectedEmail) {
+          const threadId = selectedEmail.thread?.id || selectedEmail.id;
+          setOptimisticReplies((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(threadId);
+            return newMap;
+          });
+        }
         unassignedQuery.refetch();
         inboxBootstrap.refetch();
         return;
       }
+      // Refetch to get the real message from server
       unassignedQuery.refetch();
       inboxBootstrap.refetch();
-      threadMessages.refetch();
+      threadMessages.refetch().then(() => {
+        // Remove optimistic reply once server confirms
+        if (selectedEmail) {
+          const threadId = selectedEmail.thread?.id || selectedEmail.id;
+          setOptimisticReplies((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(threadId);
+            return newMap;
+          });
+        }
+      });
       toast.success('Reply sent successfully');
     },
-    onError: (error) => {
+    onError: (error, variables) => {
+      // Remove optimistic reply on error
+      if (selectedEmail) {
+        const threadId = selectedEmail.thread?.id || selectedEmail.id;
+        setOptimisticReplies((prev) => {
+          const newMap = new Map(prev);
+          newMap.delete(threadId);
+          return newMap;
+        });
+      }
+
       if (
         error.data?.code === 'FORBIDDEN' &&
         error.message?.includes('Email limit')
@@ -512,7 +580,13 @@ export default function InboxPage() {
         ordersPage.refetch();
         inboxBootstrap.refetch();
       } else {
-        toast.error(data?.error || 'Failed to sync orders');
+        // When ok is false, the response has an 'error' property
+        const errorResponse = data as {
+          ok: false;
+          error?: string;
+          synced: number;
+        };
+        toast.error(errorResponse.error || 'Failed to sync orders');
       }
     },
     onError: (error) => {
@@ -528,7 +602,10 @@ export default function InboxPage() {
   // Create a lookup map for connections by connectionId
   const connectionsMap = useMemo(() => {
     const connections = inboxBootstrap.data?.connections || [];
-    const map = new Map<string, { shopDomain?: string | null; metadata?: { storeName?: string } | null }>();
+    const map = new Map<
+      string,
+      { shopDomain?: string | null; metadata?: { storeName?: string } | null }
+    >();
     connections.forEach((conn: any) => {
       map.set(conn.id, {
         shopDomain: conn.shopDomain,
@@ -540,8 +617,8 @@ export default function InboxPage() {
 
   // Combine all emails for the email list view
   const allEmails = useMemo(() => {
-    const unassigned = Array.isArray(unassignedQuery.data?.messages) 
-      ? unassignedQuery.data.messages 
+    const unassigned = Array.isArray(unassignedQuery.data?.messages)
+      ? unassignedQuery.data.messages
       : [];
     const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
       ? inboxBootstrap.data.unassigned
@@ -577,41 +654,50 @@ export default function InboxPage() {
     });
 
     // For each thread, get the most recent email as the representative
-    const threadRepresentatives = Array.from(threadMap.entries()).map(([threadId, emails]) => {
-      // Sort emails in thread by date (most recent first)
-      const sortedEmails = emails.sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
-      const latestEmail = sortedEmails[0];
-      
-      // Add thread metadata
-      return {
-        ...latestEmail,
-        threadMessageCount: emails.length,
-        threadEmails: sortedEmails,
-      };
-    });
+    const threadRepresentatives = Array.from(threadMap.entries()).map(
+      ([threadId, emails]) => {
+        // Sort emails in thread by date (most recent first)
+        const sortedEmails = emails.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
+        const latestEmail = sortedEmails[0];
+
+        // Add thread metadata
+        return {
+          ...latestEmail,
+          threadMessageCount: emails.length,
+          threadEmails: sortedEmails,
+        };
+      },
+    );
 
     // Sort by unread status first, then by date descending
     return threadRepresentatives.sort((a, b) => {
       const aUnread = a.thread?.isUnread ?? true;
       const bUnread = b.thread?.isUnread ?? true;
-      
+
       // Unread items first
       if (aUnread && !bUnread) return -1;
       if (!aUnread && bUnread) return 1;
-      
+
       // Then by date descending
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned, flaggedThreads]);
+  }, [
+    unassignedQuery.data?.messages,
+    inboxBootstrap.data?.unassigned,
+    flaggedThreads,
+  ]);
 
   // Filter emails by search
   // Filter emails by search
   const filteredEmails = useMemo(() => {
     // Filter out outbound emails from the list
-    const inboundEmails = allEmails.filter(email => email.direction !== 'OUTBOUND');
-    
+    const inboundEmails = allEmails.filter(
+      (email) => email.direction !== 'OUTBOUND',
+    );
+
     if (!searchQuery.trim()) return inboundEmails;
     const q = searchQuery.toLowerCase();
     return inboundEmails.filter(
@@ -627,7 +713,7 @@ export default function InboxPage() {
     if (!selectedEmailId) return null;
     const email = allEmails.find((e) => e.id === selectedEmailId);
     if (!email) return null;
-    
+
     // Merge local flagged state
     const threadId = email.thread?.id;
     if (threadId && flaggedThreads.has(threadId)) {
@@ -658,18 +744,37 @@ export default function InboxPage() {
     },
   );
 
-  // Auto-scroll to bottom when thread messages load
+  // Merge server messages with optimistic replies
+  const mergedThreadMessages = useMemo(() => {
+    const serverMessages = threadMessages.data?.messages || [];
+    const optimistic = optimisticReplies.get(selectedThreadId || '') || [];
+
+    // Combine and sort by createdAt
+    const allMessages = [...serverMessages, ...optimistic].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+
+    return { messages: allMessages };
+  }, [threadMessages.data?.messages, optimisticReplies, selectedThreadId]);
+
+  // Auto-scroll to bottom when thread messages load (including optimistic updates)
   useEffect(() => {
-    if (threadMessages.data?.messages && conversationScrollRef.current) {
+    if (
+      mergedThreadMessages.messages.length > 0 &&
+      conversationScrollRef.current
+    ) {
       // Small delay to ensure DOM is updated
       setTimeout(() => {
-        const scrollContainer = conversationScrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+        const scrollContainer = conversationScrollRef.current?.querySelector(
+          '[data-radix-scroll-area-viewport]',
+        ) as HTMLElement;
         if (scrollContainer) {
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
         }
       }, 100);
     }
-  }, [threadMessages.data?.messages]);
+  }, [mergedThreadMessages.messages]);
 
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
@@ -824,16 +929,8 @@ export default function InboxPage() {
       });
 
       setRepliedMessageIds((prev) => new Set(prev).add(selectedEmail.id));
-      setDraft('');
-
-      // Auto-select next email
-      const currentIndex = filteredEmails.findIndex(
-        (e) => e.id === selectedEmail.id,
-      );
-      const nextEmail = filteredEmails[currentIndex + 1];
-      if (nextEmail) {
-        handleSelectEmail(nextEmail);
-      }
+      // Note: Draft is cleared in onMutate for immediate UI feedback
+      // Don't auto-move to next email - stay on current conversation
     } catch (error: any) {
       toast.error(error.message ?? 'Failed to send reply');
     }
@@ -889,8 +986,6 @@ export default function InboxPage() {
   // =============================================================================
   // RENDER
   // =============================================================================
-
-
 
   return (
     <>
@@ -997,34 +1092,39 @@ export default function InboxPage() {
                       {view === 'inbox' ? 'All Inbox' : 'All Orders'}
                     </span>
                     <div className="flex items-center gap-2">
-                      {view === 'orders' && inboxBootstrap.data?.connections?.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            // Get the first Shopify connection's shop domain
-                            const shopifyConnection = inboxBootstrap.data?.connections?.find(
-                              (conn: any) => conn.type === 'SHOPIFY' && conn.shopDomain
-                            );
-                            if (shopifyConnection?.shopDomain) {
-                              syncAllOrders.mutate({
-                                shopDomain: shopifyConnection.shopDomain,
-                              });
-                            } else {
-                              toast.error('No Shopify store connected');
-                            }
-                          }}
-                          disabled={syncAllOrders.isPending}
-                          className="h-7 px-2 text-xs text-stone-600 hover:text-stone-900"
-                        >
-                          <RefreshCw
-                            className={`h-3 w-3 mr-1.5 ${
-                              syncAllOrders.isPending ? 'animate-spin' : ''
-                            }`}
-                          />
-                          {syncAllOrders.isPending ? 'Syncing...' : 'Sync orders'}
-                        </Button>
-                      )}
+                      {view === 'orders' &&
+                        (inboxBootstrap.data?.connections?.length ?? 0) > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              // Get the first Shopify connection's shop domain
+                              const shopifyConnection =
+                                inboxBootstrap.data?.connections?.find(
+                                  (conn: any) =>
+                                    conn.type === 'SHOPIFY' && conn.shopDomain,
+                                );
+                              if (shopifyConnection?.shopDomain) {
+                                syncAllOrders.mutate({
+                                  shopDomain: shopifyConnection.shopDomain,
+                                });
+                              } else {
+                                toast.error('No Shopify store connected');
+                              }
+                            }}
+                            disabled={syncAllOrders.isPending}
+                            className="h-7 px-2 text-xs text-stone-600 hover:text-stone-900"
+                          >
+                            <RefreshCw
+                              className={`h-3 w-3 mr-1.5 ${
+                                syncAllOrders.isPending ? 'animate-spin' : ''
+                              }`}
+                            />
+                            {syncAllOrders.isPending
+                              ? 'Syncing...'
+                              : 'Sync orders'}
+                          </Button>
+                        )}
                     </div>
                   </div>
                   <div className="relative">
@@ -1074,7 +1174,9 @@ export default function InboxPage() {
                           const isFlagged = email.thread?.isFlagged ?? false;
                           const emailStoreName = getStoreName(
                             email.thread?.connection?.shopDomain,
-                            email.thread?.connection?.metadata as { storeName?: string } | null,
+                            email.thread?.connection?.metadata as {
+                              storeName?: string;
+                            } | null,
                           );
                           const emailStoreColor = getStoreColor(
                             email.thread?.connection?.shopDomain || 'default',
@@ -1196,7 +1298,9 @@ export default function InboxPage() {
                           (order.pendingEmailCount ?? 0) > 0;
                         const orderStoreName = getStoreName(
                           order.shopDomain,
-                          order.connectionId ? connectionsMap.get(order.connectionId)?.metadata : null,
+                          order.connectionId
+                            ? connectionsMap.get(order.connectionId)?.metadata
+                            : null,
                         );
                         const orderStoreColor = getStoreColor(
                           order.shopDomain || 'default',
@@ -1303,44 +1407,47 @@ export default function InboxPage() {
               {/* ============================================================= */}
               {view !== 'orders' && (
                 <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden">
-                {view === 'inbox' && selectedEmail ? (
-                  <>
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(selectedEmail.from)}`}
-                        >
-                          {getInitials(null, selectedEmail.from)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-sm font-semibold text-stone-900">
-                              {getSenderName(selectedEmail.from)}
-                            </h2>
-                            {selectedEmail.thread?.isFlagged && (
-                              <Flag className="h-4 w-4 text-orange-600 fill-orange-600" />
-                            )}
-                            {selectedEmail.thread?.connection?.shopDomain && (
-                              <span
-                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${getStoreColor(selectedEmail.thread.connection.shopDomain)}`}
-                              >
-                                <Store className="h-3 w-3" />
-                                {getStoreName(
-                                  selectedEmail.thread.connection.shopDomain,
-                                  selectedEmail.thread.connection.metadata as { storeName?: string } | null,
-                                )}
-                              </span>
-                            )}
+                  {view === 'inbox' && selectedEmail ? (
+                    <>
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold ${getAvatarColor(selectedEmail.from)}`}
+                          >
+                            {getInitials(null, selectedEmail.from)}
                           </div>
-                          <p className="text-xs text-stone-500">
-                            {extractEmailAddress(selectedEmail.from)}
-                          </p>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h2 className="text-sm font-semibold text-stone-900">
+                                {getSenderName(selectedEmail.from)}
+                              </h2>
+                              {selectedEmail.thread?.isFlagged && (
+                                <Flag className="h-4 w-4 text-orange-600 fill-orange-600" />
+                              )}
+                              {selectedEmail.thread?.connection?.shopDomain && (
+                                <span
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${getStoreColor(selectedEmail.thread.connection.shopDomain)}`}
+                                >
+                                  <Store className="h-3 w-3" />
+                                  {getStoreName(
+                                    selectedEmail.thread.connection.shopDomain,
+                                    selectedEmail.thread.connection
+                                      .metadata as {
+                                      storeName?: string;
+                                    } | null,
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-stone-500">
+                              {extractEmailAddress(selectedEmail.from)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {selectedEmail.thread?.id && (
-                          <Button
+                        <div className="flex items-center gap-2">
+                          {selectedEmail.thread?.id && (
+                            <Button
                               variant="ghost"
                               size="sm"
                               className={`rounded-lg text-xs ${
@@ -1351,9 +1458,10 @@ export default function InboxPage() {
                               onClick={() => {
                                 if (selectedEmail.thread?.id) {
                                   const threadId = selectedEmail.thread.id;
-                                  const currentFlagged = selectedEmail.thread.isFlagged ?? false;
+                                  const currentFlagged =
+                                    selectedEmail.thread.isFlagged ?? false;
                                   const newFlaggedState = !currentFlagged;
-                                  
+
                                   // Update local state immediately (optimistic update)
                                   setFlaggedThreads((prev) => {
                                     const next = new Set(prev);
@@ -1364,15 +1472,13 @@ export default function InboxPage() {
                                     }
                                     return next;
                                   });
-                                  
+
                                   flagThread.mutate({
                                     threadId,
                                     isFlagged: newFlaggedState,
                                   });
                                   toast.success(
-                                    newFlaggedState
-                                      ? 'Flagged'
-                                      : 'Unflagged',
+                                    newFlaggedState ? 'Flagged' : 'Unflagged',
                                   );
                                 }
                               }}
@@ -1389,210 +1495,275 @@ export default function InboxPage() {
                                 ? 'Unflag'
                                 : 'Flag this mail'}
                             </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Conversation Area */}
-                    <ScrollArea ref={conversationScrollRef} className="flex-1 p-6">
-                      {threadMessages.isLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <LumaSpin />
-                        </div>
-                      ) : threadMessages.data?.messages && threadMessages.data.messages.length > 0 ? (
-                        <div className="space-y-4">
-                          {threadMessages.data.messages.map((message: any, index: number) => {
-                            const isInbound = message.direction === 'INBOUND';
-                            const isFirstMessage = index === 0;
-                            const prevMessage = index > 0 ? threadMessages.data.messages[index - 1] : null;
-                            const showDateSeparator = !prevMessage || isDifferentDay(message.createdAt, prevMessage.createdAt);
-                            const subject = isFirstMessage ? (selectedEmail.subject || selectedEmail.thread?.subject) : null;
-
-                            return (
-                              <div key={message.id}>
-                                {/* Date Separator */}
-                                {showDateSeparator && (
-                                  <div className="flex items-center justify-center my-6">
-                                    <div className="flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs text-stone-600">
-                                      {formatDateHeader(message.createdAt)}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Message Bubble */}
-                                <div className={`flex items-start gap-3 mb-4 ${isInbound ? 'justify-start' : 'justify-end'}`}>
-                                  {isInbound && (
-                                    <div
-                                      className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(message.from)}`}
-                                    >
-                                      {getInitials(null, message.from)}
-                                    </div>
-                                  )}
-                                  <div className={`flex-1 ${isInbound ? 'max-w-[75%]' : 'max-w-[75%] flex flex-col items-end'}`}>
-                                    <div className={`flex items-center gap-2 mb-1 ${isInbound ? '' : 'flex-row-reverse'}`}>
-                                      <span className={`text-sm font-semibold ${isInbound ? 'text-stone-900' : 'text-white'}`}>
-                                        {isInbound ? getSenderName(message.from) : 'Bruno Perez'}
-                                      </span>
-                                      <span className={`text-xs ${isInbound ? 'text-stone-500' : 'text-stone-300'}`}>
-                                        {formatTime(message.createdAt)}
-                                      </span>
-                                    </div>
-                                    {subject && (
-                                      <p className={`text-sm font-medium mb-2 ${isInbound ? 'text-stone-800' : 'text-white'}`}>
-                                        {subject}
-                                      </p>
-                                    )}
-                                    <div className={`rounded-2xl p-4 ${
-                                      isInbound 
-                                        ? 'rounded-tl-none bg-stone-100' 
-                                        : 'rounded-tr-none bg-stone-900 text-white'
-                                    }`}>
-                                      <p className={`text-sm whitespace-pre-wrap leading-relaxed ${
-                                        isInbound ? 'text-stone-700' : 'text-white'
-                                      }`}>
-                                        {message.body}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  {!isInbound && (
-                                    <div className="flex-shrink-0 w-10" />
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-
-                          {/* AI Suggestion Section */}
-                          {(selectedEmail.aiSuggestion || draft) && (
-                            <div className="mt-6 pt-6 border-t border-stone-100">
-                              <div className="flex items-center gap-2 mb-4">
-                                <Sparkles className="h-4 w-4 text-violet-500" />
-                                <span className="text-sm font-semibold text-stone-900">
-                                  AI Suggested Reply
-                                </span>
-                                {selectedEmail.aiSuggestion?.confidence && (
-                                  <Badge className="bg-violet-100 text-violet-700 text-xs">
-                                    {Math.round(
-                                      selectedEmail.aiSuggestion.confidence * 100,
-                                    )}
-                                    % confidence
-                                  </Badge>
-                                )}
-                              </div>
-
-                              {selectedEmail.aiSuggestion?.rationale && (
-                                <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
-                                  <strong>Analysis:</strong>{' '}
-                                  {selectedEmail.aiSuggestion.rationale}
-                                </p>
-                              )}
-                            </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="flex items-center justify-center py-12 text-stone-500 text-sm">
-                          No messages found in this thread
-                        </div>
-                      )}
-                    </ScrollArea>
+                      </div>
 
-                    {/* Reply Input */}
-                    <div className="p-4 border-t border-stone-100">
-                      <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300 focus-within:border-stone-300">
-                        <div className="relative">
-                          <div
-                            className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              const startY = e.clientY;
-                              const startHeight = inboxTextareaHeight;
-                              
-                              const handleMouseMove = (moveEvent: MouseEvent) => {
-                                const deltaY = moveEvent.clientY - startY;
-                                const newHeight = Math.max(100, Math.min(500, startHeight + deltaY));
-                                setInboxTextareaHeight(newHeight);
-                              };
-                              
-                              const handleMouseUp = () => {
-                                document.removeEventListener('mousemove', handleMouseMove);
-                                document.removeEventListener('mouseup', handleMouseUp);
-                              };
-                              
-                              document.addEventListener('mousemove', handleMouseMove);
-                              document.addEventListener('mouseup', handleMouseUp);
-                            }}
-                          >
-                            <GripVertical className="h-4 w-4 text-stone-400" />
+                      {/* Conversation Area */}
+                      <ScrollArea
+                        ref={conversationScrollRef}
+                        className="flex-1 p-6"
+                      >
+                        {threadMessages.isLoading ? (
+                          <div className="flex items-center justify-center py-12">
+                            <LumaSpin />
                           </div>
-                          <textarea
-                            ref={messageInputRef}
-                            value={draft}
-                            onChange={(e) => setDraft(e.target.value)}
-                            placeholder="Write a message..."
-                            style={{ height: `${inboxTextareaHeight}px` }}
-                            className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
-                          <div className="flex items-center gap-2">
-                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
-                              <Paperclip className="h-4 w-4" />
-                            </button>
-                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
-                              <AtSign className="h-4 w-4" />
-                            </button>
-                            <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
-                              <Smile className="h-4 w-4" />
-                            </button>
+                        ) : mergedThreadMessages.messages &&
+                          mergedThreadMessages.messages.length > 0 ? (
+                          <div className="space-y-4">
+                            {mergedThreadMessages.messages.map(
+                              (message: any, index: number) => {
+                                const isInbound =
+                                  message.direction === 'INBOUND';
+                                const isFirstMessage = index === 0;
+                                const prevMessage =
+                                  index > 0
+                                    ? mergedThreadMessages.messages[index - 1]
+                                    : null;
+                                const isOptimistic =
+                                  message.id.startsWith('optimistic-');
+                                const showDateSeparator =
+                                  !prevMessage ||
+                                  isDifferentDay(
+                                    message.createdAt,
+                                    prevMessage.createdAt,
+                                  );
+                                const subject = isFirstMessage
+                                  ? selectedEmail.subject ||
+                                    selectedEmail.thread?.subject
+                                  : null;
+
+                                return (
+                                  <div key={message.id}>
+                                    {/* Date Separator */}
+                                    {showDateSeparator && (
+                                      <div className="flex items-center justify-center my-6">
+                                        <div className="flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1.5 text-xs text-stone-600">
+                                          {formatDateHeader(message.createdAt)}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Message Bubble */}
+                                    <div
+                                      className={`flex items-start gap-3 mb-4 ${isInbound ? 'justify-start' : 'justify-end'}`}
+                                    >
+                                      {isInbound && (
+                                        <div
+                                          className={`h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 ${getAvatarColor(message.from)}`}
+                                        >
+                                          {getInitials(null, message.from)}
+                                        </div>
+                                      )}
+                                      <div
+                                        className={`flex-1 ${isInbound ? 'max-w-[75%]' : 'max-w-[75%] flex flex-col items-end'}`}
+                                      >
+                                        <div
+                                          className={`flex items-center gap-2 mb-1 ${isInbound ? '' : 'flex-row-reverse'}`}
+                                        >
+                                          <span
+                                            className={`text-sm font-semibold ${isInbound ? 'text-stone-900' : 'text-white'}`}
+                                          >
+                                            {isInbound
+                                              ? getSenderName(message.from)
+                                              : 'Bruno Perez'}
+                                          </span>
+                                          <span
+                                            className={`text-xs ${isInbound ? 'text-stone-500' : 'text-stone-300'}`}
+                                          >
+                                            {formatTime(message.createdAt)}
+                                          </span>
+                                        </div>
+                                        {subject && (
+                                          <p
+                                            className={`text-sm font-medium mb-2 ${isInbound ? 'text-stone-800' : 'text-white'}`}
+                                          >
+                                            {subject}
+                                          </p>
+                                        )}
+                                        <div
+                                          className={`rounded-2xl p-4 ${
+                                            isInbound
+                                              ? 'rounded-tl-none bg-stone-100'
+                                              : 'rounded-tr-none bg-stone-900 text-white'
+                                          } ${isOptimistic ? 'opacity-75' : ''}`}
+                                        >
+                                          <p
+                                            className={`text-sm whitespace-pre-wrap leading-relaxed ${
+                                              isInbound
+                                                ? 'text-stone-700'
+                                                : 'text-white'
+                                            }`}
+                                          >
+                                            {message.body}
+                                          </p>
+                                          {isOptimistic && (
+                                            <p className="text-xs text-stone-400 mt-2 italic">
+                                              Sending...
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {!isInbound && (
+                                        <div className="flex-shrink-0 w-10" />
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
+
+                            {/* AI Suggestion Section */}
+                            {(selectedEmail.aiSuggestion || draft) && (
+                              <div className="mt-6 pt-6 border-t border-stone-100">
+                                <div className="flex items-center gap-2 mb-4">
+                                  <Sparkles className="h-4 w-4 text-violet-500" />
+                                  <span className="text-sm font-semibold text-stone-900">
+                                    AI Suggested Reply
+                                  </span>
+                                  {selectedEmail.aiSuggestion?.confidence && (
+                                    <Badge className="bg-violet-100 text-violet-700 text-xs">
+                                      {Math.round(
+                                        selectedEmail.aiSuggestion.confidence *
+                                          100,
+                                      )}
+                                      % confidence
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {selectedEmail.aiSuggestion?.rationale && (
+                                  <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
+                                    <strong>Analysis:</strong>{' '}
+                                    {selectedEmail.aiSuggestion.rationale}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={handleSendReply}
-                              disabled={
-                                !draft.trim() || sendUnassignedReply.isPending
-                              }
-                              className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
+                        ) : (
+                          <div className="flex items-center justify-center py-12 text-stone-500 text-sm">
+                            No messages found in this thread
+                          </div>
+                        )}
+                      </ScrollArea>
+
+                      {/* Reply Input */}
+                      <div className="p-4 border-t border-stone-100">
+                        <div className="rounded-2xl border border-stone-200 bg-stone-50 overflow-hidden focus-within:ring-2 focus-within:ring-stone-300 focus-within:border-stone-300">
+                          <div className="relative">
+                            <div
+                              className="absolute top-2 right-2 cursor-ns-resize p-1 rounded hover:bg-stone-200/50 transition-colors z-10"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                const startY = e.clientY;
+                                const startHeight = inboxTextareaHeight;
+
+                                const handleMouseMove = (
+                                  moveEvent: MouseEvent,
+                                ) => {
+                                  const deltaY = moveEvent.clientY - startY;
+                                  const newHeight = Math.max(
+                                    100,
+                                    Math.min(500, startHeight + deltaY),
+                                  );
+                                  setInboxTextareaHeight(newHeight);
+                                };
+
+                                const handleMouseUp = () => {
+                                  document.removeEventListener(
+                                    'mousemove',
+                                    handleMouseMove,
+                                  );
+                                  document.removeEventListener(
+                                    'mouseup',
+                                    handleMouseUp,
+                                  );
+                                };
+
+                                document.addEventListener(
+                                  'mousemove',
+                                  handleMouseMove,
+                                );
+                                document.addEventListener(
+                                  'mouseup',
+                                  handleMouseUp,
+                                );
+                              }}
                             >
-                              {sendUnassignedReply.isPending ? (
-                                <>
-                                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                  Sending...
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="h-3.5 w-3.5 mr-1.5" />
-                                  Send
-                                </>
-                              )}
-                            </Button>
+                              <GripVertical className="h-4 w-4 text-stone-400" />
+                            </div>
+                            <textarea
+                              ref={messageInputRef}
+                              value={draft}
+                              onChange={(e) => setDraft(e.target.value)}
+                              placeholder="Write a message..."
+                              style={{ height: `${inboxTextareaHeight}px` }}
+                              className="w-full bg-transparent px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none resize-none"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between px-4 py-2 border-t border-stone-100 bg-white">
+                            <div className="flex items-center gap-2">
+                              <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                                <Paperclip className="h-4 w-4" />
+                              </button>
+                              <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                                <AtSign className="h-4 w-4" />
+                              </button>
+                              <button className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition">
+                                <Smile className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleSendReply}
+                                disabled={
+                                  !draft.trim() || sendUnassignedReply.isPending
+                                }
+                                className="rounded-lg bg-stone-900 text-white hover:bg-stone-800"
+                              >
+                                {sendUnassignedReply.isPending ? (
+                                  <>
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                    Sending...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="h-3.5 w-3.5 mr-1.5" />
+                                    Send
+                                  </>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    </>
+                  ) : (
+                    // Empty State
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+                      <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
+                        <Mail className="h-8 w-8 text-stone-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-stone-900 mb-1">
+                        Select a conversation
+                      </h3>
+                      <p className="text-sm text-stone-500 max-w-sm">
+                        Choose an email from the list to view the conversation
+                        and reply
+                      </p>
                     </div>
-                  </>
-
-                ) : (
-                  // Empty State
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
-                    <div className="h-16 w-16 rounded-2xl bg-stone-100 flex items-center justify-center mb-4">
-                      <Mail className="h-8 w-8 text-stone-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-stone-900 mb-1">
-                      Select a conversation
-                    </h3>
-                    <p className="text-sm text-stone-500 max-w-sm">
-                      Choose an email from the list to view the conversation and reply
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
 
               {/* ============================================================= */}
               {/* RIGHT PANEL - Profile / Order Details */}
               {/* ============================================================= */}
-              <div className={`${view === 'orders' ? 'flex-1' : 'w-80'} flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden`}>
+              <div
+                className={`${view === 'orders' ? 'flex-1' : 'w-80'} flex-shrink-0 flex flex-col bg-white rounded-2xl shadow-sm overflow-hidden`}
+              >
                 {view === 'inbox' && selectedEmail ? (
                   <>
                     {/* Profile Header */}
@@ -1649,7 +1820,6 @@ export default function InboxPage() {
                                 ).toLocaleDateString()}
                               </p>
                             </div>
-
                           </div>
                         </div>
 
@@ -1766,7 +1936,7 @@ export default function InboxPage() {
                           />
                           Sync
                         </Button>
-                        <button 
+                        <button
                           className="p-1 rounded-lg hover:bg-stone-100 transition"
                           onClick={() => setSelectedOrderId(null)}
                         >
@@ -1779,186 +1949,202 @@ export default function InboxPage() {
                       <div className="p-6">
                         {/* Order data comes from database (ordersAccum) - no loading needed */}
                         <>
-                            {/* Order Summary */}
-                            <div className="rounded-xl border border-stone-200 p-4 mb-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-lg font-semibold text-stone-900">
+                          {/* Order Summary */}
+                          <div className="rounded-xl border border-stone-200 p-4 mb-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-lg font-semibold text-stone-900">
+                                {
+                                  ordersAccum.find(
+                                    (o) => o.shopifyId === selectedOrderId,
+                                  )?.name
+                                }
+                              </span>
+                              <div className="flex gap-1">
+                                <Badge
+                                  className={`${FULFILLMENT_STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
+                                >
+                                  {ordersAccum.find(
+                                    (o) => o.shopifyId === selectedOrderId,
+                                  )?.fulfillmentStatus || 'UNFULFILLED'}
+                                </Badge>
+                                <Badge
+                                  className={`${STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.status || 'default'] || STATUS_COLORS.default}`}
+                                >
                                   {
                                     ordersAccum.find(
                                       (o) => o.shopifyId === selectedOrderId,
-                                    )?.name
+                                    )?.status
                                   }
-                                </span>
-                                <div className="flex gap-1">
-                                  <Badge
-                                    className={`${FULFILLMENT_STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.fulfillmentStatus || 'default'] || FULFILLMENT_STATUS_COLORS.default}`}
-                                  >
-                                    {ordersAccum.find(
-                                      (o) => o.shopifyId === selectedOrderId,
-                                    )?.fulfillmentStatus || 'UNFULFILLED'}
-                                  </Badge>
-                                  <Badge
-                                    className={`${STATUS_COLORS[ordersAccum.find((o) => o.shopifyId === selectedOrderId)?.status || 'default'] || STATUS_COLORS.default}`}
-                                  >
-                                    {
-                                      ordersAccum.find(
-                                        (o) => o.shopifyId === selectedOrderId,
-                                      )?.status
-                                    }
-                                  </Badge>
-                                </div>
-                              </div>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Total</span>
-                                  <span className="font-semibold text-stone-900">
-                                    {formatCurrency(
-                                      ordersAccum.find(
-                                        (o) => o.shopifyId === selectedOrderId,
-                                      )?.totalAmount || 0,
-                                      ordersAccum.find(
-                                        (o) => o.shopifyId === selectedOrderId,
-                                      )?.currency || 'INR',
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">
-                                    Customer
-                                  </span>
-                                  <span className="text-stone-900 text-right max-w-[180px] truncate">
-                                    {ordersAccum.find(
-                                      (o) => o.shopifyId === selectedOrderId,
-                                    )?.customerName ||
-                                      ordersAccum.find(
-                                        (o) => o.shopifyId === selectedOrderId,
-                                      )?.email ||
-                                      'Guest Customer'}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Date</span>
-                                  <span className="text-stone-900">
-                                    {new Date(
-                                      ordersAccum.find(
-                                        (o) => o.shopifyId === selectedOrderId,
-                                      )?.createdAt || '',
-                                    ).toLocaleDateString()}
-                                  </span>
-                                </div>
+                                </Badge>
                               </div>
                             </div>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-stone-500">Total</span>
+                                <span className="font-semibold text-stone-900">
+                                  {formatCurrency(
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.totalAmount || 0,
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.currency || 'INR',
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-stone-500">Customer</span>
+                                <span className="text-stone-900 text-right max-w-[180px] truncate">
+                                  {ordersAccum.find(
+                                    (o) => o.shopifyId === selectedOrderId,
+                                  )?.customerName ||
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.email ||
+                                    'Guest Customer'}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-stone-500">Date</span>
+                                <span className="text-stone-900">
+                                  {new Date(
+                                    ordersAccum.find(
+                                      (o) => o.shopifyId === selectedOrderId,
+                                    )?.createdAt || '',
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                            {/* Line Items - fetched on demand */}
-                            {(() => {
-                              if (!selectedOrderId) return null;
-                              
-                              if (orderDetailsWithItems.isLoading) {
-                                return (
-                                  <div className="mb-4">
-                                    <h4 className="text-sm font-semibold text-stone-900 mb-3">Items</h4>
-                                    <div className="space-y-2">
-                                      {[1, 2].map((i) => (
-                                        <div key={i} className="h-16 rounded-lg bg-stone-100 animate-pulse" />
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              }
+                          {/* Line Items - fetched on demand */}
+                          {(() => {
+                            if (!selectedOrderId) return null;
 
-                              const items = orderDetailsWithItems.data?.lineItems || [];
-                              
-                              if (items.length === 0) return null;
-                              
+                            if (orderDetailsWithItems.isLoading) {
                               return (
                                 <div className="mb-4">
                                   <h4 className="text-sm font-semibold text-stone-900 mb-3">
-                                    Items ({items.length})
+                                    Items
                                   </h4>
                                   <div className="space-y-2">
-                                    {items.map((item: any) => (
+                                    {[1, 2].map((i) => (
                                       <div
-                                        key={item.id}
-                                        className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
-                                      >
-                                        <div>
-                                          <p className="text-sm font-medium text-stone-900">
-                                            {item.title}
-                                          </p>
-                                          <p className="text-xs text-stone-500">
-                                            Qty: {item.quantity}
-                                            {item.sku && ` • SKU: ${item.sku}`}
-                                          </p>
-                                        </div>
-                                        <span className="text-sm font-medium text-stone-900">
-                                          {formatCurrency(item.price, orderDetailsWithItems.data?.currency || orderDetail.data?.currency || 'INR')}
-                                        </span>
-                                      </div>
+                                        key={i}
+                                        className="h-16 rounded-lg bg-stone-100 animate-pulse"
+                                      />
                                     ))}
                                   </div>
                                 </div>
                               );
-                            })()}
+                            }
 
+                            const items =
+                              orderDetailsWithItems.data?.lineItems || [];
 
-                            {/* Linked Emails */}
-                            <div>
-                              <h4 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
-                                <Mail className="h-4 w-4" />
-                                Related Emails
-                              </h4>
-                              {orderMessages.isLoading ? (
+                            if (items.length === 0) return null;
+
+                            return (
+                              <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-stone-900 mb-3">
+                                  Items ({items.length})
+                                </h4>
                                 <div className="space-y-2">
-                                  {[1, 2].map((i) => (
-                                    <div key={i} className="rounded-lg bg-stone-50 p-3 animate-pulse">
-                                      <div className="flex justify-between mb-2">
-                                        <div className="h-4 w-16 bg-stone-200 rounded" />
-                                        <div className="h-3 w-12 bg-stone-200 rounded" />
+                                  {items.map((item: any) => (
+                                    <div
+                                      key={item.id}
+                                      className="flex items-center justify-between rounded-lg bg-stone-50 p-3"
+                                    >
+                                      <div>
+                                        <p className="text-sm font-medium text-stone-900">
+                                          {item.title}
+                                        </p>
+                                        <p className="text-xs text-stone-500">
+                                          Qty: {item.quantity}
+                                          {item.sku && ` • SKU: ${item.sku}`}
+                                        </p>
                                       </div>
-                                      <div className="h-3 w-full bg-stone-200 rounded mb-1" />
-                                      <div className="h-3 w-2/3 bg-stone-200 rounded" />
+                                      <span className="text-sm font-medium text-stone-900">
+                                        {formatCurrency(
+                                          item.price,
+                                          orderDetailsWithItems.data
+                                            ?.currency ||
+                                            (orderDetail.data?.order &&
+                                            'currency' in orderDetail.data.order
+                                              ? orderDetail.data.order.currency
+                                              : null) ||
+                                            'INR',
+                                        )}
+                                      </span>
                                     </div>
                                   ))}
                                 </div>
-                              ) : (orderMessages.data?.messages ?? []).length > 0 ? (
-                                <div className="space-y-2">
-                                  {(orderMessages.data?.messages as any[])
-                                    .slice(0, 3)
-                                    .map((msg: any) => (
-                                      <button
-                                        key={msg.id}
-                                        onClick={() => {
-                                          setView('inbox');
-                                          handleSelectEmail(msg);
-                                        }}
-                                        className="w-full text-left rounded-lg bg-stone-50 p-3 hover:bg-stone-100 transition-colors"
-                                      >
-                                        <div className="flex items-center justify-between mb-1">
-                                          <Badge
-                                            className={`text-xs ${msg.direction === 'INBOUND' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}
-                                          >
-                                            {msg.direction}
-                                          </Badge>
-                                          <span className="text-xs text-stone-500">
-                                            {relativeTime(msg.createdAt)}
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-stone-600 line-clamp-2">
-                                          {msg.body}
-                                        </p>
-                                      </button>
-                                    ))}
-                                </div>
-                              ) : (
-                                <div className="rounded-xl border border-dashed border-stone-200 p-4 text-center">
-                                  <Mail className="h-6 w-6 text-stone-300 mx-auto mb-2" />
-                                  <p className="text-xs text-stone-500">
-                                    No emails linked
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Linked Emails */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-stone-900 mb-3 flex items-center gap-2">
+                              <Mail className="h-4 w-4" />
+                              Related Emails
+                            </h4>
+                            {orderMessages.isLoading ? (
+                              <div className="space-y-2">
+                                {[1, 2].map((i) => (
+                                  <div
+                                    key={i}
+                                    className="rounded-lg bg-stone-50 p-3 animate-pulse"
+                                  >
+                                    <div className="flex justify-between mb-2">
+                                      <div className="h-4 w-16 bg-stone-200 rounded" />
+                                      <div className="h-3 w-12 bg-stone-200 rounded" />
+                                    </div>
+                                    <div className="h-3 w-full bg-stone-200 rounded mb-1" />
+                                    <div className="h-3 w-2/3 bg-stone-200 rounded" />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (orderMessages.data?.messages ?? []).length >
+                              0 ? (
+                              <div className="space-y-2">
+                                {(orderMessages.data?.messages as any[])
+                                  .slice(0, 3)
+                                  .map((msg: any) => (
+                                    <button
+                                      key={msg.id}
+                                      onClick={() => {
+                                        setView('inbox');
+                                        handleSelectEmail(msg);
+                                      }}
+                                      className="w-full text-left rounded-lg bg-stone-50 p-3 hover:bg-stone-100 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <Badge
+                                          className={`text-xs ${msg.direction === 'INBOUND' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700'}`}
+                                        >
+                                          {msg.direction}
+                                        </Badge>
+                                        <span className="text-xs text-stone-500">
+                                          {relativeTime(msg.createdAt)}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-stone-600 line-clamp-2">
+                                        {msg.body}
+                                      </p>
+                                    </button>
+                                  ))}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-stone-200 p-4 text-center">
+                                <Mail className="h-6 w-6 text-stone-300 mx-auto mb-2" />
+                                <p className="text-xs text-stone-500">
+                                  No emails linked
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </>
                       </div>
                     </ScrollArea>
                   </>
