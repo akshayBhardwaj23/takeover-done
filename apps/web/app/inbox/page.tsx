@@ -406,7 +406,15 @@ export default function InboxPage() {
       }
     });
 
-    setOrdersAccum(Array.from(orderMap.values()));
+    // Sort by order number (highest/newest first)
+    const sorted = Array.from(orderMap.values()).sort((a, b) => {
+      // Extract numeric part from shopifyId (e.g., "304325" -> 304325)
+      const numA = parseInt(a.shopifyId || '0', 10);
+      const numB = parseInt(b.shopifyId || '0', 10);
+      return numB - numA; // Descending order (highest number first)
+    });
+
+    setOrdersAccum(sorted);
   }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
 
   const hasMoreOrders = ordersPage.data?.hasMore ?? false;
@@ -492,6 +500,24 @@ export default function InboxPage() {
       // Only refetch on error to sync state
       unassignedQuery.refetch();
       inboxBootstrap.refetch();
+    },
+  });
+
+  const syncAllOrders = trpc.syncAllOrdersFromShopify.useMutation({
+    onSuccess: (data) => {
+      console.log('[Sync Orders] Success response:', data);
+      if (data?.ok) {
+        toast.success(`Synced ${data.synced} orders from Shopify`);
+        // Refetch orders to show newly synced data
+        ordersPage.refetch();
+        inboxBootstrap.refetch();
+      } else {
+        toast.error(data?.error || 'Failed to sync orders');
+      }
+    },
+    onError: (error) => {
+      console.error('[Sync Orders] Error:', error);
+      toast.error(error.message || 'Failed to sync orders');
     },
   });
 
@@ -970,10 +996,36 @@ export default function InboxPage() {
                     <span className="text-sm font-semibold text-stone-900">
                       {view === 'inbox' ? 'All Inbox' : 'All Orders'}
                     </span>
-                    <button className="flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700">
-                      Newest
-                      <ChevronDown className="h-3 w-3" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {view === 'orders' && inboxBootstrap.data?.connections?.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            // Get the first Shopify connection's shop domain
+                            const shopifyConnection = inboxBootstrap.data?.connections?.find(
+                              (conn: any) => conn.type === 'SHOPIFY' && conn.shopDomain
+                            );
+                            if (shopifyConnection?.shopDomain) {
+                              syncAllOrders.mutate({
+                                shopDomain: shopifyConnection.shopDomain,
+                              });
+                            } else {
+                              toast.error('No Shopify store connected');
+                            }
+                          }}
+                          disabled={syncAllOrders.isPending}
+                          className="h-7 px-2 text-xs text-stone-600 hover:text-stone-900"
+                        >
+                          <RefreshCw
+                            className={`h-3 w-3 mr-1.5 ${
+                              syncAllOrders.isPending ? 'animate-spin' : ''
+                            }`}
+                          />
+                          {syncAllOrders.isPending ? 'Syncing...' : 'Sync orders'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />

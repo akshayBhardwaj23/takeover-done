@@ -28,6 +28,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: '/api/trpc',
           maxBatchSize: 10, // Batch up to 10 requests
+          fetch(url, options) {
+            return fetch(url, {
+              ...options,
+              signal: AbortSignal.timeout(120000), // 2 minute timeout for long operations like sync
+            });
+          },
         }),
       ],
     }),
