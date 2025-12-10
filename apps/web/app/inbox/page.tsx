@@ -641,6 +641,39 @@ export default function InboxPage() {
     }
   }, [searchAllHistory, searchQuery]);
 
+  // Initialize flaggedThreads from backend data
+  // Sync with backend to ensure flagged state is accurate
+  useEffect(() => {
+    const unassigned = Array.isArray(unassignedQuery.data?.messages)
+      ? unassignedQuery.data.messages
+      : [];
+    const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
+      ? inboxBootstrap.data.unassigned
+      : [];
+    const allIncoming = [...bootstrapUnassigned, ...unassigned];
+
+    // Collect all flagged thread IDs from backend data
+    const flaggedIds = new Set<string>();
+    allIncoming.forEach((email: any) => {
+      const threadId = email.thread?.id;
+      if (threadId && email.thread?.isFlagged === true) {
+        flaggedIds.add(threadId);
+      }
+    });
+
+    // Sync flaggedThreads with backend data
+    // This ensures that when backend data is refetched (e.g., on error or page load),
+    // the local state matches the backend state
+    setFlaggedThreads((prev) => {
+      // If we have backend data, use it as source of truth
+      // Otherwise, keep the current optimistic state
+      if (allIncoming.length > 0) {
+        return flaggedIds;
+      }
+      return prev;
+    });
+  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
+
   // Accumulate emails from pagination (similar to orders)
   useEffect(() => {
     const unassigned = Array.isArray(unassignedQuery.data?.messages)
@@ -690,13 +723,15 @@ export default function InboxPage() {
     allIncoming.forEach((email: any) => {
       if (!emailMap.has(email.id)) {
         // Merge local flagged state with email data
+        // Use flaggedThreads Set as source of truth for flag state
         const threadId = email.thread?.id;
-        if (threadId && flaggedThreads.has(threadId)) {
+        if (threadId) {
+          const isFlagged = flaggedThreads.has(threadId);
           email = {
             ...email,
             thread: {
               ...email.thread,
-              isFlagged: true,
+              isFlagged: isFlagged,
             },
           };
         }
@@ -802,13 +837,15 @@ export default function InboxPage() {
     if (!email) return null;
 
     // Merge local flagged state
+    // Use flaggedThreads Set as source of truth for flag state
     const threadId = email.thread?.id;
-    if (threadId && flaggedThreads.has(threadId)) {
+    if (threadId) {
+      const isFlagged = flaggedThreads.has(threadId);
       return {
         ...email,
         thread: {
           ...email.thread,
-          isFlagged: true,
+          isFlagged: isFlagged,
         },
       };
     }
