@@ -1,6 +1,40 @@
 import { inngest } from './client';
 import { prisma, canUseAI, incrementAISuggestion } from '@ai-ecom/db';
 
+// Helper function to format currency for email replies
+function formatOrderAmount(
+  totalAmount: number,
+  currency?: string | null,
+): string {
+  const amount = totalAmount / 100; // Convert from cents to base unit
+  const curr = (currency || 'USD').toUpperCase();
+
+  if (curr === 'INR') {
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  // Default to USD format for all other currencies
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Helper function to build signature block, avoiding duplication
+function buildSignatureBlock(storeName: string): string {
+  // If store name is generic/fallback values, just use "Support Team"
+  const genericNames = ['Support', 'Your Store', 'Store', 'Shop'];
+  const normalizedName = storeName.trim();
+
+  if (genericNames.includes(normalizedName)) {
+    return 'Support Team';
+  }
+
+  // If store name already contains "Support", just use the store name
+  if (normalizedName.toLowerCase().includes('support')) {
+    return normalizedName;
+  }
+
+  // Otherwise, use "[Store Name] Support Team"
+  return `${normalizedName} Support Team`;
+}
+
 // Process inbound email and generate AI suggestion
 // This replaces the BullMQ worker job
 export const processInboundEmail = inngest.createFunction(
@@ -50,7 +84,7 @@ export const processInboundEmail = inngest.createFunction(
         (metadata.storeName as string | undefined) ||
         connection?.shopDomain ||
         'Support';
-      const signatureBlock = `${storeName} Support Team`;
+      const signatureBlock = buildSignatureBlock(storeName);
 
       // Check AI usage limit before generating suggestion
       const userId = connection?.userId;
@@ -153,7 +187,7 @@ export const processInboundEmail = inngest.createFunction(
         const orderContext = order
           ? `Order Details:
 - Order Number: ${order.name || `#${order.shopifyId}`}
-- Total Amount: $${(order.totalAmount / 100).toFixed(2)}
+- Total Amount: ${formatOrderAmount(order.totalAmount, order.currency)}
 - Status: ${order.status}
 - Customer Email: ${order.email || 'Not provided'}`
           : 'No order found - customer may need to provide order number';

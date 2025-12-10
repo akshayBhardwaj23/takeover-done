@@ -26,6 +26,25 @@ import {
   PLAN_PRICING,
   type Currency,
 } from './payments/currency';
+
+// Helper function to build signature block, avoiding duplication
+function buildSignatureBlock(storeName: string): string {
+  // If store name is generic/fallback values, just use "Support Team"
+  const genericNames = ['Support', 'Your Store', 'Store', 'Shop'];
+  const normalizedName = storeName.trim();
+
+  if (genericNames.includes(normalizedName)) {
+    return 'Support Team';
+  }
+
+  // If store name already contains "Support", just use the store name
+  if (normalizedName.toLowerCase().includes('support')) {
+    return normalizedName;
+  }
+
+  // Otherwise, use "[Store Name] Support Team"
+  return `${normalizedName} Support Team`;
+}
 import { decryptSecure, encryptSecure } from './crypto';
 import crypto from 'node:crypto';
 import {
@@ -2299,7 +2318,7 @@ export const appRouter = t.router({
 
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
       const storeName = await resolveStoreName(ctx.userId, input.orderId);
-      const signatureBlock = `${storeName} Support Team`;
+      const signatureBlock = buildSignatureBlock(storeName);
       const requiredSignature = `Warm Regards,\n\n${signatureBlock}`;
 
       const buildFallback = () => {
@@ -2572,7 +2591,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           (metadata.storeName as string | undefined) ||
           connection.shopDomain ||
           'Support';
-        const signatureBlock = `${storeName} Support Team`;
+        const signatureBlock = buildSignatureBlock(storeName);
 
         // Replace placeholders in body
         body = body

@@ -3,6 +3,37 @@ import { Queue, Worker, QueueEvents, JobsOptions } from 'bullmq';
 import { prisma } from '@ai-ecom/db';
 import IORedis from 'ioredis';
 
+// Helper function to format currency for email replies
+function formatOrderAmount(totalAmount: number, currency?: string | null): string {
+  const amount = totalAmount / 100; // Convert from cents to base unit
+  const curr = (currency || 'USD').toUpperCase();
+  
+  if (curr === 'INR') {
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  // Default to USD format for all other currencies
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Helper function to build signature block, avoiding duplication
+function buildSignatureBlock(storeName: string): string {
+  // If store name is generic/fallback values, just use "Support Team"
+  const genericNames = ['Support', 'Your Store', 'Store', 'Shop'];
+  const normalizedName = storeName.trim();
+  
+  if (genericNames.includes(normalizedName)) {
+    return 'Support Team';
+  }
+  
+  // If store name already contains "Support", just use the store name
+  if (normalizedName.toLowerCase().includes('support')) {
+    return normalizedName;
+  }
+  
+  // Otherwise, use "[Store Name] Support Team"
+  return `${normalizedName} Support Team`;
+}
+
 const redisUrl = process.env.REDIS_URL;
 
 let inboxQueue: Queue | undefined;
@@ -170,8 +201,8 @@ if (!redisUrl) {
             const storeName =
               (metadata.storeName as string | undefined) ||
               connection?.shopDomain?.split('.')[0] ||
-              '';
-            const signatureBlock = storeName ? `${storeName} Support Team` : 'Support Team';
+              'Support';
+            const signatureBlock = buildSignatureBlock(storeName);
             reply += `Warm Regards,\n\n${signatureBlock}`;
 
             confidence = proposedAction === 'NONE' ? 0.4 : 0.6;
@@ -180,7 +211,7 @@ if (!redisUrl) {
             const orderContext = order
               ? `Order Details:
 - Order Number: ${order.name || `#${order.shopifyId}`}
-- Total Amount: $${(order.totalAmount / 100).toFixed(2)}
+- Total Amount: ${formatOrderAmount(order.totalAmount, order.currency)}
 - Status: ${order.status}
 - Customer Email: ${order.email || 'Not provided'}`
               : 'No order found - customer may need to provide order number';
@@ -192,7 +223,7 @@ if (!redisUrl) {
               (metadata.storeName as string | undefined) ||
               connection?.shopDomain?.split('.')[0] ||
               'Support';
-            const signatureBlock = `${storeName} Support Team`;
+            const signatureBlock = buildSignatureBlock(storeName);
 
             const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's email.
 
@@ -315,8 +346,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               const storeName =
                 (metadata.storeName as string | undefined) ||
                 connection?.shopDomain?.split('.')[0] ||
-                '';
-              const signatureBlock = storeName ? `${storeName} Support Team` : 'Support Team';
+                'Support';
+              const signatureBlock = buildSignatureBlock(storeName);
               reply += `Warm Regards,\n\n${signatureBlock}`;
 
               confidence = 0.5;
