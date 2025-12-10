@@ -1405,6 +1405,7 @@ const emailRouter = t.router({
       // Determine if this is a standalone or store-linked alias
       const isStandalone = !input.shop;
       let cleanShop: string | undefined;
+      let shopConnection: any = null;
 
       if (isStandalone) {
         // STANDALONE ALIAS - Check if user already has one
@@ -1432,7 +1433,7 @@ const emailRouter = t.router({
         }
 
         // Verify user owns the shop connection
-        const shopConnection = await prisma.connection.findFirst({
+        shopConnection = await prisma.connection.findFirst({
           where: {
             shopDomain: cleanShop,
             userId: ctx.userId,
@@ -1494,6 +1495,16 @@ const emailRouter = t.router({
         Math.random().toString(36).slice(2) +
         Math.random().toString(36).slice(2);
 
+      // Extract store name from Shopify connection metadata if available
+      let storeName: string | undefined;
+      if (!isStandalone && shopConnection) {
+        const shopMeta = (shopConnection.metadata as any) || {};
+        storeName =
+          shopMeta.storeName ||
+          normalizeStoreNameFromDomain(cleanShop) ||
+          undefined;
+      }
+
       const conn = await prisma.connection.create({
         data: {
           type: 'CUSTOM_EMAIL' as any,
@@ -1506,6 +1517,7 @@ const emailRouter = t.router({
             verifiedAt: null,
             type: isStandalone ? 'STANDALONE' : 'STORE_LINKED',
             shopDomain: cleanShop,
+            storeName: storeName,
           } as any,
         },
         select: { id: true },

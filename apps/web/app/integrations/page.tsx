@@ -123,10 +123,14 @@ function IntegrationCard({
             >
               {isRemoving ? (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : item.type === 'EMAIL' ? (
+                item.isEnabled ? (
+                  'Disable'
+                ) : (
+                  'Enable'
+                )
               ) : (
-                item.type === 'EMAIL' 
-                  ? (item.isEnabled ? 'Disable' : 'Enable')
-                  : 'Remove'
+                'Remove'
               )}
             </Button>
           </>
@@ -393,15 +397,27 @@ function IntegrationsInner() {
       emailConnections.forEach((c: any) => {
         const meta = (c.metadata as any) || {};
         const isStandalone = !meta.shopDomain;
-        const aliasType = meta.type || (isStandalone ? 'STANDALONE' : 'STORE_LINKED');
+        const aliasType =
+          meta.type || (isStandalone ? 'STANDALONE' : 'STORE_LINKED');
         const isDisabled = meta.disabled;
-        
+
+        // Look up store name from Shopify connection if this is a store-linked alias
+        let storeName = meta.storeName;
+        if (!isStandalone && !storeName && meta.shopDomain) {
+          const shopifyConnection = shopifyConnections.find(
+            (sc: any) => sc.shopDomain === meta.shopDomain,
+          );
+          if (shopifyConnection) {
+            storeName = deriveStoreName(shopifyConnection);
+          }
+        }
+
         items.push({
           id: c.id,
           type: 'EMAIL',
-          name: isStandalone 
-            ? `Standalone Email Alias${isDisabled ? ' (Disabled)' : ''}` 
-            : `Email for ${meta.storeName || meta.shopDomain?.split('.')[0] || 'Store'}${isDisabled ? ' (Disabled)' : ''}`,
+          name: isStandalone
+            ? `Standalone Email Alias${isDisabled ? ' (Disabled)' : ''}`
+            : `Email for ${storeName || meta.shopDomain?.split('.')[0] || 'Store'}${isDisabled ? ' (Disabled)' : ''}`,
           description: `${meta.alias || 'Email Alias'}${isStandalone ? ' (General Support)' : ''}${isDisabled ? ' - Not receiving emails' : ''}`,
           category: 'Communication & Collaboration',
           status: 'connected',
@@ -431,19 +447,20 @@ function IntegrationsInner() {
           originalObject: store,
         });
       });
-      
+
       // Check if user has a standalone alias
       const hasStandalone = emailConnections.some(
-        (c: any) => !(c.metadata as any)?.shopDomain
+        (c: any) => !(c.metadata as any)?.shopDomain,
       );
-      
+
       // Show option to create standalone alias if they don't have one
       if (!hasStandalone) {
         items.push({
           id: 'email-standalone',
           type: 'EMAIL',
           name: 'Standalone Email Alias',
-          description: 'Create a general support email alias (no Shopify required).',
+          description:
+            'Create a general support email alias (no Shopify required).',
           category: 'Communication & Collaboration',
           status: 'disconnected',
           icon: Mail,
@@ -541,7 +558,7 @@ function IntegrationsInner() {
 
         // Determine if this is a standalone or store-linked alias
         let targetShop: string | undefined;
-        
+
         // If this is an "Add Email Alias for Store X" item, use that store
         if (
           item.id?.startsWith('email-add-') &&
@@ -617,7 +634,7 @@ function IntegrationsInner() {
     } else if (item.type === 'EMAIL') {
       // Set loading state
       setRemovingItemId(item.id);
-      
+
       // Toggle the email alias status (enable/disable)
       setAliasStatus.mutate({
         id: item.id,
@@ -640,77 +657,96 @@ function IntegrationsInner() {
           {/* Header */}
           <div className="mb-12">
             <h1 className="text-2xl font-bold text-zinc-900">Integrations</h1>
-            <p className="text-zinc-500">Connect your favorite tools to unlock automated workflows, smarter insights, and a fully connected ZYYP experience.</p>
+            <p className="text-zinc-500">
+              Connect your favorite tools to unlock automated workflows, smarter
+              insights, and a fully connected ZYYP experience.
+            </p>
           </div>
 
           {/* Content */}
           {connectionsLoading ? (
             <div className="flex items-center justify-center py-20">
-              <TetrisLoading size="sm" speed="fast" loadingText="Loading integrations..." />
+              <TetrisLoading
+                size="sm"
+                speed="fast"
+                loadingText="Loading integrations..."
+              />
             </div>
           ) : (
             <div className="space-y-10">
-            {Object.entries(groupedIntegrations).map(([category, items]) => (
-              <div key={category}>
-                <div className="mb-6">
-                  <h2 className="text-lg font-bold text-zinc-900">
-                    {category}
-                  </h2>
-                  <p className="text-sm text-zinc-500">
-                    Enhancing the efficiency and effectiveness of your{' '}
-                    {category.toLowerCase().split(' ')[0]} activities
-                  </p>
-                </div>
-                
-                {/* Instructions for Communication & Collaboration */}
-                {category === 'Communication & Collaboration' && (
-                  <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <div className="flex items-start gap-3">
-                      <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-2">
-                        <h3 className="font-semibold text-blue-900">How Email Aliases Work</h3>
-                        <div className="text-sm text-blue-800 space-y-1">
-                          <p>
-                            <strong>What it is:</strong> Get a unique ZYYP email address (like support-abc123@mail.zyyp.ai) to receive customer support emails.
-                          </p>
-                          <p>
-                            <strong>How to set up:</strong> Forward your existing support email (e.g., support@yourstore.com) to this ZYYP alias. All customer emails will then flow into your ZYYP inbox.
-                          </p>
-                          <p>
-                            <strong>Benefits:</strong> AI-powered responses, automatic organization, and order matching (when linked to Shopify stores).
-                          </p>
-                          <p>
-                            <strong>Types:</strong> Create a standalone alias for general support, or link one to each Shopify store for automatic order matching.
-                          </p>
+              {Object.entries(groupedIntegrations).map(([category, items]) => (
+                <div key={category}>
+                  <div className="mb-6">
+                    <h2 className="text-lg font-bold text-zinc-900">
+                      {category}
+                    </h2>
+                    <p className="text-sm text-zinc-500">
+                      Enhancing the efficiency and effectiveness of your{' '}
+                      {category.toLowerCase().split(' ')[0]} activities
+                    </p>
+                  </div>
+
+                  {/* Instructions for Communication & Collaboration */}
+                  {category === 'Communication & Collaboration' && (
+                    <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-blue-900">
+                            How Email Aliases Work
+                          </h3>
+                          <div className="text-sm text-blue-800 space-y-1">
+                            <p>
+                              <strong>What it is:</strong> Get a unique ZYYP
+                              email address (like support-abc123@mail.zyyp.ai)
+                              to receive customer support emails.
+                            </p>
+                            <p>
+                              <strong>How to set up:</strong> Forward your
+                              existing support email (e.g.,
+                              support@yourstore.com) to this ZYYP alias. All
+                              customer emails will then flow into your ZYYP
+                              inbox.
+                            </p>
+                            <p>
+                              <strong>Benefits:</strong> AI-powered responses,
+                              automatic organization, and order matching (when
+                              linked to Shopify stores).
+                            </p>
+                            <p>
+                              <strong>Types:</strong> Create a standalone alias
+                              for general support, or link one to each Shopify
+                              store for automatic order matching.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {items.map((item) => (
-                    <IntegrationCard
-                      key={item.id}
-                      item={item}
-                      onToggle={handleToggle}
-                      onDetails={handleDetails}
-                      onRemove={handleRemove}
-                      onSync={handleSync}
-                      isSyncing={syncOrders.isPending}
-                      isConnecting={connectingItemId === item.id}
-                      isRemoving={removingItemId === item.id}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
+                  )}
 
-            {Object.keys(groupedIntegrations).length === 0 && (
-              <div className="py-20 text-center">
-                <p className="text-zinc-500">No integrations found.</p>
-              </div>
-            )}
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {items.map((item) => (
+                      <IntegrationCard
+                        key={item.id}
+                        item={item}
+                        onToggle={handleToggle}
+                        onDetails={handleDetails}
+                        onRemove={handleRemove}
+                        onSync={handleSync}
+                        isSyncing={syncOrders.isPending}
+                        isConnecting={connectingItemId === item.id}
+                        isRemoving={removingItemId === item.id}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {Object.keys(groupedIntegrations).length === 0 && (
+                <div className="py-20 text-center">
+                  <p className="text-zinc-500">No integrations found.</p>
+                </div>
+              )}
             </div>
           )}
         </div>
