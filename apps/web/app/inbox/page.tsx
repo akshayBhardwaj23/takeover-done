@@ -1614,32 +1614,34 @@ export default function InboxPage() {
                             )}
 
                             {/* AI Suggestion Section */}
-                            {(selectedEmail.aiSuggestion || draft) && (
-                              <div className="mt-6 pt-6 border-t border-stone-100">
-                                <div className="flex items-center gap-2 mb-4">
-                                  <Sparkles className="h-4 w-4 text-violet-500" />
-                                  <span className="text-sm font-semibold text-stone-900">
-                                    AI Suggested Reply
-                                  </span>
-                                  {selectedEmail.aiSuggestion?.confidence && (
-                                    <Badge className="bg-violet-100 text-violet-700 text-xs">
-                                      {Math.round(
-                                        selectedEmail.aiSuggestion.confidence *
-                                          100,
-                                      )}
-                                      % confidence
-                                    </Badge>
+                            {/* Only show AI suggestion if thread is unread (we haven't replied yet) */}
+                            {(selectedEmail.aiSuggestion || draft) &&
+                              (selectedEmail.thread?.isUnread ?? true) && (
+                                <div className="mt-6 pt-6 border-t border-stone-100">
+                                  <div className="flex items-center gap-2 mb-4">
+                                    <Sparkles className="h-4 w-4 text-violet-500" />
+                                    <span className="text-sm font-semibold text-stone-900">
+                                      AI Suggested Reply
+                                    </span>
+                                    {selectedEmail.aiSuggestion?.confidence && (
+                                      <Badge className="bg-violet-100 text-violet-700 text-xs">
+                                        {Math.round(
+                                          selectedEmail.aiSuggestion
+                                            .confidence * 100,
+                                        )}
+                                        % confidence
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {selectedEmail.aiSuggestion?.rationale && (
+                                    <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
+                                      <strong>Analysis:</strong>{' '}
+                                      {selectedEmail.aiSuggestion.rationale}
+                                    </p>
                                   )}
                                 </div>
-
-                                {selectedEmail.aiSuggestion?.rationale && (
-                                  <p className="text-xs text-stone-500 mb-3 bg-stone-50 rounded-lg p-3">
-                                    <strong>Analysis:</strong>{' '}
-                                    {selectedEmail.aiSuggestion.rationale}
-                                  </p>
-                                )}
-                              </div>
-                            )}
+                              )}
                           </div>
                         ) : (
                           <div className="flex items-center justify-center py-12 text-stone-500 text-sm">

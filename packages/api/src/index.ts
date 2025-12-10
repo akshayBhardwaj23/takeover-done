@@ -3009,6 +3009,12 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
         });
 
+        // Mark thread as read after sending reply
+        await prisma.thread.update({
+          where: { id: message.thread.id },
+          data: { isUnread: false },
+        });
+
         await logEvent(
           'email.sent.unassigned',
           { to: message.from, messageId: result.id },

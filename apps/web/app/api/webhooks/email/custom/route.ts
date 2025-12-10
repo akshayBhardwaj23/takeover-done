@@ -482,13 +482,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const thread = await prisma.thread.create({
-      data: {
-        customerEmail,
-        subject: subject ?? null,
-        connectionId: conn.id,
-      },
-    });
+    // Check if this is a reply to an existing thread by matching In-Reply-To or References headers
+    let existingThread = null;
+    const inReplyTo =
+      (raw['In-Reply-To'] as string) ||
+      (raw['in-reply-to'] as string) ||
+      undefined;
+    const references =
+      (raw['References'] as string) ||
+      (raw['references'] as string) ||
+      undefined;
+
+    if (inReplyTo || references) {
+      // Try to find existing thread by matching Message-ID in headers
+      const messageIdsToMatch: string[] = [];
+      if (inReplyTo) {
+        // Extract Message-ID from In-Reply-To (format: "<message-id@domain.com>")
+        const match = inReplyTo.match(/<([^>]+)>/) || inReplyTo.match(/([^\s<>]+)/);
+        if (match) messageIdsToMatch.push(match[1]);
+      }
+      if (references) {
+        // References can contain multiple Message-IDs separated by spaces
+        const refIds = references.match(/<([^>]+)>/g) || references.split(/\s+/);
+        refIds.forEach((ref) => {
+          const match = ref.match(/<([^>]+)>/) || ref.match(/([^\s<>]+)/);
+          if (match) messageIdsToMatch.push(match[1]);
+        });
+      }
+
+      // Find messages with matching Message-IDs
+      if (messageIdsToMatch.length > 0) {
+        const matchingMessages = await prisma.message.findMany({
+          where: {
+            messageId: { in: messageIdsToMatch },
+            thread: { connectionId: conn.id },
+          },
+          include: { thread: true },
+          take: 1,
+        });
+
+        if (matchingMessages.length > 0) {
+          existingThread = matchingMessages[0].thread;
+        }
+      }
+    }
+
+    // Use existing thread if found, otherwise create a new one
+    const thread =
+      existingThread ||
+      (await prisma.thread.create({
+        data: {
+          customerEmail,
+          subject: subject ?? null,
+          connectionId: conn.id,
+        },
+      }));
 
     // Attempt to parse Message-ID header
     const headers: Record<string, any> = {
@@ -511,6 +559,28 @@ export async function POST(req: NextRequest) {
         headers,
       } as any,
     });
+
+    // Check if this is a reply to our message (latest message before this one was OUTBOUND)
+    // If so, mark thread as unread
+    const previousMessages = await prisma.message.findMany({
+      where: { threadId: thread.id },
+      orderBy: { createdAt: 'desc' },
+      take: 2, // Get the two most recent (one is the one we just created)
+      select: { direction: true, id: true },
+    });
+
+    // If there are at least 2 messages and the second one (before the new inbound) was OUTBOUND,
+    // this means the customer is replying to our message - mark thread as unread
+    if (
+      previousMessages.length >= 2 &&
+      previousMessages[1].direction === 'OUTBOUND'
+    ) {
+      await prisma.thread.update({
+        where: { id: thread.id },
+        data: { isUnread: true },
+      });
+    }
+    // If this is a new thread (only one message), it's already unread by default (isUnread: true)
 
     await logEvent(
       'email.inbound',
