@@ -2017,12 +2017,14 @@ export const appRouter = t.router({
         .object({
           ordersTake: z.number().min(1).max(100).default(25),
           unassignedTake: z.number().min(1).max(100).default(40),
+          unassignedOffset: z.number().min(0).default(0),
         })
         .optional(),
     )
     .query(async ({ ctx, input }) => {
       const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
       const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
+      const unassignedOffset = input?.unassignedOffset ?? 0;
 
       // Fetch all connections once to avoid multiple round-trips
       const connections = await prisma.connection.findMany({
@@ -2067,49 +2069,64 @@ export const appRouter = t.router({
           },
         }),
         unassignedConnectionIds.length
-          ? prisma.message.findMany({
-              where: {
-                // Only show INBOUND emails in inbox (filter out outbound)
-                direction: 'INBOUND' as any,
-                // Filter by thread.connectionId since Message.connectionId may not exist in DB
-                thread: { connectionId: { in: unassignedConnectionIds } },
-              },
-              orderBy: { createdAt: 'desc' },
-              take: unassignedTake,
-              select: {
-                id: true,
-                threadId: true,
-                from: true,
-                to: true,
-                body: true,
-                createdAt: true,
-                orderId: true,
-                direction: true,
-                thread: {
+          ? (async () => {
+              const [unassignedMessages, totalCount] = await Promise.all([
+                prisma.message.findMany({
+                  where: {
+                    // Only show INBOUND emails in inbox (filter out outbound)
+                    direction: 'INBOUND' as any,
+                    // Filter by thread.connectionId since Message.connectionId may not exist in DB
+                    thread: { connectionId: { in: unassignedConnectionIds } },
+                  },
+                  orderBy: { createdAt: 'desc' },
+                  skip: unassignedOffset,
+                  take: unassignedTake,
                   select: {
                     id: true,
-                    subject: true,
-                    isUnread: true,
-                    isFlagged: true,
-                    connectionId: true,
-                    connection: {
+                    threadId: true,
+                    from: true,
+                    to: true,
+                    body: true,
+                    createdAt: true,
+                    orderId: true,
+                    direction: true,
+                    thread: {
                       select: {
-                        shopDomain: true,
-                        metadata: true,
+                        id: true,
+                        subject: true,
+                        isUnread: true,
+                        isFlagged: true,
+                        connectionId: true,
+                        connection: {
+                          select: {
+                            shopDomain: true,
+                            metadata: true,
+                          },
+                        },
+                      },
+                    },
+                    aiSuggestion: {
+                      select: {
+                        reply: true,
+                        proposedAction: true,
+                        confidence: true,
                       },
                     },
                   },
-                },
-                aiSuggestion: {
-                  select: {
-                    reply: true,
-                    proposedAction: true,
-                    confidence: true,
+                }),
+                prisma.message.count({
+                  where: {
+                    direction: 'INBOUND' as any,
+                    thread: { connectionId: { in: unassignedConnectionIds } },
                   },
-                },
-              },
-            })
-          : [],
+                }),
+              ]);
+              return {
+                messages: unassignedMessages,
+                hasMore: totalCount > unassignedOffset + unassignedTake,
+              };
+            })()
+          : Promise.resolve({ messages: [], hasMore: false }),
         canSendEmail(ctx.userId),
       ]);
 
@@ -2209,9 +2226,18 @@ export const appRouter = t.router({
         pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
       }));
 
+      // Handle unassignedMessages which is now { messages, hasMore } or array
+      const unassignedData = Array.isArray(unassignedMessages)
+        ? unassignedMessages
+        : unassignedMessages.messages || [];
+      const unassignedHasMore = Array.isArray(unassignedMessages)
+        ? false
+        : unassignedMessages.hasMore || false;
+
       return {
         orders: ordersWithPending,
-        unassigned: unassignedMessages,
+        unassigned: unassignedData,
+        unassignedHasMore,
         emailLimit,
         connections, // Include connections for store name lookup
       };
@@ -3086,11 +3112,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     }),
   unassignedInbound: protectedProcedure
     .input(
-      z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
+      z
+        .object({
+          take: z.number().min(1).max(100).default(20),
+          offset: z.number().min(0).default(0),
+        })
+        .optional(),
     )
     .query(async ({ input, ctx }) => {
       try {
         const take = input?.take ?? 20;
+        const offset = input?.offset ?? 0;
         // Get user's CUSTOM_EMAIL connections to filter messages
         const connections = await prisma.connection.findMany({
           where: { userId: ctx.userId, type: 'CUSTOM_EMAIL' },
@@ -3099,52 +3131,64 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const connectionIds = connections.map((c: { id: string }) => c.id);
 
         if (connectionIds.length === 0) {
-          return { messages: [] };
+          return { messages: [], hasMore: false };
         }
 
         // Filter by thread.connectionId since Message.connectionId may not exist in DB
         // Only return INBOUND messages (filter out outbound)
-        const msgs = await prisma.message.findMany({
-          where: {
-            direction: 'INBOUND' as any,
-            thread: { connectionId: { in: connectionIds } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take,
-          select: {
-            id: true,
-            threadId: true,
-            from: true,
-            to: true,
-            body: true,
-            createdAt: true,
-            orderId: true,
-            direction: true,
-            thread: {
-              select: {
-                id: true,
-                subject: true,
-                isUnread: true,
-                isFlagged: true,
-                connectionId: true,
-                connection: {
-                  select: {
-                    shopDomain: true,
-                    metadata: true,
+        const [msgs, totalCount] = await Promise.all([
+          prisma.message.findMany({
+            where: {
+              direction: 'INBOUND' as any,
+              thread: { connectionId: { in: connectionIds } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip: offset,
+            take,
+            select: {
+              id: true,
+              threadId: true,
+              from: true,
+              to: true,
+              body: true,
+              createdAt: true,
+              orderId: true,
+              direction: true,
+              thread: {
+                select: {
+                  id: true,
+                  subject: true,
+                  isUnread: true,
+                  isFlagged: true,
+                  connectionId: true,
+                  connection: {
+                    select: {
+                      shopDomain: true,
+                      metadata: true,
+                    },
                   },
                 },
               },
-            },
-            aiSuggestion: {
-              select: {
-                reply: true,
-                proposedAction: true,
-                confidence: true,
+              aiSuggestion: {
+                select: {
+                  reply: true,
+                  proposedAction: true,
+                  confidence: true,
+                },
               },
             },
-          },
-        });
-        return { messages: msgs };
+          }),
+          prisma.message.count({
+            where: {
+              direction: 'INBOUND' as any,
+              thread: { connectionId: { in: connectionIds } },
+            },
+          }),
+        ]);
+        return {
+          messages: msgs,
+          hasMore: totalCount > offset + take,
+        };
       } catch {
         return { messages: [] };
       }

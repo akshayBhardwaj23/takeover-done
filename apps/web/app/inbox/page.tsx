@@ -373,8 +373,11 @@ export default function InboxPage() {
   // DATA FETCHING
   // =============================================================================
 
+  const [emailsOffset, setEmailsOffset] = useState(0);
+  const [emailsAccum, setEmailsAccum] = useState<any[]>([]);
+
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
-    { ordersTake: 25 },
+    { ordersTake: 25, unassignedTake: 40, unassignedOffset: 0 },
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
@@ -383,7 +386,7 @@ export default function InboxPage() {
   );
 
   const unassignedQuery = trpc.unassignedInbound.useQuery(
-    { take: 50 },
+    { take: 50, offset: emailsOffset },
     {
       staleTime: 60_000,
       refetchOnWindowFocus: false,
@@ -391,6 +394,7 @@ export default function InboxPage() {
       // Enable parallel execution - both queries can run simultaneously
       // They're independent and will be merged/deduped on the frontend
       enabled: true,
+      keepPreviousData: true,
     },
   );
 
@@ -617,8 +621,8 @@ export default function InboxPage() {
     return map;
   }, [inboxBootstrap.data?.connections]);
 
-  // Combine all emails for the email list view
-  const allEmails = useMemo(() => {
+  // Accumulate emails from pagination (similar to orders)
+  useEffect(() => {
     const unassigned = Array.isArray(unassignedQuery.data?.messages)
       ? unassignedQuery.data.messages
       : [];
@@ -626,9 +630,43 @@ export default function InboxPage() {
       ? inboxBootstrap.data.unassigned
       : [];
 
+    // Combine emails from both sources
+    const allIncoming = [...bootstrapUnassigned, ...unassigned];
+
+    if (emailsOffset === 0) {
+      // First load: replace accumulated emails
+      setEmailsAccum(allIncoming);
+    } else {
+      // Subsequent loads: append new emails, deduplicating by ID
+      setEmailsAccum((prev) => {
+        const emailMap = new Map<string, any>();
+        // Add existing emails
+        prev.forEach((email: any) => {
+          emailMap.set(email.id, email);
+        });
+        // Add new emails (skip duplicates)
+        allIncoming.forEach((email: any) => {
+          if (!emailMap.has(email.id)) {
+            emailMap.set(email.id, email);
+          }
+        });
+        return Array.from(emailMap.values());
+      });
+    }
+  }, [
+    unassignedQuery.data?.messages,
+    inboxBootstrap.data?.unassigned,
+    emailsOffset,
+  ]);
+
+  // Combine all emails for the email list view
+  const allEmails = useMemo(() => {
+    // Use accumulated emails instead of reading directly from queries
+    const allIncoming = emailsAccum;
+
     // Combine and dedupe by email ID
     const emailMap = new Map<string, any>();
-    [...unassigned, ...bootstrapUnassigned].forEach((email: any) => {
+    allIncoming.forEach((email: any) => {
       if (!emailMap.has(email.id)) {
         // Merge local flagged state with email data
         const threadId = email.thread?.id;
@@ -694,11 +732,21 @@ export default function InboxPage() {
         new Date(a.latestInboundDate).getTime()
       );
     });
-  }, [
-    unassignedQuery.data?.messages,
-    inboxBootstrap.data?.unassigned,
-    flaggedThreads,
-  ]);
+  }, [emailsAccum, flaggedThreads]);
+
+  // Check if more emails are available
+  const hasMoreEmails = useMemo(() => {
+    try {
+      const unassignedData = unassignedQuery.data as any;
+      const bootstrapData = inboxBootstrap.data as any;
+      return (
+        unassignedData?.hasMore === true ||
+        bootstrapData?.unassignedHasMore === true
+      );
+    } catch {
+      return false;
+    }
+  }, [unassignedQuery.data, inboxBootstrap.data]);
 
   // Filter emails by search
   // Filter emails by search
@@ -714,6 +762,7 @@ export default function InboxPage() {
       (email) =>
         email.from?.toLowerCase().includes(q) ||
         email.subject?.toLowerCase().includes(q) ||
+        email.thread?.subject?.toLowerCase().includes(q) ||
         email.body?.toLowerCase().includes(q),
     );
   }, [allEmails, searchQuery]);
@@ -1117,11 +1166,17 @@ export default function InboxPage() {
                             size="sm"
                             onClick={() => {
                               // Get the first Shopify connection's shop domain
-                              const shopifyConnection =
-                                inboxBootstrap.data?.connections?.find(
-                                  (conn: any) =>
-                                    conn.type === 'SHOPIFY' && conn.shopDomain,
-                                );
+                              const connections = (inboxBootstrap.data as any)
+                                ?.connections;
+                              const shopifyConnection = Array.isArray(
+                                connections,
+                              )
+                                ? connections.find(
+                                    (conn: any) =>
+                                      conn.type === 'SHOPIFY' &&
+                                      conn.shopDomain,
+                                  )
+                                : undefined;
                               if (shopifyConnection?.shopDomain) {
                                 syncAllOrders.mutate({
                                   shopDomain: shopifyConnection.shopDomain,
@@ -1293,6 +1348,32 @@ export default function InboxPage() {
                             </button>
                           );
                         })}
+                        {/* Load More Button */}
+                        {hasMoreEmails && (
+                          <div className="flex justify-center py-4 border-t border-stone-100">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEmailsOffset((prev) => prev + 50);
+                              }}
+                              disabled={unassignedQuery.isFetching}
+                              className="text-stone-600 hover:text-stone-900"
+                            >
+                              {unassignedQuery.isFetching ? (
+                                <>
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                <>
+                                  Load More
+                                  <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )
                   ) : // Order List

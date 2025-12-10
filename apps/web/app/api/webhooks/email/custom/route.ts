@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  prisma,
-  logEvent,
-  incrementEmailReceived,
-} from '@ai-ecom/db';
+import { prisma, logEvent, incrementEmailReceived } from '@ai-ecom/db';
 import crypto from 'node:crypto';
 import * as Sentry from '@sentry/nextjs';
 
@@ -59,10 +55,7 @@ function cleanEmailBody(body: string): string {
 
   // Remove "On [date], [sender] wrote:" sections and everything after
   // Pattern: "On [date], [sender] wrote:" or "On [date] at [time], [sender] wrote:"
-  cleaned = cleaned.replace(
-    /On\s+.*?wrote:.*$/gims,
-    '',
-  );
+  cleaned = cleaned.replace(/On\s+.*?wrote:.*$/gims, '');
 
   // Remove content after "---" separator (common email separator)
   const dashIndex = cleaned.indexOf('---');
@@ -196,7 +189,6 @@ export async function POST(req: NextRequest) {
     timestamp: new Date().toISOString(),
   });
   try {
-
     // Basic guardrails
     const contentLength = Number(req.headers.get('content-length') || '0');
     if (contentLength > 25 * 1024 * 1024) {
@@ -509,8 +501,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-
-
     // Create thread and message
     // Thread requires connectionId - use the connection we found earlier
     if (!conn) {
@@ -541,12 +531,14 @@ export async function POST(req: NextRequest) {
       const messageIdsToMatch: string[] = [];
       if (inReplyTo) {
         // Extract Message-ID from In-Reply-To (format: "<message-id@domain.com>")
-        const match = inReplyTo.match(/<([^>]+)>/) || inReplyTo.match(/([^\s<>]+)/);
+        const match =
+          inReplyTo.match(/<([^>]+)>/) || inReplyTo.match(/([^\s<>]+)/);
         if (match) messageIdsToMatch.push(match[1]);
       }
       if (references) {
         // References can contain multiple Message-IDs separated by spaces
-        const refIds = references.match(/<([^>]+)>/g) || references.split(/\s+/);
+        const refIds =
+          references.match(/<([^>]+)>/g) || references.split(/\s+/);
         refIds.forEach((ref) => {
           const match = ref.match(/<([^>]+)>/) || ref.match(/([^\s<>]+)/);
           if (match) messageIdsToMatch.push(match[1]);
