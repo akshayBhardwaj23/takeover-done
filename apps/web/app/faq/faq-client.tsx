@@ -239,7 +239,7 @@ const faqData: FAQItem[] = [
     category: 'AI Features',
     question: 'Does the AI use my store name in replies?',
     answer:
-      'Yes! The AI automatically uses your actual store name (from Shopify or your custom store name) in email signatures. Replies end with "Warm regards," followed by your store name and "Customer Support Team". No placeholders are used.',
+      'Yes! The AI automatically uses your actual store name (from Shopify or your custom store name) in email signatures. Replies end with "Warm Regards," followed by your store name and "Support Team". No placeholders are used.',
   },
 
   // Analytics

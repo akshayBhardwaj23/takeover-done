@@ -50,7 +50,7 @@ export const processInboundEmail = inngest.createFunction(
         (metadata.storeName as string | undefined) ||
         connection?.shopDomain ||
         'Support';
-      const signatureBlock = `${storeName}\nCustomer Support Team`;
+      const signatureBlock = `${storeName} Support Team`;
 
       // Check AI usage limit before generating suggestion
       const userId = connection?.userId;
@@ -144,7 +144,7 @@ export const processInboundEmail = inngest.createFunction(
         }
 
         reply += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-        reply += `Warm regards,\n\n`;
+        reply += `Warm Regards,\n\n`;
         reply += signatureBlock;
 
         confidence = proposedAction === 'NONE' ? 0.4 : 0.6;
@@ -207,7 +207,7 @@ Write a comprehensive reply that addresses their concern and provides clear next
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
 Always end your response with:
-Warm regards,
+Warm Regards,
 
 ${signatureBlock}
 
@@ -257,7 +257,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           reply += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
           reply += `I want to make sure I address all your concerns properly.\n\n`;
           reply += `If you have any urgent questions, please don't hesitate to reach out.\n\n`;
-          reply += `Warm regards,\n\n`;
+          reply += `Warm Regards,\n\n`;
           reply += signatureBlock;
 
           confidence = 0.5;

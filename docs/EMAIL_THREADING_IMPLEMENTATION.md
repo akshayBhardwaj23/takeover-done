@@ -45,10 +45,9 @@ Hello John,
 
 Thank you for reaching out about your order #1234...
 
-Warm regards,
+Warm Regards,
 
-Your Store Name
-Customer Support Team
+Your Store Name Support Team
 
 ---
 

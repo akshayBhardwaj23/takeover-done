@@ -279,7 +279,7 @@ function ensureSignature(text: string, signatureBlock: string): string {
   if (normalizedText.includes(normalizedSignature)) {
     return cleanedText;
   }
-  const requiredSignature = `Warm regards,\n\n${trimmedSignature}`;
+  const requiredSignature = `Warm Regards,\n\n${trimmedSignature}`;
   const trimmed = cleanedText.trimEnd();
   const separator = trimmed.endsWith('\n') ? '' : '\n\n';
   return `${trimmed}${separator}${requiredSignature}`;
@@ -2299,8 +2299,8 @@ export const appRouter = t.router({
 
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
       const storeName = await resolveStoreName(ctx.userId, input.orderId);
-      const signatureBlock = `${storeName}\nCustomer Support Team`;
-      const requiredSignature = `Warm regards,\n\n${signatureBlock}`;
+      const signatureBlock = `${storeName} Support Team`;
+      const requiredSignature = `Warm Regards,\n\n${signatureBlock}`;
 
       const buildFallback = () => {
         let body = `${greeting} ${customerName},\n\n`;
@@ -2344,7 +2344,7 @@ Guidelines:
 - Address their specific request directly
 - Offer specific solutions
 - Sign off with:
-Warm regards,
+Warm Regards,
 
 ${signatureBlock}
 
@@ -2382,7 +2382,7 @@ Write a comprehensive reply that addresses their concern and provides clear next
 Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
 
 Always end your response with:
-Warm regards,
+Warm Regards,
 
 ${signatureBlock}
 
@@ -2567,7 +2567,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           (metadata.storeName as string | undefined) ||
           connection.shopDomain ||
           'Support';
-        const signatureBlock = `${storeName}\nCustomer Support Team`;
+        const signatureBlock = `${storeName} Support Team`;
 
         // Replace placeholders in body
         body = body
@@ -3339,7 +3339,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           status: 'any',
           limit: '100', // Fetch latest 100 orders
           order: 'created_at desc', // REQUIRED: Sort by newest first
-          fields: 'id,created_at,order_number,updated_at,name,email,total_price,currency,financial_status,fulfillment_status,customer,line_items,cancelled_at,processed_at,contact_email',
+          fields:
+            'id,created_at,order_number,updated_at,name,email,total_price,currency,financial_status,fulfillment_status,customer,line_items,cancelled_at,processed_at,contact_email',
         });
 
         if (input.updatedAfter) {
@@ -3348,13 +3349,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Don't set created_at_min - let Shopify return the latest 100 orders
 
         const url = `${credentials.shopUrl}/admin/api/2024-10/orders.json?${params.toString()}`;
-        
+
         // Add timeout to prevent hanging
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-        
+
         let orders: any[] = [];
-        
+
         try {
           const resp = await fetch(url, {
             headers: {
@@ -3384,15 +3385,27 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
           // CRITICAL DEBUG: Log what Shopify actually returned
           console.log('[SYNC] ========== SHOPIFY RESPONSE DEBUG ==========');
-          console.log('[SYNC] Total orders returned by Shopify:', orders.length);
+          console.log(
+            '[SYNC] Total orders returned by Shopify:',
+            orders.length,
+          );
           console.log('[SYNC] Shop:', input.shopDomain);
           if (orders.length > 0) {
             console.log('[SYNC] Top 3 orders from Shopify (should be newest):');
             orders.slice(0, 3).forEach((o: any, idx: number) => {
-              console.log(`[SYNC]   ${idx + 1}. Order #${o.order_number || o.name} (ID: ${o.id}) - Created: ${o.created_at}`);
+              console.log(
+                `[SYNC]   ${idx + 1}. Order #${o.order_number || o.name} (ID: ${o.id}) - Created: ${o.created_at}`,
+              );
             });
-            console.log('[SYNC] Highest order number returned:', orders[0]?.order_number || orders[0]?.name);
-            console.log('[SYNC] Lowest order number returned:', orders[orders.length - 1]?.order_number || orders[orders.length - 1]?.name);
+            console.log(
+              '[SYNC] Highest order number returned:',
+              orders[0]?.order_number || orders[0]?.name,
+            );
+            console.log(
+              '[SYNC] Lowest order number returned:',
+              orders[orders.length - 1]?.order_number ||
+                orders[orders.length - 1]?.name,
+            );
           } else {
             console.log('[SYNC] WARNING: Shopify returned 0 orders!');
           }
@@ -3449,7 +3462,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             // CRITICAL: Store created_at from Shopify to maintain proper order
             const orderDataWithDate = {
               ...orderData,
-              createdAt: order.created_at ? new Date(order.created_at) : new Date(),
+              createdAt: order.created_at
+                ? new Date(order.created_at)
+                : new Date(),
             };
 
             const upsertedOrder = await prisma.order.upsert({
@@ -3464,7 +3479,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
             // Log first 3 orders being saved to verify newest is first
             if (synced < 3) {
-              console.log(`[SYNC] Saving order ${synced + 1}: #${order.order_number || order.name} (ID: ${order.id}) to database`);
+              console.log(
+                `[SYNC] Saving order ${synced + 1}: #${order.order_number || order.name} (ID: ${order.id}) to database`,
+              );
             }
 
             // Sync line items if present (only if table exists)
@@ -3518,14 +3535,19 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         console.log(
           `[syncAllOrders] Completed sync: ${synced} orders synced, ${errors} errors, ${orders.length} total for ${input.shopDomain}`,
         );
-        
+
         await logEvent(
           'shopify.sync.completed',
-          { synced, errors, total: orders.length, shopDomain: input.shopDomain },
+          {
+            synced,
+            errors,
+            total: orders.length,
+            shopDomain: input.shopDomain,
+          },
           'connection',
           conn.id,
         );
-        
+
         return { ok: true, synced, errors, total: orders.length };
       } catch (error: any) {
         console.error('[syncAllOrders] Error:', error);

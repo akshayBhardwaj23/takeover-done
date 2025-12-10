@@ -164,8 +164,15 @@ if (!redisUrl) {
             }
 
             reply += `If you have any other questions in the meantime, please don't hesitate to reach out.\n\n`;
-            reply += `Best regards,\n`;
-            reply += `Customer Support Team`;
+            // Get store name from connection metadata
+            const connection = msg.thread?.connection;
+            const metadata = (connection?.metadata as any) ?? {};
+            const storeName =
+              (metadata.storeName as string | undefined) ||
+              connection?.shopDomain?.split('.')[0] ||
+              '';
+            const signatureBlock = storeName ? `${storeName} Support Team` : 'Support Team';
+            reply += `Warm Regards,\n\n${signatureBlock}`;
 
             confidence = proposedAction === 'NONE' ? 0.4 : 0.6;
           } else {
@@ -178,6 +185,15 @@ if (!redisUrl) {
 - Customer Email: ${order.email || 'Not provided'}`
               : 'No order found - customer may need to provide order number';
 
+            // Get store name from connection metadata for signature
+            const connection = msg.thread?.connection;
+            const metadata = (connection?.metadata as any) ?? {};
+            const storeName =
+              (metadata.storeName as string | undefined) ||
+              connection?.shopDomain?.split('.')[0] ||
+              'Support';
+            const signatureBlock = `${storeName} Support Team`;
+
             const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's email.
 
 Guidelines:
@@ -189,6 +205,12 @@ Guidelines:
 - Keep it conversational but professional
 - Show understanding of their situation
 - Offer specific solutions based on their request
+- Sign off with:
+Warm Regards,
+
+${signatureBlock}
+
+IMPORTANT: Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}
 
 ${orderContext}
 
@@ -224,7 +246,14 @@ Write a comprehensive reply that addresses their concern and provides clear next
 7. Use the customer's name when appropriate
 8. Address their specific request directly
 
-Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.`,
+Write responses that sound like they come from a real human support agent who genuinely cares about helping the customer.
+
+Always end your response with:
+Warm Regards,
+
+${signatureBlock}
+
+Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}`,
                       },
                       { role: 'user', content: prompt },
                     ],
@@ -275,7 +304,15 @@ Write responses that sound like they come from a real human support agent who ge
               reply += `I'm currently reviewing your message and will provide you with a detailed response shortly. `;
               reply += `I want to make sure I address all your concerns properly.\n\n`;
               reply += `If you have any urgent questions, please don't hesitate to reach out.\n\n`;
-              reply += `Best regards,\nCustomer Support Team`;
+              // Get store name from connection metadata
+              const connection = msg.thread?.connection;
+              const metadata = (connection?.metadata as any) ?? {};
+              const storeName =
+                (metadata.storeName as string | undefined) ||
+                connection?.shopDomain?.split('.')[0] ||
+                '';
+              const signatureBlock = storeName ? `${storeName} Support Team` : 'Support Team';
+              reply += `Warm Regards,\n\n${signatureBlock}`;
 
               confidence = 0.5;
             }
