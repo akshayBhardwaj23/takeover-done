@@ -529,6 +529,9 @@ export default function InboxPage() {
             newMap.delete(threadId);
             return newMap;
           });
+          // Clear draft when thread becomes read (after reply is sent and refetched)
+          // The refetch will update selectedEmail with isUnread: false, so we clear draft
+          setDraft('');
         }
       });
       toast.success('Reply sent successfully');
@@ -782,6 +785,13 @@ export default function InboxPage() {
       }, 100);
     }
   }, [mergedThreadMessages.messages]);
+
+  // Clear draft when opening a read thread (already replied)
+  useEffect(() => {
+    if (selectedEmail && selectedEmail.thread?.isUnread === false) {
+      setDraft('');
+    }
+  }, [selectedEmail?.thread?.isUnread, selectedEmail?.id]);
 
   // Find linked order for selected email
   const linkedOrder = useMemo(() => {
@@ -1625,9 +1635,10 @@ export default function InboxPage() {
 
                             {/* AI Suggestion Section */}
                             {/* Only show AI suggestion if thread is unread (we haven't replied yet) */}
-                            {/* Explicitly check that isUnread is true (not false or undefined) */}
-                            {(selectedEmail.aiSuggestion || draft) &&
-                              selectedEmail.thread?.isUnread === true && (
+                            {/* Only show AI suggestion if thread is explicitly unread (isUnread === true) */}
+                            {/* Hide if thread is read (isUnread === false) or if thread data is missing */}
+                            {selectedEmail.thread?.isUnread === true &&
+                              (selectedEmail.aiSuggestion || draft) && (
                                 <div className="mt-6 pt-6 border-t border-stone-100">
                                   <div className="flex items-center gap-2 mb-4">
                                     <Sparkles className="h-4 w-4 text-violet-500" />
