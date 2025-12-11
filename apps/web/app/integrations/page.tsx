@@ -12,7 +12,7 @@ import {
 import { Input } from '../../components/ui/input';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, ChangeEvent, useMemo, Suspense } from 'react';
+import { useState, ChangeEvent, useMemo, Suspense, useEffect } from 'react';
 import {
   Store,
   Mail,
@@ -204,9 +204,30 @@ function IntegrationsInner() {
   const [disconnectMetaAdsDialogOpen, setDisconnectMetaAdsDialogOpen] =
     useState(false);
 
+  // State for shop already connected dialog
+  const [shopTakenDialogOpen, setShopTakenDialogOpen] = useState(false);
+  const [takenShopDomain, setTakenShopDomain] = useState<string | null>(null);
+
   // State for tracking loading items
   const [connectingItemId, setConnectingItemId] = useState<string | null>(null);
   const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+
+  // Handle OAuth callback error from query params
+  useEffect(() => {
+    const error = sp.get('error');
+    const shop = sp.get('shop');
+    if (error === 'shop_taken' && shop) {
+      setTakenShopDomain(shop);
+      setShopTakenDialogOpen(true);
+      // Clear query params
+      router.replace('/integrations');
+    }
+  }, [sp, router]);
+
+  // Store shop domain for error handling
+  const [pendingShopDomain, setPendingShopDomain] = useState<string | null>(
+    null,
+  );
 
   // Mutations
   const createCustomApp = trpc.shopify.createCustomAppConnection.useMutation({
@@ -215,10 +236,23 @@ function IntegrationsInner() {
       setShowShopifyDialog(false);
       await utils.connections.invalidate();
       setConnectingItemId(null);
+      setPendingShopDomain(null);
     },
     onError: (err: any) => {
-      toast.error(err.message);
+      // Check if error is about shop already connected to another account
+      if (
+        err.message &&
+        err.message.includes('already connected to another account')
+      ) {
+        // Use pending shop domain or extract from error message
+        const shopDomain = pendingShopDomain || 'this store';
+        setTakenShopDomain(shopDomain);
+        setShopTakenDialogOpen(true);
+      } else {
+        toast.error(err.message);
+      }
       setConnectingItemId(null);
+      setPendingShopDomain(null);
     },
   });
 
@@ -313,6 +347,8 @@ function IntegrationsInner() {
     e.preventDefault();
     // Construct shopDomain from subdomain
     const shopDomain = `${subdomainInput}.myshopify.com`;
+    // Store shop domain for error handling
+    setPendingShopDomain(shopDomain);
     createCustomApp.mutate({
       shopDomain,
       subdomain: subdomainInput,
@@ -1171,6 +1207,35 @@ function IntegrationsInner() {
               disabled={disconnectMetaAds.isPending}
             >
               Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={shopTakenDialogOpen}
+        onOpenChange={setShopTakenDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Shop Already Connected</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-sm text-gray-600">
+              This Shopify store ({takenShopDomain || 'this store'}) is already
+              connected to another account. Please ask the current owner to
+              disconnect it first, then you can connect it to your account.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShopTakenDialogOpen(false);
+                setTakenShopDomain(null);
+              }}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
