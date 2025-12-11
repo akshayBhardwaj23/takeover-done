@@ -830,6 +830,21 @@ export default function InboxPage() {
     );
   }, [allEmails, searchQuery, searchAllHistory]);
 
+  // Filter orders by search
+  const filteredOrders = useMemo(() => {
+    if (!searchQuery.trim()) return ordersAccum;
+    const q = searchQuery.toLowerCase();
+    return ordersAccum.filter(
+      (order) =>
+        order.name?.toLowerCase().includes(q) ||
+        order.shopifyId?.toLowerCase().includes(q) ||
+        order.email?.toLowerCase().includes(q) ||
+        order.customerName?.toLowerCase().includes(q) ||
+        order.status?.toLowerCase().includes(q) ||
+        order.fulfillmentStatus?.toLowerCase().includes(q),
+    );
+  }, [ordersAccum, searchQuery]);
+
   // Selected email data
   const selectedEmail = useMemo(() => {
     if (!selectedEmailId) return null;
@@ -1160,13 +1175,13 @@ export default function InboxPage() {
                 >
                   <ShoppingBag className="h-4 w-4" />
                   Orders
-                  {ordersAccum.length > 0 && (
+                  {filteredOrders.length > 0 && (
                     <span
                       className={`ml-1 rounded-full px-2 py-0.5 text-xs ${
                         view === 'orders' ? 'bg-white/20' : 'bg-stone-100'
                       }`}
                     >
-                      {ordersAccum.length}
+                      {filteredOrders.length}
                     </span>
                   )}
                 </button>
@@ -1461,7 +1476,7 @@ export default function InboxPage() {
                   ) : // Order List
                   ordersPage.isLoading && ordersOffset === 0 ? (
                     <EmailListSkeleton />
-                  ) : ordersAccum.length === 0 ? (
+                  ) : filteredOrders.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center mb-3">
                         <ShoppingBag className="h-6 w-6 text-stone-400" />
@@ -1470,12 +1485,14 @@ export default function InboxPage() {
                         No orders found
                       </p>
                       <p className="text-xs text-stone-500 mt-1">
-                        Connect your Shopify store
+                        {searchQuery
+                          ? 'Try a different search'
+                          : 'Connect your Shopify store'}
                       </p>
                     </div>
                   ) : (
                     <div className="divide-y divide-stone-50">
-                      {ordersAccum.map((order) => {
+                      {filteredOrders.map((order) => {
                         const isSelected = selectedOrderId === order.shopifyId;
                         const hasPendingEmails =
                           (order.pendingEmailCount ?? 0) > 0;

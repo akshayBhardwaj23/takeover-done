@@ -2638,6 +2638,261 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           });
         }
 
+        // ============================================================================
+        // Execute Shopify Action (if applicable) BEFORE sending email
+        // ============================================================================
+        let shopifyActionResult: {
+          success: boolean;
+          error?: string;
+          data?: any;
+        } | null = null;
+
+        // Check if this action requires Shopify API execution
+        const actionType = action.type;
+        const actionPayload = (action.payload as Record<string, any>) || {};
+        const connection = action.order.connection;
+        const metadata = (connection.metadata as Record<string, unknown>) || {};
+
+        // Only execute Shopify actions if connection has API access (custom app)
+        if (
+          metadata.connectionMethod === 'custom_app' &&
+          actionType !== 'NONE' &&
+          actionType !== 'INFO_REQUEST'
+        ) {
+          try {
+            // Decrypt access token and create Shopify client
+            const accessToken = await decryptSecure(connection.accessToken);
+            if (!accessToken || !connection.shopDomain) {
+              throw new Error('Invalid connection credentials');
+            }
+
+            const shopifyClient = new ShopifyClient(
+              connection.shopDomain,
+              accessToken,
+            );
+
+            // Execute action based on type
+            switch (actionType) {
+              case 'REFUND': {
+                // Extract refund parameters from action payload
+                const refundAmount = actionPayload.amount as number | undefined;
+                const refundReason = actionPayload.reason as string | undefined;
+                const refundNotify = actionPayload.notify !== false; // Default to true
+                const refundLineItems = actionPayload.lineItems as
+                  | Array<{
+                      lineItemId: string;
+                      quantity: number;
+                      restockType?: 'no_restock' | 'cancel' | 'return';
+                    }>
+                  | undefined;
+
+                const refundResult = await shopifyClient.createRefund({
+                  orderId: action.order.shopifyId,
+                  amount: refundAmount,
+                  reason: refundReason || 'Refund initiated via ZYYP',
+                  notify: refundNotify,
+                  lineItems: refundLineItems,
+                });
+
+                if (!refundResult.success) {
+                  shopifyActionResult = {
+                    success: false,
+                    error: refundResult.error || 'Failed to create refund',
+                  };
+                } else {
+                  shopifyActionResult = {
+                    success: true,
+                    data: {
+                      refundId: refundResult.refundId,
+                      amount: refundResult.amount,
+                    },
+                  };
+
+                  // Update order status
+                  await prisma.order.update({
+                    where: { id: action.order.id },
+                    data: {
+                      status: refundAmount ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
+                      statusUpdatedAt: new Date(),
+                    },
+                  });
+
+                  await logEvent(
+                    'shopify.refund.success',
+                    {
+                      actionId: action.id,
+                      orderId: action.order.id,
+                      shopifyOrderId: action.order.shopifyId,
+                      refundId: refundResult.refundId,
+                      amount: refundResult.amount,
+                    },
+                    'action',
+                    action.id,
+                  );
+                }
+                break;
+              }
+
+              case 'CANCEL': {
+                // Extract cancel parameters from action payload
+                const cancelReason =
+                  (actionPayload.reason as
+                    | 'customer'
+                    | 'fraud'
+                    | 'inventory'
+                    | 'declined'
+                    | 'other') || 'other';
+                const cancelEmail = actionPayload.email !== false; // Default to true
+                const cancelRestock = actionPayload.restock !== false; // Default to true
+
+                const cancelResult = await shopifyClient.cancelOrder({
+                  orderId: action.order.shopifyId,
+                  reason: cancelReason,
+                  email: cancelEmail,
+                  restock: cancelRestock,
+                });
+
+                if (!cancelResult.success) {
+                  shopifyActionResult = {
+                    success: false,
+                    error: cancelResult.error || 'Failed to cancel order',
+                  };
+                } else {
+                  shopifyActionResult = {
+                    success: true,
+                    data: {
+                      cancelledAt: cancelResult.cancelledAt,
+                    },
+                  };
+
+                  // Update order status
+                  await prisma.order.update({
+                    where: { id: action.order.id },
+                    data: {
+                      status: 'CANCELLED',
+                      statusUpdatedAt: new Date(),
+                    },
+                  });
+
+                  await logEvent(
+                    'shopify.cancel.success',
+                    {
+                      actionId: action.id,
+                      orderId: action.order.id,
+                      shopifyOrderId: action.order.shopifyId,
+                      cancelledAt: cancelResult.cancelledAt,
+                    },
+                    'action',
+                    action.id,
+                  );
+                }
+                break;
+              }
+
+              case 'REPLACE_ITEM': {
+                // For REPLACE_ITEM, we would typically create a new fulfillment
+                // This is a placeholder - you may need to implement fulfillment creation
+                // For now, we'll just log it and mark as success
+                shopifyActionResult = {
+                  success: true,
+                  data: {
+                    note: 'Replace item action logged - fulfillment to be created manually',
+                  },
+                };
+
+                await logEvent(
+                  'shopify.replace_item.logged',
+                  {
+                    actionId: action.id,
+                    orderId: action.order.id,
+                    shopifyOrderId: action.order.shopifyId,
+                    note: 'Replace item requires manual fulfillment creation',
+                  },
+                  'action',
+                  action.id,
+                );
+                break;
+              }
+
+              case 'ADDRESS_CHANGE': {
+                // For ADDRESS_CHANGE, we would update the shipping address
+                // This requires updating the order's shipping address via Shopify API
+                // For now, we'll log it - you may need to implement address update
+                shopifyActionResult = {
+                  success: true,
+                  data: {
+                    note: 'Address change action logged - requires manual update',
+                  },
+                };
+
+                await logEvent(
+                  'shopify.address_change.logged',
+                  {
+                    actionId: action.id,
+                    orderId: action.order.id,
+                    shopifyOrderId: action.order.shopifyId,
+                    note: 'Address change requires manual order update',
+                  },
+                  'action',
+                  action.id,
+                );
+                break;
+              }
+
+              default:
+                // Unknown action type - don't execute
+                break;
+            }
+          } catch (shopifyError: any) {
+            const errorMessage =
+              shopifyError instanceof Error
+                ? shopifyError.message
+                : String(shopifyError);
+            shopifyActionResult = {
+              success: false,
+              error: errorMessage,
+            };
+
+            await logEvent(
+              'shopify.action.failed',
+              {
+                actionId: action.id,
+                actionType,
+                orderId: action.order.id,
+                error: errorMessage,
+              },
+              'action',
+              action.id,
+            );
+          }
+
+          // If Shopify action failed and it's critical (REFUND, CANCEL), fail the whole operation
+          if (
+            shopifyActionResult &&
+            !shopifyActionResult.success &&
+            (actionType === 'REFUND' || actionType === 'CANCEL')
+          ) {
+            // Mark action as failed
+            await prisma.action.update({
+              where: { id: input.actionId },
+              data: {
+                status: 'REJECTED',
+                payload: {
+                  ...actionPayload,
+                  shopifyError: shopifyActionResult.error,
+                } as any,
+              },
+            });
+
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                shopifyActionResult.error ||
+                `Failed to execute ${actionType} action on Shopify`,
+            });
+          }
+        }
+
         // Get the original message's Message-ID for threading
         const originalMessage = action.order.messages[0];
         const originalMessageId = originalMessage?.messageId ?? null;
@@ -2645,8 +2900,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           (originalMessage?.headers as Record<string, any>) ?? {};
 
         // Remove any placeholder text and ensure proper signature
-        const connection = action.order.connection;
-        const metadata = (connection.metadata as any) ?? {};
         const storeName =
           (metadata.storeName as string | undefined) ||
           connection.shopDomain ||
@@ -2791,10 +3044,30 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const result = await response.json();
 
-        // Mark action as executed
+        // Mark action as executed and include Shopify action results
+        const updatedPayload = {
+          ...actionPayload,
+          ...(shopifyActionResult
+            ? {
+                shopifyAction: {
+                  executed: true,
+                  success: shopifyActionResult.success,
+                  ...(shopifyActionResult.data || {}),
+                  ...(shopifyActionResult.error
+                    ? { error: shopifyActionResult.error }
+                    : {}),
+                },
+              }
+            : {}),
+        };
+
         const updated = await prisma.action.update({
           where: { id: input.actionId },
-          data: { status: 'EXECUTED', executedAt: new Date() },
+          data: {
+            status: 'EXECUTED',
+            executedAt: new Date(),
+            payload: updatedPayload as any,
+          },
         });
 
         await logEvent(
