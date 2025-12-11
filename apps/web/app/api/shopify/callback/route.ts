@@ -65,7 +65,19 @@ export async function GET(req: NextRequest) {
   // Check if store already exists BEFORE creating
   const existing = await prisma.connection.findFirst({
     where: { shopDomain: shop },
+    select: { id: true, userId: true },
   });
+
+  // If store exists and belongs to a different user, reject the connection
+  if (existing && existing.userId !== owner.id) {
+    const base = process.env.SHOPIFY_APP_URL || new URL(req.url).origin;
+    const url = new URL('/integrations', base);
+    url.searchParams.set('error', 'shop_taken');
+    url.searchParams.set('shop', shop);
+    const res = NextResponse.redirect(url);
+    res.cookies.set('shopify_oauth_state', '', { maxAge: -1, path: '/' });
+    return res;
+  }
 
   const isNewConnection = !existing;
 

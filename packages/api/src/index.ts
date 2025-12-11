@@ -661,14 +661,31 @@ const shopifyRouter = t.router({
         });
       }
 
-      // Check if connection already exists before checking limits
-      const existing = await prisma.connection.findFirst({
+      // First check if connection exists for ANY user (not just current user)
+      const existingAnyUser = await prisma.connection.findFirst({
         where: {
           shopDomain: cleanShop,
-          userId: ctx.userId,
           type: 'SHOPIFY',
         },
+        select: { id: true, userId: true },
       });
+
+      // If store exists and belongs to a different user, reject the connection
+      if (existingAnyUser && existingAnyUser.userId !== ctx.userId) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message:
+            'This Shopify store is already connected to another account. Please ask the current owner to disconnect it first, then you can connect it to your account.',
+        });
+      }
+
+      // If connection exists for current user, fetch full connection (including metadata) for update scenario
+      const existing =
+        existingAnyUser?.userId === ctx.userId
+          ? await prisma.connection.findUnique({
+              where: { id: existingAnyUser.id },
+            })
+          : null;
 
       // If not updating existing, check store limit
       if (!existing) {
