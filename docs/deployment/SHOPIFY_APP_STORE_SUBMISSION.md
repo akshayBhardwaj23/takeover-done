@@ -13,7 +13,7 @@ Complete checklist for submitting ZYYP AI to the Shopify App Store.
 All three mandatory compliance webhooks are implemented and configured:
 
 - ✅ `customers/data_request` - Provide customer data
-- ✅ `customers/redact` - Delete customer data  
+- ✅ `customers/redact` - Delete customer data
 - ✅ `shop/redact` - Delete shop data
 
 **File:** `/apps/web/app/api/webhooks/shopify/compliance/route.ts`  
@@ -27,12 +27,15 @@ All three mandatory compliance webhooks are implemented and configured:
 ### ✅ 2. App Listing Content
 
 #### App Name
+
 **ZYYP AI** (or **ZYYP AI Support**)
 
 #### Tagline (max 70 characters)
+
 "AI-Powered Customer Support Automation for E-Commerce"
 
 #### Short Description (max 120 characters)
+
 "Automate customer support with AI. Smart email replies, order matching, and analytics - all powered by AI."
 
 #### Full Description
@@ -139,6 +142,7 @@ Reduce response time by 60%+ and improve customer satisfaction with automated, c
 **URL:** https://youtu.be/fZm8VUrT1Bs (your screencast URL)
 
 **Video Requirements:**
+
 - Length: 3-8 minutes
 - Show onboarding flow
 - Demonstrate main features
@@ -147,11 +151,13 @@ Reduce response time by 60%+ and improve customer satisfaction with automated, c
 - Professional quality
 
 **DO:**
+
 - Demonstrate main features
 - Show customer flow and merchant flow
 - Aim for 3-8 minute video
 
 **DON'T:**
+
 - Include loud background noises
 
 ---
@@ -173,7 +179,7 @@ STEP-BY-STEP TESTING:
    - You'll be redirected to https://www.zyyp.ai
 
 2. Sign In
-   - Click "Sign In with Google" 
+   - Click "Sign In with Google"
    - Use any Google account for testing
    - You'll be redirected to the Integrations page
 
@@ -221,7 +227,7 @@ NOTES:
 - The app is read-only for your store data (no modifications made during testing)
 - Free trial includes 50 emails/month limit
 
-For any issues during testing, contact: support@zyyp.ai
+For any issues during testing, contact: hello@zyyp.ai
 ```
 
 ---
@@ -234,6 +240,7 @@ For any issues during testing, contact: support@zyyp.ai
 "ZYYP connects merchant Shopify data (orders, customers, order status) with our AI-powered customer support platform. The app syncs order information and provides automated customer support services including AI reply generation, email management, and support analytics based on the merchant's Shopify data."
 
 **Do NOT select:**
+
 - ❌ Embedded (not using App Bridge)
 - ❌ Online store (not modifying theme)
 - ❌ Payments (not processing payments)
@@ -244,9 +251,11 @@ For any issues during testing, contact: support@zyyp.ai
 ### ✅ 6. Privacy & Data Handling
 
 #### Privacy Policy URL
+
 `https://www.zyyp.ai/privacy-policy`
 
 **Must include:**
+
 - Data collection practices
 - How customer data is used
 - Data retention policy
@@ -255,6 +264,7 @@ For any issues during testing, contact: support@zyyp.ai
 - Contact information
 
 #### GDPR Compliance
+
 - ✅ Compliance webhooks implemented
 - ✅ Data deletion on request
 - ✅ Data export on request
@@ -265,12 +275,15 @@ For any issues during testing, contact: support@zyyp.ai
 ### ✅ 7. Support & Contact
 
 #### Support Email
-`support@zyyp.ai`
+
+`hello@zyyp.ai`
 
 #### Support URL (Optional)
+
 `https://www.zyyp.ai/support`
 
 #### Documentation URL (Optional)
+
 `https://docs.zyyp.ai` or link to GitHub docs
 
 ---
@@ -278,6 +291,7 @@ For any issues during testing, contact: support@zyyp.ai
 ### ✅ 8. Pricing
 
 #### Free Trial
+
 - **Plan:** TRIAL
 - **Emails:** 50/month
 - **Duration:** Indefinite (until upgraded)
@@ -286,6 +300,7 @@ For any issues during testing, contact: support@zyyp.ai
 #### Paid Plans
 
 **Starter - $19/month**
+
 - 500 emails/month
 - 1 store
 - AI-powered replies
@@ -293,6 +308,7 @@ For any issues during testing, contact: support@zyyp.ai
 - Basic analytics
 
 **Growth - $49/month**
+
 - 2,000 emails/month
 - 3 stores
 - All Starter features
@@ -301,6 +317,7 @@ For any issues during testing, contact: support@zyyp.ai
 - Priority support
 
 **Pro - $99/month**
+
 - 10,000 emails/month
 - 10 stores
 - All Growth features
@@ -313,10 +330,12 @@ For any issues during testing, contact: support@zyyp.ai
 ### ✅ 9. Scopes & Permissions
 
 #### Required Scopes
+
 - `read_orders` - Read order data for AI context
 - `read_customers` - Read customer email for support
 
 #### Optional Scopes (Future)
+
 - `write_orders` - For refund/cancel actions
 - `write_customers` - For customer updates
 
@@ -325,18 +344,23 @@ For any issues during testing, contact: support@zyyp.ai
 ### ✅ 10. Technical Requirements
 
 #### HTTPS
+
 ✅ All endpoints use HTTPS with valid SSL
 
 #### Webhooks
+
 ✅ All webhooks verify HMAC signatures
 
 #### Response Times
+
 ✅ API responds within 3 seconds
 
 #### Error Handling
+
 ✅ Graceful error messages to users
 
 #### Rate Limiting
+
 ✅ Respects Shopify API rate limits
 
 ---
@@ -413,21 +437,27 @@ For any issues during testing, contact: support@zyyp.ai
 ## Common Rejection Reasons
 
 ### ❌ Compliance Webhooks Missing
+
 **Fix:** Ensure all three webhooks are implemented and responding
 
 ### ❌ Broken OAuth Flow
+
 **Fix:** Test OAuth with multiple stores, handle errors gracefully
 
 ### ❌ Poor Testing Instructions
+
 **Fix:** Provide step-by-step guide, mention any limitations
 
 ### ❌ Missing Screenshots
+
 **Fix:** Add at least 3 high-quality screenshots showing main features
 
 ### ❌ Unclear Value Proposition
+
 **Fix:** Clearly explain what problem the app solves
 
 ### ❌ Privacy Policy Issues
+
 **Fix:** Ensure privacy policy is comprehensive and accessible
 
 ---
@@ -435,12 +465,14 @@ For any issues during testing, contact: support@zyyp.ai
 ## Post-Submission Monitoring
 
 ### Week 1
+
 - [ ] Monitor Sentry for errors
 - [ ] Check user feedback
 - [ ] Respond to reviews
 - [ ] Fix critical bugs
 
 ### Month 1
+
 - [ ] Analyze usage metrics
 - [ ] Gather user feedback
 - [ ] Plan feature improvements
@@ -459,4 +491,3 @@ For any issues during testing, contact: support@zyyp.ai
 **Status:** ✅ Ready for Submission  
 **Last Updated:** 2024-11-13  
 **Next Steps:** Configure listing in Partners Dashboard → Submit for review
-

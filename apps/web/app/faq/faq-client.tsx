@@ -114,7 +114,7 @@ const faqData: FAQItem[] = [
     category: 'Email Setup',
     question: 'Can I use my existing support email?',
     answer:
-      'Yes! You can forward emails from your existing support email to your Zyyp AI alias. Alternatively, you can update your website\'s contact form or support page to use the Zyyp AI alias directly. The system will automatically process all incoming emails.',
+      "Yes! You can forward emails from your existing support email to your Zyyp AI alias. Alternatively, you can update your website's contact form or support page to use the Zyyp AI alias directly. The system will automatically process all incoming emails.",
   },
   {
     id: 'email-4',
@@ -135,7 +135,7 @@ const faqData: FAQItem[] = [
     category: 'Email Setup',
     question: 'Can I disable an email alias?',
     answer:
-      'Yes! You can toggle an email alias on or off using the power button next to each alias. When disabled, emails sent to that alias won\'t be processed. This is useful for temporarily pausing email processing without deleting the alias.',
+      "Yes! You can toggle an email alias on or off using the power button next to each alias. When disabled, emails sent to that alias won't be processed. This is useful for temporarily pausing email processing without deleting the alias.",
   },
 
   // Using the Inbox
@@ -152,7 +152,7 @@ const faqData: FAQItem[] = [
     category: 'Using the Inbox',
     question: 'What are "Unmatched Emails"?',
     answer:
-      'Unmatched emails are customer emails that couldn\'t be automatically linked to a Shopify order. This might happen if the customer didn\'t mention their order number or used a different email address. You can still reply to these emails, and the AI will generate appropriate responses.',
+      "Unmatched emails are customer emails that couldn't be automatically linked to a Shopify order. This might happen if the customer didn't mention their order number or used a different email address. You can still reply to these emails, and the AI will generate appropriate responses.",
   },
   {
     id: 'inbox-3',
@@ -173,7 +173,7 @@ const faqData: FAQItem[] = [
     category: 'Using the Inbox',
     question: 'How do I mark emails as replied?',
     answer:
-      'When you send a reply, the email is automatically marked with a checkmark icon. The system also automatically moves to the next email requiring a reply. If all emails are replied to, the draft clears and you\'ll see a success message.',
+      "When you send a reply, the email is automatically marked with a checkmark icon. The system also automatically moves to the next email requiring a reply. If all emails are replied to, the draft clears and you'll see a success message.",
   },
   {
     id: 'inbox-6',
@@ -203,7 +203,7 @@ const faqData: FAQItem[] = [
     category: 'AI Features',
     question: 'How does AI generate reply suggestions?',
     answer:
-      'The AI analyzes the customer\'s email, considers the order details (if available), and generates a personalized, empathetic response. It uses OpenAI GPT-4o-mini to understand context, sentiment, and intent, then drafts a professional reply that matches your store\'s tone.',
+      "The AI analyzes the customer's email, considers the order details (if available), and generates a personalized, empathetic response. It uses OpenAI GPT-4o-mini to understand context, sentiment, and intent, then drafts a professional reply that matches your store's tone.",
     icon: <Sparkles className="h-5 w-5" />,
   },
   {
@@ -360,14 +360,14 @@ const faqData: FAQItem[] = [
   {
     id: 'troubleshooting-1',
     category: 'Troubleshooting',
-    question: 'Why aren\'t my orders showing up?',
+    question: "Why aren't my orders showing up?",
     answer:
       'Check that: (1) Your Shopify store is connected (Integrations page), (2) Orders exist in your Shopify store, (3) The store connection is active. Try clicking "Refresh" in the inbox to manually sync orders. If issues persist, disconnect and reconnect your store.',
   },
   {
     id: 'troubleshooting-2',
     category: 'Troubleshooting',
-    question: 'Why aren\'t emails appearing in my inbox?',
+    question: "Why aren't emails appearing in my inbox?",
     answer:
       'Verify: (1) Your email alias is active (green badge in Integrations), (2) Emails are being forwarded to your alias address, (3) Check "Email Health" to see when the last email was received. If no emails are coming through, check your email forwarding configuration.',
   },
@@ -381,16 +381,16 @@ const faqData: FAQItem[] = [
   {
     id: 'troubleshooting-4',
     category: 'Troubleshooting',
-    question: 'My email was sent but the customer didn\'t receive it',
+    question: "My email was sent but the customer didn't receive it",
     answer:
-      'Check: (1) The recipient email address is correct, (2) Check your email usage limit hasn\'t been exceeded, (3) Verify Mailgun is properly configured. If the email limit is reached, you\'ll need to upgrade your plan. Check spam folders as well.',
+      "Check: (1) The recipient email address is correct, (2) Check your email usage limit hasn't been exceeded, (3) Verify Mailgun is properly configured. If the email limit is reached, you'll need to upgrade your plan. Check spam folders as well.",
   },
   {
     id: 'troubleshooting-5',
     category: 'Troubleshooting',
     question: 'The page is loading slowly',
     answer:
-      'We\'ve optimized the inbox for performance with caching and progressive loading. If pages are still slow: (1) Check your internet connection, (2) Try refreshing the page, (3) Clear your browser cache. The first load may take a moment, but subsequent loads should be faster.',
+      "We've optimized the inbox for performance with caching and progressive loading. If pages are still slow: (1) Check your internet connection, (2) Try refreshing the page, (3) Clear your browser cache. The first load may take a moment, but subsequent loads should be faster.",
   },
   {
     id: 'troubleshooting-6',
@@ -554,7 +554,7 @@ export function FAQClient() {
               Get Started
             </a>
             <a
-              href="mailto:support@zyyp.ai"
+              href="mailto:hello@zyyp.ai"
               className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-black"
             >
               Contact Support
@@ -565,4 +565,3 @@ export function FAQClient() {
     </main>
   );
 }
-

@@ -39,7 +39,7 @@ export default function NotFound() {
             Go to homepage
           </Link>
           <a
-            href="mailto:hello@notus.ai"
+            href="mailto:hello@zyyp.ai"
             className="rounded-full border border-white/30 px-10 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:border-white/60"
           >
             Contact support
@@ -71,5 +71,3 @@ export default function NotFound() {
     </div>
   );
 }
-
-

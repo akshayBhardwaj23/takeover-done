@@ -47,7 +47,7 @@ export default function FAQ() {
           <p className="mt-4 text-lg text-slate-600">
             Find all your doubts and questions in one place. Still need help?{' '}
             <a
-              href="mailto:hi@zyyp.ai"
+              href="mailto:hello@zyyp.ai"
               className="underline decoration-slate-300 underline-offset-4 transition hover:decoration-slate-500"
             >
               Email our team

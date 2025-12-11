@@ -143,7 +143,7 @@ export default function Pricing() {
                   <Link
                     href={
                       type === 'ENTERPRISE'
-                        ? 'mailto:hi@zyyp.ai'
+                        ? 'mailto:hello@zyyp.ai'
                         : '/integrations'
                     }
                     className={`mt-8 inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
