@@ -41,10 +41,10 @@ export default function Footer() {
               <div className="space-y-3 text-sm uppercase text-white/60">
                 <span>Get Support :</span>
                 <a
-                  href="mailto:hi@zyyp.ai"
+                  href="mailto:hello@zyyp.ai"
                   className="block text-base font-medium leading-6 uppercase text-white hover:text-white/80"
                 >
-                  hi@zyyp.ai
+                  hello@zyyp.ai
                 </a>
               </div>
             </div>

@@ -284,10 +284,10 @@ export default function DemoPage() {
                   Send us an email and we'll get back to you within 24 hours.
                 </p>
                 <a
-                  href="mailto:hi@zyyp.ai"
+                  href="mailto:hello@zyyp.ai"
                   className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-900 transition hover:text-slate-700"
                 >
-                  hi@zyyp.ai
+                  hello@zyyp.ai
                   <ArrowRight className="h-4 w-4" />
                 </a>
               </div>
@@ -302,7 +302,7 @@ export default function DemoPage() {
                   Book a personalized walkthrough to see ZYYP in action.
                 </p>
                 <a
-                  href="mailto:hi@zyyp.ai?subject=Schedule a Demo"
+                  href="mailto:hello@zyyp.ai?subject=Schedule a Demo"
                   className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-900 transition hover:text-slate-700"
                 >
                   Book a call

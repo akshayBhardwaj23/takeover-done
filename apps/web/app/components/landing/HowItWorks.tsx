@@ -74,7 +74,7 @@ export default function HowItWorks() {
               Explore the inbox
             </Link>
             <a
-              href="mailto:hi@zyyp.ai"
+              href="mailto:hello@zyyp.ai"
               className="rounded-full border border-slate-900/10 px-7 py-3 text-sm font-semibold tracking-wide text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-900/20"
             >
               Talk to us
