@@ -679,8 +679,13 @@ const shopifyRouter = t.router({
         });
       }
 
-      // Check if connection already exists for current user (for update scenario)
-      const existing = existingAnyUser?.userId === ctx.userId ? existingAnyUser : null;
+      // If connection exists for current user, fetch full connection (including metadata) for update scenario
+      const existing =
+        existingAnyUser?.userId === ctx.userId
+          ? await prisma.connection.findUnique({
+              where: { id: existingAnyUser.id },
+            })
+          : null;
 
       // If not updating existing, check store limit
       if (!existing) {
