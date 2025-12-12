@@ -2190,7 +2190,6 @@ export const appRouter = t.router({
                     },
                     aiSuggestion: {
                       select: {
-                        reply: true,
                         proposedAction: true,
                         confidence: true,
                       },
@@ -2220,41 +2219,26 @@ export const appRouter = t.router({
 
       if (orderIds.length > 0) {
         try {
-          // Use SQL to efficiently calculate pending counts
-          // Pending = count of INBOUND messages from newest until first OUTBOUND
-          // We use a window function approach: for each order, count INBOUND messages
-          // in rows where no OUTBOUND has appeared yet (when ordered by createdAt desc)
-          // Properly parameterize the orderIds array for SQL IN clause
+          // Use simplified SQL to efficiently calculate pending counts
+          // Pending = count of INBOUND messages after the most recent OUTBOUND
+          // With the new composite index on (orderId, createdAt, direction), this is highly optimized
           const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ');
           const pendingCounts = await prisma.$queryRawUnsafe<
             Array<{ orderId: string; count: bigint }>
           >(
-            `WITH ordered_messages AS (
-              SELECT 
-                "orderId",
-                direction,
-                ROW_NUMBER() OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC) as rn,
-                SUM(CASE WHEN direction = 'OUTBOUND' THEN 1 ELSE 0 END) 
-                  OVER (PARTITION BY "orderId" ORDER BY "createdAt" DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as outbound_count
-              FROM "Message"
-              WHERE "orderId" IN (${placeholders})
-                AND "orderId" IS NOT NULL
-            ),
-            pending_candidates AS (
-              SELECT 
-                "orderId",
-                direction,
-                rn,
-                outbound_count
-              FROM ordered_messages
-              WHERE outbound_count = 0
-            )
-            SELECT 
-              "orderId",
-              COUNT(*)::bigint as count
-            FROM pending_candidates
-            WHERE direction = 'INBOUND'
-            GROUP BY "orderId"`,
+            `SELECT 
+               m."orderId",
+               COUNT(*)::bigint as count
+             FROM "Message" m
+             WHERE m."orderId" IN (${placeholders})
+               AND m.direction = 'INBOUND'
+               AND m."createdAt" > COALESCE(
+                 (SELECT MAX("createdAt") 
+                  FROM "Message" 
+                  WHERE "orderId" = m."orderId" AND direction = 'OUTBOUND'),
+                 '1970-01-01'::timestamp
+               )
+             GROUP BY m."orderId"`,
             ...orderIds,
           );
 
@@ -3546,7 +3530,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               },
               aiSuggestion: {
                 select: {
-                  reply: true,
                   proposedAction: true,
                   confidence: true,
                 },

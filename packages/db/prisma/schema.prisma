@@ -180,6 +180,7 @@ model Thread {
   connection    Connection @relation(fields: [connectionId], references: [id])
 
   @@index([connectionId])
+  @@index([connectionId, createdAt])  // For sorted connection-based queries (inbox optimization)
   @@index([isUnread])
   @@index([isFlagged])
 }
@@ -202,6 +203,7 @@ model Message {
 
   @@index([direction, createdAt])
   @@index([threadId])
+  @@index([threadId, direction])  // For filtering messages by thread and direction (inbox optimization)
   @@index([threadId, createdAt])  // For thread-based queries with ordering
   @@index([orderId])
   @@index([orderId, createdAt, direction])  // For pending email count calculation
