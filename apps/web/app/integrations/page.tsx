@@ -23,6 +23,7 @@ import {
   BarChart3,
   Settings2,
   Info,
+  HelpCircle,
 } from 'lucide-react';
 import { useToast, ToastContainer } from '../../components/Toast';
 import TetrisLoading from '../../components/ui/tetris-loader';
@@ -692,11 +693,24 @@ function IntegrationsInner() {
         <div className="mx-auto max-w-7xl px-6 pt-32 pb-8">
           {/* Header */}
           <div className="mb-12">
-            <h1 className="text-2xl font-bold text-zinc-900">Integrations</h1>
-            <p className="text-zinc-500">
-              Connect your favorite tools to unlock automated workflows, smarter
-              insights, and a fully connected ZYYP experience.
-            </p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl font-bold text-zinc-900">
+                  Integrations
+                </h1>
+                <p className="mt-1 text-zinc-500">
+                  Connect your favorite tools to unlock automated workflows,
+                  smarter insights, and a fully connected ZYYP experience.
+                </p>
+              </div>
+              <a
+                href="mailto:hello@zyyp.ai?subject=Integration Support"
+                className="flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-900"
+              >
+                <HelpCircle className="h-4 w-4" />
+                <span>Need Help?</span>
+              </a>
+            </div>
           </div>
 
           {/* Content */}
@@ -1212,10 +1226,7 @@ function IntegrationsInner() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={shopTakenDialogOpen}
-        onOpenChange={setShopTakenDialogOpen}
-      >
+      <Dialog open={shopTakenDialogOpen} onOpenChange={setShopTakenDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Shop Already Connected</DialogTitle>

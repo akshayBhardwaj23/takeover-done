@@ -10,7 +10,7 @@ const securityHeaders = [
   {
     key: 'Content-Security-Policy',
     value:
-      "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.openai.com https://api.mailgun.net https://ingest.sentry.io https://sentry.io;",
+      "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.openai.com https://api.mailgun.net https://ingest.sentry.io https://sentry.io; frame-src 'self' https://www.youtube.com https://youtube.com;",
   },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -64,9 +64,15 @@ const nextConfig = {
       '.mjs': ['.mts', '.mjs'],
       ...(config.resolve.extensionAlias || {}),
     };
-    
+
     // Also ensure extensions array includes .ts before .js as fallback
-    const extensions = config.resolve.extensions || ['.tsx', '.ts', '.jsx', '.js', '.json'];
+    const extensions = config.resolve.extensions || [
+      '.tsx',
+      '.ts',
+      '.jsx',
+      '.js',
+      '.json',
+    ];
     const tsIndex = extensions.indexOf('.ts');
     const jsIndex = extensions.indexOf('.js');
     if (tsIndex === -1 && jsIndex !== -1) {
@@ -82,15 +88,12 @@ const nextConfig = {
     // This ensures that when webpack encounters relative .js imports, it resolves to .ts files
     config.plugins = config.plugins || [];
     config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(
-        /^\.\/.*\.js$/,
-        (resource) => {
-          // Only apply to files in @ai-ecom/db package
-          if (resource.context && resource.context.includes('packages/db/src')) {
-            resource.request = resource.request.replace(/\.js$/, '.ts');
-          }
+      new webpack.NormalModuleReplacementPlugin(/^\.\/.*\.js$/, (resource) => {
+        // Only apply to files in @ai-ecom/db package
+        if (resource.context && resource.context.includes('packages/db/src')) {
+          resource.request = resource.request.replace(/\.js$/, '.ts');
         }
-      )
+      }),
     );
 
     // Externalize worker package for dynamic imports (it's only used at runtime)
