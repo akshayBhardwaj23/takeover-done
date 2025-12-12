@@ -1872,10 +1872,24 @@ export const appRouter = t.router({
     .input(
       z.object({ take: z.number().min(1).max(100).default(20) }).optional(),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
         const take = clampNumber(input?.take ?? 20, 1, 100);
+        
+        // Get user's connections to filter threads (multi-tenant scoping)
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true },
+        });
+        
+        const connectionIds = connections.map((c) => c.id);
+        
+        if (connectionIds.length === 0) {
+          return { threads: [] };
+        }
+        
         const threads = await prisma.thread.findMany({
+          where: { connectionId: { in: connectionIds } },
           take,
           orderBy: { createdAt: 'desc' },
         });
@@ -1886,8 +1900,26 @@ export const appRouter = t.router({
     }),
   threadMessages: protectedProcedure
     .input(z.object({ threadId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
+        // First verify the thread belongs to one of the user's connections (multi-tenant scoping)
+        const thread = await prisma.thread.findFirst({
+          where: {
+            id: input.threadId,
+            connection: {
+              userId: ctx.userId,
+            },
+          },
+          select: { id: true },
+        });
+        
+        if (!thread) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Thread not found or access denied',
+          });
+        }
+        
         const messages = await prisma.message.findMany({
           where: { threadId: input.threadId },
           orderBy: { createdAt: 'asc' },
@@ -1908,7 +1940,10 @@ export const appRouter = t.router({
           },
         });
         return { messages };
-      } catch {
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
         return { messages: [] };
       }
     }),
