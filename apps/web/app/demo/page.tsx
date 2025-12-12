@@ -70,7 +70,7 @@ const steps = [
 ];
 
 export default function DemoPage() {
-  const [videoUrl, setVideoUrl] = useState('');
+  const [videoUrl, setVideoUrl] = useState('https://youtu.be/yEPLOMZefJ4');
   const [videoInput, setVideoInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
