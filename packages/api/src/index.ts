@@ -2190,6 +2190,7 @@ export const appRouter = t.router({
                     },
                     aiSuggestion: {
                       select: {
+                        reply: true,
                         proposedAction: true,
                         confidence: true,
                       },
@@ -3530,6 +3531,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
               },
               aiSuggestion: {
                 select: {
+                  reply: true,
                   proposedAction: true,
                   confidence: true,
                 },
