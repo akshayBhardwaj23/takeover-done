@@ -3,12 +3,8 @@
 import { useState } from 'react';
 import { Card } from '../../../../@ai-ecom/api/components/ui/card';
 import { Button } from '../../../../@ai-ecom/api/components/ui/button';
-import { Input } from '../../../../@ai-ecom/api/components/ui/input';
 import {
   CheckCircle2,
-  Play,
-  Upload,
-  Link as LinkIcon,
   ArrowRight,
   Mail,
   Store,
@@ -70,47 +66,9 @@ const steps = [
 ];
 
 export default function DemoPage() {
-  const [videoUrl, setVideoUrl] = useState('https://youtu.be/yEPLOMZefJ4');
-  const [videoInput, setVideoInput] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-
-  const handleVideoUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (videoInput.trim()) {
-      setVideoUrl(videoInput.trim());
-      setVideoInput('');
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // In a real implementation, you would upload to a storage service
-    // For now, we'll create a local object URL
-    setIsUploading(true);
-    try {
-      const objectUrl = URL.createObjectURL(file);
-      setVideoUrl(objectUrl);
-    } catch (error) {
-      console.error('Error uploading video:', error);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const isYouTubeUrl = (url: string) => {
-    return /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)/.test(
-      url,
-    );
-  };
-
-  const getYouTubeEmbedUrl = (url: string) => {
-    const videoId = url.match(
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-    )?.[1];
-    return videoId ? `https://www.youtube.com/embed/${videoId}` : url;
-  };
+  // YouTube video ID extracted from https://youtu.be/yEPLOMZefJ4
+  const YOUTUBE_VIDEO_ID = 'yEPLOMZefJ4';
+  const YOUTUBE_EMBED_URL = `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}`;
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -131,92 +89,24 @@ export default function DemoPage() {
 
         {/* Video Section */}
         <Card className="overflow-hidden border border-slate-200 bg-slate-50 p-8 shadow-lg shadow-slate-900/5">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-900">
-                Demo Video
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Watch a walkthrough of ZYYP in action
-              </p>
-            </div>
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold text-slate-900">
+              Demo Video
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Watch a walkthrough of ZYYP in action
+            </p>
           </div>
 
-          {videoUrl ? (
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
-              {isYouTubeUrl(videoUrl) ? (
-                <iframe
-                  src={getYouTubeEmbedUrl(videoUrl)}
-                  title="ZYYP Demo Video"
-                  className="h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <video
-                  src={videoUrl}
-                  controls
-                  className="h-full w-full"
-                  controlsList="nodownload"
-                >
-                  Your browser does not support the video tag.
-                </video>
-              )}
-              <button
-                onClick={() => setVideoUrl('')}
-                className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-lg transition hover:bg-white"
-              >
-                Change Video
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <form
-                  onSubmit={handleVideoUrlSubmit}
-                  className="flex flex-1 gap-2"
-                >
-                  <Input
-                    type="url"
-                    placeholder="Paste YouTube or video URL"
-                    value={videoInput}
-                    onChange={(e) => setVideoInput(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="submit"
-                    disabled={!videoInput.trim()}
-                    className="whitespace-nowrap"
-                  >
-                    <LinkIcon className="mr-2 h-4 w-4" />
-                    Load URL
-                  </Button>
-                </form>
-                <label className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">
-                  <Upload className="h-4 w-4" />
-                  Upload Video
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    disabled={isUploading}
-                  />
-                </label>
-              </div>
-              <div className="flex aspect-video items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50">
-                <div className="text-center">
-                  <Play className="mx-auto h-12 w-12 text-slate-400" />
-                  <p className="mt-4 text-sm font-semibold text-slate-600">
-                    No video loaded
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Upload a video file or paste a YouTube URL
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
+            <iframe
+              src={YOUTUBE_EMBED_URL}
+              title="ZYYP Demo Video"
+              className="h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
         </Card>
 
         {/* Step-by-Step Instructions */}
