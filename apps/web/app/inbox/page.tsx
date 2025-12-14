@@ -380,8 +380,8 @@ export default function InboxPage() {
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
     {
       // When on Inbox tab: fetch emails only (fast initial load)
-      // When on Orders tab: fetch orders only
-      ordersTake: view === 'orders' ? 25 : 0, // No orders on Inbox tab initially
+      // When on Orders tab: don't fetch anything (ordersPage handles it)
+      ordersTake: 0, // Never fetch orders via bootstrap - use ordersPage/backgroundOrdersQuery instead
       unassignedTake: view === 'inbox' ? 40 : 0, // Only fetch if Inbox tab
       unassignedOffset: 0,
       ...(searchAllHistory && searchQuery.trim()
@@ -389,6 +389,7 @@ export default function InboxPage() {
         : {}),
     },
     {
+      enabled: view === 'inbox', // Only fetch when Inbox tab is active
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
