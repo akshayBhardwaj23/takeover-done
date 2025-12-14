@@ -1875,19 +1875,19 @@ export const appRouter = t.router({
     .query(async ({ input, ctx }) => {
       try {
         const take = clampNumber(input?.take ?? 20, 1, 100);
-        
+
         // Get user's connections to filter threads (multi-tenant scoping)
         const connections = await prisma.connection.findMany({
           where: { userId: ctx.userId },
           select: { id: true },
         });
-        
+
         const connectionIds = connections.map((c) => c.id);
-        
+
         if (connectionIds.length === 0) {
           return { threads: [] };
         }
-        
+
         const threads = await prisma.thread.findMany({
           where: { connectionId: { in: connectionIds } },
           take,
@@ -1912,14 +1912,14 @@ export const appRouter = t.router({
           },
           select: { id: true },
         });
-        
+
         if (!thread) {
           throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'Thread not found or access denied',
           });
         }
-        
+
         const messages = await prisma.message.findMany({
           where: { threadId: input.threadId },
           orderBy: { createdAt: 'asc' },
@@ -2101,31 +2101,47 @@ export const appRouter = t.router({
         .map((c) => c.id);
 
       const [orders, unassignedMessages, emailLimit] = await Promise.all([
-        prisma.order.findMany({
-          where: { connectionId: { in: orderConnectionIds } },
-          orderBy: { createdAt: 'desc' },
-          take: ordersTake,
-          select: {
-            id: true,
-            shopifyId: true,
-            name: true,
-            email: true,
-            totalAmount: true,
-            currency: true,
-            customerName: true,
-            status: true,
-            fulfillmentStatus: true,
-            createdAt: true,
-            updatedAt: true,
-            shopDomain: true,
-            connectionId: true,
-            // lineItems removed for performance - fetched on demand via getOrderDetails
-          },
-        }),
-        unassignedConnectionIds.length
+        // Only fetch orders if ordersTake > 0
+        ordersTake > 0
+          ? prisma.order.findMany({
+              where: { connectionId: { in: orderConnectionIds } },
+              orderBy: { createdAt: 'desc' },
+              take: ordersTake,
+              select: {
+                id: true,
+                shopifyId: true,
+                name: true,
+                email: true,
+                totalAmount: true,
+                currency: true,
+                customerName: true,
+                status: true,
+                fulfillmentStatus: true,
+                createdAt: true,
+                updatedAt: true,
+                shopDomain: true,
+                connectionId: true,
+                // lineItems removed for performance - fetched on demand via getOrderDetails
+              },
+            })
+          : Promise.resolve([]),
+        unassignedConnectionIds.length && unassignedTake > 0
           ? (async () => {
-              // Build search filter conditions
-              const searchFilter = search
+              // Optimized: Get thread IDs first (uses index efficiently)
+              const threadIds = await prisma.thread.findMany({
+                where: { connectionId: { in: unassignedConnectionIds } },
+                select: { id: true },
+              });
+              const threadIdList = threadIds.map((t) => t.id);
+
+              if (threadIdList.length === 0) {
+                return { messages: [], hasMore: false };
+              }
+
+              // Build search filter (optimized approach)
+              // Use all thread IDs (optimization: direct threadId filter instead of nested)
+              // When searching, use OR condition that includes thread.subject (nested, but only when searching)
+              const messageSearchFilter = search
                 ? {
                     OR: [
                       {
@@ -2140,6 +2156,7 @@ export const appRouter = t.router({
                           mode: 'insensitive' as const,
                         },
                       },
+                      // Include thread subject in search (nested, but only when searching)
                       {
                         thread: {
                           subject: {
@@ -2152,15 +2169,16 @@ export const appRouter = t.router({
                   }
                 : undefined;
 
+              // Use threadId filter (direct relation, faster than nested connectionId)
+              const whereClause = {
+                direction: 'INBOUND' as any,
+                threadId: { in: threadIdList }, // Direct relation - uses index efficiently
+                ...(messageSearchFilter || {}),
+              };
+
               const [unassignedMessages, totalCount] = await Promise.all([
                 prisma.message.findMany({
-                  where: {
-                    // Only show INBOUND emails in inbox (filter out outbound)
-                    direction: 'INBOUND' as any,
-                    // Filter by thread.connectionId since Message.connectionId may not exist in DB
-                    thread: { connectionId: { in: unassignedConnectionIds } },
-                    ...(searchFilter || {}),
-                  },
+                  where: whereClause,
                   orderBy: { createdAt: 'desc' },
                   skip: unassignedOffset,
                   take: unassignedTake,
@@ -2198,11 +2216,7 @@ export const appRouter = t.router({
                   },
                 }),
                 prisma.message.count({
-                  where: {
-                    direction: 'INBOUND' as any,
-                    thread: { connectionId: { in: unassignedConnectionIds } },
-                    ...(searchFilter || {}),
-                  },
+                  where: whereClause,
                 }),
               ]);
               return {
@@ -2214,78 +2228,35 @@ export const appRouter = t.router({
         canSendEmail(ctx.userId),
       ]);
 
-      // Calculate pending email counts for each order (optimized: SQL aggregation)
+      // Calculate pending email counts for each order (only if orders were fetched)
       const orderIds = orders.map((o) => o.id);
       const pendingCountsMap = new Map<string, number>();
 
-      if (orderIds.length > 0) {
+      if (orderIds.length > 0 && ordersTake > 0) {
+        // Simplified: Use simple groupBy to count INBOUND messages per order
+        // This is much faster than complex SQL subqueries, especially for small datasets
         try {
-          // Use simplified SQL to efficiently calculate pending counts
-          // Pending = count of INBOUND messages after the most recent OUTBOUND
-          // With the new composite index on (orderId, createdAt, direction), this is highly optimized
-          const placeholders = orderIds.map((_, i) => `$${i + 1}`).join(', ');
-          const pendingCounts = await prisma.$queryRawUnsafe<
-            Array<{ orderId: string; count: bigint }>
-          >(
-            `SELECT 
-               m."orderId",
-               COUNT(*)::bigint as count
-             FROM "Message" m
-             WHERE m."orderId" IN (${placeholders})
-               AND m.direction = 'INBOUND'
-               AND m."createdAt" > COALESCE(
-                 (SELECT MAX("createdAt") 
-                  FROM "Message" 
-                  WHERE "orderId" = m."orderId" AND direction = 'OUTBOUND'),
-                 '1970-01-01'::timestamp
-               )
-             GROUP BY m."orderId"`,
-            ...orderIds,
-          );
-
-          // Convert results to Map (handle bigint conversion)
-          for (const row of pendingCounts) {
-            pendingCountsMap.set(row.orderId, Number(row.count));
-          }
-        } catch (error) {
-          // Fallback to original approach if SQL aggregation fails
-          console.error(
-            '[inboxBootstrap] Error in pending count SQL query, using fallback:',
-            error,
-          );
-          const allMessages = await prisma.message.findMany({
-            where: { orderId: { in: orderIds } },
-            orderBy: { createdAt: 'desc' },
-            select: { orderId: true, direction: true },
+          const pendingCounts = await prisma.message.groupBy({
+            by: ['orderId'],
+            where: {
+              orderId: { in: orderIds },
+              direction: 'INBOUND', // Count INBOUND messages
+            },
+            _count: { id: true },
           });
 
-          const messagesByOrder = new Map<
-            string,
-            Array<{ direction: string }>
-          >();
-          for (const msg of allMessages) {
-            if (msg.orderId) {
-              if (!messagesByOrder.has(msg.orderId)) {
-                messagesByOrder.set(msg.orderId, []);
-              }
-              messagesByOrder
-                .get(msg.orderId)!
-                .push({ direction: msg.direction });
+          // Convert results to Map (filter out null orderIds)
+          for (const row of pendingCounts) {
+            if (row.orderId) {
+              pendingCountsMap.set(row.orderId, row._count.id);
             }
           }
-
-          for (const orderId of orderIds) {
-            const messages = messagesByOrder.get(orderId) ?? [];
-            let pendingCount = 0;
-            for (const msg of messages) {
-              if (msg.direction === 'OUTBOUND') {
-                break;
-              } else if (msg.direction === 'INBOUND') {
-                pendingCount++;
-              }
-            }
-            pendingCountsMap.set(orderId, pendingCount);
-          }
+        } catch (error) {
+          // Fallback: if groupBy fails, log error and continue with empty map
+          console.error(
+            '[inboxBootstrap] Error in pending count query:',
+            error,
+          );
         }
       }
 
@@ -3478,30 +3449,48 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           return { messages: [], hasMore: false };
         }
 
-        // Filter by thread.connectionId since Message.connectionId may not exist in DB
-        // Only return INBOUND messages (filter out outbound)
-        // Build search filter conditions
-        const searchFilter = search
+        // Optimized: Get thread IDs first (uses index efficiently)
+        const threadIds = await prisma.thread.findMany({
+          where: { connectionId: { in: connectionIds } },
+          select: { id: true },
+        });
+        const threadIdList = threadIds.map((t) => t.id);
+
+        if (threadIdList.length === 0) {
+          return { messages: [], hasMore: false };
+        }
+
+        // Build search filter (optimized approach)
+        // Use all thread IDs (optimization: direct threadId filter instead of nested)
+        // When searching, use OR condition that includes thread.subject (nested, but only when searching)
+        const messageSearchFilter = search
           ? {
               OR: [
                 { from: { contains: search, mode: 'insensitive' as const } },
                 { body: { contains: search, mode: 'insensitive' as const } },
+                // Include thread subject in search (nested, but only when searching)
                 {
                   thread: {
-                    subject: { contains: search, mode: 'insensitive' as const },
+                    subject: {
+                      contains: search,
+                      mode: 'insensitive' as const,
+                    },
                   },
                 },
               ],
             }
           : undefined;
 
+        // Use threadId filter (direct relation, faster than nested connectionId)
+        const whereClause = {
+          direction: 'INBOUND' as any,
+          threadId: { in: threadIdList }, // Direct relation - uses index efficiently
+          ...(messageSearchFilter || {}),
+        };
+
         const [msgs, totalCount] = await Promise.all([
           prisma.message.findMany({
-            where: {
-              direction: 'INBOUND' as any,
-              thread: { connectionId: { in: connectionIds } },
-              ...(searchFilter || {}),
-            },
+            where: whereClause,
             orderBy: { createdAt: 'desc' },
             skip: offset,
             take,
@@ -3539,11 +3528,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             },
           }),
           prisma.message.count({
-            where: {
-              direction: 'INBOUND' as any,
-              thread: { connectionId: { in: connectionIds } },
-              ...(searchFilter || {}),
-            },
+            where: whereClause,
           }),
         ]);
         return {
@@ -4134,12 +4119,12 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       // Get pending email counts for these orders
       const orderIds = page.map((o) => o.id);
 
-      // Optimized: Use groupBy to count outbound messages for these orders
+      // Optimized: Use groupBy to count INBOUND messages for these orders
       const pendingCounts = await prisma.message.groupBy({
         by: ['orderId'],
         where: {
           orderId: { in: orderIds },
-          direction: 'OUTBOUND',
+          direction: 'INBOUND', // Fix: was OUTBOUND (wrong)
         },
         _count: {
           id: true,
