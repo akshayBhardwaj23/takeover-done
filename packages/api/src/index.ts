@@ -2067,16 +2067,16 @@ export const appRouter = t.router({
     .input(
       z
         .object({
-          ordersTake: z.number().min(1).max(100).default(25),
-          unassignedTake: z.number().min(1).max(100).default(40),
+          ordersTake: z.number().min(0).max(100).default(25), // Allow 0 for conditional fetching
+          unassignedTake: z.number().min(0).max(100).default(40), // Allow 0 for conditional fetching
           unassignedOffset: z.number().min(0).default(0),
           search: z.string().optional(),
         })
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      const ordersTake = clampNumber(input?.ordersTake ?? 25, 1, 100);
-      const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 1, 100);
+      const ordersTake = clampNumber(input?.ordersTake ?? 25, 0, 100); // Allow 0 for conditional fetching
+      const unassignedTake = clampNumber(input?.unassignedTake ?? 40, 0, 100); // Allow 0 for conditional fetching
       const unassignedOffset = input?.unassignedOffset ?? 0;
       const search = input?.search?.trim() || undefined;
 
