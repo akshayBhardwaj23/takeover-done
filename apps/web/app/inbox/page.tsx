@@ -416,11 +416,12 @@ export default function InboxPage() {
   const [ordersOffset, setOrdersOffset] = useState(0);
 
   // Background fetch orders after emails load (for smooth tab switching)
+  // React Query keeps cached data accessible even when query is disabled
   const backgroundOrdersQuery = trpc.ordersList.useQuery(
     { offset: 0, limit: 25 },
     {
       enabled:
-        view === 'inbox' && !inboxBootstrap.isLoading && !!inboxBootstrap.data, // Only after emails load
+        view === 'inbox' && !inboxBootstrap.isLoading && !!inboxBootstrap.data, // Only fetch when on Inbox tab
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
@@ -431,7 +432,10 @@ export default function InboxPage() {
     { offset: ordersOffset, limit: PAGE_SIZE },
     {
       enabled:
-        view === 'orders' && (ordersOffset > 0 || !backgroundOrdersQuery.data), // Only fetch if paginating or background data not available
+        view === 'orders' &&
+        (ordersOffset > 0 ||
+          !backgroundOrdersQuery.data?.orders ||
+          backgroundOrdersQuery.data.orders.length === 0), // Only fetch if paginating or no background data
       keepPreviousData: true,
       staleTime: 30_000,
       refetchOnWindowFocus: false,
@@ -446,12 +450,14 @@ export default function InboxPage() {
     const bootstrapOrders = Array.isArray(inboxBootstrap.data?.orders)
       ? inboxBootstrap.data.orders
       : [];
+    // Access backgroundOrdersQuery.data even when query is disabled (React Query keeps cached data)
     const backgroundOrders = Array.isArray(backgroundOrdersQuery.data?.orders)
       ? backgroundOrdersQuery.data.orders
       : [];
 
     // Merge orders from all sources, deduplicating by id
-    const allOrders = [...bootstrapOrders, ...incoming, ...backgroundOrders];
+    // Priority: ordersPage > backgroundOrdersQuery > inboxBootstrap
+    const allOrders = [...bootstrapOrders, ...backgroundOrders, ...incoming];
     const orderMap = new Map<string, any>();
     allOrders.forEach((order: any) => {
       if (!orderMap.has(order.id)) {
@@ -472,10 +478,13 @@ export default function InboxPage() {
     ordersPage.data,
     ordersOffset,
     inboxBootstrap.data?.orders,
-    backgroundOrdersQuery.data,
+    backgroundOrdersQuery.data, // This should still be accessible even when query is disabled
+    view, // Re-run when view changes to ensure data is available
   ]);
 
-  const hasMoreOrders = ordersPage.data?.hasMore ?? false;
+  // Check if more orders are available from either source
+  const hasMoreOrders =
+    ordersPage.data?.hasMore ?? backgroundOrdersQuery.data?.hasMore ?? false;
 
   // Messages for selected order (when viewing order detail)
   const orderMessages = trpc.messagesByOrder.useQuery(
@@ -1577,7 +1586,11 @@ export default function InboxPage() {
                       </div>
                     )
                   ) : // Order List
-                  ordersPage.isLoading && ordersOffset === 0 ? (
+                  // Show loading if: ordersPage is loading on first page AND we don't have background data yet
+                  ordersPage.isLoading &&
+                    ordersOffset === 0 &&
+                    !backgroundOrdersQuery.data?.orders?.length &&
+                    view === 'orders' ? (
                     <EmailListSkeleton />
                   ) : filteredOrders.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
