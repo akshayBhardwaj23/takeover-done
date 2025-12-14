@@ -379,14 +379,17 @@ export default function InboxPage() {
 
   const inboxBootstrap = trpc.inboxBootstrap.useQuery(
     {
-      ordersTake: 25,
-      unassignedTake: 40,
+      // When on Inbox tab: fetch emails only (fast initial load)
+      // When on Orders tab: don't fetch anything (ordersPage handles it)
+      ordersTake: 0, // Never fetch orders via bootstrap - use ordersPage/backgroundOrdersQuery instead
+      unassignedTake: view === 'inbox' ? 40 : 0, // Only fetch if Inbox tab
       unassignedOffset: 0,
       ...(searchAllHistory && searchQuery.trim()
         ? { search: searchQuery.trim() }
         : {}),
     },
     {
+      enabled: view === 'inbox', // Only fetch when Inbox tab is active
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
@@ -402,20 +405,41 @@ export default function InboxPage() {
         : {}),
     },
     {
+      enabled: view === 'inbox', // Only fetch when Inbox tab is active
       staleTime: 60_000,
       refetchOnWindowFocus: false,
       refetchOnMount: false,
-      // Enable parallel execution - both queries can run simultaneously
-      // They're independent and will be merged/deduped on the frontend
-      enabled: true,
     },
   );
 
   const PAGE_SIZE = 20;
   const [ordersOffset, setOrdersOffset] = useState(0);
+
+  // Background fetch orders after emails load (for smooth tab switching)
+  // React Query keeps cached data accessible even when query is disabled
+  const backgroundOrdersQuery = trpc.ordersList.useQuery(
+    { offset: 0, limit: 25 },
+    {
+      enabled:
+        view === 'inbox' && !inboxBootstrap.isLoading && !!inboxBootstrap.data, // Only fetch when on Inbox tab
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+    },
+  );
+
   const ordersPage = trpc.ordersList.useQuery(
     { offset: ordersOffset, limit: PAGE_SIZE },
-    { keepPreviousData: true, staleTime: 30_000, refetchOnWindowFocus: false },
+    {
+      enabled:
+        view === 'orders' &&
+        (ordersOffset > 0 ||
+          !backgroundOrdersQuery.data?.orders ||
+          backgroundOrdersQuery.data.orders.length === 0), // Only fetch if paginating or no background data
+      keepPreviousData: true,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
   );
 
   const [ordersAccum, setOrdersAccum] = useState<any[]>([]);
@@ -426,9 +450,14 @@ export default function InboxPage() {
     const bootstrapOrders = Array.isArray(inboxBootstrap.data?.orders)
       ? inboxBootstrap.data.orders
       : [];
+    // Access backgroundOrdersQuery.data even when query is disabled (React Query keeps cached data)
+    const backgroundOrders = Array.isArray(backgroundOrdersQuery.data?.orders)
+      ? backgroundOrdersQuery.data.orders
+      : [];
 
-    // Merge orders from both sources, deduplicating by id
-    const allOrders = [...bootstrapOrders, ...incoming];
+    // Merge orders from all sources, deduplicating by id
+    // Priority: ordersPage > backgroundOrdersQuery > inboxBootstrap
+    const allOrders = [...bootstrapOrders, ...backgroundOrders, ...incoming];
     const orderMap = new Map<string, any>();
     allOrders.forEach((order: any) => {
       if (!orderMap.has(order.id)) {
@@ -445,9 +474,17 @@ export default function InboxPage() {
     });
 
     setOrdersAccum(sorted);
-  }, [ordersPage.data, ordersOffset, inboxBootstrap.data?.orders]);
+  }, [
+    ordersPage.data,
+    ordersOffset,
+    inboxBootstrap.data?.orders,
+    backgroundOrdersQuery.data, // This should still be accessible even when query is disabled
+    view, // Re-run when view changes to ensure data is available
+  ]);
 
-  const hasMoreOrders = ordersPage.data?.hasMore ?? false;
+  // Check if more orders are available from either source
+  const hasMoreOrders =
+    ordersPage.data?.hasMore ?? backgroundOrdersQuery.data?.hasMore ?? false;
 
   // Messages for selected order (when viewing order detail)
   const orderMessages = trpc.messagesByOrder.useQuery(
@@ -867,6 +904,60 @@ export default function InboxPage() {
     return email;
   }, [selectedEmailId, allEmails, flaggedThreads]);
 
+  // Fetch linked order on-demand when email is clicked (if not already in ordersAccum)
+  const linkedOrderQuery = trpc.shopify.getOrderDetails.useQuery(
+    { orderId: selectedEmail?.orderId || '' },
+    {
+      enabled:
+        view === 'inbox' &&
+        !!selectedEmail?.orderId &&
+        !ordersAccum.find(
+          (o) =>
+            o.id === selectedEmail.orderId ||
+            o.shopifyId === selectedEmail.orderId,
+        ), // Only fetch if not already loaded
+      staleTime: 300_000, // Cache for 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  // Update ordersAccum when linkedOrderQuery data is available
+  useEffect(() => {
+    if (linkedOrderQuery.data && ordersAccum.length > 0) {
+      const linkedOrder = {
+        id: linkedOrderQuery.data.id,
+        shopifyId: linkedOrderQuery.data.shopifyId,
+        name: linkedOrderQuery.data.name,
+        email: linkedOrderQuery.data.email,
+        totalAmount: linkedOrderQuery.data.totalAmount,
+        currency: linkedOrderQuery.data.currency,
+        customerName: linkedOrderQuery.data.customerName,
+        status: linkedOrderQuery.data.status,
+        fulfillmentStatus: linkedOrderQuery.data.fulfillmentStatus,
+        createdAt: linkedOrderQuery.data.processedAt
+          ? new Date(linkedOrderQuery.data.processedAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        shopDomain: linkedOrderQuery.data.shopDomain,
+        connectionId: '', // Not needed for display
+      };
+
+      // Check if order already exists
+      const exists = ordersAccum.find(
+        (o) => o.id === linkedOrder.id || o.shopifyId === linkedOrder.shopifyId,
+      );
+      if (!exists) {
+        // Add to ordersAccum
+        const updated = [...ordersAccum, linkedOrder].sort((a, b) => {
+          const numA = parseInt(a.shopifyId || '0', 10);
+          const numB = parseInt(b.shopifyId || '0', 10);
+          return numB - numA;
+        });
+        setOrdersAccum(updated);
+      }
+    }
+  }, [linkedOrderQuery.data]);
+
   // Get threadId from selected email
   const selectedThreadId = useMemo(() => {
     if (!selectedEmail) return null;
@@ -926,7 +1017,7 @@ export default function InboxPage() {
   const linkedOrder = useMemo(() => {
     if (!selectedEmail) return null;
 
-    // First, check if the message has a direct orderId link
+    // First check ordersAccum (includes background orders and on-demand fetched orders)
     if (selectedEmail.orderId) {
       const orderById = ordersAccum.find(
         (order) =>
@@ -934,6 +1025,27 @@ export default function InboxPage() {
           order.shopifyId === selectedEmail.orderId,
       );
       if (orderById) return orderById;
+    }
+
+    // Then check on-demand query result (if it was fetched)
+    if (linkedOrderQuery.data) {
+      return {
+        id: linkedOrderQuery.data.id,
+        shopifyId: linkedOrderQuery.data.shopifyId,
+        name: linkedOrderQuery.data.name,
+        email: linkedOrderQuery.data.email,
+        totalAmount: linkedOrderQuery.data.totalAmount,
+        currency: linkedOrderQuery.data.currency,
+        customerName: linkedOrderQuery.data.customerName,
+        status: linkedOrderQuery.data.status,
+        fulfillmentStatus: linkedOrderQuery.data.fulfillmentStatus,
+        createdAt: linkedOrderQuery.data.processedAt
+          ? new Date(linkedOrderQuery.data.processedAt).toISOString()
+          : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        shopDomain: linkedOrderQuery.data.shopDomain,
+        connectionId: '',
+      };
     }
 
     // Fallback: match by sender email address
@@ -944,7 +1056,7 @@ export default function InboxPage() {
         (order) => extractEmailAddress(order.email) === senderEmail,
       ) ?? null
     );
-  }, [selectedEmail, ordersAccum]);
+  }, [selectedEmail, ordersAccum, linkedOrderQuery.data]);
 
   const emailLimit = {
     data: inboxBootstrap.data?.emailLimit,
@@ -1474,7 +1586,11 @@ export default function InboxPage() {
                       </div>
                     )
                   ) : // Order List
-                  ordersPage.isLoading && ordersOffset === 0 ? (
+                  // Show loading if: ordersPage is loading on first page AND we don't have background data yet
+                  ordersPage.isLoading &&
+                    ordersOffset === 0 &&
+                    !backgroundOrdersQuery.data?.orders?.length &&
+                    view === 'orders' ? (
                     <EmailListSkeleton />
                   ) : filteredOrders.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
