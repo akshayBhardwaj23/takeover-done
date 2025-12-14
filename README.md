@@ -106,6 +106,7 @@ ai-ecom-tool/
 - ✅ Skeleton loaders for improved perceived performance
 - ✅ Rate limiting (API, AI, Email, Webhooks)
 - ✅ Complete data isolation by userId (multi-tenancy)
+- ✅ **Security Overview Page**: Comprehensive security details and compliance info (/security)
 
 ## 🔐 Environment Setup
 
