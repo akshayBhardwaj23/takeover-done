@@ -24,6 +24,7 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
   - `/` — Marketing homepage with CTAs
   - `/integrations` — Connect Shopify; list connections
   - `/inbox` — Unified inbox with "Inbox" (conversations) and "Orders" (management) views
+  - `/security` — Security overview and compliance details
 - API routes (Next.js)
   - `app/api/shopify/install` — Starts Shopify OAuth
   - `app/api/shopify/callback` — Verifies HMAC, exchanges token, stores `Connection`, registers webhooks (feature-flagged), redirects to `/integrations`
@@ -43,6 +44,9 @@ This repository is a monorepo for a multi-tenant SaaS that helps Shopify store o
   - `ordersRecent({ shop, limit })` — Shopify Admin API (non‑protected)
   - `orderGet({ shop, orderId })` — Shopify Admin API (non‑protected)
 - Write
+  - `shopify` (router)
+    - `createWebhook({ shopDomain, storeName })`
+    - `createCustomAppConnection({ shopDomain, subdomain, accessToken, apiSecret, storeName })`
   - `aiSuggestReply({ customerMessage, orderSummary, tone })` — AI draft (OpenAI-powered)
   - `actionCreate({ shop, shopifyOrderId, email?, type, note?, draft? })`
   - `actionApproveAndSend({ actionId, to, subject, body })` — Real email send via Mailgun + event logging

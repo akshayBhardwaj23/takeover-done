@@ -79,7 +79,7 @@
 
 ### 🔁 Integrations
 
-- ✅ Shopify OAuth
+- ✅ Shopify OAuth & Custom App Connection
 - ✅ Email Integration
 - ✅ Shopify Webhooks (orders, refunds, fulfillments)
 
@@ -195,6 +195,7 @@ Customer Email → Dashboard integration → AI Parser
 
 ## 🔐 **11. Security & Compliance**
 
+- ✅ Security Overview Page (/security) with comprehensive details
 - ✅ Shopify HMAC webhook verification
 - ✅ OAuth token encryption
 - ✅ Rate limits on AI endpoints
