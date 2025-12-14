@@ -429,8 +429,7 @@ export default function InboxPage() {
   const ordersPage = trpc.ordersList.useQuery(
     { offset: ordersOffset, limit: PAGE_SIZE },
     {
-      enabled:
-        view === 'orders' || (view === 'inbox' && !!backgroundOrdersQuery.data), // Active tab or background ready
+      enabled: view === 'orders', // Only fetch when Orders tab is active
       keepPreviousData: true,
       staleTime: 30_000,
       refetchOnWindowFocus: false,
