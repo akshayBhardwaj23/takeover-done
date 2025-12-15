@@ -669,6 +669,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Ensure a placeholder AI suggestion exists immediately so the UI can show progress.
+    // This will be overwritten/updated by the async Inngest function once it runs.
+    await prisma.aISuggestion.upsert({
+      where: { messageId: msg.id },
+      update: {},
+      create: {
+        messageId: msg.id,
+        reply: 'Processing your message... AI suggestion will be available shortly.',
+        proposedAction: 'NONE' as any,
+        orderId: orderId ?? null,
+        confidence: 0.1,
+      },
+    });
+
     // Trigger Inngest event to generate AI suggestion (non-blocking, event-driven)
     // This replaces BullMQ worker - zero Redis polling!
     try {
@@ -689,19 +703,6 @@ export async function POST(req: NextRequest) {
         '[Email Webhook] Failed to trigger Inngest event, AI suggestion will be generated later:',
         error,
       );
-      // Create a placeholder suggestion that will be updated when Inngest processes it
-      await prisma.aISuggestion.upsert({
-        where: { messageId: msg.id },
-        update: {},
-        create: {
-          messageId: msg.id,
-          reply:
-            'Processing your message... AI suggestion will be available shortly.',
-          proposedAction: 'NONE' as any,
-          orderId: orderId ?? null,
-          confidence: 0.1,
-        },
-      });
     }
 
     // Note: Webhook idempotency is already handled at the start with SETNX
