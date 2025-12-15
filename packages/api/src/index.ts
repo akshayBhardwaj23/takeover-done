@@ -434,7 +434,7 @@ async function syncShopifyData(connectionId: string, userId: string) {
           statusUpdatedAt: order.updated_at
             ? new Date(order.updated_at)
             : new Date(),
-        },
+        } as any,
         update: {
           status: (order.financial_status || 'pending').toUpperCase(),
           fulfillmentStatus: (
@@ -449,18 +449,18 @@ async function syncShopifyData(connectionId: string, userId: string) {
             ? new Date(order.updated_at)
             : new Date(),
           updatedAt: new Date(),
-        },
+        } as any,
       });
 
       // Sync line items if present
       if (order.line_items && order.line_items.length > 0) {
         try {
           // Delete existing line items and insert new ones (handles updates)
-          await prisma.orderLineItem.deleteMany({
+          await (prisma as any).orderLineItem.deleteMany({
             where: { orderId: upsertedOrder.id },
           });
 
-          await prisma.orderLineItem.createMany({
+          await (prisma as any).orderLineItem.createMany({
             data: order.line_items.map((item) => ({
               orderId: upsertedOrder.id,
               shopifyId: String(item.id),
@@ -1089,7 +1089,7 @@ const shopifyRouter = t.router({
       }
 
       // Verify user owns this connection
-      if (order.connection.userId !== ctx.userId) {
+      if ((order as any).connection.userId !== ctx.userId) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'Access denied to this order',
@@ -1152,7 +1152,7 @@ const shopifyRouter = t.router({
         data: {
           status: input.amount ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
           statusUpdatedAt: new Date(),
-        },
+        } as any,
       });
 
       // Log the refund action
@@ -1225,7 +1225,7 @@ const shopifyRouter = t.router({
       }
 
       // Verify user owns this connection
-      if (order.connection.userId !== ctx.userId) {
+      if ((order as any).connection.userId !== ctx.userId) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'Access denied to this order',
@@ -1288,7 +1288,7 @@ const shopifyRouter = t.router({
         data: {
           status: 'CANCELLED',
           statusUpdatedAt: new Date(),
-        },
+        } as any,
       });
 
       // Log the cancel action
@@ -1340,7 +1340,7 @@ const shopifyRouter = t.router({
             orderBy: { createdAt: 'desc' },
             take: 10,
           },
-        },
+        } as any,
       });
 
       if (!order) {
@@ -1350,27 +1350,28 @@ const shopifyRouter = t.router({
         });
       }
 
-      if (order.connection.userId !== ctx.userId) {
+      const orderWithIncludes = order as any;
+
+      if (orderWithIncludes.connection.userId !== ctx.userId) {
         throw new TRPCError({
           code: 'FORBIDDEN',
           message: 'Access denied',
         });
       }
-
       return {
-        id: order.id,
-        shopifyId: order.shopifyId,
-        name: order.name,
-        status: order.status,
-        fulfillmentStatus: order.fulfillmentStatus,
-        totalAmount: order.totalAmount,
-        currency: order.currency,
-        email: order.email,
-        customerName: order.customerName,
-        shopDomain: order.shopDomain,
-        processedAt: order.processedAt,
-        statusUpdatedAt: order.statusUpdatedAt,
-        lineItems: order.lineItems.map((item) => ({
+        id: orderWithIncludes.id,
+        shopifyId: orderWithIncludes.shopifyId,
+        name: orderWithIncludes.name,
+        status: orderWithIncludes.status,
+        fulfillmentStatus: orderWithIncludes.fulfillmentStatus,
+        totalAmount: orderWithIncludes.totalAmount,
+        currency: orderWithIncludes.currency,
+        email: orderWithIncludes.email,
+        customerName: orderWithIncludes.customerName,
+        shopDomain: orderWithIncludes.shopDomain,
+        processedAt: orderWithIncludes.processedAt,
+        statusUpdatedAt: orderWithIncludes.statusUpdatedAt,
+        lineItems: orderWithIncludes.lineItems.map((item: any) => ({
           id: item.id,
           shopifyId: item.shopifyId,
           title: item.title,
@@ -1379,32 +1380,32 @@ const shopifyRouter = t.router({
           sku: item.sku,
         })),
         // Customer PII from webhooks
-        customer: order.customer
+        customer: orderWithIncludes.customer
           ? {
-              id: order.customer.id,
-              email: order.customer.email,
-              phone: order.customer.phone,
-              firstName: order.customer.firstName,
-              lastName: order.customer.lastName,
+              id: orderWithIncludes.customer.id,
+              email: orderWithIncludes.customer.email,
+              phone: orderWithIncludes.customer.phone,
+              firstName: orderWithIncludes.customer.firstName,
+              lastName: orderWithIncludes.customer.lastName,
               fullName:
-                [order.customer.firstName, order.customer.lastName]
+                [orderWithIncludes.customer.firstName, orderWithIncludes.customer.lastName]
                   .filter(Boolean)
                   .join(' ') || null,
               address: {
-                address1: order.customer.address1,
-                address2: order.customer.address2,
-                city: order.customer.city,
-                province: order.customer.province,
-                country: order.customer.country,
-                zip: order.customer.zip,
-                company: order.customer.company,
+                address1: orderWithIncludes.customer.address1,
+                address2: orderWithIncludes.customer.address2,
+                city: orderWithIncludes.customer.city,
+                province: orderWithIncludes.customer.province,
+                country: orderWithIncludes.customer.country,
+                zip: orderWithIncludes.customer.zip,
+                company: orderWithIncludes.customer.company,
               },
-              ordersCount: order.customer.ordersCount,
-              totalSpent: order.customer.totalSpent,
-              acceptsMarketing: order.customer.acceptsMarketing,
+              ordersCount: orderWithIncludes.customer.ordersCount,
+              totalSpent: orderWithIncludes.customer.totalSpent,
+              acceptsMarketing: orderWithIncludes.customer.acceptsMarketing,
             }
           : null,
-        recentActions: order.actions,
+        recentActions: orderWithIncludes.actions,
       };
     }),
 });
@@ -2102,7 +2103,7 @@ export const appRouter = t.router({
 
       const [orders, unassignedMessages, emailLimit] = await Promise.all([
         // Only fetch orders if ordersTake > 0
-        ordersTake > 0
+        (ordersTake > 0
           ? prisma.order.findMany({
               where: { connectionId: { in: orderConnectionIds } },
               orderBy: { createdAt: 'desc' },
@@ -2122,9 +2123,9 @@ export const appRouter = t.router({
                 shopDomain: true,
                 connectionId: true,
                 // lineItems removed for performance - fetched on demand via getOrderDetails
-              },
+              } as any,
             })
-          : Promise.resolve([]),
+          : Promise.resolve([])) as Promise<any[]>,
         unassignedConnectionIds.length && unassignedTake > 0
           ? (async () => {
               // Create connection lookup map from cached connections (already fetched at line 2084)
@@ -2209,7 +2210,7 @@ export const appRouter = t.router({
                         //     metadata: true,
                         //   },
                         // },
-                      },
+                      } as any,
                     },
                     aiSuggestion: {
                       select: {
@@ -2218,7 +2219,7 @@ export const appRouter = t.router({
                         confidence: true,
                       },
                     },
-                  },
+                  } as any,
                 }),
                 prisma.message.count({
                   where: whereClause,
@@ -2226,7 +2227,7 @@ export const appRouter = t.router({
               ]);
 
               // Add connection data manually from cached connections (fast in-memory lookup)
-              const messagesWithConnections = unassignedMessages.map((msg) => {
+              const messagesWithConnections = unassignedMessages.map((msg: any) => {
                 const connection = msg.thread?.connectionId
                   ? connectionMap.get(msg.thread.connectionId)
                   : null;
@@ -2237,8 +2238,8 @@ export const appRouter = t.router({
                     ...msg.thread,
                     connection: connection
                       ? {
-                          shopDomain: connection.shopDomain,
-                          metadata: connection.metadata,
+                          shopDomain: (connection as any).shopDomain,
+                          metadata: (connection as any).metadata,
                         }
                       : null,
                   },
@@ -2255,7 +2256,7 @@ export const appRouter = t.router({
       ]);
 
       // Calculate pending email counts for each order (only if orders were fetched)
-      const orderIds = orders.map((o) => o.id);
+      const orderIds = (orders as any[]).map((o: any) => o.id) as string[];
       const pendingCountsMap = new Map<string, number>();
 
       if (orderIds.length > 0 && ordersTake > 0) {
@@ -2273,8 +2274,8 @@ export const appRouter = t.router({
 
           // Convert results to Map (filter out null orderIds)
           for (const row of pendingCounts) {
-            if (row.orderId) {
-              pendingCountsMap.set(row.orderId, row._count.id);
+            if (row.orderId && row._count && typeof row._count === 'object' && 'id' in row._count) {
+              pendingCountsMap.set(row.orderId, (row._count as any).id);
             }
           }
         } catch (error) {
@@ -2287,7 +2288,7 @@ export const appRouter = t.router({
       }
 
       // Add pending email counts to orders
-      const ordersWithPending = orders.map((order) => ({
+      const ordersWithPending = (orders as any[]).map((order: any) => ({
         ...order,
         pendingEmailCount: pendingCountsMap.get(order.id) ?? 0,
       }));
@@ -2380,6 +2381,15 @@ export const appRouter = t.router({
         tone: z.enum(['friendly', 'professional']).default('friendly'),
         customerEmail: z.string().optional(),
         orderId: z.string().optional(),
+        threadMessages: z
+          .array(
+            z.object({
+              body: z.string(),
+              direction: z.enum(['INBOUND', 'OUTBOUND']),
+              createdAt: z.string(),
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -2396,10 +2406,171 @@ export const appRouter = t.router({
         });
       }
 
-      // Sanitize inputs
+      // Helper function to extract order numbers from text
+      const extractOrderCandidate = (text: string): string | null => {
+        const patterns = [
+          /#\s?(\d{3,8})/i, // #1003 or # 1003
+          /order\s+#?\s?(\d{3,8})(?:\s|$|[^\d])/i, // order #1003, order 1003
+          /order\s+status\s+(\d{3,8})/i, // order status 1003
+          /order\s+number\s+(\d{3,8})/i, // order number 1003
+          /\b(\d{4,5})\b/i, // Standalone 4-5 digit numbers
+        ];
+        for (const re of patterns) {
+          const m = text.match(re);
+          if (m) return m[1];
+        }
+        return null;
+      };
+
+      // Sanitize inputs first (needed for order extraction)
       const message = sanitizeLimited(input.customerMessage, 5000);
-      const orderSummary = sanitizeLimited(input.orderSummary, 500);
       const customerEmail = safeEmail(input.customerEmail) ?? undefined;
+      
+      // Extract order numbers from all thread messages (prioritize INBOUND messages)
+      let foundOrderId: string | undefined = input.orderId;
+      let foundOrderSummary: string | undefined = input.orderSummary;
+      const threadMessages = input.threadMessages || [];
+
+      if (threadMessages.length > 0 && !foundOrderId) {
+        // Search all messages for order numbers (check INBOUND first, then OUTBOUND)
+        const inboundMessages = threadMessages.filter(
+          (m) => m.direction === 'INBOUND',
+        );
+        const outboundMessages = threadMessages.filter(
+          (m) => m.direction === 'OUTBOUND',
+        );
+        // Prioritize INBOUND messages (customer messages) for order number extraction
+        const allMessages = [...inboundMessages, ...outboundMessages];
+
+        for (const msg of allMessages) {
+          const candidate = extractOrderCandidate(msg.body);
+          if (candidate) {
+            // Try to find order by name or shopifyId
+            const order = await prisma.order.findFirst({
+              where: {
+                OR: [
+                  { name: `#${candidate}` },
+                  { name: candidate },
+                  { name: { contains: candidate } },
+                  { shopifyId: candidate },
+                ],
+                connection: {
+                  userId: ctx.userId,
+                },
+              },
+              select: {
+                id: true,
+                shopifyId: true,
+                name: true,
+                totalAmount: true,
+                currency: true,
+                status: true,
+                fulfillmentStatus: true,
+                createdAt: true,
+              } as any,
+            });
+
+            if (order) {
+              foundOrderId = (order as any).shopifyId;
+              foundOrderSummary = ((order as any).name || `Order #${candidate}`) as string;
+              break; // Use first found order
+            }
+          }
+        }
+      }
+
+      // Fetch full order details and customer history if order found
+      let orderDetails: any = null;
+      let customerOrderHistory: any[] = [];
+      let customerPurchaseCount = 0;
+
+      if (foundOrderId) {
+        // Fetch full order details
+        orderDetails = await prisma.order.findFirst({
+          where: {
+            shopifyId: foundOrderId,
+            connection: {
+              userId: ctx.userId,
+            },
+          },
+          select: {
+            id: true,
+            shopifyId: true,
+            name: true,
+            email: true,
+            totalAmount: true,
+            currency: true,
+            status: true,
+            fulfillmentStatus: true,
+            createdAt: true,
+            customerName: true,
+            shopDomain: true,
+          } as any,
+        });
+
+        // Fetch customer order history (repeat purchases) if email available
+        if (customerEmail || orderDetails?.email) {
+          const customerEmailForHistory = customerEmail || orderDetails?.email;
+          customerOrderHistory = await prisma.order.findMany({
+            where: {
+              email: customerEmailForHistory,
+              connection: {
+                userId: ctx.userId,
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 5, // Last 5 orders
+            select: {
+              name: true,
+              totalAmount: true,
+              currency: true,
+              status: true,
+              createdAt: true,
+            } as any,
+          });
+          customerPurchaseCount = customerOrderHistory.length;
+        }
+      }
+
+      // Extract SKUs from message (if order details available, we can match)
+      const extractSKUs = (text: string): string[] => {
+        const skuPatterns = [
+          /SKU[:\s]+([A-Z0-9\-]+)/gi,
+          /sku[:\s]+([A-Z0-9\-]+)/gi,
+          /\b([A-Z]{2,}\d{3,})\b/g, // Pattern like "ABC123"
+        ];
+        const skus: string[] = [];
+        for (const pattern of skuPatterns) {
+          const matches = text.matchAll(pattern);
+          for (const match of matches) {
+            if (match[1]) skus.push(match[1].toUpperCase());
+          }
+        }
+        return [...new Set(skus)]; // Remove duplicates
+      };
+
+      const extractedSKUs = extractSKUs(message);
+      const allThreadText = threadMessages.map((m) => m.body).join(' ');
+      const allSKUs = [...new Set([...extractedSKUs, ...extractSKUs(allThreadText)])];
+
+      // Enhanced sentiment detection (beyond urgency)
+      const detectSentiment = (text: string): 'angry' | 'frustrated' | 'neutral' | 'positive' => {
+        const lowerText = text.toLowerCase();
+        const angryWords = /(angry|furious|terrible|awful|horrible|worst|hate|disgusted|ridiculous|unacceptable)/.test(lowerText);
+        const frustratedWords = /(frustrated|annoyed|disappointed|upset|concerned|worried|problem|issue|wrong|broken)/.test(lowerText);
+        const positiveWords = /(thank|thanks|appreciate|great|excellent|love|happy|pleased|satisfied|perfect)/.test(lowerText);
+        
+        if (angryWords) return 'angry';
+        if (frustratedWords && !positiveWords) return 'frustrated';
+        if (positiveWords && !frustratedWords) return 'positive';
+        return 'neutral';
+      };
+
+      const sentiment = detectSentiment(message);
+      const orderSummary = sanitizeLimited(
+        foundOrderSummary || input.orderSummary,
+        500,
+      );
       const apiKey = process.env.OPENAI_API_KEY;
 
       // Enhanced fallback with personalization
@@ -2407,11 +2578,11 @@ export const appRouter = t.router({
         ? customerEmail
             .split('@')[0]
             .replace(/[._]/g, ' ')
-            .replace(/\b\w/g, (l) => l.toUpperCase())
+            .replace(/\b\w/g, (l: string) => l.toUpperCase())
         : 'there';
 
       const greeting = input.tone === 'professional' ? 'Hello' : 'Hi';
-      const storeName = await resolveStoreName(ctx.userId, input.orderId);
+      const storeName = await resolveStoreName(ctx.userId, foundOrderId);
       const signatureBlock = buildSignatureBlock(storeName);
       const requiredSignature = `Warm Regards,\n\n${signatureBlock}`;
 
@@ -2439,10 +2610,65 @@ export const appRouter = t.router({
         return { suggestion: buildFallback() };
       }
 
-      // Enhanced OpenAI prompt for better replies (lightweight heuristics to avoid latency hits)
-      const orderContext = orderSummary
-        ? `Order Details: ${orderSummary}`
-        : 'No specific order referenced - customer may need to provide order number';
+      // Build thread context summary (last 3-4 messages for context, avoiding token bloat)
+      const recentMessages = threadMessages
+        .slice(-4)
+        .map((m, idx) => {
+          const role = m.direction === 'INBOUND' ? 'Customer' : 'Support';
+          const date = new Date(m.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          });
+          return `${role} (${date}): ${m.body.substring(0, 200)}`;
+        })
+        .join('\n\n');
+
+      const threadContext =
+        threadMessages.length > 0
+          ? `\n\nPrevious conversation context:\n${recentMessages}`
+          : '';
+
+      // Build comprehensive order context
+      let orderContextDetails = '';
+      if (orderDetails) {
+        const orderDate = new Date(orderDetails.createdAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        });
+        orderContextDetails = `Order Details:
+- Order Number: ${orderDetails.name || 'N/A'}
+- Order Date: ${orderDate}
+- Status: ${orderDetails.status || 'N/A'}
+- Fulfillment Status: ${orderDetails.fulfillmentStatus || 'N/A'}
+- Total Amount: ${orderDetails.totalAmount ? (orderDetails.totalAmount / 100).toFixed(2) : 'N/A'} ${orderDetails.currency || ''}`;
+      } else if (orderSummary) {
+        orderContextDetails = `Order Details: ${orderSummary}`;
+      } else if (threadMessages.length > 0) {
+        orderContextDetails = 'Order number may have been mentioned in earlier messages - check thread context below';
+      } else {
+        orderContextDetails = 'No specific order referenced - customer may need to provide order number';
+      }
+
+      // Build customer history context
+      let customerHistoryContext = '';
+      if (customerPurchaseCount > 1) {
+        const lastOrder = customerOrderHistory[1]; // Second order (current is first)
+        if (lastOrder) {
+          const lastOrderDate = new Date(lastOrder.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            year: 'numeric',
+          });
+          customerHistoryContext = `\n- Customer History: This is a repeat customer with ${customerPurchaseCount} total orders. Last previous order was ${lastOrder.name} from ${lastOrderDate}.`;
+        } else {
+          customerHistoryContext = `\n- Customer History: This is a repeat customer with ${customerPurchaseCount} total orders.`;
+        }
+      }
+
+      // Build SKU context
+      const skuContext = allSKUs.length > 0
+        ? `\n- Product SKUs mentioned: ${allSKUs.join(', ')}`
+        : '';
 
       const lowerMsg = message.toLowerCase();
       const urgencyLabel = /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
@@ -2463,18 +2689,27 @@ export const appRouter = t.router({
 
 Context:
 - Store: ${storeName}
-- Customer: ${customerName} (${customerEmail || 'unknown email'})
-- Order: ${orderContext}
+- Customer: ${customerName} (${customerEmail || 'unknown email'})${customerHistoryContext}
+- ${orderContextDetails}${skuContext}
 - Detected issue type: ${issueType}
 - Urgency: ${urgencyLabel}
-- Tone: ${input.tone}
+- Customer Sentiment: ${sentiment} (${sentiment === 'angry' ? 'apologize and offer compensation' : sentiment === 'frustrated' ? 'show empathy and provide clear solution' : sentiment === 'positive' ? 'appreciate and consider upselling' : 'be helpful and concise'})
+- Tone: ${input.tone}${threadContext}
 
 Guidelines:
+- CRITICAL: This is part of an ongoing conversation thread. Review the "Previous conversation context" above to find order numbers, order details, or other important information mentioned in earlier messages. Customers often mention order numbers only once at the start of a conversation - DO NOT ask for order numbers that were already provided earlier in the thread.
+- Personalization: ${customerPurchaseCount > 1 ? `This is a repeat customer (${customerPurchaseCount} orders). Reference their loyalty and past orders when relevant (e.g., "Based on your previous orders..." or "As a valued customer...").` : 'This appears to be a first-time customer. Welcome them warmly.'}
 - Acknowledge their exact concern and urgency level.
-- If order info is missing, ask once for order number/email used to place it.
-- Reference known order details when present; otherwise be transparent you need specifics.
-- Add 1–2 data-driven specifics (order dates, status, ETA, return window) when available.
-- Match sentiment: if upset → apologize + clear next step; if neutral → concise and actionable; if positive → appreciative.
+- If order info is found in thread context or provided above, reference it naturally with specific details (order number, date, status). DO NOT ask for information already present in the conversation.
+- Only ask for order number/email if it's truly missing from the ENTIRE conversation thread (check all previous messages).
+- Reference known order details when present (order date, status, fulfillment status, amount); otherwise be transparent you need specifics.
+- Add 1–2 data-driven specifics (order dates, status, fulfillment status, return window) when available from the order context above.
+- Sentiment-aware response:
+  * If angry (${sentiment === 'angry' ? 'DETECTED' : 'not detected'}): Apologize sincerely, acknowledge the frustration, offer compensation or immediate resolution.
+  * If frustrated (${sentiment === 'frustrated' ? 'DETECTED' : 'not detected'}): Show empathy, provide clear step-by-step solution, reassure them.
+  * If positive (${sentiment === 'positive' ? 'DETECTED' : 'not detected'}): Thank them, appreciate their feedback, consider upselling or loyalty rewards.
+  * If neutral: Be helpful, concise, and actionable.
+- ${allSKUs.length > 0 ? `Product SKUs mentioned: ${allSKUs.join(', ')} - reference these if relevant to the issue.` : ''}
 - Keep it short, direct, and ready to send.
 - Avoid placeholders; use the real store name and sign-off below.
 - Sign off with:
@@ -2482,10 +2717,10 @@ Warm Regards,
 
 ${signatureBlock}
 
-Customer Message:
+Current Customer Message:
 ${input.customerMessage}
 
-Write a comprehensive reply that addresses their concern and provides clear next steps.`;
+Write a comprehensive reply that addresses their concern and provides clear next steps. Remember to check the conversation history for any order numbers or details mentioned earlier.`;
 
       try {
         const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -2683,7 +2918,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
         });
 
-        if (!action || action.order.connection.userId !== ctx.userId) {
+        if (!action || (action as any).order.connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Action access denied',
@@ -2766,7 +3001,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                     data: {
                       status: refundAmount ? 'PARTIALLY_REFUNDED' : 'REFUNDED',
                       statusUpdatedAt: new Date(),
-                    },
+                    } as any,
                   });
 
                   await logEvent(
@@ -2823,7 +3058,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                     data: {
                       status: 'CANCELLED',
                       statusUpdatedAt: new Date(),
-                    },
+                    } as any,
                   });
 
                   await logEvent(
@@ -3190,7 +3425,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
         });
 
-        if (!message || message.thread.connection.userId !== ctx.userId) {
+        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -3395,7 +3630,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Mark thread as read after sending reply
         await prisma.thread.update({
           where: { id: message.thread.id },
-          data: { isUnread: false },
+          data: { isUnread: false } as any,
         });
 
         await logEvent(
@@ -3430,7 +3665,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           where: { shopifyId: input.shopifyOrderId },
           include: { connection: true },
         });
-        if (!order || order.connection.userId !== ctx.userId) {
+        if (!order || (order as any).connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Order access denied',
@@ -3558,9 +3793,9 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                     select: {
                       shopDomain: true,
                       metadata: true,
-                    },
-                  },
-                },
+                    } as any,
+                  } as any,
+                } as any,
               },
               aiSuggestion: {
                 select: {
@@ -3569,7 +3804,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                   confidence: true,
                 },
               },
-            },
+            } as any,
           }),
           prisma.message.count({
             where: whereClause,
@@ -3593,7 +3828,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           include: { thread: { include: { connection: true } } },
         });
 
-        if (!message || message.thread.connection.userId !== ctx.userId) {
+        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -3640,7 +3875,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           include: { connection: true },
         });
 
-        if (!thread || thread.connection.userId !== ctx.userId) {
+        if (!thread || (thread as any).connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Thread access denied',
@@ -3649,7 +3884,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         await prisma.thread.update({
           where: { id: input.threadId },
-          data: { isUnread: input.isUnread },
+          data: { isUnread: input.isUnread } as any,
         });
 
         await logEvent(
@@ -3683,7 +3918,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           include: { connection: true },
         });
 
-        if (!thread || thread.connection.userId !== ctx.userId) {
+        if (!thread || (thread as any).connection.userId !== ctx.userId) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Thread access denied',
@@ -3692,7 +3927,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         await prisma.thread.update({
           where: { id: input.threadId },
-          data: { isFlagged: input.isFlagged },
+          data: { isFlagged: input.isFlagged } as any,
         });
 
         await logEvent(
@@ -3963,11 +4198,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             if (order.line_items && order.line_items.length > 0) {
               try {
                 // Delete existing and insert new (handles updates)
-                await prisma.orderLineItem.deleteMany({
+                await (prisma as any).orderLineItem.deleteMany({
                   where: { orderId: upsertedOrder.id },
                 });
 
-                await prisma.orderLineItem.createMany({
+                await (prisma as any).orderLineItem.createMany({
                   data: order.line_items.map((item: any) => ({
                     orderId: upsertedOrder.id,
                     shopifyId: String(item.id),
