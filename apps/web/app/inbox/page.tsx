@@ -1086,11 +1086,17 @@ export default function InboxPage() {
   const handleSelectEmail = useCallback((email: EmailMessage) => {
     setSelectedEmailId(email.id);
     setSelectedOrderId(null);
-    setDraft(
-      email.aiSuggestion?.reply
-        ? cleanPlaceholders(email.aiSuggestion.reply)
-        : '',
-    );
+    // Only set draft from aiSuggestion if thread is unread (not replied yet)
+    // If thread is read (isUnread === false), we've already replied, so clear draft
+    if (email.thread?.isUnread === false) {
+      setDraft(''); // Thread is read = already replied, don't show suggestion
+    } else {
+      setDraft(
+        email.aiSuggestion?.reply
+          ? cleanPlaceholders(email.aiSuggestion.reply)
+          : '',
+      );
+    }
   }, []);
 
   const handleSelectOrder = useCallback((order: DbOrder) => {
