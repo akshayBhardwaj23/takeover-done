@@ -1943,10 +1943,8 @@ export default function InboxPage() {
                             )}
 
                             {/* AI Suggestion Section */}
-                            {/* Only show AI suggestion if thread is unread (we haven't replied yet) */}
-                            {/* Only show AI suggestion if thread is explicitly unread (isUnread === true) */}
-                            {/* Hide if thread is read (isUnread === false) or if thread data is missing */}
-                            {selectedEmail.thread?.isUnread === true &&
+                            {/* Show AI suggestion unless thread is explicitly read (isUnread === false) */}
+                            {selectedEmail.thread?.isUnread !== false &&
                               (selectedEmail.aiSuggestion || draft) && (
                                 <div className="mt-6 pt-6 border-t border-stone-100">
                                   <div className="flex items-center gap-2 mb-4">
@@ -2048,6 +2046,24 @@ export default function InboxPage() {
                               </button>
                             </div>
                             <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                onClick={handleGenerateAi}
+                                disabled={!selectedEmail || suggest.isPending}
+                                className="rounded-lg bg-violet-600 text-white hover:bg-violet-700"
+                              >
+                                {suggest.isPending ? (
+                                  <>
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                                    Generating...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                                    AI
+                                  </>
+                                )}
+                              </Button>
                               <Button
                                 size="sm"
                                 onClick={handleSendReply}
