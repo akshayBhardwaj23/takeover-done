@@ -2127,6 +2127,10 @@ export const appRouter = t.router({
           : Promise.resolve([]),
         unassignedConnectionIds.length && unassignedTake > 0
           ? (async () => {
+              // Create connection lookup map from cached connections (already fetched at line 2084)
+              // This eliminates the need for database JOINs - much faster!
+              const connectionMap = new Map(connections.map((c) => [c.id, c]));
+
               // Optimized: Get thread IDs first (uses index efficiently)
               const threadIds = await prisma.thread.findMany({
                 where: { connectionId: { in: unassignedConnectionIds } },
@@ -2198,12 +2202,13 @@ export const appRouter = t.router({
                         isUnread: true,
                         isFlagged: true,
                         connectionId: true,
-                        connection: {
-                          select: {
-                            shopDomain: true,
-                            metadata: true,
-                          },
-                        },
+                        // REMOVED: nested connection relation - use cached connections instead
+                        // connection: {
+                        //   select: {
+                        //     shopDomain: true,
+                        //     metadata: true,
+                        //   },
+                        // },
                       },
                     },
                     aiSuggestion: {
@@ -2219,8 +2224,29 @@ export const appRouter = t.router({
                   where: whereClause,
                 }),
               ]);
+
+              // Add connection data manually from cached connections (fast in-memory lookup)
+              const messagesWithConnections = unassignedMessages.map((msg) => {
+                const connection = msg.thread?.connectionId
+                  ? connectionMap.get(msg.thread.connectionId)
+                  : null;
+
+                return {
+                  ...msg,
+                  thread: {
+                    ...msg.thread,
+                    connection: connection
+                      ? {
+                          shopDomain: connection.shopDomain,
+                          metadata: connection.metadata,
+                        }
+                      : null,
+                  },
+                };
+              });
+
               return {
-                messages: unassignedMessages,
+                messages: messagesWithConnections,
                 hasMore: totalCount > unassignedOffset + unassignedTake,
               };
             })()
