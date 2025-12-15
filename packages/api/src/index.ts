@@ -2439,33 +2439,51 @@ export const appRouter = t.router({
         return { suggestion: buildFallback() };
       }
 
-      // Enhanced OpenAI prompt for better replies
+      // Enhanced OpenAI prompt for better replies (lightweight heuristics to avoid latency hits)
       const orderContext = orderSummary
         ? `Order Details: ${orderSummary}`
         : 'No specific order referenced - customer may need to provide order number';
 
-      const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's message.
+      const lowerMsg = message.toLowerCase();
+      const urgencyLabel = /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
+        ? 'urgent'
+        : 'standard';
+      const issueType =
+        /(refund|return|exchange|cancel)/.test(lowerMsg)
+          ? 'refund/return'
+          : /(shipping|delivery|delayed|tracking)/.test(lowerMsg)
+            ? 'shipping'
+            : /(payment|charge|billing)/.test(lowerMsg)
+              ? 'payment'
+              : /(product|size|spec|compatib|information|question)/.test(lowerMsg)
+                ? 'product_info'
+                : 'general';
+
+      const prompt = `You are a professional customer support representative for an e-commerce store. Draft a concise, empathetic reply that feels tailored to the customer (keep speed high, avoid fluff).
+
+Context:
+- Store: ${storeName}
+- Customer: ${customerName} (${customerEmail || 'unknown email'})
+- Order: ${orderContext}
+- Detected issue type: ${issueType}
+- Urgency: ${urgencyLabel}
+- Tone: ${input.tone}
 
 Guidelines:
-- Be ${input.tone} and professional
-- Acknowledge their specific concern
-- Use their name if available (${customerName})
-- Reference their order details if available
-- Provide clear next steps
-- Show understanding and empathy
-- Keep it conversational but professional
-- Address their specific request directly
-- Offer specific solutions
+- Acknowledge their exact concern and urgency level.
+- If order info is missing, ask once for order number/email used to place it.
+- Reference known order details when present; otherwise be transparent you need specifics.
+- Add 1–2 data-driven specifics (order dates, status, ETA, return window) when available.
+- Match sentiment: if upset → apologize + clear next step; if neutral → concise and actionable; if positive → appreciative.
+- Keep it short, direct, and ready to send.
+- Avoid placeholders; use the real store name and sign-off below.
 - Sign off with:
 Warm Regards,
 
 ${signatureBlock}
 
-IMPORTANT: Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Information]. Use the actual store name: ${storeName}
-
-${orderContext}
-
-Customer Message: ${input.customerMessage}
+Customer Message:
+${input.customerMessage}
 
 Write a comprehensive reply that addresses their concern and provides clear next steps.`;
 
