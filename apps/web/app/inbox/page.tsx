@@ -680,14 +680,18 @@ export default function InboxPage() {
 
   // Initialize flaggedThreads from backend data
   // Sync with backend to ensure flagged state is accurate
+  // Use useMemo with explicit type casting to avoid TypeScript deep type inference issues
+  const unassignedMessages = useMemo(
+    () => (Array.isArray(unassignedQuery.data?.messages) ? unassignedQuery.data.messages : []) as any[],
+    [unassignedQuery.data],
+  );
+  const bootstrapUnassignedMessages = useMemo(
+    () => (Array.isArray(inboxBootstrap.data?.unassigned) ? inboxBootstrap.data.unassigned : []) as any[],
+    [inboxBootstrap.data],
+  );
+  
   useEffect(() => {
-    const unassigned = Array.isArray(unassignedQuery.data?.messages)
-      ? unassignedQuery.data.messages
-      : [];
-    const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
-      ? inboxBootstrap.data.unassigned
-      : [];
-    const allIncoming = [...bootstrapUnassigned, ...unassigned];
+    const allIncoming = [...bootstrapUnassignedMessages, ...unassignedMessages];
 
     // Collect all flagged thread IDs from backend data
     const flaggedIds = new Set<string>();
@@ -709,19 +713,12 @@ export default function InboxPage() {
       }
       return prev;
     });
-  }, [unassignedQuery.data?.messages, inboxBootstrap.data?.unassigned]);
+  }, [unassignedMessages, bootstrapUnassignedMessages]);
 
   // Accumulate emails from pagination (similar to orders)
   useEffect(() => {
-    const unassigned = Array.isArray(unassignedQuery.data?.messages)
-      ? unassignedQuery.data.messages
-      : [];
-    const bootstrapUnassigned = Array.isArray(inboxBootstrap.data?.unassigned)
-      ? inboxBootstrap.data.unassigned
-      : [];
-
     // Combine emails from both sources
-    const allIncoming = [...bootstrapUnassigned, ...unassigned];
+    const allIncoming = [...bootstrapUnassignedMessages, ...unassignedMessages];
 
     if (emailsOffset === 0) {
       // First load or reset: replace accumulated emails
@@ -744,8 +741,8 @@ export default function InboxPage() {
       });
     }
   }, [
-    unassignedQuery.data?.messages,
-    inboxBootstrap.data?.unassigned,
+    unassignedMessages,
+    bootstrapUnassignedMessages,
     emailsOffset,
     searchAllHistory,
   ]);
@@ -1122,6 +1119,15 @@ export default function InboxPage() {
       'Customer inquiry';
     const customerEmail = selectedEmail.from;
 
+    // Prepare thread messages for context (exclude optimistic replies, only send real messages)
+    const threadMessagesForAI = (mergedThreadMessages.messages || [])
+      .filter((msg: any) => !msg.id?.startsWith('optimistic-'))
+      .map((msg: any) => ({
+        body: msg.body || '',
+        direction: msg.direction || 'INBOUND',
+        createdAt: msg.createdAt || new Date().toISOString(),
+      }));
+
     try {
       const response = await suggest.mutateAsync({
         customerMessage: selectedEmail.body || 'Customer inquiry',
@@ -1129,6 +1135,7 @@ export default function InboxPage() {
         tone: 'friendly',
         customerEmail,
         orderId: linkedOrder?.shopifyId ?? '',
+        threadMessages: threadMessagesForAI,
       });
 
       const cleanedSuggestion = cleanPlaceholders(
