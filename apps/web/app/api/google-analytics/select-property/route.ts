@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma, logEvent } from '@ai-ecom/db';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../../../lib/auth';
+import { authOptions } from '../../../../lib/auth';
 import { decryptSecure, encryptSecure } from '@ai-ecom/api';
 import * as Sentry from '@sentry/nextjs';
 
