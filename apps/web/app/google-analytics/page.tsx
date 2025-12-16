@@ -86,10 +86,13 @@ function GoogleAnalyticsInner() {
     staleTime: 60000, // 1 minute
   });
 
-  const reviewHistory = trpc.getGA4AIReviewHistory.useQuery(undefined, {
-    enabled: !!selectedPropertyId,
-    refetchOnWindowFocus: false,
-  });
+  const reviewHistory = trpc.getGA4AIReviewHistory.useQuery(
+    { propertyId: selectedPropertyId },
+    {
+      enabled: !!selectedPropertyId,
+      refetchOnWindowFocus: false,
+    },
+  );
 
   const generateReview = trpc.generateGA4AIReview.useMutation({
     onSuccess: () => {

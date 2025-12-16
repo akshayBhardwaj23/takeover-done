@@ -6933,36 +6933,43 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     };
   }),
   // Get GA4 AI Review History
-  getGA4AIReviewHistory: protectedProcedure.query(async ({ ctx }) => {
-    const connection = await prisma.connection.findFirst({
-      where: {
-        userId: ctx.userId,
-        type: 'GOOGLE_ANALYTICS' as any,
-      },
-    });
-
-    if (!connection) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: 'Google Analytics not connected',
+  getGA4AIReviewHistory: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS' as any,
+        },
       });
-    }
 
-    // Show all reviews for user (global - across all properties)
-    const prismaClient = prisma as any;
-    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
-    const reviews = model
-      ? await model.findMany({
-          where: {
-            userId: ctx.userId,
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10, // Last 10 reviews
-        })
-      : [];
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Google Analytics not connected',
+        });
+      }
 
-    return { reviews };
-  }),
+      // Filter reviews by propertyId if provided, otherwise show all for user
+      const prismaClient = prisma as any;
+      const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+      const reviews = model
+        ? await model.findMany({
+            where: {
+              userId: ctx.userId,
+              ...(input.propertyId && { propertyId: input.propertyId }),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10, // Last 10 reviews
+          })
+        : [];
+
+      return { reviews };
+    }),
   // Generate GA4 AI Review
   generateGA4AIReview: protectedProcedure.mutation(async ({ ctx }) => {
     const connection = await prisma.connection.findFirst({
