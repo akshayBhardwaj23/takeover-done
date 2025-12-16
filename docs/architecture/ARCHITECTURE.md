@@ -83,7 +83,11 @@ sequenceDiagram
 
 - AI Support Analytics: response time, ROI, customer satisfaction, volume trends
 - Shopify Business Analytics: revenue, orders, customers, AOV, growth metrics
-- Real-time metrics with 7-day trend visualizations
+- Google Analytics 4: sessions, users, page views, bounce rate, e-commerce metrics, traffic sources
+- Google Analytics 4 AI Review: AI-powered analysis with actionable insights
+- Meta Ads: spend, impressions, clicks, CTR, CPC, CPM, conversions, ROAS, CPA, campaign breakdowns
+- Meta Ads AI Review: AI-powered campaign analysis with recommendations
+- Real-time metrics with 7-day and 30-day trend visualizations
 
 **Automation Playbooks:**
 
