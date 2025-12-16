@@ -316,14 +316,43 @@ function IntegrationsInner() {
   });
 
   const disconnectGA = trpc.disconnectGoogleAnalytics.useMutation({
+    onMutate: async () => {
+      // Close dialog immediately for better UX
+      setDisconnectGADialogOpen(false);
+      
+      // Cancel any outgoing refetches
+      await utils.connections.cancel();
+      
+      // Snapshot the previous value
+      const previousConnections = utils.connections.getData();
+      
+      // Optimistically update the cache - remove GA connection immediately
+      utils.connections.setData(undefined, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          connections: old.connections.filter(
+            (c: any) => c.type !== 'GOOGLE_ANALYTICS'
+          ),
+        };
+      });
+      
+      return { previousConnections };
+    },
     onSuccess: async () => {
       toast.success('Google Analytics disconnected');
-      setDisconnectGADialogOpen(false);
-      // Invalidate and immediately refetch to update UI
-      await utils.connections.invalidate();
+      // Refetch to ensure we have the latest data from server
       await utils.connections.refetch();
     },
-    onError: (err: any) => toast.error(err.message),
+    onError: (err: any, variables, context) => {
+      // Rollback to previous value on error
+      if (context?.previousConnections) {
+        utils.connections.setData(undefined, context.previousConnections);
+      }
+      // Reopen dialog on error
+      setDisconnectGADialogOpen(true);
+      toast.error(err.message);
+    },
   });
 
   const disconnectMetaAds = trpc.disconnectMetaAds.useMutation({
