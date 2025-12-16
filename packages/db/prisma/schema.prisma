@@ -17,6 +17,7 @@ model User {
   connections Connection[]
   subscription Subscription?
   playbooks   Playbook[]
+  ga4Reviews  GA4AIReview[]
 }
 
 enum PlanType {
@@ -80,6 +81,7 @@ model Connection {
   orders       Order[]
   threads      Thread[]
   customers    Customer[]
+  ga4Reviews   GA4AIReview[]
   // Note: Messages are related via threads, not directly via connectionId
 
   @@index([userId])
@@ -317,4 +319,21 @@ enum ActionStatus {
   APPROVED
   REJECTED
   EXECUTED
+}
+
+model GA4AIReview {
+  id            String   @id @default(cuid())
+  userId        String
+  connectionId  String
+  propertyId    String
+  reviewDate    DateTime  // Date range analyzed (last 30 days ending on this date)
+  insights      Json     // Structured insights: problems, suggestions, tips
+  summary       String   // Executive summary
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([connectionId])
+  @@unique([userId, connectionId, reviewDate]) // One review per day per connection
 }

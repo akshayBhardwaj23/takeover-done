@@ -16,51 +16,41 @@ import {
   Globe,
   Clock,
   Target,
+  Sparkles,
+  AlertCircle,
+  CheckCircle,
+  Lightbulb,
+  AlertTriangle,
 } from 'lucide-react';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 
 function GoogleAnalyticsInner() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('7d');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
+  const [showReviewHistory, setShowReviewHistory] = useState(false);
 
   // Fetch connections
   const connections = trpc.connections.useQuery();
-
-  // Fetch properties
-  const properties = trpc.getGoogleAnalyticsProperties.useQuery(undefined, {
-    retry: 2,
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000,
-  });
 
   // Get GA connections
   const gaConnections = connections.data?.connections.filter(
     (c: any) => c.type === 'GOOGLE_ANALYTICS'
   ) || [];
 
-  // Auto-select property: first from metadata, then first from API
+  // Auto-select property from metadata only
   useEffect(() => {
     if (selectedPropertyId) return; // Already selected
 
-    // Try metadata first
+    // Get property from connection metadata
     if (gaConnections.length > 0) {
       const metadata = (gaConnections[0] as any).metadata as Record<string, unknown> | null;
       const metadataPropertyId = metadata?.propertyId as string | undefined;
       
-      if (metadataPropertyId && properties.data?.properties) {
-        const exists = properties.data.properties.some(p => p.propertyId === metadataPropertyId);
-        if (exists) {
-          setSelectedPropertyId(metadataPropertyId);
-          return;
-        }
+      if (metadataPropertyId) {
+        setSelectedPropertyId(metadataPropertyId);
       }
     }
-
-    // Fallback to first property from API
-    if (properties.data?.properties && properties.data.properties.length > 0) {
-      setSelectedPropertyId(properties.data.properties[0].propertyId);
-    }
-  }, [gaConnections, properties.data?.properties, selectedPropertyId]);
+  }, [gaConnections, selectedPropertyId]);
 
   // Calculate date range
   const endDate = new Date().toISOString().split('T')[0];
@@ -85,24 +75,25 @@ function GoogleAnalyticsInner() {
     }
   );
 
-  // Update property mutation
-  const updateProperty = trpc.updateGoogleAnalyticsProperty.useMutation({
+  // AI Review queries
+  const cooldown = trpc.checkGA4AIReviewCooldown.useQuery(undefined, {
+    enabled: !!selectedPropertyId,
+    refetchOnWindowFocus: false,
+    staleTime: 60000, // 1 minute
+  });
+
+  const reviewHistory = trpc.getGA4AIReviewHistory.useQuery(undefined, {
+    enabled: showReviewHistory && !!selectedPropertyId,
+    refetchOnWindowFocus: false,
+  });
+
+  const generateReview = trpc.generateGA4AIReview.useMutation({
     onSuccess: () => {
-      connections.refetch();
+      cooldown.refetch();
+      reviewHistory.refetch();
     },
   });
 
-  // Handle property selection
-  const handlePropertyChange = (propertyId: string) => {
-    setSelectedPropertyId(propertyId);
-    const selectedProperty = properties.data?.properties?.find(p => p.propertyId === propertyId);
-    if (selectedProperty && gaConnections.length > 0) {
-      updateProperty.mutate({
-        propertyId: selectedProperty.propertyId,
-        propertyName: selectedProperty.propertyName,
-      });
-    }
-  };
 
   // Show loading state while checking for connections
   if (connections.isLoading) {
@@ -155,64 +146,8 @@ function GoogleAnalyticsInner() {
     );
   }
 
-  // Properties loading
-  if (properties.isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl space-y-8 px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <BarChart3 className="h-6 w-6 text-slate-700" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
-              <p className="text-sm text-slate-500">Loading properties...</p>
-            </div>
-          </div>
-          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
-            <p className="mt-4 text-sm text-slate-600">Loading Google Analytics properties...</p>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  // Properties error
-  if (properties.error) {
-    return (
-      <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <Card className="mx-auto max-w-lg rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
-              <BarChart3 className="h-10 w-10 text-amber-500" />
-            </div>
-            <h2 className="mt-6 text-2xl font-bold text-slate-900">Unable to load properties</h2>
-            <p className="mt-3 text-sm text-slate-500">
-              {properties.error.message || 'Failed to fetch Google Analytics properties. Please try reconnecting.'}
-            </p>
-            <div className="mt-6 flex gap-3 justify-center">
-              <button
-                onClick={() => properties.refetch()}
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
-              >
-                Retry
-              </button>
-              <a
-                href="/integrations"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-700 transition hover:bg-slate-50"
-              >
-                Reconnect
-              </a>
-            </div>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  // No properties available
-  if (!properties.data?.properties || properties.data.properties.length === 0) {
+  // No property selected - redirect to selection page
+  if (!selectedPropertyId) {
     return (
       <main className="min-h-screen bg-slate-100 py-28">
         <div className="mx-auto max-w-6xl px-6">
@@ -220,51 +155,17 @@ function GoogleAnalyticsInner() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
               <BarChart3 className="h-10 w-10 text-slate-500" />
             </div>
-            <h2 className="mt-6 text-2xl font-bold text-slate-900">No properties found</h2>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">No property selected</h2>
             <p className="mt-3 text-sm text-slate-500">
-              No Google Analytics properties were found for your account. Please check your Google Analytics setup.
+              Please select a Google Analytics property to view analytics.
             </p>
             <a
-              href="/integrations"
+              href="/google-analytics/select-property"
               className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
             >
-              Go to Integrations
+              Select Property
               <ArrowRight className="h-4 w-4" />
             </a>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  // No property selected yet (shouldn't happen due to auto-select, but just in case)
-  if (!selectedPropertyId) {
-    return (
-      <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl space-y-8 px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <BarChart3 className="h-6 w-6 text-slate-700" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
-              <p className="text-sm text-slate-500">Select a property to view analytics</p>
-            </div>
-          </div>
-          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Select a Property</h2>
-            <select
-              value={selectedPropertyId}
-              onChange={(e) => handlePropertyChange(e.target.value)}
-              className="mt-6 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-            >
-              <option value="">Select a property...</option>
-              {properties.data.properties.map((prop) => (
-                <option key={prop.propertyId} value={prop.propertyId}>
-                  {prop.propertyName}
-                </option>
-              ))}
-            </select>
           </Card>
         </div>
       </main>
@@ -414,20 +315,6 @@ function GoogleAnalyticsInner() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {properties.data?.properties && properties.data.properties.length > 0 && (
-              <select
-                value={selectedPropertyId}
-                onChange={(e) => handlePropertyChange(e.target.value)}
-                disabled={updateProperty.isPending || properties.isLoading}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {properties.data.properties.map((prop) => (
-                  <option key={prop.propertyId} value={prop.propertyId}>
-                    {prop.propertyName}
-                  </option>
-                ))}
-              </select>
-            )}
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value as '7d' | '30d' | '90d')}
@@ -630,6 +517,292 @@ function GoogleAnalyticsInner() {
               <p className="mt-1 text-xs text-slate-500">Average pages viewed</p>
             </div>
           </div>
+        </Card>
+
+        {/* AI Review Section */}
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-gradient-to-br from-purple-100 to-pink-100 p-3">
+                <Sparkles className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">AI Analytics Review</h2>
+                <p className="text-sm text-slate-500">
+                  Get AI-powered insights, suggestions, and recommendations for your analytics
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {cooldown.data?.canGenerate ? (
+                <button
+                  onClick={() => generateReview.mutate()}
+                  disabled={generateReview.isPending || !selectedPropertyId}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 text-sm font-semibold text-white transition hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generateReview.isPending ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate Review
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-800">
+                    Available in {cooldown.data?.hoursRemaining || 0}h
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {generateReview.isError && (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-red-600" />
+                <p className="text-sm text-red-800">
+                  {generateReview.error?.message || 'Failed to generate review. Please try again.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-slate-900">Review History</h3>
+                <button
+                  onClick={() => setShowReviewHistory(!showReviewHistory)}
+                  className="text-sm font-medium text-slate-600 hover:text-slate-900"
+                >
+                  {showReviewHistory ? 'Hide' : 'Show'} History
+                </button>
+              </div>
+
+              {showReviewHistory && (
+                <div className="space-y-4">
+                  {reviewHistory.data.reviews.map((review: any) => {
+                    const insights = review.insights as any;
+                    const reviewDate = new Date(review.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    return (
+                      <div
+                        key={review.id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-6"
+                      >
+                        <div className="mb-4 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5 text-emerald-600" />
+                            <span className="text-sm font-medium text-slate-600">
+                              Review from {reviewDate}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mb-4">
+                          <p className="text-sm text-slate-700">{review.summary}</p>
+                        </div>
+
+                        {insights.problems && insights.problems.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <AlertTriangle className="h-4 w-4 text-amber-600" />
+                              Problems Identified
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.problems.map((problem: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-amber-200 bg-white p-3"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-slate-900">{problem.title}</p>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        {problem.description}
+                                      </p>
+                                      {problem.impact && (
+                                        <p className="mt-1 text-xs text-amber-700">
+                                          Impact: {problem.impact}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      className={`ml-2 ${
+                                        problem.severity === 'high'
+                                          ? 'border-red-200 bg-red-50 text-red-700'
+                                          : problem.severity === 'medium'
+                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                            : 'border-slate-200 bg-slate-50 text-slate-700'
+                                      }`}
+                                    >
+                                      {problem.severity}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {insights.suggestions && insights.suggestions.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <Lightbulb className="h-4 w-4 text-blue-600" />
+                              Suggestions
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.suggestions.map((suggestion: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-blue-200 bg-white p-3"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-slate-900">
+                                        {suggestion.title}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        {suggestion.description}
+                                      </p>
+                                      {suggestion.expectedImpact && (
+                                        <p className="mt-1 text-xs text-blue-700">
+                                          Expected Impact: {suggestion.expectedImpact}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      className={`ml-2 ${
+                                        suggestion.priority === 'high'
+                                          ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                          : suggestion.priority === 'medium'
+                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600'
+                                      }`}
+                                    >
+                                      {suggestion.priority}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {insights.remedialActions && insights.remedialActions.length > 0 && (
+                          <div className="mb-4">
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <CheckCircle className="h-4 w-4 text-emerald-600" />
+                              Remedial Actions
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.remedialActions.map((action: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-emerald-200 bg-white p-3"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-slate-900">{action.action}</p>
+                                      {action.reason && (
+                                        <p className="mt-1 text-xs text-slate-600">
+                                          {action.reason}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      className={`ml-2 ${
+                                        action.priority === 'high'
+                                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                          : action.priority === 'medium'
+                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600'
+                                      }`}
+                                    >
+                                      {action.priority}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {insights.tips && insights.tips.length > 0 && (
+                          <div>
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <Lightbulb className="h-4 w-4 text-purple-600" />
+                              Tips & Best Practices
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.tips.map((tip: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-purple-200 bg-white p-3"
+                                >
+                                  <p className="font-medium text-slate-900">{tip.title}</p>
+                                  <p className="mt-1 text-xs text-slate-600">{tip.description}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!showReviewHistory && reviewHistory.data.reviews.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+                  <p className="text-sm text-slate-600">
+                    You have {reviewHistory.data.reviews.length} past review
+                    {reviewHistory.data.reviews.length !== 1 ? 's' : ''}. Click "Show History" to
+                    view them.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {cooldown.data?.lastReviewAt && !reviewHistory.data?.reviews && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-sm text-slate-600">
+                Your last review was generated on{' '}
+                {new Date(cooldown.data.lastReviewAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                . Generate a new review to see insights.
+              </p>
+            </div>
+          )}
+
+          {!cooldown.data?.lastReviewAt && !generateReview.isPending && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+              <Sparkles className="mx-auto h-12 w-12 text-purple-400" />
+              <p className="mt-4 text-sm font-medium text-slate-900">
+                No reviews generated yet
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Click "Generate Review" to get AI-powered insights about your analytics data.
+              </p>
+            </div>
+          )}
         </Card>
       </div>
     </main>

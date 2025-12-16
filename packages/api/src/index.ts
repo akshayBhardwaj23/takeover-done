@@ -6764,49 +6764,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
       }
     }),
-  // Update Google Analytics Property Selection
-  updateGoogleAnalyticsProperty: protectedProcedure
-    .input(
-      z.object({
-        propertyId: z.string(),
-        propertyName: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const connection = await prisma.connection.findFirst({
-        where: {
-          userId: ctx.userId,
-          type: 'GOOGLE_ANALYTICS' as any,
-        },
-      });
-
-      if (!connection) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Google Analytics not connected',
-        });
-      }
-
-      const metadata = (connection.metadata as Record<string, unknown>) || {};
-      const updatedMetadata = {
-        ...metadata,
-        propertyId: input.propertyId,
-        propertyName:
-          input.propertyName ||
-          (typeof metadata.propertyName === 'string'
-            ? metadata.propertyName
-            : undefined),
-      };
-
-      await prisma.connection.update({
-        where: { id: connection.id },
-        data: {
-          metadata: updatedMetadata,
-        },
-      });
-
-      return { success: true };
-    }),
   // Disconnect Google Analytics
   disconnectGoogleAnalytics: protectedProcedure.mutation(async ({ ctx }) => {
     const connection = await prisma.connection.findFirst({
@@ -6863,6 +6820,361 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       ctx.userId,
     );
     return { success: true };
+  }),
+  // Check GA4 AI Review Cooldown
+  checkGA4AIReviewCooldown: protectedProcedure.query(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics not connected',
+      });
+    }
+
+    // Get last review for this connection
+    const lastReview = await prisma.gA4AIReview.findFirst({
+      where: {
+        userId: ctx.userId,
+        connectionId: connection.id,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!lastReview) {
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const now = new Date();
+    const lastReviewTime = lastReview.createdAt;
+    const hoursSinceLastReview =
+      (now.getTime() - lastReviewTime.getTime()) / (1000 * 60 * 60);
+    const canGenerate = hoursSinceLastReview >= 24;
+
+    const nextAvailableAt = canGenerate
+      ? null
+      : new Date(lastReviewTime.getTime() + 24 * 60 * 60 * 1000);
+    const hoursRemaining = canGenerate
+      ? 0
+      : Math.ceil(24 - hoursSinceLastReview);
+
+    return {
+      canGenerate,
+      lastReviewAt: lastReview.createdAt,
+      nextAvailableAt,
+      hoursRemaining,
+    };
+  }),
+  // Get GA4 AI Review History
+  getGA4AIReviewHistory: protectedProcedure.query(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics not connected',
+      });
+    }
+
+    const reviews = await prisma.gA4AIReview.findMany({
+      where: {
+        userId: ctx.userId,
+        connectionId: connection.id,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10, // Last 10 reviews
+    });
+
+    return { reviews };
+  }),
+  // Generate GA4 AI Review
+  generateGA4AIReview: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics not connected',
+      });
+    }
+
+    // Check cooldown
+    const lastReview = await prisma.gA4AIReview.findFirst({
+      where: {
+        userId: ctx.userId,
+        connectionId: connection.id,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (lastReview) {
+      const now = new Date();
+      const hoursSinceLastReview =
+        (now.getTime() - lastReview.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastReview < 24) {
+        const hoursRemaining = Math.ceil(24 - hoursSinceLastReview);
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: `Please wait ${hoursRemaining} more hour(s) before generating another review.`,
+        });
+      }
+    }
+
+    const metadata = (connection.metadata as Record<string, unknown>) || {};
+    const propertyId = metadata.propertyId as string | undefined;
+
+    if (!propertyId) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No property selected. Please select a property first.',
+      });
+    }
+
+    // Fetch GA4 data for last 30 days
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    const accessToken = connection.accessToken;
+    const refreshToken = connection.refreshToken;
+
+    let analyticsData;
+    try {
+      analyticsData = await fetchGA4Analytics(
+        propertyId,
+        accessToken,
+        refreshToken,
+        startDate,
+        endDate,
+      );
+    } catch (error: any) {
+      console.error('[GA AI Review] Error fetching analytics data:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to fetch analytics data: ${error.message || 'Unknown error'}`,
+      });
+    }
+
+    // Generate AI review using OpenAI
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'AI service not configured',
+      });
+    }
+
+    // Build prompt for AI analysis
+    const bounceRatePercent = (analyticsData.bounceRate * 100).toFixed(1);
+    const conversionRatePercent = analyticsData.conversionRate
+      ? analyticsData.conversionRate.toFixed(2)
+      : 'N/A';
+    const avgSessionDurationMinutes = Math.floor(
+      analyticsData.avgSessionDuration / 60,
+    );
+    const avgSessionDurationSeconds = Math.floor(
+      analyticsData.avgSessionDuration % 60,
+    );
+
+    // Calculate trend (compare first half vs second half of period)
+    const trendData = analyticsData.trend || [];
+    const midPoint = Math.floor(trendData.length / 2);
+    const firstHalfSessions = trendData
+      .slice(0, midPoint)
+      .reduce((sum, day) => sum + day.sessions, 0);
+    const secondHalfSessions = trendData
+      .slice(midPoint)
+      .reduce((sum, day) => sum + day.sessions, 0);
+    const sessionTrend =
+      firstHalfSessions > 0
+        ? ((secondHalfSessions - firstHalfSessions) / firstHalfSessions) * 100
+        : 0;
+
+    const topTrafficSources = analyticsData.trafficSources
+      .slice(0, 5)
+      .map((s) => `${s.source}/${s.medium} (${s.sessions} sessions)`)
+      .join(', ');
+    const topPages = analyticsData.topPages
+      .slice(0, 5)
+      .map((p) => `${p.page} (${p.views} views)`)
+      .join(', ');
+
+    const prompt = `You are an expert digital marketing and analytics consultant. Analyze the following Google Analytics 4 (GA4) data for the last 30 days and provide a comprehensive review.
+
+Analytics Data:
+- Total Sessions: ${analyticsData.sessions.toLocaleString()}
+- Total Users: ${analyticsData.users.toLocaleString()}
+- Page Views: ${analyticsData.pageViews.toLocaleString()}
+- Bounce Rate: ${bounceRatePercent}%
+- Average Session Duration: ${avgSessionDurationMinutes}m ${avgSessionDurationSeconds}s
+- Pages per Session: ${analyticsData.sessions > 0 ? (analyticsData.pageViews / analyticsData.sessions).toFixed(2) : '0'}
+- Session Trend (first half vs second half): ${sessionTrend > 0 ? '+' : ''}${sessionTrend.toFixed(1)}%
+${analyticsData.revenue !== undefined ? `- Revenue: $${analyticsData.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+${analyticsData.transactions ? `- Transactions: ${analyticsData.transactions}` : ''}
+${analyticsData.conversionRate ? `- Conversion Rate: ${conversionRatePercent}%` : ''}
+${analyticsData.avgOrderValue ? `- Average Order Value: $${analyticsData.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+- Top Traffic Sources: ${topTrafficSources || 'No data'}
+- Top Pages: ${topPages || 'No data'}
+
+Provide a comprehensive review in the following JSON format:
+{
+  "summary": "A 2-3 sentence executive summary of the overall performance",
+  "problems": [
+    {
+      "title": "Problem title",
+      "description": "Detailed description of the problem",
+      "severity": "high" | "medium" | "low",
+      "impact": "What this problem means for the business"
+    }
+  ],
+  "suggestions": [
+    {
+      "title": "Suggestion title",
+      "description": "Detailed actionable recommendation",
+      "priority": "high" | "medium" | "low",
+      "expectedImpact": "What improvement this could bring"
+    }
+  ],
+  "tips": [
+    {
+      "title": "Tip title",
+      "description": "Best practice or optimization tip"
+    }
+  ],
+  "remedialActions": [
+    {
+      "action": "Specific action to take",
+      "reason": "Why this action is needed",
+      "priority": "high" | "medium" | "low"
+    }
+  ]
+}
+
+Focus on:
+1. Identifying performance issues (high bounce rate, low conversion, traffic drops)
+2. Providing actionable recommendations
+3. Highlighting opportunities for improvement
+4. Suggesting specific remedial actions
+
+Be specific, data-driven, and actionable.`;
+
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are an expert digital marketing and analytics consultant. Analyze Google Analytics data and provide actionable insights in JSON format. Always return valid JSON.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`OpenAI API error: ${resp.status} - ${errorText}`);
+      }
+
+      const json: any = await resp.json();
+      const aiResponse = json.choices?.[0]?.message?.content || '{}';
+
+      // Parse AI response (it might be wrapped in markdown code blocks)
+      let parsedInsights: any;
+      try {
+        const cleanedResponse = aiResponse
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        parsedInsights = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error('[GA AI Review] Failed to parse AI response:', parseError);
+        // Fallback structure
+        parsedInsights = {
+          summary: 'AI analysis completed, but response format was invalid.',
+          problems: [],
+          suggestions: [],
+          tips: [],
+          remedialActions: [],
+        };
+      }
+
+      // Ensure all required fields exist
+      const insights = {
+        summary:
+          parsedInsights.summary ||
+          'Analytics review completed. Review the detailed insights below.',
+        problems: Array.isArray(parsedInsights.problems)
+          ? parsedInsights.problems
+          : [],
+        suggestions: Array.isArray(parsedInsights.suggestions)
+          ? parsedInsights.suggestions
+          : [],
+        tips: Array.isArray(parsedInsights.tips) ? parsedInsights.tips : [],
+        remedialActions: Array.isArray(parsedInsights.remedialActions)
+          ? parsedInsights.remedialActions
+          : [],
+      };
+
+      // Store review in database
+      const review = await prisma.gA4AIReview.create({
+        data: {
+          userId: ctx.userId,
+          connectionId: connection.id,
+          propertyId: propertyId,
+          reviewDate: new Date(endDate),
+          insights: insights,
+          summary: insights.summary,
+        },
+      });
+
+      return {
+        id: review.id,
+        summary: insights.summary,
+        insights: insights,
+        createdAt: review.createdAt,
+      };
+    } catch (error: any) {
+      console.error('[GA AI Review] Error generating review:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message:
+          error.message || 'Failed to generate AI review. Please try again later.',
+      });
+    }
   }),
 });
 
