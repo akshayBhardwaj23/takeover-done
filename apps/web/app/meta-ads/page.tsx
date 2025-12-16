@@ -439,13 +439,26 @@ function MetaAdsInner() {
   const hasNoData = !insights.data || (stats.spend === 0 && stats.impressions === 0 && stats.clicks === 0 && (!stats.trend || stats.trend.length === 0));
 
 
+  // Currency formatting helper
+  const formatCurrency = (amount: number, currency: string = 'USD') => {
+    if (currency === 'INR') {
+      return `₹${amount.toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    return `$${amount.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const currency = (stats as any).currency || 'USD';
+
   const statCards = [
     {
       title: 'Spend',
-      value: `$${stats.spend.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`,
+      value: formatCurrency(stats.spend, currency),
       change: `${stats.clicks.toLocaleString()} clicks`,
       subtext: 'Total ad spend',
       icon: DollarSign,
@@ -470,7 +483,7 @@ function MetaAdsInner() {
     {
       title: 'CTR',
       value: `${(stats.ctr * 100).toFixed(2)}%`,
-      change: `${stats.cpc ? `$${stats.cpc.toFixed(2)} CPC` : 'N/A'}`,
+      change: `${stats.cpc ? `${formatCurrency(stats.cpc, currency)} CPC` : 'N/A'}`,
       subtext: 'Click-through rate',
       icon: Target,
     },
@@ -482,7 +495,7 @@ function MetaAdsInner() {
       title: 'ROAS',
       value: `${stats.roas.toFixed(2)}x`,
       change: stats.conversionValue
-        ? `$${stats.conversionValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} revenue`
+        ? `${formatCurrency(stats.conversionValue, currency)} revenue`
         : 'N/A',
       subtext: 'Return on ad spend',
       icon: TrendingUp,
@@ -492,7 +505,7 @@ function MetaAdsInner() {
     performanceCards.push({
       title: 'Conversions',
       value: stats.conversions.toLocaleString(),
-      change: stats.cpa ? `$${stats.cpa.toFixed(2)} CPA` : 'N/A',
+      change: stats.cpa ? `${formatCurrency(stats.cpa, currency)} CPA` : 'N/A',
       subtext: 'Total conversions',
       icon: ShoppingCart,
     });
@@ -542,9 +555,9 @@ function MetaAdsInner() {
         {/* No Data Message */}
         {hasNoData && (
           <Card className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
-            <div className="flex items-start gap-3">
+                      <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div className="flex-1">
+                        <div className="flex-1">
                 <h3 className="text-sm font-semibold text-amber-900">No data available</h3>
                 <p className="mt-1 text-sm text-amber-700">
                   No ad activity found for the selected date range ({dateRange}). This could mean:
@@ -731,7 +744,7 @@ function MetaAdsInner() {
                                       )}
                                       {campaign.metrics.spend !== undefined && (
                                         <Badge className="border-slate-200 bg-slate-50 text-slate-700">
-                                          Spend: ${campaign.metrics.spend.toFixed(2)}
+                                          Spend: {formatCurrency(campaign.metrics.spend, currency)}
                                         </Badge>
                                       )}
                                     </div>
@@ -765,7 +778,7 @@ function MetaAdsInner() {
                                       )}
                                       {campaign.metrics.spend !== undefined && (
                                         <Badge className="border-slate-200 bg-slate-50 text-slate-700">
-                                          Spend: ${campaign.metrics.spend.toFixed(2)}
+                                          Spend: {formatCurrency(campaign.metrics.spend, currency)}
                                         </Badge>
                                       )}
                                     </div>
@@ -919,7 +932,7 @@ function MetaAdsInner() {
                       </div>
                     </div>
                     <div className="w-40 text-right text-sm font-semibold text-slate-700">
-                      ${day.spend.toFixed(2)} •{' '}
+                      {formatCurrency(day.spend, currency)} •{' '}
                       {day.impressions.toLocaleString()} impressions •{' '}
                       {day.clicks.toLocaleString()} clicks
                     </div>
@@ -964,7 +977,7 @@ function MetaAdsInner() {
                         </Badge>
                       )}
                       <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
-                        ${campaign.spend.toFixed(2)}
+                        {formatCurrency(campaign.spend, currency)}
                       </Badge>
                     </div>
                   </div>
@@ -1006,7 +1019,7 @@ function MetaAdsInner() {
                         </Badge>
                       )}
                       <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
-                        ${adset.spend.toFixed(2)}
+                        {formatCurrency(adset.spend, currency)}
                       </Badge>
                     </div>
                   </div>
@@ -1031,7 +1044,7 @@ function MetaAdsInner() {
                 CPC
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
-                ${stats.cpc.toFixed(2)}
+                {formatCurrency(stats.cpc, currency)}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Average cost per click
@@ -1042,7 +1055,7 @@ function MetaAdsInner() {
                 CPM
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
-                ${stats.cpm.toFixed(2)}
+                {formatCurrency(stats.cpm, currency)}
               </p>
               <p className="mt-1 text-xs text-slate-500">
                 Cost per 1,000 impressions
