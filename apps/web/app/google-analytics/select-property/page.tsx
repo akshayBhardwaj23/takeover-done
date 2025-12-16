@@ -2,8 +2,8 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '../../../../@ai-ecom/api/components/ui/card';
-import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import { Card } from '../../../components/ui/card';
+import { Badge } from '../../../components/ui/badge';
 import { BarChart3, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
 interface GA4Property {

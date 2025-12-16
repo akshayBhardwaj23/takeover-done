@@ -2,8 +2,8 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { trpc } from '../../lib/trpc';
-import { Card } from '../../../../@ai-ecom/api/components/ui/card';
-import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import { Card } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
 import {
   Users,
   TrendingUp,
