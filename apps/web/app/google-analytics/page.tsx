@@ -27,7 +27,7 @@ import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 function GoogleAnalyticsInner() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('7d');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
-  const [showReviewHistory, setShowReviewHistory] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   // Fetch connections with refetch on mount to catch newly created connections
   const connections = trpc.connections.useQuery(undefined, {
@@ -87,7 +87,7 @@ function GoogleAnalyticsInner() {
   });
 
   const reviewHistory = trpc.getGA4AIReviewHistory.useQuery(undefined, {
-    enabled: showReviewHistory && !!selectedPropertyId,
+    enabled: !!selectedPropertyId,
     refetchOnWindowFocus: false,
   });
 
@@ -385,145 +385,7 @@ function GoogleAnalyticsInner() {
           </div>
         )}
 
-        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">Traffic trend</h2>
-              <p className="text-sm text-slate-500">Sessions and users over time</p>
-            </div>
-            <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Trend
-            </Badge>
-          </div>
-          <div className="space-y-3">
-            {stats.trend.length === 0 ? (
-              <p className="py-8 text-center text-slate-500">No trend data available</p>
-            ) : (
-              stats.trend.map((day, index) => {
-                const maxSessions = Math.max(...stats.trend.map((d) => d.sessions), 1);
-                const percentage = maxSessions > 0 ? (day.sessions / maxSessions) * 100 : 0;
-                const date = new Date(day.date);
-                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                const dateStr = date.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-
-                return (
-                  <div key={index} className="flex items-center gap-3">
-                    <div className="w-24 text-sm font-semibold text-slate-600">
-                      {dayName}
-                      <span className="ml-2 text-xs font-normal text-slate-400">{dateStr}</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                    <div className="w-28 text-right text-sm font-semibold text-slate-700">
-                      {day.sessions} sessions
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-slate-100 p-3">
-                <Globe className="h-5 w-5 text-slate-700" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900">Traffic sources</h2>
-            </div>
-            <div className="space-y-3 text-sm text-slate-600">
-              {stats.trafficSources.length === 0 ? (
-                <p className="text-slate-500">No traffic source data available</p>
-              ) : (
-                stats.trafficSources.slice(0, 10).map((source, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
-                        {index + 1}
-                      </Badge>
-                      <span>
-                        {source.source} / {source.medium}
-                      </span>
-                    </div>
-                    <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
-                      {source.sessions} sessions
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-
-          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="rounded-full bg-slate-100 p-3">
-                <Eye className="h-5 w-5 text-slate-700" />
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900">Top pages</h2>
-            </div>
-            <div className="space-y-3 text-sm text-slate-600">
-              {stats.topPages.length === 0 ? (
-                <p className="text-slate-500">No page data available</p>
-              ) : (
-                stats.topPages.slice(0, 10).map((page, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
-                        {index + 1}
-                      </Badge>
-                      <span className="max-w-[200px] truncate">{page.page}</span>
-                    </div>
-                    <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
-                      {page.views} views
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </div>
-          </Card>
-        </div>
-
-        <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="rounded-full bg-slate-100 p-3">
-              <Clock className="h-5 w-5 text-slate-700" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900">Session metrics</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Avg Session Duration
-              </p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">
-                {Math.floor(stats.avgSessionDuration)}s
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Average time per session</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Pages per Session
-              </p>
-              <p className="mt-2 text-2xl font-bold text-slate-900">
-                {stats.sessions > 0 ? (stats.pageViews / stats.sessions).toFixed(1) : '0'}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Average pages viewed</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* AI Review Section */}
+        {/* AI Review Section - Moved to top after analytics tiles */}
         <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -578,21 +440,200 @@ function GoogleAnalyticsInner() {
             </div>
           )}
 
-          {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 && (
+          {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-slate-900">Review History</h3>
-                <button
-                  onClick={() => setShowReviewHistory(!showReviewHistory)}
-                  className="text-sm font-medium text-slate-600 hover:text-slate-900"
-                >
-                  {showReviewHistory ? 'Hide' : 'Show'} History
-                </button>
-              </div>
+              {/* Always show the most recent review */}
+              {(() => {
+                const mostRecentReview = reviewHistory.data.reviews[0];
+                const insights = mostRecentReview.insights as any;
+                const reviewDate = new Date(mostRecentReview.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
 
-              {showReviewHistory && (
-                <div className="space-y-4">
-                  {reviewHistory.data.reviews.map((review: any) => {
+                return (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-emerald-600" />
+                        <span className="text-sm font-medium text-slate-600">
+                          Latest Review - {reviewDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-slate-900">{mostRecentReview.summary}</p>
+                    </div>
+
+                    {insights.problems && insights.problems.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          Problems Identified
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.problems.slice(0, 3).map((problem: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-amber-200 bg-white p-3"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium text-slate-900">{problem.title}</p>
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {problem.description}
+                                  </p>
+                                  {problem.impact && (
+                                    <p className="mt-1 text-xs text-amber-700">
+                                      Impact: {problem.impact}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge
+                                  className={`ml-2 ${
+                                    problem.severity === 'high'
+                                      ? 'border-red-200 bg-red-50 text-red-700'
+                                      : problem.severity === 'medium'
+                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  {problem.severity}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {insights.suggestions && insights.suggestions.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <Lightbulb className="h-4 w-4 text-blue-600" />
+                          Top Suggestions
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.suggestions.slice(0, 3).map((suggestion: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-blue-200 bg-white p-3"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium text-slate-900">
+                                    {suggestion.title}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {suggestion.description}
+                                  </p>
+                                  {suggestion.expectedImpact && (
+                                    <p className="mt-1 text-xs text-blue-700">
+                                      Expected Impact: {suggestion.expectedImpact}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge
+                                  className={`ml-2 ${
+                                    suggestion.priority === 'high'
+                                      ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                      : suggestion.priority === 'medium'
+                                        ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                                  }`}
+                                >
+                                  {suggestion.priority}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {insights.remedialActions && insights.remedialActions.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <CheckCircle className="h-4 w-4 text-emerald-600" />
+                          Recommended Actions
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.remedialActions.slice(0, 3).map((action: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-emerald-200 bg-white p-3"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="font-medium text-slate-900">{action.action}</p>
+                                  {action.reason && (
+                                    <p className="mt-1 text-xs text-slate-600">
+                                      {action.reason}
+                                    </p>
+                                  )}
+                                </div>
+                                <Badge
+                                  className={`ml-2 ${
+                                    action.priority === 'high'
+                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                      : action.priority === 'medium'
+                                        ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-600'
+                                  }`}
+                                >
+                                  {action.priority}
+                                </Badge>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {insights.tips && insights.tips.length > 0 && (
+                      <div>
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <Lightbulb className="h-4 w-4 text-purple-600" />
+                          Tips & Best Practices
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.tips.slice(0, 2).map((tip: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-purple-200 bg-white p-3"
+                            >
+                              <p className="font-medium text-slate-900">{tip.title}</p>
+                              <p className="mt-1 text-xs text-slate-600">{tip.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show all reviews button if there are more than one */}
+                    {reviewHistory.data.reviews.length > 1 && (
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <button
+                          onClick={() => setShowAllReviews(!showAllReviews)}
+                          className="text-sm font-medium text-purple-600 hover:text-purple-700"
+                        >
+                          {showAllReviews ? 'Hide' : 'Show'} All Reviews ({reviewHistory.data.reviews.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Show all reviews if toggled */}
+              {showAllReviews && reviewHistory.data.reviews.length > 1 && (
+                <div className="space-y-4 pt-4 border-t border-slate-200">
+                  <h3 className="text-lg font-semibold text-slate-900">All Reviews</h3>
+                  {reviewHistory.data.reviews.slice(1).map((review: any) => {
                     const insights = review.insights as any;
                     const reviewDate = new Date(review.createdAt).toLocaleDateString('en-US', {
                       month: 'short',
@@ -769,20 +810,8 @@ function GoogleAnalyticsInner() {
                   })}
                 </div>
               )}
-
-              {!showReviewHistory && reviewHistory.data.reviews.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
-                  <p className="text-sm text-slate-600">
-                    You have {reviewHistory.data.reviews.length} past review
-                    {reviewHistory.data.reviews.length !== 1 ? 's' : ''}. Click "Show History" to
-                    view them.
-                  </p>
-                </div>
-              )}
             </div>
-          )}
-
-          {cooldown.data?.lastReviewAt && !reviewHistory.data?.reviews && (
+          ) : cooldown.data?.lastReviewAt && !reviewHistory.data?.reviews ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
               <p className="text-sm text-slate-600">
                 Your last review was generated on{' '}
@@ -794,9 +823,7 @@ function GoogleAnalyticsInner() {
                 . Generate a new review to see insights.
               </p>
             </div>
-          )}
-
-          {!cooldown.data?.lastReviewAt && !generateReview.isPending && (
+          ) : !cooldown.data?.lastReviewAt && !generateReview.isPending ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
               <Sparkles className="mx-auto h-12 w-12 text-purple-400" />
               <p className="mt-4 text-sm font-medium text-slate-900">
@@ -806,7 +833,145 @@ function GoogleAnalyticsInner() {
                 Click "Generate Review" to get AI-powered insights about your analytics data.
               </p>
             </div>
-          )}
+          ) : null}
+        </Card>
+
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Traffic trend</h2>
+              <p className="text-sm text-slate-500">Sessions and users over time</p>
+            </div>
+            <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Trend
+            </Badge>
+          </div>
+          <div className="space-y-3">
+            {stats.trend.length === 0 ? (
+              <p className="py-8 text-center text-slate-500">No trend data available</p>
+            ) : (
+              stats.trend.map((day, index) => {
+                const maxSessions = Math.max(...stats.trend.map((d) => d.sessions), 1);
+                const percentage = maxSessions > 0 ? (day.sessions / maxSessions) * 100 : 0;
+                const date = new Date(day.date);
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const dateStr = date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                });
+
+                return (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="w-24 text-sm font-semibold text-slate-600">
+                      {dayName}
+                      <span className="ml-2 text-xs font-normal text-slate-400">{dateStr}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="w-28 text-right text-sm font-semibold text-slate-700">
+                      {day.sessions} sessions
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-full bg-slate-100 p-3">
+                <Globe className="h-5 w-5 text-slate-700" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Traffic sources</h2>
+            </div>
+            <div className="space-y-3 text-sm text-slate-600">
+              {stats.trafficSources.length === 0 ? (
+                <p className="text-slate-500">No traffic source data available</p>
+              ) : (
+                stats.trafficSources.slice(0, 10).map((source, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
+                        {index + 1}
+                      </Badge>
+                      <span>
+                        {source.source} / {source.medium}
+                      </span>
+                    </div>
+                    <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
+                      {source.sessions} sessions
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="rounded-full bg-slate-100 p-3">
+                <Eye className="h-5 w-5 text-slate-700" />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">Top pages</h2>
+            </div>
+            <div className="space-y-3 text-sm text-slate-600">
+              {stats.topPages.length === 0 ? (
+                <p className="text-slate-500">No page data available</p>
+              ) : (
+                stats.topPages.slice(0, 10).map((page, index) => (
+                  <div key={index} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
+                        {index + 1}
+                      </Badge>
+                      <span className="max-w-[200px] truncate">{page.page}</span>
+                    </div>
+                    <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
+                      {page.views} views
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="rounded-full bg-slate-100 p-3">
+              <Clock className="h-5 w-5 text-slate-700" />
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">Session metrics</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Avg Session Duration
+              </p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {Math.floor(stats.avgSessionDuration)}s
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Average time per session</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Pages per Session
+              </p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">
+                {stats.sessions > 0 ? (stats.pageViews / stats.sessions).toFixed(1) : '0'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Average pages viewed</p>
+            </div>
+          </div>
         </Card>
       </div>
     </main>
