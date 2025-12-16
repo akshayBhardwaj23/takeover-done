@@ -13,6 +13,7 @@ export interface MetaAdsInsights {
   ctr: number;
   cpc: number;
   cpm: number;
+  currency?: string; // Currency code (e.g., 'INR', 'USD')
   conversions?: number;
   conversionValue?: number;
   roas?: number;
@@ -324,6 +325,26 @@ export async function fetchMetaAdsInsights(
     : `act_${adAccountId.replace(/^act_/, '')}`;
 
   try {
+    // First, fetch ad account details to get currency
+    const accountUrl = new URL(
+      `https://graph.facebook.com/v21.0/${cleanAdAccountId}`,
+    );
+    accountUrl.searchParams.set('fields', 'currency');
+    accountUrl.searchParams.set('access_token', validToken);
+
+    let currency = 'USD'; // Default to USD
+    try {
+      const accountRes = await fetch(accountUrl.toString());
+      if (accountRes.ok) {
+        const accountData = (await accountRes.json()) as { currency?: string };
+        if (accountData.currency) {
+          currency = accountData.currency;
+        }
+      }
+    } catch (error) {
+      console.warn('[Meta Ads] Failed to fetch currency, using USD as default:', error);
+    }
+
     // Fetch insights for the account
     const insightsUrl = new URL(
       `https://graph.facebook.com/v21.0/${cleanAdAccountId}/insights`,
@@ -806,6 +827,7 @@ export async function fetchMetaAdsInsights(
       ctr: totalCtr,
       cpc: totalCpc,
       cpm: totalCpm,
+      currency: currency,
       conversions: totalConversions > 0 ? totalConversions : undefined,
       conversionValue:
         totalConversionValue > 0 ? totalConversionValue : undefined,

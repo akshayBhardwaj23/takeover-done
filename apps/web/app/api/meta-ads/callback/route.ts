@@ -165,173 +165,48 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // Step 3: Fetch user's ad accounts
-    let adAccountId: string | null = null;
-    let adAccountName: string | null = null;
-
-    try {
-      // Get user's ID first (needed for ad accounts endpoint)
-      const meResponse = await fetch(
-        `https://graph.facebook.com/v21.0/me?access_token=${longLivedToken}`,
-      );
-
-      if (meResponse.ok) {
-        const meData = (await meResponse.json()) as {
-          id: string;
-          name?: string;
-        };
-
-        // Get ad accounts for the user
-        const adAccountsResponse = await fetch(
-          `https://graph.facebook.com/v21.0/${meData.id}/adaccounts?fields=id,name,account_id,account_status&limit=50&access_token=${longLivedToken}`,
-        );
-
-        if (adAccountsResponse.ok) {
-          const adAccountsData = (await adAccountsResponse.json()) as {
-            data?: Array<{
-              id: string;
-              name?: string;
-              account_id?: string;
-              account_status?: number;
-            }>;
-          };
-
-          if (adAccountsData.data && adAccountsData.data.length > 0) {
-            // Find first active account or just use first one
-            const activeAccount =
-              adAccountsData.data.find(
-                (acc) => acc.account_status === 1, // 1 = ACTIVE
-              ) || adAccountsData.data[0];
-
-            adAccountId = activeAccount.id; // This is in format 'act_123456789'
-            adAccountName =
-              activeAccount.name || activeAccount.account_id || adAccountId;
-          }
-        } else {
-          const errorText = await adAccountsResponse.text();
-          console.warn(
-            '[Meta Ads Callback] Failed to fetch ad accounts:',
-            errorText,
-          );
-        }
-      } else {
-        const errorText = await meResponse.text();
-        console.warn(
-          '[Meta Ads Callback] Failed to fetch user info:',
-          errorText,
-        );
-      }
-    } catch (error) {
-      console.warn('[Meta Ads Callback] Failed to fetch ad accounts', error);
-      // Continue without ad account info - user can select later
-    }
-
-    // Try to save connection - handle database errors gracefully
-    try {
-      // Check if connection already exists for this user
-      const existing = await prisma.connection.findFirst({
-        where: {
-          userId: owner.id,
-          type: 'META_ADS' as any,
-        },
-      });
-
-      const metadata: Record<string, unknown> = {};
-      if (adAccountId) {
-        metadata.adAccountId = adAccountId;
-      }
-      if (adAccountName) {
-        metadata.adAccountName = adAccountName;
-      }
-      if (exchangeToken) {
-        metadata.exchangeToken = exchangeToken;
-      }
-      if (expiresIn) {
-        metadata.tokenExpiresAt = new Date(
-          Date.now() + expiresIn * 1000,
-        ).toISOString();
-      }
-
-      if (existing) {
-        // Update existing connection
-        await prisma.connection.update({
-          where: { id: existing.id },
-          data: {
-            accessToken: encryptSecure(longLivedToken),
-            refreshToken: exchangeToken
-              ? encryptSecure(exchangeToken)
-              : existing.refreshToken,
-            metadata: metadata as any,
-          },
-        });
-      } else {
-        // Create new connection
-        await prisma.connection.create({
-          data: {
-            type: 'META_ADS' as any,
-            accessToken: encryptSecure(longLivedToken),
-            refreshToken: exchangeToken ? encryptSecure(exchangeToken) : null,
-            userId: owner.id,
-            metadata: metadata as any,
-          },
-        });
-      }
-
-      // Try to log event (non-critical, continue if it fails)
-      try {
-        await logEvent(
-          'meta_ads.connected',
-          { userId: owner.id, adAccountId },
-          'connection',
-          existing?.id || 'new',
-        );
-      } catch (logError) {
-        console.warn('[Meta Ads Callback] Failed to log event:', logError);
-      }
-    } catch (dbError) {
-      const errorMessage =
-        dbError instanceof Error ? dbError.message : 'Database error';
-      console.error(
-        '[Meta Ads Callback] Database error while saving connection:',
-        errorMessage,
-      );
-      console.error('[Meta Ads Callback] Full error:', dbError);
-
-      // Log to Sentry in production/staging
-      if (
-        process.env.NODE_ENV === 'production' ||
-        process.env.ENVIRONMENT === 'staging'
-      ) {
-        Sentry.captureException(dbError, {
-          tags: {
-            component: 'meta-ads-callback',
-            operation: 'connection-save',
-          },
-          extra: { userId: owner.id, hasTokens: !!longLivedToken },
-        });
-      }
-
-      // Still redirect to success - OAuth worked, just database issue
-      const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-      const url = new URL('/integrations', base);
-      url.searchParams.set('meta_ads_connected', '1');
-      url.searchParams.set('meta_ads_warning', 'database_unavailable');
-      if (adAccountName) {
-        url.searchParams.set('account', adAccountName);
-      }
-      const res = NextResponse.redirect(url);
-      res.cookies.set('meta_ads_oauth_state', '', { maxAge: -1, path: '/' });
-      return res;
-    }
-
+    // Store temporary tokens in cookies for ad account selection
+    // User will select their ad account on the next page
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL('/integrations', base);
-    url.searchParams.set('meta_ads_connected', '1');
-    if (adAccountName) {
-      url.searchParams.set('account', adAccountName);
+    const res = NextResponse.redirect(new URL('/meta-ads/select-account', base));
+    
+    // Store tokens temporarily in cookies (expire in 10 minutes)
+    res.cookies.set('meta_ads_temp_access_token', encryptSecure(longLivedToken), {
+      maxAge: 10 * 60, // 10 minutes
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    
+    if (exchangeToken) {
+      res.cookies.set('meta_ads_temp_refresh_token', encryptSecure(exchangeToken), {
+        maxAge: 10 * 60, // 10 minutes
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      });
     }
-
-    const res = NextResponse.redirect(url);
+    
+    res.cookies.set('meta_ads_temp_user_id', owner.id, {
+      maxAge: 10 * 60, // 10 minutes
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    });
+    
+    if (expiresIn) {
+      res.cookies.set('meta_ads_temp_expires_in', expiresIn.toString(), {
+        maxAge: 10 * 60, // 10 minutes
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      });
+    }
+    
     res.cookies.set('meta_ads_oauth_state', '', { maxAge: -1, path: '/' });
     return res;
   } catch (error) {

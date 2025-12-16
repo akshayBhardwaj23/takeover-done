@@ -106,158 +106,46 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // Fetch GA4 properties using Admin API
-    // First, we need to list accounts, then properties
-    let propertyId: string | null = null;
-    let propertyName: string | null = null;
-    let accountId: string | null = null;
+    // Store tokens temporarily in encrypted cookies for property selection
+    // Tokens will be saved to database after user selects a property
+    const encryptedAccessToken = encryptSecure(tokenData.access_token);
+    const encryptedRefreshToken = tokenData.refresh_token
+      ? encryptSecure(tokenData.refresh_token)
+      : '';
 
-    try {
-      // Use Analytics Admin API to list accounts
-      const accountsRes = await fetch(
-        'https://analyticsadmin.googleapis.com/v1beta/accounts',
-        {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-          },
-        },
-      );
-
-      if (accountsRes.ok) {
-        const accountsData = (await accountsRes.json()) as {
-          accounts?: Array<{ name: string; displayName?: string }>;
-        };
-        
-        if (accountsData.accounts && accountsData.accounts.length > 0) {
-          accountId = accountsData.accounts[0].name.replace('accounts/', '');
-          
-          // List properties for the first account
-          const propertiesRes = await fetch(
-            `https://analyticsadmin.googleapis.com/v1beta/${accountsData.accounts[0].name}/properties`,
-            {
-              headers: {
-                Authorization: `Bearer ${tokenData.access_token}`,
-              },
-            },
-          );
-
-          if (propertiesRes.ok) {
-            const propertiesData = (await propertiesRes.json()) as {
-              properties?: Array<{ name: string; displayName?: string }>;
-            };
-            
-            if (propertiesData.properties && propertiesData.properties.length > 0) {
-              propertyId = propertiesData.properties[0].name.replace('properties/', '');
-              propertyName = propertiesData.properties[0].displayName || propertyId;
-            }
-          } else {
-            const errorText = await propertiesRes.text();
-            console.warn('[GA Callback] Failed to fetch properties:', errorText);
-          }
-        }
-      } else {
-        const errorText = await accountsRes.text();
-        console.warn('[GA Callback] Failed to fetch accounts:', errorText);
-      }
-    } catch (error) {
-      console.warn('[GA Callback] Failed to fetch GA4 properties', error);
-      // Continue without property info - user can select later
-    }
-
-    // Try to save connection - handle database errors gracefully
-    try {
-      // Check if connection already exists for this user
-      const existing = await prisma.connection.findFirst({
-        where: {
-          userId: owner.id,
-          type: 'GOOGLE_ANALYTICS' as any,
-        },
-      });
-
-      const metadata: Record<string, unknown> = {};
-      if (propertyId) {
-        metadata.propertyId = propertyId;
-      }
-      if (propertyName) {
-        metadata.propertyName = propertyName;
-      }
-      if (accountId) {
-        metadata.accountId = accountId;
-      }
-
-      if (existing) {
-        // Update existing connection
-        await prisma.connection.update({
-          where: { id: existing.id },
-          data: {
-            accessToken: encryptSecure(tokenData.access_token),
-            refreshToken: tokenData.refresh_token
-              ? encryptSecure(tokenData.refresh_token)
-              : existing.refreshToken,
-            metadata: metadata,
-          },
-        });
-      } else {
-        // Create new connection
-        await prisma.connection.create({
-          data: {
-            type: 'GOOGLE_ANALYTICS' as any,
-            accessToken: encryptSecure(tokenData.access_token),
-            refreshToken: tokenData.refresh_token
-              ? encryptSecure(tokenData.refresh_token)
-              : null,
-            userId: owner.id,
-            metadata: metadata,
-          },
-        });
-      }
-
-      // Try to log event (non-critical, continue if it fails)
-      try {
-        await logEvent(
-          'google_analytics.connected',
-          { userId: owner.id, propertyId },
-          'connection',
-          existing?.id || 'new',
-        );
-      } catch (logError) {
-        console.warn('[GA Callback] Failed to log event:', logError);
-      }
-    } catch (dbError) {
-      const errorMessage = dbError instanceof Error ? dbError.message : 'Database error';
-      console.error('[GA Callback] Database error while saving connection:', errorMessage);
-      console.error('[GA Callback] Full error:', dbError);
-      
-      // Log to Sentry in production/staging
-      if (process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT === 'staging') {
-        Sentry.captureException(dbError, {
-          tags: { component: 'google-analytics-callback', operation: 'connection-save' },
-          extra: { userId: owner.id, hasTokens: !!tokenData.access_token },
-        });
-      }
-      
-      // Still redirect to success - OAuth worked, just database issue
-      const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-      const url = new URL('/integrations', base);
-      url.searchParams.set('ga_connected', '1');
-      url.searchParams.set('ga_warning', 'database_unavailable');
-      if (propertyName) {
-        url.searchParams.set('property', propertyName);
-      }
-      const res = NextResponse.redirect(url);
-      res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
-      return res;
-    }
-
+    // Redirect to property selection page
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL('/integrations', base);
-    url.searchParams.set('ga_connected', '1');
-    if (propertyName) {
-      url.searchParams.set('property', propertyName);
-    }
+    const url = new URL('/google-analytics/select-property', base);
     
     const res = NextResponse.redirect(url);
+    // Clear OAuth state cookie
     res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
+    // Store encrypted tokens temporarily (10 minutes expiry)
+    res.cookies.set('ga_temp_access_token', encryptedAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 600, // 10 minutes
+      path: '/',
+    });
+    if (encryptedRefreshToken) {
+      res.cookies.set('ga_temp_refresh_token', encryptedRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 600, // 10 minutes
+        path: '/',
+      });
+    }
+    // Store userId for verification
+    res.cookies.set('ga_temp_user_id', owner.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 600, // 10 minutes
+      path: '/',
+    });
+    
     return res;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

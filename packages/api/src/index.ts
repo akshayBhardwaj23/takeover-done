@@ -1388,7 +1388,10 @@ const shopifyRouter = t.router({
               firstName: orderWithIncludes.customer.firstName,
               lastName: orderWithIncludes.customer.lastName,
               fullName:
-                [orderWithIncludes.customer.firstName, orderWithIncludes.customer.lastName]
+                [
+                  orderWithIncludes.customer.firstName,
+                  orderWithIncludes.customer.lastName,
+                ]
                   .filter(Boolean)
                   .join(' ') || null,
               address: {
@@ -2227,24 +2230,26 @@ export const appRouter = t.router({
               ]);
 
               // Add connection data manually from cached connections (fast in-memory lookup)
-              const messagesWithConnections = unassignedMessages.map((msg: any) => {
-                const connection = msg.thread?.connectionId
-                  ? connectionMap.get(msg.thread.connectionId)
-                  : null;
+              const messagesWithConnections = unassignedMessages.map(
+                (msg: any) => {
+                  const connection = msg.thread?.connectionId
+                    ? connectionMap.get(msg.thread.connectionId)
+                    : null;
 
-                return {
-                  ...msg,
-                  thread: {
-                    ...msg.thread,
-                    connection: connection
-                      ? {
-                          shopDomain: (connection as any).shopDomain,
-                          metadata: (connection as any).metadata,
-                        }
-                      : null,
-                  },
-                };
-              });
+                  return {
+                    ...msg,
+                    thread: {
+                      ...msg.thread,
+                      connection: connection
+                        ? {
+                            shopDomain: (connection as any).shopDomain,
+                            metadata: (connection as any).metadata,
+                          }
+                        : null,
+                    },
+                  };
+                },
+              );
 
               return {
                 messages: messagesWithConnections,
@@ -2274,7 +2279,12 @@ export const appRouter = t.router({
 
           // Convert results to Map (filter out null orderIds)
           for (const row of pendingCounts) {
-            if (row.orderId && row._count && typeof row._count === 'object' && 'id' in row._count) {
+            if (
+              row.orderId &&
+              row._count &&
+              typeof row._count === 'object' &&
+              'id' in row._count
+            ) {
               pendingCountsMap.set(row.orderId, (row._count as any).id);
             }
           }
@@ -2425,7 +2435,7 @@ export const appRouter = t.router({
       // Sanitize inputs first (needed for order extraction)
       const message = sanitizeLimited(input.customerMessage, 5000);
       const customerEmail = safeEmail(input.customerEmail) ?? undefined;
-      
+
       // Extract order numbers from all thread messages (prioritize INBOUND messages)
       let foundOrderId: string | undefined = input.orderId;
       let foundOrderSummary: string | undefined = input.orderSummary;
@@ -2472,7 +2482,8 @@ export const appRouter = t.router({
 
             if (order) {
               foundOrderId = (order as any).shopifyId;
-              foundOrderSummary = ((order as any).name || `Order #${candidate}`) as string;
+              foundOrderSummary = ((order as any).name ||
+                `Order #${candidate}`) as string;
               break; // Use first found order
             }
           }
@@ -2551,15 +2562,28 @@ export const appRouter = t.router({
 
       const extractedSKUs = extractSKUs(message);
       const allThreadText = threadMessages.map((m) => m.body).join(' ');
-      const allSKUs = [...new Set([...extractedSKUs, ...extractSKUs(allThreadText)])];
+      const allSKUs = [
+        ...new Set([...extractedSKUs, ...extractSKUs(allThreadText)]),
+      ];
 
       // Enhanced sentiment detection (beyond urgency)
-      const detectSentiment = (text: string): 'angry' | 'frustrated' | 'neutral' | 'positive' => {
+      const detectSentiment = (
+        text: string,
+      ): 'angry' | 'frustrated' | 'neutral' | 'positive' => {
         const lowerText = text.toLowerCase();
-        const angryWords = /(angry|furious|terrible|awful|horrible|worst|hate|disgusted|ridiculous|unacceptable)/.test(lowerText);
-        const frustratedWords = /(frustrated|annoyed|disappointed|upset|concerned|worried|problem|issue|wrong|broken)/.test(lowerText);
-        const positiveWords = /(thank|thanks|appreciate|great|excellent|love|happy|pleased|satisfied|perfect)/.test(lowerText);
-        
+        const angryWords =
+          /(angry|furious|terrible|awful|horrible|worst|hate|disgusted|ridiculous|unacceptable)/.test(
+            lowerText,
+          );
+        const frustratedWords =
+          /(frustrated|annoyed|disappointed|upset|concerned|worried|problem|issue|wrong|broken)/.test(
+            lowerText,
+          );
+        const positiveWords =
+          /(thank|thanks|appreciate|great|excellent|love|happy|pleased|satisfied|perfect)/.test(
+            lowerText,
+          );
+
         if (angryWords) return 'angry';
         if (frustratedWords && !positiveWords) return 'frustrated';
         if (positiveWords && !frustratedWords) return 'positive';
@@ -2631,11 +2655,14 @@ export const appRouter = t.router({
       // Build comprehensive order context
       let orderContextDetails = '';
       if (orderDetails) {
-        const orderDate = new Date(orderDetails.createdAt).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
+        const orderDate = new Date(orderDetails.createdAt).toLocaleDateString(
+          'en-US',
+          {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          },
+        );
         orderContextDetails = `Order Details:
 - Order Number: ${orderDetails.name || 'N/A'}
 - Order Date: ${orderDate}
@@ -2645,9 +2672,11 @@ export const appRouter = t.router({
       } else if (orderSummary) {
         orderContextDetails = `Order Details: ${orderSummary}`;
       } else if (threadMessages.length > 0) {
-        orderContextDetails = 'Order number may have been mentioned in earlier messages - check thread context below';
+        orderContextDetails =
+          'Order number may have been mentioned in earlier messages - check thread context below';
       } else {
-        orderContextDetails = 'No specific order referenced - customer may need to provide order number';
+        orderContextDetails =
+          'No specific order referenced - customer may need to provide order number';
       }
 
       // Build customer history context
@@ -2655,7 +2684,9 @@ export const appRouter = t.router({
       if (customerPurchaseCount > 1) {
         const lastOrder = customerOrderHistory[1]; // Second order (current is first)
         if (lastOrder) {
-          const lastOrderDate = new Date(lastOrder.createdAt).toLocaleDateString('en-US', {
+          const lastOrderDate = new Date(
+            lastOrder.createdAt,
+          ).toLocaleDateString('en-US', {
             month: 'short',
             year: 'numeric',
           });
@@ -2666,24 +2697,25 @@ export const appRouter = t.router({
       }
 
       // Build SKU context
-      const skuContext = allSKUs.length > 0
-        ? `\n- Product SKUs mentioned: ${allSKUs.join(', ')}`
-        : '';
+      const skuContext =
+        allSKUs.length > 0
+          ? `\n- Product SKUs mentioned: ${allSKUs.join(', ')}`
+          : '';
 
       const lowerMsg = message.toLowerCase();
-      const urgencyLabel = /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
-        ? 'urgent'
-        : 'standard';
-      const issueType =
-        /(refund|return|exchange|cancel)/.test(lowerMsg)
-          ? 'refund/return'
-          : /(shipping|delivery|delayed|tracking)/.test(lowerMsg)
-            ? 'shipping'
-            : /(payment|charge|billing)/.test(lowerMsg)
-              ? 'payment'
-              : /(product|size|spec|compatib|information|question)/.test(lowerMsg)
-                ? 'product_info'
-                : 'general';
+      const urgencyLabel =
+        /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
+          ? 'urgent'
+          : 'standard';
+      const issueType = /(refund|return|exchange|cancel)/.test(lowerMsg)
+        ? 'refund/return'
+        : /(shipping|delivery|delayed|tracking)/.test(lowerMsg)
+          ? 'shipping'
+          : /(payment|charge|billing)/.test(lowerMsg)
+            ? 'payment'
+            : /(product|size|spec|compatib|information|question)/.test(lowerMsg)
+              ? 'product_info'
+              : 'general';
 
       const prompt = `You are a professional customer support representative for an e-commerce store. Draft a concise, empathetic reply that feels tailored to the customer (keep speed high, avoid fluff).
 
@@ -3425,7 +3457,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
         });
 
-        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
+        if (
+          !message ||
+          (message as any).thread.connection.userId !== ctx.userId
+        ) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -3828,7 +3863,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           include: { thread: { include: { connection: true } } },
         });
 
-        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
+        if (
+          !message ||
+          (message as any).thread.connection.userId !== ctx.userId
+        ) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -6764,49 +6802,6 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
       }
     }),
-  // Update Google Analytics Property Selection
-  updateGoogleAnalyticsProperty: protectedProcedure
-    .input(
-      z.object({
-        propertyId: z.string(),
-        propertyName: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ input, ctx }) => {
-      const connection = await prisma.connection.findFirst({
-        where: {
-          userId: ctx.userId,
-          type: 'GOOGLE_ANALYTICS' as any,
-        },
-      });
-
-      if (!connection) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Google Analytics not connected',
-        });
-      }
-
-      const metadata = (connection.metadata as Record<string, unknown>) || {};
-      const updatedMetadata = {
-        ...metadata,
-        propertyId: input.propertyId,
-        propertyName:
-          input.propertyName ||
-          (typeof metadata.propertyName === 'string'
-            ? metadata.propertyName
-            : undefined),
-      };
-
-      await prisma.connection.update({
-        where: { id: connection.id },
-        data: {
-          metadata: updatedMetadata,
-        },
-      });
-
-      return { success: true };
-    }),
   // Disconnect Google Analytics
   disconnectGoogleAnalytics: protectedProcedure.mutation(async ({ ctx }) => {
     const connection = await prisma.connection.findFirst({
@@ -6863,6 +6858,927 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       ctx.userId,
     );
     return { success: true };
+  }),
+  // Check GA4 AI Review Cooldown
+  checkGA4AIReviewCooldown: protectedProcedure.query(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics not connected',
+      });
+    }
+
+    // Get last review for this user (global cooldown - any property)
+    // Prisma converts GA4AIReview to camelCase - try both possible variations
+    const prismaClient = prisma as any;
+    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+    if (!model) {
+      console.error(
+        '[GA4 AI Review] Prisma model not found. Available models:',
+        Object.keys(prismaClient).filter(
+          (k) => k.includes('Review') || k.includes('GA4'),
+        ),
+      );
+      // If model doesn't exist, allow generation (graceful degradation)
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const lastReview = await model.findFirst({
+      where: {
+        userId: ctx.userId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!lastReview) {
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const now = new Date();
+    const lastReviewTime = lastReview.createdAt;
+    const hoursSinceLastReview =
+      (now.getTime() - lastReviewTime.getTime()) / (1000 * 60 * 60);
+    const canGenerate = hoursSinceLastReview >= 24;
+
+    const nextAvailableAt = canGenerate
+      ? null
+      : new Date(lastReviewTime.getTime() + 24 * 60 * 60 * 1000);
+    const hoursRemaining = canGenerate
+      ? 0
+      : Math.ceil(24 - hoursSinceLastReview);
+
+    return {
+      canGenerate,
+      lastReviewAt: lastReview.createdAt,
+      nextAvailableAt,
+      hoursRemaining,
+    };
+  }),
+  // Get GA4 AI Review History
+  getGA4AIReviewHistory: protectedProcedure
+    .input(
+      z.object({
+        propertyId: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Google Analytics not connected',
+        });
+      }
+
+      // Filter reviews by propertyId if provided, otherwise show all for user
+      const prismaClient = prisma as any;
+      const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+      const reviews = model
+        ? await model.findMany({
+            where: {
+              userId: ctx.userId,
+              ...(input.propertyId && { propertyId: input.propertyId }),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10, // Last 10 reviews
+          })
+        : [];
+
+      return { reviews };
+    }),
+  // Generate GA4 AI Review
+  generateGA4AIReview: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'GOOGLE_ANALYTICS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Google Analytics not connected',
+      });
+    }
+
+    // Check cooldown by userId only (global cooldown - prevents bypass on disconnect/reconnect or property switch)
+    const prismaClient = prisma as any;
+    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+    if (!model) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database model not available',
+      });
+    }
+
+    const lastReview = await model.findFirst({
+      where: {
+        userId: ctx.userId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (lastReview) {
+      const now = new Date();
+      const hoursSinceLastReview =
+        (now.getTime() - lastReview.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastReview < 24) {
+        const hoursRemaining = Math.ceil(24 - hoursSinceLastReview);
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: `Please wait ${hoursRemaining} more hour(s) before generating another review.`,
+        });
+      }
+    }
+
+    const metadata = (connection.metadata as Record<string, unknown>) || {};
+    const propertyId = metadata.propertyId as string | undefined;
+
+    if (!propertyId) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No property selected. Please select a property first.',
+      });
+    }
+
+    // Fetch GA4 data for last 30 days
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    const accessToken = connection.accessToken;
+    const refreshToken = connection.refreshToken;
+
+    let analyticsData;
+    try {
+      analyticsData = await fetchGA4Analytics(
+        propertyId,
+        accessToken,
+        refreshToken,
+        startDate,
+        endDate,
+      );
+    } catch (error: any) {
+      console.error('[GA AI Review] Error fetching analytics data:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to fetch analytics data: ${error.message || 'Unknown error'}`,
+      });
+    }
+
+    // Generate AI review using OpenAI
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'AI service not configured',
+      });
+    }
+
+    // Build prompt for AI analysis
+    const bounceRatePercent = (analyticsData.bounceRate * 100).toFixed(1);
+    const conversionRatePercent = analyticsData.conversionRate
+      ? analyticsData.conversionRate.toFixed(2)
+      : 'N/A';
+    const avgSessionDurationMinutes = Math.floor(
+      analyticsData.avgSessionDuration / 60,
+    );
+    const avgSessionDurationSeconds = Math.floor(
+      analyticsData.avgSessionDuration % 60,
+    );
+
+    // Calculate trend (compare first half vs second half of period)
+    const trendData = analyticsData.trend || [];
+    const midPoint = Math.floor(trendData.length / 2);
+    const firstHalfSessions = trendData
+      .slice(0, midPoint)
+      .reduce((sum, day) => sum + day.sessions, 0);
+    const secondHalfSessions = trendData
+      .slice(midPoint)
+      .reduce((sum, day) => sum + day.sessions, 0);
+    const sessionTrend =
+      firstHalfSessions > 0
+        ? ((secondHalfSessions - firstHalfSessions) / firstHalfSessions) * 100
+        : 0;
+
+    const topTrafficSources = analyticsData.trafficSources
+      .slice(0, 5)
+      .map((s) => `${s.source}/${s.medium} (${s.sessions} sessions)`)
+      .join(', ');
+    const topPages = analyticsData.topPages
+      .slice(0, 5)
+      .map((p) => `${p.page} (${p.views} views)`)
+      .join(', ');
+
+    const prompt = `You are an expert digital marketing and analytics consultant. Analyze the following Google Analytics 4 (GA4) data for the last 30 days and provide a comprehensive review.
+
+Analytics Data:
+- Total Sessions: ${analyticsData.sessions.toLocaleString()}
+- Total Users: ${analyticsData.users.toLocaleString()}
+- Page Views: ${analyticsData.pageViews.toLocaleString()}
+- Bounce Rate: ${bounceRatePercent}%
+- Average Session Duration: ${avgSessionDurationMinutes}m ${avgSessionDurationSeconds}s
+- Pages per Session: ${analyticsData.sessions > 0 ? (analyticsData.pageViews / analyticsData.sessions).toFixed(2) : '0'}
+- Session Trend (first half vs second half): ${sessionTrend > 0 ? '+' : ''}${sessionTrend.toFixed(1)}%
+${analyticsData.revenue !== undefined ? `- Revenue: $${analyticsData.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+${analyticsData.transactions ? `- Transactions: ${analyticsData.transactions}` : ''}
+${analyticsData.conversionRate ? `- Conversion Rate: ${conversionRatePercent}%` : ''}
+${analyticsData.avgOrderValue ? `- Average Order Value: $${analyticsData.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+- Top Traffic Sources: ${topTrafficSources || 'No data'}
+- Top Pages: ${topPages || 'No data'}
+
+Provide a comprehensive review in the following JSON format:
+{
+  "summary": "A 2-3 sentence executive summary of the overall performance",
+  "problems": [
+    {
+      "title": "Problem title",
+      "description": "Detailed description of the problem",
+      "severity": "high" | "medium" | "low",
+      "impact": "What this problem means for the business"
+    }
+  ],
+  "suggestions": [
+    {
+      "title": "Suggestion title",
+      "description": "Detailed actionable recommendation",
+      "priority": "high" | "medium" | "low",
+      "expectedImpact": "What improvement this could bring"
+    }
+  ],
+  "tips": [
+    {
+      "title": "Tip title",
+      "description": "Best practice or optimization tip"
+    }
+  ],
+  "remedialActions": [
+    {
+      "action": "Specific action to take",
+      "reason": "Why this action is needed",
+      "priority": "high" | "medium" | "low"
+    }
+  ]
+}
+
+Focus on:
+1. Identifying performance issues (high bounce rate, low conversion, traffic drops)
+2. Providing actionable recommendations
+3. Highlighting opportunities for improvement
+4. Suggesting specific remedial actions
+
+Be specific, data-driven, and actionable.`;
+
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are an expert digital marketing and analytics consultant. Analyze Google Analytics data and provide actionable insights in JSON format. Always return valid JSON.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`OpenAI API error: ${resp.status} - ${errorText}`);
+      }
+
+      const json: any = await resp.json();
+      const aiResponse = json.choices?.[0]?.message?.content || '{}';
+
+      // Parse AI response (it might be wrapped in markdown code blocks)
+      let parsedInsights: any;
+      try {
+        const cleanedResponse = aiResponse
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        parsedInsights = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error(
+          '[GA AI Review] Failed to parse AI response:',
+          parseError,
+        );
+        // Fallback structure
+        parsedInsights = {
+          summary: 'AI analysis completed, but response format was invalid.',
+          problems: [],
+          suggestions: [],
+          tips: [],
+          remedialActions: [],
+        };
+      }
+
+      // Ensure all required fields exist
+      const insights = {
+        summary:
+          parsedInsights.summary ||
+          'Analytics review completed. Review the detailed insights below.',
+        problems: Array.isArray(parsedInsights.problems)
+          ? parsedInsights.problems
+          : [],
+        suggestions: Array.isArray(parsedInsights.suggestions)
+          ? parsedInsights.suggestions
+          : [],
+        tips: Array.isArray(parsedInsights.tips) ? parsedInsights.tips : [],
+        remedialActions: Array.isArray(parsedInsights.remedialActions)
+          ? parsedInsights.remedialActions
+          : [],
+      };
+
+      // Store review in database
+      const prismaClient = prisma as any;
+      const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+      if (!model) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database model not available',
+        });
+      }
+
+      const review = await model.create({
+        data: {
+          userId: ctx.userId,
+          connectionId: connection.id,
+          propertyId: propertyId,
+          reviewDate: new Date(endDate),
+          insights: insights,
+          summary: insights.summary,
+        },
+      });
+
+      return {
+        id: review.id,
+        summary: insights.summary,
+        insights: insights,
+        createdAt: review.createdAt,
+      };
+    } catch (error: any) {
+      console.error('[GA AI Review] Error generating review:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message:
+          error.message ||
+          'Failed to generate AI review. Please try again later.',
+      });
+    }
+  }),
+  // Check Meta Ads AI Review Cooldown
+  checkMetaAdsAIReviewCooldown: protectedProcedure.query(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'META_ADS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Meta Ads not connected',
+      });
+    }
+
+    // Get last review for this user (global cooldown - any ad account)
+    const prismaClient = prisma as any;
+    const model = prismaClient.metaAdsAIReview || prismaClient.metaAdsAIReview;
+
+    if (!model) {
+      console.error(
+        '[Meta Ads AI Review] Prisma model not found. Available models:',
+        Object.keys(prismaClient).filter(
+          (k) => k.includes('Review') || k.includes('MetaAds'),
+        ),
+      );
+      // If model doesn't exist, allow generation (graceful degradation)
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const lastReview = await model.findFirst({
+      where: {
+        userId: ctx.userId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!lastReview) {
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const now = new Date();
+    const lastReviewTime = lastReview.createdAt;
+    const hoursSinceLastReview =
+      (now.getTime() - lastReviewTime.getTime()) / (1000 * 60 * 60);
+    const canGenerate = hoursSinceLastReview >= 24;
+
+    const nextAvailableAt = canGenerate
+      ? null
+      : new Date(lastReviewTime.getTime() + 24 * 60 * 60 * 1000);
+    const hoursRemaining = canGenerate
+      ? 0
+      : Math.ceil(24 - hoursSinceLastReview);
+
+    return {
+      canGenerate,
+      lastReviewAt: lastReview.createdAt,
+      nextAvailableAt,
+      hoursRemaining,
+    };
+  }),
+  // Get Meta Ads AI Review History
+  getMetaAdsAIReviewHistory: protectedProcedure
+    .input(
+      z.object({
+        adAccountId: z.string().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'META_ADS' as any,
+        },
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Meta Ads not connected',
+        });
+      }
+
+      // Filter reviews by adAccountId if provided, otherwise show all for user
+      const prismaClient = prisma as any;
+      const model =
+        prismaClient.metaAdsAIReview || prismaClient.metaAdsAIReview;
+      const reviews = model
+        ? await model.findMany({
+            where: {
+              userId: ctx.userId,
+              ...(input.adAccountId && { adAccountId: input.adAccountId }),
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10, // Last 10 reviews
+          })
+        : [];
+
+      return { reviews };
+    }),
+  // Generate Meta Ads AI Review
+  generateMetaAdsAIReview: protectedProcedure.mutation(async ({ ctx }) => {
+    const connection = await prisma.connection.findFirst({
+      where: {
+        userId: ctx.userId,
+        type: 'META_ADS' as any,
+      },
+    });
+
+    if (!connection) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'Meta Ads not connected',
+      });
+    }
+
+    // Check cooldown by userId only (global cooldown - prevents bypass on disconnect/reconnect or account switch)
+    const prismaClient = prisma as any;
+    const model = prismaClient.metaAdsAIReview || prismaClient.metaAdsAIReview;
+
+    if (!model) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database model not available',
+      });
+    }
+
+    const lastReview = await model.findFirst({
+      where: {
+        userId: ctx.userId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (lastReview) {
+      const now = new Date();
+      const hoursSinceLastReview =
+        (now.getTime() - lastReview.createdAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLastReview < 24) {
+        const hoursRemaining = Math.ceil(24 - hoursSinceLastReview);
+        throw new TRPCError({
+          code: 'TOO_MANY_REQUESTS',
+          message: `Please wait ${hoursRemaining} more hour(s) before generating another review.`,
+        });
+      }
+    }
+
+    const metadata = (connection.metadata as Record<string, unknown>) || {};
+    const adAccountId = metadata.adAccountId as string | undefined;
+
+    if (!adAccountId) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'No ad account selected. Please select an ad account first.',
+      });
+    }
+
+    // Fetch Meta Ads data for last 30 days
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0];
+
+    const accessToken = connection.accessToken;
+    const refreshToken = connection.refreshToken;
+
+    let adsData;
+    try {
+      adsData = await fetchMetaAdsInsights(
+        adAccountId,
+        accessToken,
+        refreshToken,
+        startDate,
+        endDate,
+      );
+    } catch (error: any) {
+      console.error('[Meta Ads AI Review] Error fetching ads data:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: `Failed to fetch ads data: ${error.message || 'Unknown error'}`,
+      });
+    }
+
+    // Generate AI review using OpenAI
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'AI service not configured',
+      });
+    }
+
+    // Build comprehensive prompt for Meta Ads analysis
+    const roasDisplay = adsData.roas ? adsData.roas.toFixed(2) : 'N/A';
+    const cpaDisplay = adsData.cpa ? `$${adsData.cpa.toFixed(2)}` : 'N/A';
+    const conversionRate =
+      adsData.clicks > 0 && adsData.conversions
+        ? ((adsData.conversions / adsData.clicks) * 100).toFixed(2)
+        : '0.00';
+
+    // Campaign analysis
+    const campaignsToStop = adsData.campaigns
+      .filter((c) => {
+        if (!c.roas || c.roas < 1) return true;
+        if (c.spend > 100 && (!c.conversions || c.conversions === 0))
+          return true;
+        return false;
+      })
+      .slice(0, 5)
+      .map((c) => ({
+        name: c.name,
+        spend: c.spend,
+        roas: c.roas,
+        conversions: c.conversions || 0,
+      }));
+
+    const campaignsToScale = adsData.campaigns
+      .filter((c) => c.roas && c.roas >= 2 && c.spend > 50)
+      .sort((a, b) => (b.roas || 0) - (a.roas || 0))
+      .slice(0, 5)
+      .map((c) => ({
+        name: c.name,
+        spend: c.spend,
+        roas: c.roas,
+        conversions: c.conversions || 0,
+      }));
+
+    const topAdsets = adsData.adsets
+      .sort((a, b) => (b.roas || 0) - (a.roas || 0))
+      .slice(0, 5)
+      .map((a) => ({
+        name: a.name,
+        spend: a.spend,
+        roas: a.roas,
+        ctr: a.ctr,
+      }));
+
+    const prompt = `You are an expert Meta Ads (Facebook Ads) consultant and performance marketer. Analyze the following Meta Ads account data for the last 30 days and provide a comprehensive review with actionable recommendations.
+
+Account Performance Data:
+- Total Spend: $${adsData.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Impressions: ${adsData.impressions.toLocaleString()}
+- Clicks: ${adsData.clicks.toLocaleString()}
+- CTR: ${adsData.ctr.toFixed(2)}%
+- CPC: $${adsData.cpc.toFixed(2)}
+- CPM: $${adsData.cpm.toFixed(2)}
+- ROAS: ${roasDisplay}x
+- CPA: ${cpaDisplay}
+- Conversion Rate: ${conversionRate}%
+${adsData.conversions ? `- Conversions: ${adsData.conversions}` : ''}
+${adsData.conversionValue ? `- Conversion Value: $${adsData.conversionValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+${adsData.reach ? `- Reach: ${adsData.reach.toLocaleString()}` : ''}
+${adsData.frequency ? `- Frequency: ${adsData.frequency.toFixed(2)}` : ''}
+
+Campaigns Analysis:
+- Total Campaigns: ${adsData.campaigns.length}
+- Campaigns to Consider Stopping: ${campaignsToStop.length} (${campaignsToStop.map((c) => `${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})
+- Top Performing Campaigns to Scale: ${campaignsToScale.length} (${campaignsToScale.map((c) => `${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})
+
+Ad Sets Analysis:
+- Total Ad Sets: ${adsData.adsets.length}
+- Top Performing Ad Sets: ${topAdsets.map((a) => `${a.name} (ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, CTR: ${a.ctr.toFixed(2)}%)`).join(', ')}
+
+Provide a comprehensive review in the following JSON format:
+{
+  "summary": "A 2-3 sentence executive summary of the overall account performance",
+  "campaigns": {
+    "toStop": [
+      {
+        "id": "campaign_id",
+        "name": "Campaign name",
+        "reason": "Why this campaign should be stopped",
+        "metrics": {
+          "spend": 100.50,
+          "roas": 0.5,
+          "conversions": 0,
+          "cpa": 0
+        }
+      }
+    ],
+    "toScale": [
+      {
+        "id": "campaign_id",
+        "name": "Campaign name",
+        "reason": "Why this campaign should be scaled",
+        "metrics": {
+          "spend": 200.00,
+          "roas": 3.5,
+          "conversions": 10,
+          "cpa": 20.00
+        }
+      }
+    ],
+    "needsOptimization": [
+      {
+        "id": "campaign_id",
+        "name": "Campaign name",
+        "issues": ["Issue 1", "Issue 2"],
+        "recommendations": ["Recommendation 1", "Recommendation 2"]
+      }
+    ]
+  },
+  "adsets": {
+    "underperforming": [
+      {
+        "id": "adset_id",
+        "name": "Ad Set name",
+        "issues": ["Issue description"],
+        "suggestions": ["Suggestion for improvement"]
+      }
+    ],
+    "topPerformers": [
+      {
+        "id": "adset_id",
+        "name": "Ad Set name",
+        "strengths": ["Strength 1", "Strength 2"],
+        "scalingTips": ["Tip for scaling this ad set"]
+      }
+    ]
+  },
+  "account": {
+    "overallPerformance": "Assessment of overall account health and performance",
+    "trends": ["Trend 1", "Trend 2"],
+    "keyMetrics": {
+      "roas": ${adsData.roas || 'null'},
+      "cpa": ${adsData.cpa || 'null'},
+      "ctr": ${adsData.ctr}
+    }
+  },
+  "budget": {
+    "recommendations": [
+      {
+        "action": "Specific budget action",
+        "reason": "Why this action is recommended",
+        "expectedImpact": "Expected outcome"
+      }
+    ],
+    "reallocation": [
+      {
+        "from": "Campaign/Ad Set to reduce budget",
+        "to": "Campaign/Ad Set to increase budget",
+        "amount": "Suggested amount",
+        "reason": "Why this reallocation makes sense"
+      }
+    ]
+  },
+  "creative": {
+    "tips": [
+      {
+        "title": "Creative tip title",
+        "description": "Detailed creative optimization tip",
+        "priority": "high" | "medium" | "low"
+      }
+    ],
+    "performance": {
+      "ctrAnalysis": "Analysis of CTR performance and creative effectiveness",
+      "engagementPatterns": "Patterns in engagement and creative performance"
+    }
+  }
+}
+
+Focus on:
+1. Identifying campaigns that should be stopped (low ROAS, high spend with no conversions)
+2. Highlighting campaigns that should be scaled (high ROAS, good performance)
+3. Analyzing ad set performance and targeting issues
+4. Providing budget reallocation recommendations
+5. Offering creative optimization tips based on CTR and engagement data
+6. Overall account health assessment
+
+Be specific, data-driven, and actionable. Use the actual campaign and ad set data provided.`;
+
+    try {
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are an expert Meta Ads (Facebook Ads) consultant and performance marketer. Analyze Meta Ads data and provide actionable insights in JSON format. Always return valid JSON.',
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 3000,
+        }),
+      });
+
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        throw new Error(`OpenAI API error: ${resp.status} - ${errorText}`);
+      }
+
+      const json: any = await resp.json();
+      const aiResponse = json.choices?.[0]?.message?.content || '{}';
+
+      // Parse AI response (it might be wrapped in markdown code blocks)
+      let parsedInsights: any;
+      try {
+        const cleanedResponse = aiResponse
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        parsedInsights = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error(
+          '[Meta Ads AI Review] Failed to parse AI response:',
+          parseError,
+        );
+        // Fallback structure
+        parsedInsights = {
+          summary: 'AI analysis completed, but response format was invalid.',
+          campaigns: { toStop: [], toScale: [], needsOptimization: [] },
+          adsets: { underperforming: [], topPerformers: [] },
+          account: { overallPerformance: '', trends: [], keyMetrics: {} },
+          budget: { recommendations: [], reallocation: [] },
+          creative: { tips: [], performance: {} },
+        };
+      }
+
+      // Ensure all required fields exist
+      const insights = {
+        summary:
+          parsedInsights.summary ||
+          'Meta Ads review completed. Review the detailed insights below.',
+        campaigns: {
+          toStop: Array.isArray(parsedInsights.campaigns?.toStop)
+            ? parsedInsights.campaigns.toStop
+            : [],
+          toScale: Array.isArray(parsedInsights.campaigns?.toScale)
+            ? parsedInsights.campaigns.toScale
+            : [],
+          needsOptimization: Array.isArray(
+            parsedInsights.campaigns?.needsOptimization,
+          )
+            ? parsedInsights.campaigns.needsOptimization
+            : [],
+        },
+        adsets: {
+          underperforming: Array.isArray(parsedInsights.adsets?.underperforming)
+            ? parsedInsights.adsets.underperforming
+            : [],
+          topPerformers: Array.isArray(parsedInsights.adsets?.topPerformers)
+            ? parsedInsights.adsets.topPerformers
+            : [],
+        },
+        account: {
+          overallPerformance:
+            parsedInsights.account?.overallPerformance ||
+            'Account performance analysis completed.',
+          trends: Array.isArray(parsedInsights.account?.trends)
+            ? parsedInsights.account.trends
+            : [],
+          keyMetrics: parsedInsights.account?.keyMetrics || {},
+        },
+        budget: {
+          recommendations: Array.isArray(parsedInsights.budget?.recommendations)
+            ? parsedInsights.budget.recommendations
+            : [],
+          reallocation: Array.isArray(parsedInsights.budget?.reallocation)
+            ? parsedInsights.budget.reallocation
+            : [],
+        },
+        creative: {
+          tips: Array.isArray(parsedInsights.creative?.tips)
+            ? parsedInsights.creative.tips
+            : [],
+          performance: parsedInsights.creative?.performance || {},
+        },
+      };
+
+      // Store review in database
+      const review = await model.create({
+        data: {
+          userId: ctx.userId,
+          connectionId: connection.id,
+          adAccountId: adAccountId,
+          reviewDate: new Date(endDate),
+          insights: insights,
+          summary: insights.summary,
+        },
+      });
+
+      return { review };
+    } catch (error: any) {
+      console.error('[Meta Ads AI Review] Error generating review:', error);
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message:
+          error.message ||
+          'Failed to generate AI review. Please try again later.',
+      });
+    }
   }),
 });
 
