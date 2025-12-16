@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
@@ -9,15 +9,15 @@ datasource db {
 }
 
 model User {
-  id          String        @id @default(cuid())
-  email       String        @unique
-  name        String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  connections Connection[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  connections  Connection[]
   subscription Subscription?
-  playbooks   Playbook[]
-  ga4Reviews  GA4AIReview[]
+  playbooks    Playbook[]
+  ga4Reviews   GA4AIReview[]
 }
 
 enum PlanType {
@@ -29,39 +29,39 @@ enum PlanType {
 }
 
 model Subscription {
-  id            String    @id @default(cuid())
-  userId        String    @unique
-  planType      PlanType  @default(TRIAL)
-  status        String    @default("active") // active, cancelled, expired, past_due
-  currentPeriodStart DateTime @default(now())
-  currentPeriodEnd   DateTime
-  canceledAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String        @id @default(cuid())
+  userId                String        @unique
+  planType              PlanType      @default(TRIAL)
+  status                String        @default("active") // active, cancelled, expired, past_due
+  currentPeriodStart    DateTime      @default(now())
+  currentPeriodEnd      DateTime
+  canceledAt            DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
   // Payment gateway information
-  paymentGateway String?  // razorpay, paddle, etc.
+  paymentGateway        String? // razorpay, paddle, etc.
   gatewaySubscriptionId String? // Razorpay subscription ID
-  gatewayCustomerId String? // Razorpay customer ID
-  gatewayPlanId String? // Razorpay plan ID
-  metadata     Json? // Additional payment metadata
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  usageRecords  UsageRecord[]
-  
+  gatewayCustomerId     String? // Razorpay customer ID
+  gatewayPlanId         String? // Razorpay plan ID
+  metadata              Json? // Additional payment metadata
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usageRecords          UsageRecord[]
+
   @@index([gatewaySubscriptionId])
   @@index([gatewayCustomerId])
 }
 
 model UsageRecord {
-  id            String    @id @default(cuid())
+  id             String       @id @default(cuid())
   subscriptionId String
-  periodStart   DateTime  // Start of billing period
-  periodEnd     DateTime  // End of billing period
-  emailsSent    Int       @default(0)
-  emailsReceived Int      @default(0)
-  aiSuggestions Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  periodStart    DateTime // Start of billing period
+  periodEnd      DateTime // End of billing period
+  emailsSent     Int          @default(0)
+  emailsReceived Int          @default(0)
+  aiSuggestions  Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
   @@unique([subscriptionId, periodStart])
   @@index([subscriptionId, periodStart])
@@ -70,10 +70,10 @@ model UsageRecord {
 model Connection {
   id           String         @id @default(cuid())
   type         ConnectionType
-  accessToken  String         // OAuth token or custom app access token (encrypted)
+  accessToken  String // OAuth token or custom app access token (encrypted)
   refreshToken String?
   shopDomain   String?
-  metadata     Json?          // Can store: storeName, supportEmail, webhookUrl, subdomain, lastWebhookReceived, connectionMethod
+  metadata     Json? // Can store: storeName, supportEmail, webhookUrl, subdomain, lastWebhookReceived, connectionMethod
   userId       String
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
@@ -91,33 +91,33 @@ model Connection {
 // Customer model to store PII data from Shopify webhooks
 // Webhooks contain full customer data that Admin API redacts for non-embedded apps
 model Customer {
-  id            String     @id @default(cuid())
-  shopifyId     String     @unique  // Shopify customer ID
-  connectionId  String
-  email         String?
-  phone         String?
-  firstName     String?
-  lastName      String?
+  id               String     @id @default(cuid())
+  shopifyId        String     @unique // Shopify customer ID
+  connectionId     String
+  email            String?
+  phone            String?
+  firstName        String?
+  lastName         String?
   // Shipping/Billing address fields
-  address1      String?
-  address2      String?
-  city          String?
-  province      String?
-  provinceCode  String?
-  country       String?
-  countryCode   String?
-  zip           String?
-  company       String?
+  address1         String?
+  address2         String?
+  city             String?
+  province         String?
+  provinceCode     String?
+  country          String?
+  countryCode      String?
+  zip              String?
+  company          String?
   // Aggregated stats
-  ordersCount   Int        @default(0)
-  totalSpent    Int        @default(0) // in cents
-  acceptsMarketing Boolean @default(false)
+  ordersCount      Int        @default(0)
+  totalSpent       Int        @default(0) // in cents
+  acceptsMarketing Boolean    @default(false)
   // Timestamps
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
   // Relations
-  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  orders        Order[]
+  connection       Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  orders           Order[]
 
   @@index([connectionId])
   @@index([email])
@@ -125,27 +125,27 @@ model Customer {
 }
 
 model Order {
-  id           String     @id @default(cuid())
-  shopifyId    String     @unique
-  status       String                      // Financial status from Shopify (paid, pending, refunded, etc.)
-  fulfillmentStatus String?                // Fulfillment/shipping status (fulfilled, unfulfilled, partial, shipped, in_transit, etc.)
-  email        String?
-  totalAmount  Int
-  currency     String     @default("INR")  // Currency code from Shopify (USD, INR, etc.)
-  customerName String?    // Customer full name for display
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  shopDomain   String?
-  name         String?
-  processedAt  DateTime?  // Time when order was processed by Shopify
-  statusUpdatedAt DateTime? // Time when order status was last updated
-  connectionId String
-  customerId   String?    // Link to Customer (populated from webhooks with full PII)
-  actions      Action[]
-  messages     Message[]
-  lineItems    OrderLineItem[]
-  connection   Connection @relation(fields: [connectionId], references: [id])
-  customer     Customer?  @relation(fields: [customerId], references: [id])
+  id                String          @id @default(cuid())
+  shopifyId         String          @unique
+  status            String // Financial status from Shopify (paid, pending, refunded, etc.)
+  fulfillmentStatus String? // Fulfillment/shipping status (fulfilled, unfulfilled, partial, shipped, in_transit, etc.)
+  email             String?
+  totalAmount       Int
+  currency          String          @default("INR") // Currency code from Shopify (USD, INR, etc.)
+  customerName      String? // Customer full name for display
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  shopDomain        String?
+  name              String?
+  processedAt       DateTime? // Time when order was processed by Shopify
+  statusUpdatedAt   DateTime? // Time when order status was last updated
+  connectionId      String
+  customerId        String? // Link to Customer (populated from webhooks with full PII)
+  actions           Action[]
+  messages          Message[]
+  lineItems         OrderLineItem[]
+  connection        Connection      @relation(fields: [connectionId], references: [id])
+  customer          Customer?       @relation(fields: [customerId], references: [id])
 
   @@index([connectionId])
   @@index([connectionId, createdAt])
@@ -154,19 +154,19 @@ model Order {
 
 // Line items for orders - stored for fast display without Shopify API calls
 model OrderLineItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  shopifyId   String   // Shopify line_item.id
-  title       String
-  quantity    Int
-  price       Int      // Price in cents
-  sku         String?
-  variantId   String?
-  productId   String?
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  orderId   String
+  shopifyId String // Shopify line_item.id
+  title     String
+  quantity  Int
+  price     Int // Price in cents
+  sku       String?
+  variantId String?
+  productId String?
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  @@index([orderId])
   @@unique([orderId, shopifyId])
+  @@index([orderId])
 }
 
 model Thread {
@@ -182,7 +182,7 @@ model Thread {
   connection    Connection @relation(fields: [connectionId], references: [id])
 
   @@index([connectionId])
-  @@index([connectionId, createdAt])  // For sorted connection-based queries (inbox optimization)
+  @@index([connectionId, createdAt]) // For sorted connection-based queries (inbox optimization)
   @@index([isUnread])
   @@index([isFlagged])
 }
@@ -205,10 +205,10 @@ model Message {
 
   @@index([direction, createdAt])
   @@index([threadId])
-  @@index([threadId, direction])  // For filtering messages by thread and direction (inbox optimization)
-  @@index([threadId, createdAt])  // For thread-based queries with ordering
+  @@index([threadId, direction]) // For filtering messages by thread and direction (inbox optimization)
+  @@index([threadId, createdAt]) // For thread-based queries with ordering
   @@index([orderId])
-  @@index([orderId, createdAt, direction])  // For pending email count calculation
+  @@index([orderId, createdAt, direction]) // For pending email count calculation
 }
 
 model AISuggestion {
@@ -243,23 +243,23 @@ model Event {
 }
 
 model Playbook {
-  id                  String            @id @default(cuid())
+  id                  String              @id @default(cuid())
   userId              String
   name                String
   description         String?
   category            PlaybookCategory
-  trigger             Json              // { type: 'shopify_event' | 'email_intent' | 'scheduled', config: {...} }
-  conditions          Json              // Array of condition objects
-  actions             Json              // Array of action objects
-  confidenceThreshold Float             @default(0.8)
-  requiresApproval    Boolean           @default(false)
-  enabled             Boolean           @default(false)
-  isDefault           Boolean           @default(false) // Default playbooks provided by system
-  executionCount      Int               @default(0)
+  trigger             Json // { type: 'shopify_event' | 'email_intent' | 'scheduled', config: {...} }
+  conditions          Json // Array of condition objects
+  actions             Json // Array of action objects
+  confidenceThreshold Float               @default(0.8)
+  requiresApproval    Boolean             @default(false)
+  enabled             Boolean             @default(false)
+  isDefault           Boolean             @default(false) // Default playbooks provided by system
+  executionCount      Int                 @default(0)
   lastExecutedAt      DateTime?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions          PlaybookExecution[]
 
   @@index([userId, category])
@@ -267,16 +267,16 @@ model Playbook {
 }
 
 model PlaybookExecution {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   playbookId  String
-  status      String   // pending, approved, executed, rejected, failed
+  status      String // pending, approved, executed, rejected, failed
   confidence  Float?
-  triggerData Json     // Data that triggered the execution
-  result      Json?    // Result of execution
+  triggerData Json // Data that triggered the execution
+  result      Json? // Result of execution
   error       String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   executedAt  DateTime?
-  playbook    Playbook @relation(fields: [playbookId], references: [id], onDelete: Cascade)
+  playbook    Playbook  @relation(fields: [playbookId], references: [id], onDelete: Cascade)
 
   @@index([playbookId, createdAt])
   @@index([status])
@@ -322,18 +322,18 @@ enum ActionStatus {
 }
 
 model GA4AIReview {
-  id            String   @id @default(cuid())
-  userId        String
-  connectionId  String
-  propertyId    String
-  reviewDate    DateTime  // Date range analyzed (last 30 days ending on this date)
-  insights      Json     // Structured insights: problems, suggestions, tips
-  summary       String   // Executive summary
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  
+  id           String     @id @default(cuid())
+  userId       String
+  connectionId String
+  propertyId   String
+  reviewDate   DateTime // Date range analyzed (last 30 days ending on this date)
+  insights     Json // Structured insights: problems, suggestions, tips
+  summary      String // Executive summary
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, connectionId, reviewDate]) // One review per day per connection
   @@index([userId, createdAt])
   @@index([connectionId])
-  @@unique([userId, connectionId, reviewDate]) // One review per day per connection
 }

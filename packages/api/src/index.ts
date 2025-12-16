@@ -6876,7 +6876,27 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     }
 
     // Get last review for this user (global cooldown - any property)
-    const lastReview = await prisma.gA4AIReview.findFirst({
+    // Prisma converts GA4AIReview to camelCase - try both possible variations
+    const prismaClient = prisma as any;
+    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+    if (!model) {
+      console.error(
+        '[GA4 AI Review] Prisma model not found. Available models:',
+        Object.keys(prismaClient).filter(
+          (k) => k.includes('Review') || k.includes('GA4'),
+        ),
+      );
+      // If model doesn't exist, allow generation (graceful degradation)
+      return {
+        canGenerate: true,
+        lastReviewAt: null,
+        nextAvailableAt: null,
+        hoursRemaining: 0,
+      };
+    }
+
+    const lastReview = await model.findFirst({
       where: {
         userId: ctx.userId,
       },
@@ -6929,13 +6949,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     }
 
     // Show all reviews for user (global - across all properties)
-    const reviews = await prisma.gA4AIReview.findMany({
-      where: {
-        userId: ctx.userId,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10, // Last 10 reviews
-    });
+    const prismaClient = prisma as any;
+    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+    const reviews = model
+      ? await model.findMany({
+          where: {
+            userId: ctx.userId,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 10, // Last 10 reviews
+        })
+      : [];
 
     return { reviews };
   }),
@@ -6956,7 +6980,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
     }
 
     // Check cooldown by userId only (global cooldown - prevents bypass on disconnect/reconnect or property switch)
-    const lastReview = await prisma.gA4AIReview.findFirst({
+    const prismaClient = prisma as any;
+    const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+    if (!model) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database model not available',
+      });
+    }
+
+    const lastReview = await model.findFirst({
       where: {
         userId: ctx.userId,
       },
@@ -7189,7 +7223,17 @@ Be specific, data-driven, and actionable.`;
       };
 
       // Store review in database
-      const review = await prisma.gA4AIReview.create({
+      const prismaClient = prisma as any;
+      const model = prismaClient.gA4AIReview || prismaClient.ga4AIReview;
+
+      if (!model) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Database model not available',
+        });
+      }
+
+      const review = await model.create({
         data: {
           userId: ctx.userId,
           connectionId: connection.id,
