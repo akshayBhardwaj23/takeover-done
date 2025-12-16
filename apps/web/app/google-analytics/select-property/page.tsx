@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { trpc } from '../../../lib/trpc';
 import { Card } from '../../../components/ui/card';
 import { Badge } from '../../../components/ui/badge';
 import { BarChart3, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
@@ -14,6 +15,7 @@ interface GA4Property {
 
 function PropertySelectionInner() {
   const router = useRouter();
+  const utils = trpc.useUtils();
   const [properties, setProperties] = useState<GA4Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(false);
@@ -76,8 +78,15 @@ function PropertySelectionInner() {
         throw new Error(errorData.error || 'Failed to save property selection');
       }
 
+      // Invalidate connections query to refetch with new connection
+      await utils.connections.invalidate();
+      
+      // Small delay to ensure connection is available, then redirect
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Redirect to analytics page
       router.push('/google-analytics');
+      router.refresh(); // Force refresh to update server components
     } catch (err) {
       console.error('[Property Selection] Error selecting property:', err);
       setError(

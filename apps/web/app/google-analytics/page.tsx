@@ -29,8 +29,12 @@ function GoogleAnalyticsInner() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
   const [showReviewHistory, setShowReviewHistory] = useState(false);
 
-  // Fetch connections
-  const connections = trpc.connections.useQuery();
+  // Fetch connections with refetch on mount to catch newly created connections
+  const connections = trpc.connections.useQuery(undefined, {
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0, // Always consider stale to refetch when navigating here
+  });
 
   // Get GA connections
   const gaConnections = connections.data?.connections.filter(
