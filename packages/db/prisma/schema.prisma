@@ -324,16 +324,16 @@ enum ActionStatus {
 model GA4AIReview {
   id           String     @id @default(cuid())
   userId       String
-  connectionId String
+  connectionId String? // Nullable to preserve reviews after disconnection (global cooldown)
   propertyId   String
   reviewDate   DateTime // Date range analyzed (last 30 days ending on this date)
   insights     Json // Structured insights: problems, suggestions, tips
   summary      String // Executive summary
   createdAt    DateTime   @default(now())
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
 
-  @@unique([userId, connectionId, reviewDate]) // One review per day per connection
+  @@unique([userId, reviewDate]) // One review per day per user (global cooldown)
   @@index([userId, createdAt])
   @@index([connectionId])
 }
