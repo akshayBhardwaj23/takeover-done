@@ -18,6 +18,7 @@ model User {
   subscription Subscription?
   playbooks    Playbook[]
   ga4Reviews   GA4AIReview[]
+  metaAdsReviews MetaAdsAIReview[]
 }
 
 enum PlanType {
@@ -82,6 +83,7 @@ model Connection {
   threads      Thread[]
   customers    Customer[]
   ga4Reviews   GA4AIReview[]
+  metaAdsReviews MetaAdsAIReview[]
   // Note: Messages are related via threads, not directly via connectionId
 
   @@index([userId])
@@ -336,4 +338,21 @@ model GA4AIReview {
   @@unique([userId, reviewDate]) // One review per day per user (global cooldown)
   @@index([userId, createdAt])
   @@index([connectionId])
+}
+
+model MetaAdsAIReview {
+  id           String     @id @default(cuid())
+  userId       String
+  connectionId String? // Nullable to preserve reviews after disconnection (global cooldown)
+  adAccountId  String
+  reviewDate   DateTime // Date range analyzed (last 30 days ending on this date)
+  insights     Json // Structured insights: campaigns, adsets, account, budget, creative
+  summary      String // Executive summary
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, reviewDate]) // One review per day per user (global cooldown)
+  @@index([userId, createdAt])
+  @@index([adAccountId])
 }

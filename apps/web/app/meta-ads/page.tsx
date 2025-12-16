@@ -2,8 +2,8 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { trpc } from '../../lib/trpc';
-import { Card } from '../../../../@ai-ecom/api/components/ui/card';
-import { Badge } from '../../../../@ai-ecom/api/components/ui/badge';
+import { Card } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
 import {
   TrendingUp,
   TrendingDown,
@@ -426,6 +426,30 @@ function MetaAdsInner() {
     },
   );
 
+  // AI Review queries
+  const cooldown = trpc.checkMetaAdsAIReviewCooldown.useQuery(undefined, {
+    enabled: !!selectedAccountId,
+    refetchOnWindowFocus: false,
+    staleTime: 60000, // 1 minute
+  });
+
+  const reviewHistory = trpc.getMetaAdsAIReviewHistory.useQuery(
+    { adAccountId: selectedAccountId },
+    {
+      enabled: !!selectedAccountId,
+      refetchOnWindowFocus: false,
+    },
+  );
+
+  const generateReview = trpc.generateMetaAdsAIReview.useMutation({
+    onSuccess: () => {
+      cooldown.refetch();
+      reviewHistory.refetch();
+    },
+  });
+
+  const [showAllReviews, setShowAllReviews] = useState(false);
+
   // Update account mutation
   const updateAccount = trpc.updateMetaAdsAccount.useMutation({
     onSuccess: () => {
@@ -639,38 +663,26 @@ function MetaAdsInner() {
     );
   }
 
-  // No account selected yet
+  // No account selected yet - redirect to selection page
   if (!selectedAccountId) {
     return (
       <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl space-y-8 px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <BarChart3 className="h-6 w-6 text-slate-700" />
+        <div className="mx-auto max-w-6xl px-6">
+          <Card className="mx-auto max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
+              <BarChart3 className="h-10 w-10 text-slate-500" />
             </div>
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">Meta Ads</h1>
-              <p className="text-sm text-slate-500">
-                Select an account to view analytics
-              </p>
-            </div>
-          </div>
-          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">
-              Select an Account
-            </h2>
-            <select
-              value={selectedAccountId}
-              onChange={(e) => handleAccountChange(e.target.value)}
-              className="mt-6 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">No account selected</h2>
+            <p className="mt-3 text-sm text-slate-500">
+              Please select a Meta Ads account to view analytics.
+            </p>
+            <a
+              href="/meta-ads/select-account"
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
             >
-              <option value="">Select an account...</option>
-              {accounts.data.accounts.map((account) => (
-                <option key={account.adAccountId} value={account.adAccountId}>
-                  {account.adAccountName}
-                </option>
-              ))}
-            </select>
+              Select Account
+              <ArrowRight className="h-4 w-4" />
+            </a>
           </Card>
         </div>
       </main>
@@ -920,20 +932,6 @@ function MetaAdsInner() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {accounts.data?.accounts && accounts.data.accounts.length > 0 && (
-              <select
-                value={selectedAccountId}
-                onChange={(e) => handleAccountChange(e.target.value)}
-                disabled={updateAccount.isPending || accounts.isLoading}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {accounts.data.accounts.map((account) => (
-                  <option key={account.adAccountId} value={account.adAccountId}>
-                    {account.adAccountName}
-                  </option>
-                ))}
-              </select>
-            )}
             <select
               value={dateRange}
               onChange={(e) =>
@@ -1174,6 +1172,250 @@ function MetaAdsInner() {
             })}
           </div>
         )}
+
+        {/* AI Review Section - After analytics tiles */}
+        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-gradient-to-br from-purple-100 to-pink-100 p-3">
+                <Sparkles className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">AI Campaign Review</h2>
+                <p className="text-sm text-slate-500">
+                  Get AI-powered insights on campaigns, adsets, budget, and creative optimization
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {cooldown.data?.canGenerate ? (
+                <button
+                  onClick={() => generateReview.mutate()}
+                  disabled={generateReview.isPending || !selectedAccountId}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 text-sm font-semibold text-white transition hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {generateReview.isPending ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Generate Review
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-800">
+                    Available in {cooldown.data?.hoursRemaining || 0}h
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {generateReview.isError && (
+            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <p className="text-sm text-red-800">
+                  {generateReview.error?.message || 'Failed to generate review. Please try again.'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 ? (
+            <div className="space-y-4">
+              {/* Always show the most recent review */}
+              {(() => {
+                const mostRecentReview = reviewHistory.data.reviews[0];
+                const insights = mostRecentReview.insights as any;
+                const reviewDate = new Date(mostRecentReview.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+
+                return (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                        <span className="text-sm font-medium text-slate-600">
+                          Latest Review - {reviewDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-slate-900">{mostRecentReview.summary}</p>
+                    </div>
+
+                    {/* Campaigns Section */}
+                    {insights.campaigns && (
+                      <div className="mb-4 space-y-3">
+                        {insights.campaigns.toStop && insights.campaigns.toStop.length > 0 && (
+                          <div>
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <PauseCircle className="h-4 w-4 text-red-600" />
+                              Campaigns to Stop
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.campaigns.toStop.slice(0, 3).map((campaign: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-red-200 bg-white p-3"
+                                >
+                                  <p className="font-medium text-slate-900">{campaign.name}</p>
+                                  <p className="mt-1 text-xs text-slate-600">{campaign.reason}</p>
+                                  {campaign.metrics && (
+                                    <div className="mt-2 flex gap-2 text-xs">
+                                      {campaign.metrics.roas !== undefined && (
+                                        <Badge className="border-red-200 bg-red-50 text-red-700">
+                                          ROAS: {campaign.metrics.roas.toFixed(2)}x
+                                        </Badge>
+                                      )}
+                                      {campaign.metrics.spend !== undefined && (
+                                        <Badge className="border-slate-200 bg-slate-50 text-slate-700">
+                                          Spend: ${campaign.metrics.spend.toFixed(2)}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {insights.campaigns.toScale && insights.campaigns.toScale.length > 0 && (
+                          <div>
+                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                              <TrendingUp className="h-4 w-4 text-emerald-600" />
+                              Campaigns to Scale
+                            </h4>
+                            <div className="space-y-2">
+                              {insights.campaigns.toScale.slice(0, 3).map((campaign: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-emerald-200 bg-white p-3"
+                                >
+                                  <p className="font-medium text-slate-900">{campaign.name}</p>
+                                  <p className="mt-1 text-xs text-slate-600">{campaign.reason}</p>
+                                  {campaign.metrics && (
+                                    <div className="mt-2 flex gap-2 text-xs">
+                                      {campaign.metrics.roas !== undefined && (
+                                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                          ROAS: {campaign.metrics.roas.toFixed(2)}x
+                                        </Badge>
+                                      )}
+                                      {campaign.metrics.spend !== undefined && (
+                                        <Badge className="border-slate-200 bg-slate-50 text-slate-700">
+                                          Spend: ${campaign.metrics.spend.toFixed(2)}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Budget Recommendations */}
+                    {insights.budget && insights.budget.recommendations && insights.budget.recommendations.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <DollarSign className="h-4 w-4 text-blue-600" />
+                          Budget Recommendations
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.budget.recommendations.slice(0, 3).map((rec: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-blue-200 bg-white p-3"
+                            >
+                              <p className="font-medium text-slate-900">{rec.action}</p>
+                              <p className="mt-1 text-xs text-slate-600">{rec.reason}</p>
+                              {rec.expectedImpact && (
+                                <p className="mt-1 text-xs text-blue-700">
+                                  Expected Impact: {rec.expectedImpact}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Creative Tips */}
+                    {insights.creative && insights.creative.tips && insights.creative.tips.length > 0 && (
+                      <div>
+                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                          <Lightbulb className="h-4 w-4 text-purple-600" />
+                          Creative Optimization Tips
+                        </h4>
+                        <div className="space-y-2">
+                          {insights.creative.tips.slice(0, 2).map((tip: any, idx: number) => (
+                            <div
+                              key={idx}
+                              className="rounded-lg border border-purple-200 bg-white p-3"
+                            >
+                              <p className="font-medium text-slate-900">{tip.title}</p>
+                              <p className="mt-1 text-xs text-slate-600">{tip.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show all reviews button if there are more than one */}
+                    {reviewHistory.data.reviews.length > 1 && (
+                      <div className="mt-4 pt-4 border-t border-slate-200">
+                        <button
+                          onClick={() => setShowAllReviews(!showAllReviews)}
+                          className="text-sm font-medium text-purple-600 hover:text-purple-700"
+                        >
+                          {showAllReviews ? 'Hide' : 'Show'} All Reviews ({reviewHistory.data.reviews.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : cooldown.data?.lastReviewAt && !reviewHistory.data?.reviews ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
+              <p className="text-sm text-slate-600">
+                Your last review was generated on{' '}
+                {new Date(cooldown.data.lastReviewAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+                . Generate a new review to see insights.
+              </p>
+            </div>
+          ) : !cooldown.data?.lastReviewAt && !generateReview.isPending ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
+              <Sparkles className="mx-auto h-12 w-12 text-purple-400" />
+              <p className="mt-4 text-sm font-medium text-slate-900">
+                No reviews generated yet
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Click "Generate Review" to get AI-powered insights about your campaigns, adsets, budget, and creative performance.
+              </p>
+            </div>
+          ) : null}
+        </Card>
 
         <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
