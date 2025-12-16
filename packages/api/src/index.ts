@@ -1388,7 +1388,10 @@ const shopifyRouter = t.router({
               firstName: orderWithIncludes.customer.firstName,
               lastName: orderWithIncludes.customer.lastName,
               fullName:
-                [orderWithIncludes.customer.firstName, orderWithIncludes.customer.lastName]
+                [
+                  orderWithIncludes.customer.firstName,
+                  orderWithIncludes.customer.lastName,
+                ]
                   .filter(Boolean)
                   .join(' ') || null,
               address: {
@@ -2227,24 +2230,26 @@ export const appRouter = t.router({
               ]);
 
               // Add connection data manually from cached connections (fast in-memory lookup)
-              const messagesWithConnections = unassignedMessages.map((msg: any) => {
-                const connection = msg.thread?.connectionId
-                  ? connectionMap.get(msg.thread.connectionId)
-                  : null;
+              const messagesWithConnections = unassignedMessages.map(
+                (msg: any) => {
+                  const connection = msg.thread?.connectionId
+                    ? connectionMap.get(msg.thread.connectionId)
+                    : null;
 
-                return {
-                  ...msg,
-                  thread: {
-                    ...msg.thread,
-                    connection: connection
-                      ? {
-                          shopDomain: (connection as any).shopDomain,
-                          metadata: (connection as any).metadata,
-                        }
-                      : null,
-                  },
-                };
-              });
+                  return {
+                    ...msg,
+                    thread: {
+                      ...msg.thread,
+                      connection: connection
+                        ? {
+                            shopDomain: (connection as any).shopDomain,
+                            metadata: (connection as any).metadata,
+                          }
+                        : null,
+                    },
+                  };
+                },
+              );
 
               return {
                 messages: messagesWithConnections,
@@ -2274,7 +2279,12 @@ export const appRouter = t.router({
 
           // Convert results to Map (filter out null orderIds)
           for (const row of pendingCounts) {
-            if (row.orderId && row._count && typeof row._count === 'object' && 'id' in row._count) {
+            if (
+              row.orderId &&
+              row._count &&
+              typeof row._count === 'object' &&
+              'id' in row._count
+            ) {
               pendingCountsMap.set(row.orderId, (row._count as any).id);
             }
           }
@@ -2425,7 +2435,7 @@ export const appRouter = t.router({
       // Sanitize inputs first (needed for order extraction)
       const message = sanitizeLimited(input.customerMessage, 5000);
       const customerEmail = safeEmail(input.customerEmail) ?? undefined;
-      
+
       // Extract order numbers from all thread messages (prioritize INBOUND messages)
       let foundOrderId: string | undefined = input.orderId;
       let foundOrderSummary: string | undefined = input.orderSummary;
@@ -2472,7 +2482,8 @@ export const appRouter = t.router({
 
             if (order) {
               foundOrderId = (order as any).shopifyId;
-              foundOrderSummary = ((order as any).name || `Order #${candidate}`) as string;
+              foundOrderSummary = ((order as any).name ||
+                `Order #${candidate}`) as string;
               break; // Use first found order
             }
           }
@@ -2551,15 +2562,28 @@ export const appRouter = t.router({
 
       const extractedSKUs = extractSKUs(message);
       const allThreadText = threadMessages.map((m) => m.body).join(' ');
-      const allSKUs = [...new Set([...extractedSKUs, ...extractSKUs(allThreadText)])];
+      const allSKUs = [
+        ...new Set([...extractedSKUs, ...extractSKUs(allThreadText)]),
+      ];
 
       // Enhanced sentiment detection (beyond urgency)
-      const detectSentiment = (text: string): 'angry' | 'frustrated' | 'neutral' | 'positive' => {
+      const detectSentiment = (
+        text: string,
+      ): 'angry' | 'frustrated' | 'neutral' | 'positive' => {
         const lowerText = text.toLowerCase();
-        const angryWords = /(angry|furious|terrible|awful|horrible|worst|hate|disgusted|ridiculous|unacceptable)/.test(lowerText);
-        const frustratedWords = /(frustrated|annoyed|disappointed|upset|concerned|worried|problem|issue|wrong|broken)/.test(lowerText);
-        const positiveWords = /(thank|thanks|appreciate|great|excellent|love|happy|pleased|satisfied|perfect)/.test(lowerText);
-        
+        const angryWords =
+          /(angry|furious|terrible|awful|horrible|worst|hate|disgusted|ridiculous|unacceptable)/.test(
+            lowerText,
+          );
+        const frustratedWords =
+          /(frustrated|annoyed|disappointed|upset|concerned|worried|problem|issue|wrong|broken)/.test(
+            lowerText,
+          );
+        const positiveWords =
+          /(thank|thanks|appreciate|great|excellent|love|happy|pleased|satisfied|perfect)/.test(
+            lowerText,
+          );
+
         if (angryWords) return 'angry';
         if (frustratedWords && !positiveWords) return 'frustrated';
         if (positiveWords && !frustratedWords) return 'positive';
@@ -2631,11 +2655,14 @@ export const appRouter = t.router({
       // Build comprehensive order context
       let orderContextDetails = '';
       if (orderDetails) {
-        const orderDate = new Date(orderDetails.createdAt).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        });
+        const orderDate = new Date(orderDetails.createdAt).toLocaleDateString(
+          'en-US',
+          {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          },
+        );
         orderContextDetails = `Order Details:
 - Order Number: ${orderDetails.name || 'N/A'}
 - Order Date: ${orderDate}
@@ -2645,9 +2672,11 @@ export const appRouter = t.router({
       } else if (orderSummary) {
         orderContextDetails = `Order Details: ${orderSummary}`;
       } else if (threadMessages.length > 0) {
-        orderContextDetails = 'Order number may have been mentioned in earlier messages - check thread context below';
+        orderContextDetails =
+          'Order number may have been mentioned in earlier messages - check thread context below';
       } else {
-        orderContextDetails = 'No specific order referenced - customer may need to provide order number';
+        orderContextDetails =
+          'No specific order referenced - customer may need to provide order number';
       }
 
       // Build customer history context
@@ -2655,7 +2684,9 @@ export const appRouter = t.router({
       if (customerPurchaseCount > 1) {
         const lastOrder = customerOrderHistory[1]; // Second order (current is first)
         if (lastOrder) {
-          const lastOrderDate = new Date(lastOrder.createdAt).toLocaleDateString('en-US', {
+          const lastOrderDate = new Date(
+            lastOrder.createdAt,
+          ).toLocaleDateString('en-US', {
             month: 'short',
             year: 'numeric',
           });
@@ -2666,24 +2697,25 @@ export const appRouter = t.router({
       }
 
       // Build SKU context
-      const skuContext = allSKUs.length > 0
-        ? `\n- Product SKUs mentioned: ${allSKUs.join(', ')}`
-        : '';
+      const skuContext =
+        allSKUs.length > 0
+          ? `\n- Product SKUs mentioned: ${allSKUs.join(', ')}`
+          : '';
 
       const lowerMsg = message.toLowerCase();
-      const urgencyLabel = /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
-        ? 'urgent'
-        : 'standard';
-      const issueType =
-        /(refund|return|exchange|cancel)/.test(lowerMsg)
-          ? 'refund/return'
-          : /(shipping|delivery|delayed|tracking)/.test(lowerMsg)
-            ? 'shipping'
-            : /(payment|charge|billing)/.test(lowerMsg)
-              ? 'payment'
-              : /(product|size|spec|compatib|information|question)/.test(lowerMsg)
-                ? 'product_info'
-                : 'general';
+      const urgencyLabel =
+        /(asap|urgent|immediately|right away|today|now)/.test(lowerMsg)
+          ? 'urgent'
+          : 'standard';
+      const issueType = /(refund|return|exchange|cancel)/.test(lowerMsg)
+        ? 'refund/return'
+        : /(shipping|delivery|delayed|tracking)/.test(lowerMsg)
+          ? 'shipping'
+          : /(payment|charge|billing)/.test(lowerMsg)
+            ? 'payment'
+            : /(product|size|spec|compatib|information|question)/.test(lowerMsg)
+              ? 'product_info'
+              : 'general';
 
       const prompt = `You are a professional customer support representative for an e-commerce store. Draft a concise, empathetic reply that feels tailored to the customer (keep speed high, avoid fluff).
 
@@ -3425,7 +3457,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           },
         });
 
-        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
+        if (
+          !message ||
+          (message as any).thread.connection.userId !== ctx.userId
+        ) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -3828,7 +3863,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           include: { thread: { include: { connection: true } } },
         });
 
-        if (!message || (message as any).thread.connection.userId !== ctx.userId) {
+        if (
+          !message ||
+          (message as any).thread.connection.userId !== ctx.userId
+        ) {
           throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'Message access denied',
@@ -7119,7 +7157,10 @@ Be specific, data-driven, and actionable.`;
           .trim();
         parsedInsights = JSON.parse(cleanedResponse);
       } catch (parseError) {
-        console.error('[GA AI Review] Failed to parse AI response:', parseError);
+        console.error(
+          '[GA AI Review] Failed to parse AI response:',
+          parseError,
+        );
         // Fallback structure
         parsedInsights = {
           summary: 'AI analysis completed, but response format was invalid.',
@@ -7170,7 +7211,8 @@ Be specific, data-driven, and actionable.`;
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message:
-          error.message || 'Failed to generate AI review. Please try again later.',
+          error.message ||
+          'Failed to generate AI review. Please try again later.',
       });
     }
   }),
