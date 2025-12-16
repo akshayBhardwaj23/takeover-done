@@ -167,9 +167,9 @@ function IntegrationsInner() {
   const { data, isLoading: connectionsLoading } = trpc.connections.useQuery(
     undefined,
     {
-      staleTime: 120_000,
+      staleTime: 0, // Always refetch when invalidated
       refetchOnWindowFocus: false,
-      refetchOnMount: false,
+      refetchOnMount: true, // Refetch when component mounts
       refetchOnReconnect: false,
     },
   );
@@ -319,7 +319,9 @@ function IntegrationsInner() {
     onSuccess: async () => {
       toast.success('Google Analytics disconnected');
       setDisconnectGADialogOpen(false);
+      // Invalidate and immediately refetch to update UI
       await utils.connections.invalidate();
+      await utils.connections.refetch();
     },
     onError: (err: any) => toast.error(err.message),
   });
