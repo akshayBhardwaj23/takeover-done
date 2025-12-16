@@ -6837,11 +6837,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
     }
 
-    // Get last review for this connection
+    // Get last review for this user (global cooldown - any property)
     const lastReview = await prisma.gA4AIReview.findFirst({
       where: {
         userId: ctx.userId,
-        connectionId: connection.id,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -6891,10 +6890,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
     }
 
+    // Show all reviews for user (global - across all properties)
     const reviews = await prisma.gA4AIReview.findMany({
       where: {
         userId: ctx.userId,
-        connectionId: connection.id,
       },
       orderBy: { createdAt: 'desc' },
       take: 10, // Last 10 reviews
@@ -6918,11 +6917,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       });
     }
 
-    // Check cooldown
+    // Check cooldown by userId only (global cooldown - prevents bypass on disconnect/reconnect or property switch)
     const lastReview = await prisma.gA4AIReview.findFirst({
       where: {
         userId: ctx.userId,
-        connectionId: connection.id,
       },
       orderBy: { createdAt: 'desc' },
     });
