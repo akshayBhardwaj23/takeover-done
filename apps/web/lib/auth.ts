@@ -21,7 +21,7 @@ export const authOptions: NextAuthOptions = {
           pass: process.env.EMAIL_SERVER_PASSWORD ?? process.env.MAILGUN_SMTP_PASSWORD,
         },
       },
-      from: process.env.EMAIL_FROM ?? 'noreply@zyyp.ai',
+      from: process.env.MAILGUN_FROM_EMAIL ?? 'noreply@mail.zyyp.ai',
     }),
   ],
   session: { strategy: 'jwt' },
