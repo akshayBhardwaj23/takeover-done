@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { Chrome, ArrowRight, Mail, Lock } from "lucide-react";
@@ -19,8 +19,26 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     await signIn("google", { callbackUrl: "/integrations" });
-    // Note: redirect happens automatically, but we keep loading state just in case
   };
+
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // If the page is being loaded from the bfcache (back/forward cache),
+      // we need to reset the loading state.
+      if (event.persisted) {
+        setIsLoading(false);
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    
+    // Also reset on simple mount in case of normal back navigation that re-runs effects
+    setIsLoading(false);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, []);
 
   const handlePlaceholderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
