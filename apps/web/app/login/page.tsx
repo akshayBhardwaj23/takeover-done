@@ -1,18 +1,32 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { Chrome, ArrowRight, Mail } from "lucide-react";
+import { Chrome, ArrowRight, Mail, AlertCircle } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
-import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
   
   const [email, setEmail] = useState("");
+
+  // Map error codes to user-friendly messages
+  const errorMap: Record<string, string> = {
+    OAuthAccountNotLinked: "This email is already associated with another account. Please sign in with your original method (e.g., Google or Email).",
+    Configuration: "There is a problem with the server configuration. Check if your database schema is up to date.",
+    AccessDenied: "Access denied. You do not have permission to sign in.",
+    Default: "There was a problem signing in. Please try again."
+  };
+
+  const errorMessage = error ? (errorMap[error] || errorMap.Default) : null;
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -72,6 +86,15 @@ export default function LoginPage() {
               <div className="h-8 w-8 bg-black rounded-lg"><Image src="/zyyp rounded.png" alt="Logo" width={32} height={32} /></div> {/* Minimalist Logo Placeholder */}
               <span className="font-bold text-xl">Zyyp AI</span>
             </div>
+            
+            {/* Error Alert */}
+            {errorMessage && (
+              <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-800">{errorMessage}</p>
+              </div>
+            )}
+
             <h1 className="text-3xl font-normal tracking-tight text-gray-900">
               {isEmailSent ? "Check your inbox" : "Welcome back"}
             </h1>
@@ -151,7 +174,6 @@ export default function LoginPage() {
             </form>
           )}
 
-
           
           {/* Footer Link */}
           <div className="mt-8 text-center">
@@ -182,5 +204,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-white"><div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-black"></div></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
