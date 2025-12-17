@@ -76,6 +76,22 @@ export const processInboundEmail = inngest.createFunction(
       const customerEmail = msg.from || msg.thread?.customerEmail || '';
       const orderId = msg.orderId;
       const order = msg.order;
+      const threadId = msg.threadId;
+
+      // Conversation context (mandatory): read previous messages in this thread
+      const recentThreadMessages = await prisma.message.findMany({
+        where: { threadId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { body: true, direction: true, createdAt: true },
+      });
+      const threadMessagesChrono = [...recentThreadMessages].reverse();
+      const inboundCount = threadMessagesChrono.filter(
+        (m) => m.direction === 'INBOUND',
+      ).length;
+      const outboundCount = threadMessagesChrono.filter(
+        (m) => m.direction === 'OUTBOUND',
+      ).length;
 
       // Get store name from connection metadata
       const connection = msg.thread?.connection;
@@ -143,6 +159,23 @@ export const processInboundEmail = inngest.createFunction(
       let reply: string;
       let proposedAction: string = detectedAction;
       let confidence: number = 0.6;
+      let followUpRequired = false;
+      let followUpHours: number | null = null;
+
+      const ensureSignature = (text: string) => {
+        const trimmed = (text || '').trim();
+        if (!trimmed) return trimmed;
+        if (/Warm Regards,/i.test(trimmed)) return trimmed;
+        return `${trimmed}\n\nWarm Regards,\n\n${signatureBlock}`.trim();
+      };
+
+      const safeExtractJson = (text: string) => {
+        const raw = String(text || '').trim();
+        const start = raw.indexOf('{');
+        const end = raw.lastIndexOf('}');
+        if (start >= 0 && end > start) return raw.slice(start, end + 1);
+        return raw;
+      };
 
       if (!apiKey) {
         // Enhanced fallback without OpenAI
@@ -192,26 +225,123 @@ export const processInboundEmail = inngest.createFunction(
 - Customer Email: ${order.email || 'Not provided'}`
           : 'No order found - customer may need to provide order number';
 
-        const prompt = `You are a professional customer support representative for an e-commerce store. Write a personalized, empathetic, and helpful reply to the customer's email.
+        const recentMessages = threadMessagesChrono
+          .slice(-6)
+          .map((m) => {
+            const role = m.direction === 'INBOUND' ? 'Customer' : 'Support';
+            const date = new Date(m.createdAt).toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            });
+            return `${role} (${date}): ${String(m.body || '').slice(0, 250)}`;
+          })
+          .join('\n\n');
 
-Guidelines:
-- Be warm, professional, and empathetic
-- Acknowledge their specific concern
-- Use their name if available (${customerName})
-- Reference their order details if available
-- Provide clear next steps
-- Keep it conversational but professional
-- Show understanding of their situation
-- Offer specific solutions based on their request
+        const fullConversationText = [
+          subject,
+          body,
+          ...threadMessagesChrono.map((m) => String(m.body || '')),
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .toLowerCase();
+
+        const explicitRefundRequest =
+          /(refund my money|cancel and refund|refund my order|i want a refund|i don't want (the|this) (product|order) anymore|don'?t want it anymore|money back)/i.test(
+            fullConversationText,
+          );
+        const conditionalRefundRequest =
+          /(refund if|only if you can deliver|proceed only if|if it can'?t be delivered|deliver(ed)? by )/i.test(
+            fullConversationText,
+          );
+        const delayOrNoProgressSignal =
+          /(where is my order|not received|still not received|delayed|late|no update|no progress|stuck|unfulfilled)/i.test(
+            fullConversationText,
+          ) ||
+          /\b(it'?s been|been)\s+\d+\s+(day|days|week|weeks)\b/i.test(
+            fullConversationText,
+          );
+
+        const fulfillment = String(order?.fulfillmentStatus || '').toLowerCase();
+        const isUnfulfilled =
+          fulfillment === 'unfulfilled' ||
+          fulfillment === 'unshipped' ||
+          fulfillment === 'pending' ||
+          fulfillment === '';
+
+        const orderAgeDays =
+          order?.createdAt instanceof Date
+            ? (Date.now() - order.createdAt.getTime()) / 86400000
+            : null;
+
+        const deliveryPromiseLikelyBreached =
+          delayOrNoProgressSignal &&
+          (inboundCount >= 2 ||
+            (orderAgeDays != null && orderAgeDays >= 7 && isUnfulfilled));
+
+        const refundShouldBeImmediate =
+          explicitRefundRequest ||
+          (deliveryPromiseLikelyBreached && isUnfulfilled) ||
+          (/(fraud|scam|stolen|lost|damaged)/i.test(fullConversationText) &&
+            (explicitRefundRequest || inboundCount >= 2));
+
+        const feasibilityCheckIsMeaningful =
+          !refundShouldBeImmediate &&
+          conditionalRefundRequest &&
+          isUnfulfilled &&
+          inboundCount <= 2;
+
+        const prompt = `You are a customer support agent for an e-commerce store.
+
+MANDATORY: This is an ongoing conversation thread. Read all previous messages below before replying. Never treat the latest email as a fresh request.
+
+Context:
+- Store: ${storeName}
+- Customer: ${customerName} (${customerEmail || 'unknown'})
+- Inbound messages: ${inboundCount}
+- Outbound messages: ${outboundCount}
+- Signals:
+  - Explicit refund request: ${explicitRefundRequest ? 'YES' : 'NO'}
+  - Conditional refund request: ${conditionalRefundRequest ? 'YES' : 'NO'}
+  - Delay/no-progress signal: ${delayOrNoProgressSignal ? 'YES' : 'NO'}
+  - Fulfillment appears UNFULFILLED: ${isUnfulfilled ? 'YES' : 'NO'}
+  - Delivery promise likely breached: ${deliveryPromiseLikelyBreached ? 'YES' : 'NO'}
+  - Refund should be immediate: ${refundShouldBeImmediate ? 'YES' : 'NO'}
+  - Feasibility check meaningful: ${feasibilityCheckIsMeaningful ? 'YES' : 'NO'}
+
+Previous conversation (oldest → newest):
+${recentMessages || '(no previous messages)'}
 
 ${orderContext}
 
-Customer Email:
-Subject: ${subject || '(no subject)'}
-From: ${customerEmail}
-Message: ${body}
+Core rules (follow strictly):
+1) Conversation awareness:
+   - If customer has emailed more than once, acknowledge prior messages.
+   - When applicable, use this pattern: "Earlier you mentioned X, and I now see that you’re asking Y."
+2) Refund decision logic:
+   - If customer explicitly asks for a refund/cancel+refund OR delivery promise is breached and the order is still unfulfilled OR nothing actionable remains → be decisive: say the refund is being processed, explain why, and close confidently. Do NOT promise follow-ups.
+   - If customer asked for a conditional refund ("refund if it can’t be delivered in X days") AND the order is not shipped and a realistic ETA can be checked → take ownership, commit to a time-bound check (e.g., 24 hours), and refund only if the condition can’t be met.
+3) Follow-up commitments (critical):
+   - If you say "I'll check / I'll update / I'm escalating / I'll verify" you MUST include a specific time commitment and ownership.
+   - End with: "I’ll get back to you by [day/time] with an update."
+4) No open-ended closings:
+   - Do not end with "Please let me know" / "Looking forward to your response".
+5) Avoid repeating questions:
+   - Do not ask for information already present in the conversation (order number/email/etc).
+6) Tone:
+   - Calm, confident, solution-oriented. Avoid over-apologizing. No placeholders.
 
-Write a comprehensive reply that addresses their concern and provides clear next steps.`;
+Output format (STRICT JSON only; no extra text):
+{
+  "reply": string,
+  "proposed_action": "REFUND" | "CANCEL" | "INFO_REQUEST" | "NONE",
+  "follow_up_required": boolean,
+  "follow_up_hours": number | null
+}
+
+Latest customer email:
+Subject: ${subject || '(no subject)'}
+Message: ${body}`;
 
         try {
           const resp = await fetch(
@@ -263,22 +393,40 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           }
 
           const json: any = await resp.json();
-          reply =
+          const content =
             json.choices?.[0]?.message?.content ??
-            "Thanks for reaching out. I'll follow up shortly with details.";
+            `{"reply":"Thanks for reaching out. I’ll check this and update you within 24 hours.\\n\\nI’ll get back to you by tomorrow with an update.\\n\\nWarm Regards,\\n\\n${signatureBlock.replace(
+              /"/g,
+              '\\"',
+            )}","proposed_action":"INFO_REQUEST","follow_up_required":true,"follow_up_hours":24}`;
 
-          // Remove any "Subject:" lines that might have been included in the reply
-          reply = reply.replace(/^Subject:\s*.+$/gim, '').trim();
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(safeExtractJson(String(content)));
+          } catch {
+            parsed = null;
+          }
 
-          // Lightweight action inference from LLM output
-          const rlower = reply.toLowerCase();
-          if (/refund/.test(rlower)) proposedAction = 'REFUND';
-          else if (/cancel/.test(rlower)) proposedAction = 'CANCEL';
-          else if (/replace/.test(rlower)) proposedAction = 'REPLACE_ITEM';
-          else if (/address/.test(rlower)) proposedAction = 'ADDRESS_CHANGE';
-          else if (/(update|status|tracking)/.test(rlower))
-            proposedAction = 'INFO_REQUEST';
+          const parsedReply =
+            parsed && typeof parsed.reply === 'string' ? parsed.reply : '';
+          reply = ensureSignature(
+            parsedReply ||
+              "Thanks for reaching out. I’ll check this and update you within 24 hours.\n\nI’ll get back to you by tomorrow with an update.",
+          );
 
+          const pa = parsed?.proposed_action;
+          proposedAction =
+            pa === 'REFUND' || pa === 'CANCEL' || pa === 'INFO_REQUEST' || pa === 'NONE'
+              ? pa
+              : detectedAction;
+
+          followUpRequired = Boolean(parsed?.follow_up_required);
+          followUpHours =
+            typeof parsed?.follow_up_hours === 'number' && parsed.follow_up_hours > 0
+              ? parsed.follow_up_hours
+              : null;
+
+          // Confidence: keep lightweight and fast
           confidence = 0.75;
         } catch (error) {
           console.error('[Inngest] OpenAI API error:', error);
@@ -300,6 +448,23 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           reply += signatureBlock;
 
           confidence = 0.5;
+        }
+      }
+
+      // Internal follow-up tracking (no DB migration): write an Event when follow-up is promised
+      if (followUpRequired && followUpHours) {
+        const dueAt = new Date(Date.now() + followUpHours * 60 * 60 * 1000);
+        try {
+          await prisma.event.create({
+            data: {
+              type: 'thread.follow_up_required',
+              entity: 'thread',
+              entityId: threadId,
+              payload: { messageId, followUpHours, followUpDueAt: dueAt.toISOString() } as any,
+            },
+          });
+        } catch (e) {
+          console.error('[Inngest] Failed to record follow-up event:', e);
         }
       }
 
