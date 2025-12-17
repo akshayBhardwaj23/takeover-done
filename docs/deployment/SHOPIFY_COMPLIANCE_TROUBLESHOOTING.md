@@ -1,4 +1,58 @@
-# Troubleshooting Shopify Compliance Webhook Checks
+# Shopify Compliance Webhooks - Setup & Troubleshooting
+
+**Status:** ✅ Implemented  
+**Required:** YES (mandatory for Shopify App Store)  
+
+This guide covers setup, configuration, and troubleshooting for Shopify compliance webhooks (GDPR/CPRA compliance).
+
+---
+
+## Overview
+
+Shopify requires all apps distributed through the App Store to implement three mandatory compliance webhooks for GDPR/CPRA compliance. These webhooks handle customer data requests and deletion.
+
+---
+
+## Finding Compliance Webhooks in Shopify Partners
+
+**Note:** Compliance webhooks are **only visible for apps being distributed publicly** on the Shopify App Store.
+
+### Step 1: Check Your App Distribution Type
+
+1. Go to **Shopify Partners Dashboard**
+2. Select **Apps** → **Your App**
+3. Click **Overview** or **Distribution**
+
+**Current setting:**
+- ❌ **Custom app** = No compliance webhooks needed
+- ❌ **Unlisted** = No compliance webhooks needed  
+- ✅ **Public** = Compliance webhooks REQUIRED
+
+### Step 2: Create App Listing (If Not Done)
+
+1. In your app dashboard, look for "**App listing**" in the left sidebar
+2. If you see "**Create app listing**", click it
+3. This starts the App Store submission process
+
+### Step 3: Find Compliance Webhooks Section
+
+Once you're in the app listing flow, compliance webhooks appear in:
+
+**Location A: App Setup Tab**
+- Shopify Partners → Apps → Your App → App setup
+- Scroll to "Webhooks" section
+- Look for "Compliance webhooks" or "GDPR webhooks"
+
+**Location B: During App Listing Creation**
+- Create app listing → Privacy & compliance step
+- You'll see three required fields:
+  - Customer data request endpoint
+  - Customer data deletion endpoint
+  - Shop data deletion endpoint
+
+---
+
+## Troubleshooting Automated Checks
 
 **Issue:** Automated checks failing in Shopify Partners Dashboard:
 - ❌ Provides mandatory compliance webhooks
@@ -370,6 +424,89 @@ When everything is working, you should see:
 
 ---
 
-**Last Updated:** November 13, 2024  
+---
+
+## Common Issue: SHOPIFY_API_SECRET Mismatch
+
+**This is the #1 cause of HMAC verification failures!**
+
+### How to Verify:
+
+1. **Get your secret from Shopify Partners:**
+   - Go to **Shopify Partners** → **Apps** → **Zyyp AI** → **App setup**
+   - Find **Client secret** or **API secret**
+   - Copy the exact value (no spaces, no line breaks)
+
+2. **Check Vercel Environment Variable:**
+   - Go to **Vercel Dashboard** → Your Project → **Settings** → **Environment Variables**
+   - Find `SHOPIFY_API_SECRET`
+   - Compare with Partners dashboard value
+   - **They must match EXACTLY**
+
+3. **Update if Different:**
+   - In Vercel, update `SHOPIFY_API_SECRET` to match Partners dashboard
+   - **Redeploy** your application (Vercel will auto-redeploy when env vars change)
+
+### Step-by-Step Debugging
+
+#### Step 1: Check Vercel Function Logs
+
+1. Go to **Vercel Dashboard** → Your Project
+2. Click **Deployments** → Select latest deployment
+3. Click **Functions** tab
+4. Find `api/webhooks/shopify/compliance`
+5. Click **View Function Logs**
+
+**Look for:**
+- `[Compliance Webhook] HMAC verification failed` → Secret mismatch
+- `Missing SHOPIFY_API_SECRET` → Env var not set
+- `[Compliance Webhook] Successfully processed` → Working correctly
+
+#### Step 2: Test Endpoint Directly
+
+**Test GET request (verification):**
+```bash
+curl https://www.zyyp.ai/api/webhooks/shopify/compliance
+
+# Should return:
+# {"status":"ok","endpoint":"compliance-webhooks","message":"Compliance webhook endpoint is active"}
+```
+
+**If endpoint returns 404:**
+- Deploy your code to production
+- Verify the route file exists: `apps/web/app/api/webhooks/shopify/compliance/route.ts`
+
+#### Step 3: Verify Webhooks Are Registered
+
+**Check in Shopify Partners Dashboard:**
+
+1. Go to **Apps** → **Zyyp AI** → **App setup**
+2. Scroll to **Webhooks** section
+3. Look for compliance webhooks:
+   - `customers/data_request`
+   - `customers/redact`
+   - `shop/redact`
+
+**If webhooks are NOT listed:**
+
+```bash
+cd apps/web
+shopify app config push
+```
+
+This should register the webhooks from your `shopify.app.toml` file.
+
+---
+
+## References
+
+- [Shopify Compliance Webhooks Docs](https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance)
+- [Shopify Webhook Verification](https://shopify.dev/docs/apps/webhooks/configuration/https#step-5-verify-the-webhook)
+- [Shopify Partners Support](https://partners.shopify.com/support)
+- Main reference: [SHOPIFY_COMPLIANCE_WEBHOOKS.md](./SHOPIFY_COMPLIANCE_WEBHOOKS.md)
+
+---
+
+**Last Updated:** December 2024  
 **Status:** Active troubleshooting guide
 

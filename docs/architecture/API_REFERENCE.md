@@ -82,6 +82,42 @@ Client usage via `apps/web/lib/trpc.ts` hooks (React Query).
 - `disconnectGoogleAnalytics()` → `{ success }`
   - Revokes OAuth tokens from Google and deletes the connection
   - Removes access from user's Google account
+- `checkGA4AIReviewCooldown()` → `{ canGenerate, lastReviewAt?, nextAvailableAt?, hoursRemaining }`
+  - Checks if user can generate a GA4 AI review (24-hour cooldown enforced)
+  - Returns cooldown status and time until next available review
+- `getGA4AIReviewHistory({ propertyId? })` → `{ reviews }`
+  - Returns last 10 GA4 AI reviews for the user
+  - Optional property filter
+- `generateGA4AIReview()` → `{ id, summary, insights, createdAt }`
+  - Generates AI-powered review of GA4 analytics data for last 30 days
+  - Returns structured insights: problems, suggestions, tips, remedial actions
+  - Enforces 24-hour cooldown between reviews
+  - Uses OpenAI GPT-4o-mini for analysis
+
+**Meta Ads:**
+
+- `getMetaAdsData()` → `{ campaigns, adsets }`
+  - Returns campaign and ad set data for connected Meta Ads account
+  - Requires active Meta Ads connection with selected ad account
+- `updateMetaAdsAccount({ adAccountId, adAccountName? })` → `{ success }`
+  - Updates the selected Meta Ads account in connection metadata
+  - Used when user switches between multiple ad accounts
+- `disconnectMetaAds()` → `{ success }`
+  - Revokes OAuth tokens from Meta and deletes the connection
+- `checkMetaAdsAIReviewCooldown()` → `{ canGenerate, lastReviewAt?, nextAvailableAt?, hoursRemaining }`
+  - Checks if user can generate a Meta Ads AI review (24-hour cooldown enforced)
+  - Returns cooldown status and time until next available review
+- `getMetaAdsAIReviewHistory({ adAccountId? })` → `{ reviews }`
+  - Returns last 10 Meta Ads AI reviews for the user
+  - Optional ad account filter
+- `generateMetaAdsAIReview()` → `{ id, summary, insights, createdAt }`
+  - Generates AI-powered review of Meta Ads performance for last 30 days
+  - Returns structured insights: campaigns to stop/scale/optimize, ad set performance, budget recommendations
+  - Enforces 24-hour cooldown between reviews
+  - Uses OpenAI GPT-4o-mini for analysis
+- `updateCampaignStatus({ campaignId, status })` → `{ success }`
+  - Updates campaign status (PAUSED, ACTIVE, etc.) via Meta Ads API
+  - Requires Meta Ads connection with active ad account
 
 **Payment Management:**
 
@@ -232,6 +268,17 @@ type OrderDetail = OrderSummary & {
   - Exchanges authorization code for access and refresh tokens
   - Fetches GA4 properties and stores connection in database
   - Redirects to `/integrations?ga_connected=1` on success
+
+**Meta Ads Integration:**
+
+- `GET /api/meta-ads/install`
+  - Initiates Meta OAuth 2.0 flow for Meta Ads API
+  - Redirects to Meta consent screen with required scopes
+- `GET /api/meta-ads/callback?code=...&state=...`
+  - Handles OAuth callback from Meta
+  - Exchanges authorization code for access and refresh tokens
+  - Fetches ad accounts and stores connection in database
+  - Redirects to `/integrations?meta_ads_connected=1` on success
 
 **Inngest:**
 

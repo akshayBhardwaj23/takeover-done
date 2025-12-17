@@ -33,7 +33,7 @@ Prisma schema lives in `packages/db/prisma/schema.prisma`. Key entities:
 ### Connection
 
 - Integrations linked to a user
-- `type` enum: `SHOPIFY | GMAIL | CUSTOM_EMAIL`
+- `type` enum: `SHOPIFY | GMAIL | CUSTOM_EMAIL | GOOGLE_ANALYTICS | META_ADS`
 - `accessToken`, `refreshToken?`, `shopDomain?`, `metadata?`
 - Metadata for `CUSTOM_EMAIL` includes:
   - `alias`: unique forwarding email address
@@ -42,6 +42,13 @@ Prisma schema lives in `packages/db/prisma/schema.prisma`. Key entities:
   - `disabled`: enable/disable flag
   - `supportEmail`: store's support email for Reply-To
   - `storeName`: store's display name
+- Metadata for `GOOGLE_ANALYTICS` includes:
+  - `propertyId`: selected GA4 property ID
+  - `propertyName`: display name of property
+- Metadata for `META_ADS` includes:
+  - `adAccountId`: selected Meta Ads account ID
+  - `adAccountName`: display name of ad account
+- Relations: 1:N with `GA4AIReview`, `MetaAdsAIReview`
 
 ### Order
 
@@ -108,6 +115,32 @@ Prisma schema lives in `packages/db/prisma/schema.prisma`. Key entities:
 - `result`: JSON execution result
 - `error`: error message if failed
 - Timestamps: `createdAt`, `executedAt`
+
+### GA4AIReview
+
+- AI-generated reviews of Google Analytics 4 performance
+- `userId`: owner of review
+- `connectionId`: nullable (preserved after disconnection for global cooldown)
+- `propertyId`: GA4 property analyzed
+- `reviewDate`: date range analyzed (last 30 days ending on this date)
+- `insights`: JSON with structured insights (problems, suggestions, tips, remedial actions)
+- `summary`: executive summary text
+- `createdAt`: review generation timestamp
+- Unique constraint: one review per user per day (global cooldown)
+- Relations: belongs to `User`, optional `Connection`
+
+### MetaAdsAIReview
+
+- AI-generated reviews of Meta Ads account performance
+- `userId`: owner of review
+- `connectionId`: nullable (preserved after disconnection for global cooldown)
+- `adAccountId`: Meta Ads account analyzed
+- `reviewDate`: date range analyzed (last 30 days ending on this date)
+- `insights`: JSON with structured insights (campaigns, adsets, account performance, budget, creative)
+- `summary`: executive summary text
+- `createdAt`: review generation timestamp
+- Unique constraint: one review per user per day (global cooldown)
+- Relations: belongs to `User`, optional `Connection`
 
 ### Helpers
 

@@ -33,11 +33,21 @@
 
 ### Supporting Documents
 
-| Document | Description |
-|----------|-------------|
+| Document | Description | When to Use |
+|----------|-------------|-------------|
 | **[PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md)** | Pre-launch verification checklist | Before going to production |
 | **[SHOPIFY_COMPLIANCE_WEBHOOKS.md](./SHOPIFY_COMPLIANCE_WEBHOOKS.md)** | Mandatory compliance webhooks documentation | Understanding GDPR/CPRA compliance |
+| **[SHOPIFY_COMPLIANCE_TROUBLESHOOTING.md](./SHOPIFY_COMPLIANCE_TROUBLESHOOTING.md)** | Setup & troubleshooting for compliance webhooks | Debugging compliance webhook issues |
 | **[SHOPIFY_APP_STORE_SUBMISSION.md](./SHOPIFY_APP_STORE_SUBMISSION.md)** | Complete checklist for Shopify App Store submission | Submitting app to Shopify App Store |
+| **[INNGEST_SETUP.md](./INNGEST_SETUP.md)** | Inngest setup guide for background jobs | Setting up Inngest (migrated from Redis/BullMQ) |
+| **[INNGEST_TESTING_GUIDE.md](./INNGEST_TESTING_GUIDE.md)** | Testing Inngest functionality | Testing Inngest functions |
+| **[DASHBOARD_401_TROUBLESHOOTING.md](./DASHBOARD_401_TROUBLESHOOTING.md)** | Troubleshooting 401 errors when sending emails | Fixing authentication issues |
+| **[MAILGUN_API_401_FIX.md](./MAILGUN_API_401_FIX.md)** | Fix Mailgun API 401 errors | Fixing Mailgun authentication |
+| **[MAILGUN_WEBHOOK_FLOW.md](./MAILGUN_WEBHOOK_FLOW.md)** | Mailgun webhook flow explanation | Understanding email webhook behavior |
+| **[WEBHOOK_DEBUG_GUIDE.md](./WEBHOOK_DEBUG_GUIDE.md)** | General webhook debugging guide | Debugging webhook issues |
+| **[MIGRATION_STAGING.md](./MIGRATION_STAGING.md)** | Staging environment migration guide | Migrating to staging |
+| **[SENTRY_STAGING_SETUP.md](./SENTRY_STAGING_SETUP.md)** | Sentry error tracking setup | Setting up error monitoring |
+| **[VERCEL_LOGGING.md](./VERCEL_LOGGING.md)** | Vercel logging guide | Understanding Vercel logs |
 
 ---
 
@@ -205,8 +215,11 @@ pnpm prisma studio
 |-------|----------|-----------|
 | Build fails | Check `transpilePackages` in `next.config.mjs` | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#troubleshooting) |
 | DB connection fails | Verify connection pooler URL | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#database-setup-postgresql) |
-| Inngest functions not running | Check `INNGEST_EVENT_KEY` and sync status | [Guide](./INNGEST_SETUP.md#troubleshooting) |
-| Webhooks not received | Verify URLs and secrets | [Guide](./VERCEL_RAILWAY_DEPLOYMENT_GUIDE.md#shopify-app-configuration) |
+| Inngest functions not running | Check `INNGEST_EVENT_KEY` and sync status | [Guide](./INNGEST_SETUP.md) |
+| Webhooks not received | Verify URLs and secrets | [Guide](./WEBHOOK_DEBUG_GUIDE.md) |
+| 401 when sending emails | Authentication/session issue | [Guide](./DASHBOARD_401_TROUBLESHOOTING.md) |
+| Mailgun 401 errors | API key configuration | [Guide](./MAILGUN_API_401_FIX.md) |
+| Compliance webhook issues | HMAC verification | [Guide](./SHOPIFY_COMPLIANCE_TROUBLESHOOTING.md) |
 
 ### Getting Help
 

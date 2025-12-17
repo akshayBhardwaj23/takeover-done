@@ -173,7 +173,9 @@ Basics of implementations by area:
 - ✅ AI Support Analytics dashboard (response time, ROI, customer satisfaction, volume trends)
 - ✅ Shopify Business Analytics dashboard (revenue, orders, customers, AOV, growth metrics)
 - ✅ Google Analytics 4 dashboard (sessions, users, page views, bounce rate, e-commerce metrics, traffic sources, top pages)
+- ✅ Google Analytics 4 AI Review (AI-powered analysis with problems, suggestions, tips, remedial actions)
 - ✅ Meta Ads dashboard (spend, impressions, clicks, CTR, CPC, CPM, conversions, ROAS, CPA, reach, frequency, campaign breakdowns)
+- ✅ Meta Ads AI Review (AI-powered campaign analysis with recommendations to stop/scale/optimize)
 - ✅ 7-day and 30-day trend visualizations
 - ✅ Real-time metrics and aggregated insights
 
@@ -195,10 +197,11 @@ Basics of implementations by area:
 
 **Integrations (Complete):**
 - ✅ Shopify OAuth and Admin API
-- ✅ Mailgun email integration
-- ✅ Google Analytics 4 OAuth and API
-- ✅ Meta Ads OAuth and Graph API
+- ✅ Mailgun email integration (inbound/outbound)
+- ✅ Google Analytics 4 OAuth and API (with AI Review feature)
+- ✅ Meta Ads OAuth and Graph API (with AI Review feature)
 - ✅ Razorpay payment gateway
+- ✅ OpenAI GPT-4o-mini (AI suggestions and reviews)
 
 **Security & Multi-Tenancy (Complete):**
 - ✅ Complete data isolation by userId
