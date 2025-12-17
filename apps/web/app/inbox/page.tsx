@@ -520,7 +520,6 @@ export default function InboxPage() {
   // MUTATIONS
   // =============================================================================
 
-  const suggest = trpc.aiSuggestReply.useMutation();
   const createAction = trpc.actionCreate.useMutation();
   const approveSend = trpc.actionApproveAndSend.useMutation();
   const refreshOrder = trpc.refreshOrderFromShopify.useMutation({
@@ -1106,47 +1105,6 @@ export default function InboxPage() {
     }
   }, []);
 
-  const handleGenerateAi = async () => {
-    if (!selectedEmail) {
-      toast.info('No email selected.');
-      return;
-    }
-
-    const fallbackSummary =
-      selectedEmail.subject ||
-      selectedEmail.snippet ||
-      selectedEmail.body ||
-      'Customer inquiry';
-    const customerEmail = selectedEmail.from;
-
-    // Prepare thread messages for context (exclude optimistic replies, only send real messages)
-    const threadMessagesForAI = (mergedThreadMessages.messages || [])
-      .filter((msg: any) => !msg.id?.startsWith('optimistic-'))
-      .map((msg: any) => ({
-        body: msg.body || '',
-        direction: msg.direction || 'INBOUND',
-        createdAt: msg.createdAt || new Date().toISOString(),
-      }));
-
-    try {
-      const response = await suggest.mutateAsync({
-        customerMessage: selectedEmail.body || 'Customer inquiry',
-        orderSummary: linkedOrder?.name || fallbackSummary,
-        tone: 'friendly',
-        customerEmail,
-        orderId: linkedOrder?.shopifyId ?? '',
-        threadMessages: threadMessagesForAI,
-      });
-
-      const cleanedSuggestion = cleanPlaceholders(
-        (response as any).suggestion ?? '',
-      );
-      setDraft(cleanedSuggestion);
-      toast.success('AI reply generated');
-    } catch (error: any) {
-      toast.error(error.message ?? 'Failed to generate AI reply');
-    }
-  };
 
   const handleRefreshAll = useCallback(async () => {
     if (refreshTimer.current) {
@@ -2046,24 +2004,6 @@ export default function InboxPage() {
                               </button>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                onClick={handleGenerateAi}
-                                disabled={!selectedEmail || suggest.isPending}
-                                className="rounded-lg bg-violet-600 text-white hover:bg-violet-700"
-                              >
-                                {suggest.isPending ? (
-                                  <>
-                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                                    Generating...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                                    AI
-                                  </>
-                                )}
-                              </Button>
                               <Button
                                 size="sm"
                                 onClick={handleSendReply}
