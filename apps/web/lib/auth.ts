@@ -1,11 +1,23 @@
 import type { NextAuthOptions } from 'next-auth';
 import Google from 'next-auth/providers/google';
+import EmailProvider from 'next-auth/providers/email';
 
 export const authOptions: NextAuthOptions = {
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+    }),
+    EmailProvider({
+      server: {
+        host: process.env.EMAIL_SERVER_HOST ?? 'smtp.mailgun.org',
+        port: parseInt(process.env.EMAIL_SERVER_PORT ?? '587'),
+        auth: {
+          user: process.env.EMAIL_SERVER_USER ?? process.env.MAILGUN_SMTP_LOGIN,
+          pass: process.env.EMAIL_SERVER_PASSWORD ?? process.env.MAILGUN_SMTP_PASSWORD,
+        },
+      },
+      from: process.env.EMAIL_FROM ?? 'noreply@zyyp.ai',
     }),
   ],
   session: { strategy: 'jwt' },

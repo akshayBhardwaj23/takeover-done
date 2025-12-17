@@ -3,18 +3,16 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { Chrome, ArrowRight, Mail, Lock } from "lucide-react";
+import { Chrome, ArrowRight, Mail } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import Link from "next/link";
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [isLoading, setIsLoading] = useState(false);
+  const [isEmailSent, setIsEmailSent] = useState(false);
   
-  // Placeholder state for inputs to make them interactive
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -40,17 +38,27 @@ export default function LoginPage() {
     };
   }, []);
 
-  const handlePlaceholderSubmit = (e: React.FormEvent) => {
+  const handleMagicLinkLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Placeholder behavior: just log to console
-    console.log(`${mode === "signin" ? "Sign In" : "Sign Up"} attempted with:`, { email, password });
-    alert("This feature is coming soon! Please use Google Sign In for now.");
-  };
-
-  const toggleMode = () => {
-    setMode(prev => prev === "signin" ? "signup" : "signin");
-    setEmail("");
-    setPassword("");
+    setIsLoading(true);
+    try {
+      const result = await signIn("email", { 
+        email, 
+        redirect: false,
+        callbackUrl: "/integrations"
+      });
+      
+      if (result?.error) {
+        alert("Something went wrong. Please try again.");
+      } else {
+        setIsEmailSent(true);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      alert("Failed to send magic link");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,12 +73,12 @@ export default function LoginPage() {
               <span className="font-bold text-xl">Zyyp AI</span>
             </div>
             <h1 className="text-3xl font-normal tracking-tight text-gray-900">
-              {mode === "signin" ? "Welcome back" : "Create your account"}
+              {isEmailSent ? "Check your inbox" : "Welcome back"}
             </h1>
             <p className="text-gray-500">
-              {mode === "signin" 
-                ? "Enter your details to access your account" 
-                : "Start your journey with us today"}
+              {isEmailSent 
+                ? "We've sent you a magic link to sign in." 
+                : "Enter your email to sign in or create an account"}
             </p>
           </div>
 
@@ -92,63 +100,58 @@ export default function LoginPage() {
             <div className="flex-grow border-t border-gray-200"></div>
           </div>
 
-          {/* Email/Password Form - PLACEHOLDER UI */}
-          <form onSubmit={handlePlaceholderSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-900" htmlFor="email">Email</label>
-                <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input 
-                        id="email" 
-                        type="email" 
-                        placeholder="name@example.com" 
-                        className="pl-10 h-12 border-gray-200"
-                        value={email}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
-                    />
-                </div>
+          {/* Magic Link Form */}
+          {isEmailSent ? (
+            <div className="text-center space-y-6">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <Mail className="h-8 w-8 text-green-600" />
               </div>
-              
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-900" htmlFor="password">Password</label>
-                    {mode === "signin" && (
-                        <Link href="#" className="text-xs text-gray-500 hover:text-black underline-offset-4 hover:underline">
-                            Forgot password?
-                        </Link>
-                    )}
-                </div>
-                <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                    <Input 
-                        id="password" 
-                        type="password" 
-                        placeholder="••••••••" 
-                        className="pl-10 h-12 border-gray-200"
-                        value={password}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    />
-                </div>
+                <h3 className="text-xl font-semibold text-gray-900">Check your email</h3>
+                <p className="text-gray-500">
+                  We've sent a magic link to <span className="font-medium text-gray-900">{email}</span>. Click the link to sign in.
+                </p>
               </div>
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setIsEmailSent(false)}
+              >
+                Back to Sign In
+              </Button>
             </div>
+          ) : (
+            <form onSubmit={handleMagicLinkLogin} className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-900" htmlFor="email">Email</label>
+                  <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+                      <Input 
+                          id="email" 
+                          type="email" 
+                          placeholder="name@example.com" 
+                          className="pl-10 h-12 border-gray-200"
+                          value={email}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+                          required
+                      />
+                  </div>
+                </div>
+              </div>
 
-            <Button type="submit" className="w-full h-12 bg-[#2D2D2D] hover:bg-black text-white text-base font-medium transition-all">
-              {mode === "signin" ? "Sign In" : "Create Account"}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </form>
+              <Button 
+                type="submit" 
+                className="w-full h-12 bg-[#2D2D2D] hover:bg-black text-white text-base font-medium transition-all"
+                disabled={isLoading}
+              >
+                {isLoading ? "Sending Link..." : "Send Magic Link"}
+                {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+              </Button>
+            </form>
+          )}
 
-          {/* Toggle Mode */}
-          <div className="text-center text-sm text-gray-500">
-            {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
-            <button 
-                onClick={toggleMode}
-                className="font-medium text-black underline underline-offset-4 hover:text-gray-700"
-            >
-                {mode === "signin" ? "Sign up" : "Sign in"}
-            </button>
-          </div>
+
           
           {/* Footer Link */}
           <div className="mt-8 text-center">
