@@ -61,8 +61,8 @@ export default function LoginPage() {
           {/* Logo & Header */}
           <div className="space-y-2">
             <div className="mb-8 flex items-center gap-2">
-              <div className="h-8 w-8 bg-black rounded-lg"></div> {/* Minimalist Logo Placeholder */}
-              <span className="font-bold text-xl">AI Ecom</span>
+              <div className="h-8 w-8 bg-black rounded-lg"><Image src="/zyyp rounded.png" alt="Logo" width={32} height={32} /></div> {/* Minimalist Logo Placeholder */}
+              <span className="font-bold text-xl">Zyyp AI</span>
             </div>
             <h1 className="text-3xl font-normal tracking-tight text-gray-900">
               {mode === "signin" ? "Welcome back" : "Create your account"}
