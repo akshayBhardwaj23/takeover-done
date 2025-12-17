@@ -9,6 +9,9 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   session: { strategy: 'jwt' },
+  pages: {
+    signIn: '/login',
+  },
   callbacks: {
     async redirect({ url, baseUrl }) {
       // If url is a relative path or external, make it absolute
