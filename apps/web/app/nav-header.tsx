@@ -424,12 +424,12 @@ export default function Header() {
               </button>
             </div>
           ) : (
-            <button
+            <Link
+              href="/login"
               className="rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white shadow shadow-slate-900/30 transition hover:-translate-y-0.5 hover:bg-black"
-              onClick={() => signIn('google', { callbackUrl: '/integrations' })}
             >
               Sign in
-            </button>
+            </Link>
           )}
         </div>
       </div>

@@ -93,15 +93,12 @@ export default function Footer() {
                 ))}
                 {!isAuthed && (
                   <li>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        signIn('google', { callbackUrl: '/integrations' })
-                      }
+                    <Link
+                      href="/login"
                       className="tracking-tight text-white transition hover:text-white/70"
                     >
                       Login
-                    </button>
+                    </Link>
                   </li>
                 )}
               </ul>
