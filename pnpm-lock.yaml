@@ -129,9 +129,6 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      form-data:
-        specifier: ^4.0.5
-        version: 4.0.5
       framer-motion:
         specifier: ^11.2.10
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -193,9 +190,6 @@ importers:
         specifier: ^5.5.4
         version: 5.9.3
     devDependencies:
-      '@types/form-data':
-        specifier: ^2.5.2
-        version: 2.5.2
       '@types/react':
         specifier: ^18.3.5
         version: 18.3.26
@@ -2258,10 +2252,6 @@ packages:
 
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
-
-  '@types/form-data@2.5.2':
-    resolution: {integrity: sha512-tfmcyHn1Pp9YHAO5r40+UuZUPAZbUEgqTel3EuEKpmF9hPkXgR4l41853raliXnb4gwyPNoQOfvgGGlHN5WSog==}
-    deprecated: This is a stub types definition. form-data provides its own type definitions, so you do not need this installed.
 
   '@types/geojson@7946.0.16':
     resolution: {integrity: sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==}
@@ -7204,10 +7194,6 @@ snapshots:
       '@types/json-schema': 7.0.15
 
   '@types/estree@1.0.8': {}
-
-  '@types/form-data@2.5.2':
-    dependencies:
-      form-data: 4.0.5
 
   '@types/geojson@7946.0.16': {}
 
