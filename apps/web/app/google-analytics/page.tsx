@@ -28,11 +28,12 @@ function GoogleAnalyticsInner() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('7d');
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [redirectingToReconnect, setRedirectingToReconnect] = useState(false);
 
-  // Fetch connections with refetch on mount to catch newly created connections
+  // Fetch connections with refetch on mount to catch newly created/updated connections
   const connections = trpc.connections.useQuery(undefined, {
     refetchOnMount: true,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true, // Refetch when window regains focus (after OAuth redirect)
     staleTime: 0, // Always consider stale to refetch when navigating here
   });
 
@@ -74,7 +75,8 @@ function GoogleAnalyticsInner() {
     {
       enabled: !!selectedPropertyId && selectedPropertyId.length > 0,
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true, // Refetch when window regains focus (after OAuth redirect)
+      refetchOnMount: true, // Refetch when component mounts (after OAuth redirect)
       staleTime: 30000,
     }
   );
@@ -203,8 +205,46 @@ function GoogleAnalyticsInner() {
     );
   }
 
-  // Analytics error
+  // Analytics error - check if it's an expired token and auto-reconnect silently
   if (analytics.error) {
+    const errorMessage = analytics.error.message || '';
+    const isExpiredToken = errorMessage.includes('expired') || 
+                          errorMessage.includes('reconnect') ||
+                          analytics.error.data?.code === 'UNAUTHORIZED';
+    
+    // Auto-redirect to OAuth if token expired (silently, no error shown)
+    useEffect(() => {
+      if (isExpiredToken && !redirectingToReconnect) {
+        setRedirectingToReconnect(true);
+        const currentPath = window.location.pathname;
+        window.location.href = `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`;
+      }
+    }, [isExpiredToken, redirectingToReconnect]);
+
+    // Show loading state while reconnecting (no error message)
+    if (isExpiredToken) {
+      return (
+        <main className="min-h-screen bg-slate-100 py-28">
+          <div className="mx-auto max-w-6xl space-y-8 px-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <BarChart3 className="h-6 w-6 text-slate-700" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+                <p className="text-sm text-slate-500">Reconnecting...</p>
+              </div>
+            </div>
+            <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+              <p className="mt-4 text-sm text-slate-600">Refreshing your connection...</p>
+            </Card>
+          </div>
+        </main>
+      );
+    }
+
+    // For non-expired errors, show error message
     return (
       <main className="min-h-screen bg-slate-100 py-28">
         <div className="mx-auto max-w-6xl px-6">
@@ -214,7 +254,7 @@ function GoogleAnalyticsInner() {
             </div>
             <h2 className="mt-6 text-2xl font-bold text-slate-900">Failed to load analytics</h2>
             <p className="mt-3 text-sm text-slate-500">
-              {analytics.error.message || 'Unable to fetch Google Analytics data. Please try again.'}
+              {errorMessage || 'Unable to fetch Google Analytics data. Please try again.'}
             </p>
             <button
               onClick={() => analytics.refetch()}
@@ -432,16 +472,38 @@ function GoogleAnalyticsInner() {
             </div>
           </div>
 
-          {generateReview.isError && (
-            <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-red-600" />
-                <p className="text-sm text-red-800">
-                  {generateReview.error?.message || 'Failed to generate review. Please try again.'}
-                </p>
+          {generateReview.isError && (() => {
+            const errorMessage = generateReview.error?.message || '';
+            const isExpiredToken = errorMessage.includes('expired') || 
+                                  errorMessage.includes('reconnect') ||
+                                  generateReview.error?.data?.code === 'UNAUTHORIZED';
+            
+            // Auto-redirect to OAuth if token expired (silently)
+            useEffect(() => {
+              if (isExpiredToken && !redirectingToReconnect) {
+                setRedirectingToReconnect(true);
+                const currentPath = window.location.pathname;
+                window.location.href = `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`;
+              }
+            }, [isExpiredToken, redirectingToReconnect]);
+
+            // Don't show error for expired tokens - just redirect silently
+            if (isExpiredToken) {
+              return null; // No error message shown
+            }
+
+            // Show error for other issues
+            return (
+              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  <p className="text-sm text-red-800">
+                    {errorMessage || 'Failed to generate review. Please try again.'}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 ? (
             <div className="space-y-4">

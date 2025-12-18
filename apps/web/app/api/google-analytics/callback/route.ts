@@ -113,13 +113,51 @@ export async function GET(req: NextRequest) {
       ? encryptSecure(tokenData.refresh_token)
       : '';
 
-    // Redirect to property selection page
+    // Check if this is a reconnection (has existing connection)
+    const existingConnection = await prisma.connection.findFirst({
+      where: {
+        userId: owner.id,
+        type: 'GOOGLE_ANALYTICS',
+      } as any,
+    });
+
+    // If reconnecting, update existing connection directly
+    if (existingConnection) {
+      try {
+        await prisma.connection.update({
+          where: { id: existingConnection.id },
+          data: {
+            accessToken: encryptedAccessToken,
+            refreshToken: encryptedRefreshToken || existingConnection.refreshToken,
+            updatedAt: new Date(),
+          },
+        });
+
+        // Get return URL from cookie (for automatic reconnection flow)
+        const returnUrl = req.cookies.get('ga_oauth_return_url')?.value || '/google-analytics';
+        const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
+        const url = new URL(returnUrl, base);
+        
+        const res = NextResponse.redirect(url);
+        // Clear OAuth state and return URL cookies
+        res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
+        res.cookies.set('ga_oauth_return_url', '', { maxAge: -1, path: '/' });
+        return res;
+      } catch (updateError) {
+        console.error('[GA Callback] Error updating existing connection:', updateError);
+        // Fall through to property selection flow
+      }
+    }
+
+    // New connection - redirect to property selection page
+    const returnUrl = req.cookies.get('ga_oauth_return_url')?.value || '/google-analytics/select-property';
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL('/google-analytics/select-property', base);
+    const url = new URL(returnUrl, base);
     
     const res = NextResponse.redirect(url);
-    // Clear OAuth state cookie
+    // Clear OAuth state and return URL cookies
     res.cookies.set('ga_oauth_state', '', { maxAge: -1, path: '/' });
+    res.cookies.set('ga_oauth_return_url', '', { maxAge: -1, path: '/' });
     // Store encrypted tokens temporarily (10 minutes expiry)
     res.cookies.set('ga_temp_access_token', encryptedAccessToken, {
       httpOnly: true,

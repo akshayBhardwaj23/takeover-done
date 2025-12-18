@@ -8,11 +8,12 @@ import crypto from 'node:crypto';
 function getBaseUrl(req: NextRequest): string {
   // Check X-Forwarded-Proto header first (for proxy/load balancer scenarios)
   const forwardedProto = req.headers.get('x-forwarded-proto');
-  const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
-  
+  const forwardedHost =
+    req.headers.get('x-forwarded-host') || req.headers.get('host');
+
   // Try NEXTAUTH_URL first
   let baseUrl = process.env.NEXTAUTH_URL;
-  
+
   // If not set, construct from request
   if (!baseUrl) {
     // Use forwarded host if available, otherwise use request URL
@@ -28,13 +29,13 @@ function getBaseUrl(req: NextRequest): string {
   try {
     const url = new URL(baseUrl);
     const hostname = url.hostname;
-    
+
     // Force HTTPS for non-localhost domains (always, regardless of what we found)
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
       url.protocol = 'https:';
       return url.origin;
     }
-    
+
     return url.origin;
   } catch {
     // If URL parsing fails, fall back to request origin
@@ -50,7 +51,7 @@ function getBaseUrl(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   const appId = process.env.META_ADS_APP_ID;
   const baseUrl = getBaseUrl(req);
-  
+
   // If META_ADS_REDIRECT_URI is explicitly set, use it but ensure HTTPS for production
   let redirectUri = process.env.META_ADS_REDIRECT_URI;
   if (redirectUri) {

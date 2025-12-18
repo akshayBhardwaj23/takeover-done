@@ -49,6 +49,18 @@ export async function refreshAccessToken(
 
   if (!response.ok) {
     const errorText = await response.text();
+    let errorData: { error?: string; error_description?: string } = {};
+    try {
+      errorData = JSON.parse(errorText);
+    } catch {
+      // If parsing fails, use the raw text
+    }
+    
+    // Check if it's an invalid_grant error (token expired or revoked)
+    if (errorData.error === 'invalid_grant') {
+      throw new Error('REFRESH_TOKEN_EXPIRED');
+    }
+    
     throw new Error(`Token refresh failed: ${errorText}`);
   }
 
@@ -68,7 +80,13 @@ export async function getValidAccessToken(
       const tokenData = await refreshAccessToken(refreshToken);
       return tokenData.access_token;
     } catch (error: any) {
-      // Fall back to existing token if refresh fails
+      // If refresh token is expired/revoked, throw a specific error
+      if (error.message === 'REFRESH_TOKEN_EXPIRED') {
+        console.error('[GA] Refresh token expired or revoked - reconnection required');
+        throw new Error('REFRESH_TOKEN_EXPIRED');
+      }
+      
+      // Fall back to existing token if refresh fails for other reasons
       try {
         const decryptedToken = decryptSecure(accessToken);
         
@@ -89,8 +107,19 @@ export async function getValidAccessToken(
           status: testRes.status,
           error: errorText.substring(0, 200),
         });
+        
+        // If validation also fails, check if it's an auth error
+        if (testRes.status === 401) {
+          throw new Error('REFRESH_TOKEN_EXPIRED');
+        }
+        
         throw new Error(`Token validation failed: ${testRes.status} - ${errorText.substring(0, 100)}`);
       } catch (validationError: any) {
+        // If validation error is also REFRESH_TOKEN_EXPIRED, propagate it
+        if (validationError.message === 'REFRESH_TOKEN_EXPIRED') {
+          throw validationError;
+        }
+        
         console.error('[GA] Both token refresh and validation failed:', validationError.message);
         throw new Error(`Token refresh and validation failed: ${error.message || 'Unknown error'}`);
       }
