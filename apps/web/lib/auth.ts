@@ -134,6 +134,32 @@ export const authOptions: NextAuthOptions = {
       // Default: redirect to integrations page after login (signIn case)
       return `${baseUrl}/integrations`;
     },
+    async signIn({ user, account, profile }) {
+      if (account?.provider === 'google' && profile && user.id) {
+        // Sync profile data (image, name) to database for existing users
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              name: profile.name || user.name,
+              image: (profile as any).picture || (profile as any).image || user.image,
+            },
+          });
+        } catch (error) {
+          console.error('[NextAuth] Error syncing profile data:', error);
+        }
+      }
+      return true;
+    },
+    async session({ session, user, token }) {
+      if (session.user) {
+        // user is available when using 'database' strategy (adapter)
+        // token is available when using 'jwt' strategy
+        const userId = user?.id || (token?.sub as string);
+        (session.user as any).id = userId;
+      }
+      return session;
+    },
   },
 };
 

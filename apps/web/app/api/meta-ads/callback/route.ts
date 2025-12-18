@@ -8,9 +8,48 @@ import * as Sentry from '@sentry/nextjs';
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
 
+/**
+ * Get the base URL for OAuth redirects, ensuring HTTPS for production domains.
+ * Falls back to request origin if NEXTAUTH_URL is not set or invalid.
+ */
+function getBaseUrl(req: NextRequest): string {
+  // Try NEXTAUTH_URL first
+  let baseUrl = process.env.NEXTAUTH_URL;
+  
+  // If not set, use request origin
+  if (!baseUrl) {
+    baseUrl = new URL(req.url).origin;
+  }
+
+  // Parse the URL to check protocol and hostname
+  try {
+    const url = new URL(baseUrl);
+    const hostname = url.hostname;
+    
+    // Force HTTPS for non-localhost domains
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && url.protocol !== 'https:') {
+      url.protocol = 'https:';
+      return url.origin;
+    }
+    
+    return url.origin;
+  } catch {
+    // If URL parsing fails, fall back to request origin
+    const fallback = new URL(req.url).origin;
+    // Force HTTPS for non-localhost
+    if (!fallback.includes('localhost') && !fallback.includes('127.0.0.1')) {
+      return fallback.replace('http://', 'https://');
+    }
+    return fallback;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const params = Object.fromEntries(req.nextUrl.searchParams.entries());
   const { code, state, error, error_reason, error_description } = params;
+
+  // Get base URL for redirects
+  const baseUrl = getBaseUrl(req);
 
   // Handle OAuth errors
   if (error || error_reason) {
@@ -19,8 +58,7 @@ export async function GET(req: NextRequest) {
       error_reason,
       error_description,
     });
-    const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL('/integrations', base);
+    const url = new URL('/integrations', baseUrl);
     url.searchParams.set(
       'meta_ads_error',
       error || error_reason || 'oauth_error',
@@ -45,7 +83,7 @@ export async function GET(req: NextRequest) {
   const appSecret = process.env.META_ADS_APP_SECRET;
   const redirectUri =
     process.env.META_ADS_REDIRECT_URI ||
-    `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/meta-ads/callback`;
+    `${baseUrl}/api/meta-ads/callback`;
 
   if (!appId || !appSecret) {
     return NextResponse.json(
@@ -156,8 +194,7 @@ export async function GET(req: NextRequest) {
       }
 
       // Still redirect to success - OAuth worked, just database issue
-      const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-      const url = new URL('/integrations', base);
+      const url = new URL('/integrations', baseUrl);
       url.searchParams.set('meta_ads_connected', '1');
       url.searchParams.set('meta_ads_warning', 'database_unavailable');
       const res = NextResponse.redirect(url);
@@ -167,8 +204,7 @@ export async function GET(req: NextRequest) {
 
     // Store temporary tokens in cookies for ad account selection
     // User will select their ad account on the next page
-    const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const res = NextResponse.redirect(new URL('/meta-ads/select-account', base));
+    const res = NextResponse.redirect(new URL('/meta-ads/select-account', baseUrl));
     
     // Store tokens temporarily in cookies (expire in 10 minutes)
     res.cookies.set('meta_ads_temp_access_token', encryptSecure(longLivedToken), {
@@ -226,8 +262,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Show generic error to user, details only in logs
-    const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL('/integrations', base);
+    const url = new URL('/integrations', baseUrl);
     url.searchParams.set('meta_ads_error', 'connection_failed');
     return NextResponse.redirect(url);
   }
