@@ -3,7 +3,7 @@ import Google from 'next-auth/providers/google';
 import EmailProvider from 'next-auth/providers/email';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import { prisma } from '@ai-ecom/db';
-import FormData from 'form-data';
+
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -14,37 +14,64 @@ export const authOptions: NextAuthOptions = {
       allowDangerousEmailAccountLinking: true,
     }),
     EmailProvider({
-      from: process.env.MAILGUN_FROM_EMAIL ?? 'noreply@mail.zyyp.ai',
+      from: process.env.MAILGUN_FROM_EMAIL || `support@${process.env.MAILGUN_DOMAIN || 'mail.zyyp.ai'}`,
       sendVerificationRequest: async ({ identifier, url, provider }) => {
         const urlObj = new URL(url);
         const host = urlObj.host;
-        const apiKey = process.env.MAILGUN_API_KEY;
-        const domain = process.env.MAILGUN_DOMAIN;
+        
+        // Sanitize inputs - strip quotes if present
+        const apiKey = (process.env.MAILGUN_API_KEY || '').trim().replace(/^["']|["']$/g, '');
+        const rawDomain = (process.env.MAILGUN_DOMAIN || '').trim().replace(/^["']|["']$/g, '');
+        const region = (process.env.MAILGUN_REGION || '').trim().replace(/^["']|["']$/g, '');
+        
+        // Remove protocol if present in domain
+        const domain = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
         if (!apiKey || !domain) {
           throw new Error("MAILGUN_API_KEY or MAILGUN_DOMAIN is missing");
         }
         
-        const form = new FormData();
-        form.append('from', provider.from);
-        form.append('to', identifier);
-        form.append('subject', `Sign in to ${host}`);
-        form.append('html', html({ url, host, theme: (provider as any).theme }));
-        form.append('text', text({ url, host }));
+        // Helper to try sending - matching packages/api logic exactly
+        const sendToMailgun = async (r: string) => {
+           const baseUrl = r === 'eu' ? 'https://api.eu.mailgun.net/v3' : 'https://api.mailgun.net/v3';
+           const endpoint = `${baseUrl}/${domain}/messages`;
+           
+           const formData = new FormData();
+           formData.append('from', provider.from);
+           formData.append('to', identifier);
+           formData.append('subject', `Sign in to ${host}`);
+           formData.append('html', html({ url, host, theme: (provider as any).theme }));
+           formData.append('text', text({ url, host }));
 
-        const auth = Buffer.from(`api:${apiKey}`).toString('base64');
+           return fetch(endpoint, {
+             method: 'POST',
+             headers: { 
+               Authorization: `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}` 
+             },
+             body: formData,
+           });
+        };
 
-        const response = await fetch(`https://api.mailgun.net/v3/${domain}/messages`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${auth}`,
-            ...form.getHeaders(),
-          },
-          body: form as any,
-        });
+        // Determine initial region
+        const initialRegion = region || (apiKey.includes('-') && !apiKey.startsWith('key-') ? 'eu' : 'us');
+        
+        let response = await sendToMailgun(initialRegion);
+
+        // If 401, retry with other region
+        if (response.status === 401) {
+          const otherRegion = initialRegion === 'us' ? 'eu' : 'us';
+          console.warn(`[NextAuth] Mailgun 401 with ${initialRegion}, retrying ${otherRegion}...`);
+          response = await sendToMailgun(otherRegion);
+        }
 
         if (!response.ok) {
-            const errorText = await response.text();
+            const errorText = await response.text().catch(() => 'No error body');
+            console.error('[NextAuth] Mailgun Final Failure:', {
+                status: response.status,
+                domain,
+                region: initialRegion,
+                error: errorText
+            });
             throw new Error(`Mailgun API Error: ${response.status} ${response.statusText} - ${errorText}`);
         }
       },
