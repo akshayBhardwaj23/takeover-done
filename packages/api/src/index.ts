@@ -6677,6 +6677,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           stack: listError.stack,
         });
 
+        // Check if refresh token is expired - user needs to reconnect
+        if (listError.message === 'REFRESH_TOKEN_EXPIRED' || 
+            listError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+            listError.message?.includes('invalid_grant')) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+            cause: listError,
+          });
+        }
+
         // If we have a propertyId in metadata, return it as a fallback
         const metadata = (connection.metadata as Record<string, unknown>) || {};
         const metadataPropertyId = metadata.propertyId as string | undefined;
@@ -6721,6 +6732,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                 '[GA Properties API] Retry also failed:',
                 retryError.message,
               );
+              
+              // Check if retry also failed due to expired token
+              if (retryError.message === 'REFRESH_TOKEN_EXPIRED' || 
+                  retryError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+                  retryError.message?.includes('invalid_grant')) {
+                throw new TRPCError({
+                  code: 'UNAUTHORIZED',
+                  message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+                  cause: retryError,
+                });
+              }
             }
           }
 
@@ -6818,6 +6840,18 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return analyticsData;
       } catch (error: any) {
         console.error('[GA API] Error fetching GA4 analytics:', error.message);
+        
+        // Check if refresh token is expired - user needs to reconnect
+        if (error.message === 'REFRESH_TOKEN_EXPIRED' || 
+            error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+            error.message?.includes('invalid_grant')) {
+          throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+            cause: error,
+          });
+        }
+        
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -7072,6 +7106,18 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       );
     } catch (error: any) {
       console.error('[GA AI Review] Error fetching analytics data:', error);
+      
+      // Check if refresh token is expired - user needs to reconnect
+      if (error.message === 'REFRESH_TOKEN_EXPIRED' || 
+          error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+          error.message?.includes('invalid_grant')) {
+        throw new TRPCError({
+          code: 'UNAUTHORIZED',
+          message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+          cause: error,
+        });
+      }
+      
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: `Failed to fetch analytics data: ${error.message || 'Unknown error'}`,

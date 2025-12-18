@@ -13,12 +13,22 @@ export const runtime = 'nodejs';
  * Falls back to request origin if NEXTAUTH_URL is not set or invalid.
  */
 function getBaseUrl(req: NextRequest): string {
+  // Check X-Forwarded-Proto header first (for proxy/load balancer scenarios)
+  const forwardedProto = req.headers.get('x-forwarded-proto');
+  const forwardedHost = req.headers.get('x-forwarded-host') || req.headers.get('host');
+  
   // Try NEXTAUTH_URL first
   let baseUrl = process.env.NEXTAUTH_URL;
   
-  // If not set, use request origin
+  // If not set, construct from request
   if (!baseUrl) {
-    baseUrl = new URL(req.url).origin;
+    // Use forwarded host if available, otherwise use request URL
+    if (forwardedHost) {
+      const protocol = forwardedProto === 'https' ? 'https' : 'https'; // Always use HTTPS for production
+      baseUrl = `${protocol}://${forwardedHost}`;
+    } else {
+      baseUrl = new URL(req.url).origin;
+    }
   }
 
   // Parse the URL to check protocol and hostname
@@ -26,8 +36,8 @@ function getBaseUrl(req: NextRequest): string {
     const url = new URL(baseUrl);
     const hostname = url.hostname;
     
-    // Force HTTPS for non-localhost domains
-    if (hostname !== 'localhost' && hostname !== '127.0.0.1' && url.protocol !== 'https:') {
+    // Force HTTPS for non-localhost domains (always, regardless of what we found)
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
       url.protocol = 'https:';
       return url.origin;
     }
@@ -81,9 +91,25 @@ export async function GET(req: NextRequest) {
 
   const appId = process.env.META_ADS_APP_ID;
   const appSecret = process.env.META_ADS_APP_SECRET;
-  const redirectUri =
-    process.env.META_ADS_REDIRECT_URI ||
-    `${baseUrl}/api/meta-ads/callback`;
+  
+  // If META_ADS_REDIRECT_URI is explicitly set, use it but ensure HTTPS for production
+  let redirectUri = process.env.META_ADS_REDIRECT_URI;
+  if (redirectUri) {
+    try {
+      const uri = new URL(redirectUri);
+      const hostname = uri.hostname;
+      // Force HTTPS for non-localhost domains
+      if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        uri.protocol = 'https:';
+        redirectUri = uri.toString();
+      }
+    } catch {
+      // If parsing fails, fall back to constructed URI
+      redirectUri = `${baseUrl}/api/meta-ads/callback`;
+    }
+  } else {
+    redirectUri = `${baseUrl}/api/meta-ads/callback`;
+  }
 
   if (!appId || !appSecret) {
     return NextResponse.json(

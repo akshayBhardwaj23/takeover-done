@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
   // Generate state for CSRF protection
   const state = crypto.randomBytes(16).toString('hex');
 
+  // Get return URL from query params (for automatic reconnection flow)
+  const returnUrl = req.nextUrl.searchParams.get('returnUrl') || '/google-analytics';
+
   // Google OAuth scopes
   const scopes = 'https://www.googleapis.com/auth/analytics.readonly';
 
@@ -31,6 +34,14 @@ export async function GET(req: NextRequest) {
 
   const res = NextResponse.redirect(authUrl.toString());
   res.cookies.set('ga_oauth_state', state, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 600, // 10 minutes
+    path: '/',
+  });
+  // Store return URL for redirect after successful reconnection
+  res.cookies.set('ga_oauth_return_url', returnUrl, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
