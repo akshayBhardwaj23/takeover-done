@@ -134,6 +134,15 @@ export const authOptions: NextAuthOptions = {
       // Default: redirect to integrations page after login (signIn case)
       return `${baseUrl}/integrations`;
     },
+    async session({ session, user, token }) {
+      if (session.user) {
+        // user is available when using 'database' strategy (adapter)
+        // token is available when using 'jwt' strategy
+        const userId = user?.id || (token?.sub as string);
+        (session.user as any).id = userId;
+      }
+      return session;
+    },
   },
 };
 
