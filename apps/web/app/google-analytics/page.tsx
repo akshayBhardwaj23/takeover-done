@@ -208,16 +208,23 @@ function GoogleAnalyticsInner() {
   // Analytics error - check if it's an expired token and auto-reconnect silently
   if (analytics.error) {
     const errorMessage = analytics.error.message || '';
-    const isExpiredToken = errorMessage.includes('expired') || 
-                          errorMessage.includes('reconnect') ||
-                          analytics.error.data?.code === 'UNAUTHORIZED';
+    const errorDataCode = (analytics.error as any)?.data?.code;
+    const errorShape = analytics.error as any;
+    // Check multiple ways the error might be structured
+    const isExpiredToken = 
+      errorMessage.includes('expired') || 
+      errorMessage.includes('reconnect') ||
+      errorDataCode === 'UNAUTHORIZED' ||
+      errorShape?.data?.code === 'UNAUTHORIZED' ||
+      errorShape?.code === 'UNAUTHORIZED';
     
     // Auto-redirect to OAuth if token expired (silently, no error shown)
     useEffect(() => {
-      if (isExpiredToken && !redirectingToReconnect) {
+      if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
         setRedirectingToReconnect(true);
-        const currentPath = window.location.pathname;
-        window.location.href = `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`;
+        const currentPath = window.location.pathname + window.location.search;
+        // Use window.location.replace to avoid adding to history
+        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
       }
     }, [isExpiredToken, redirectingToReconnect]);
 
@@ -474,16 +481,18 @@ function GoogleAnalyticsInner() {
 
           {generateReview.isError && (() => {
             const errorMessage = generateReview.error?.message || '';
+            const errorDataCode = (generateReview.error as any)?.data?.code;
             const isExpiredToken = errorMessage.includes('expired') || 
                                   errorMessage.includes('reconnect') ||
-                                  generateReview.error?.data?.code === 'UNAUTHORIZED';
+                                  errorDataCode === 'UNAUTHORIZED';
             
             // Auto-redirect to OAuth if token expired (silently)
             useEffect(() => {
               if (isExpiredToken && !redirectingToReconnect) {
                 setRedirectingToReconnect(true);
-                const currentPath = window.location.pathname;
-                window.location.href = `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`;
+                const currentPath = window.location.pathname + window.location.search;
+                // Use window.location.replace to avoid adding to history
+                window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
               }
             }, [isExpiredToken, redirectingToReconnect]);
 
