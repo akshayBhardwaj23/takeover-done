@@ -149,10 +149,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // New connection - redirect to property selection page
-    const returnUrl = req.cookies.get('ga_oauth_return_url')?.value || '/google-analytics/select-property';
+    // New connection - always redirect to property selection page first
+    // Don't use returnUrl for new connections - user must select property first
     const base = process.env.NEXTAUTH_URL || new URL(req.url).origin;
-    const url = new URL(returnUrl, base);
+    const url = new URL('/google-analytics/select-property', base);
     
     const res = NextResponse.redirect(url);
     // Clear OAuth state and return URL cookies

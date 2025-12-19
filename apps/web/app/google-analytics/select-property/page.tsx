@@ -81,12 +81,14 @@ function PropertySelectionInner() {
       // Invalidate connections query to refetch with new connection
       await utils.connections.invalidate();
       
-      // Small delay to ensure connection is available, then redirect
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Refetch connections to ensure they're available
+      await utils.connections.refetch();
       
-      // Redirect to analytics page
-      router.push('/google-analytics');
-      router.refresh(); // Force refresh to update server components
+      // Small delay to ensure connection is available, then redirect
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force a hard reload to ensure fresh data and connection is detected
+      window.location.href = '/google-analytics';
     } catch (err) {
       console.error('[Property Selection] Error selecting property:', err);
       setError(
