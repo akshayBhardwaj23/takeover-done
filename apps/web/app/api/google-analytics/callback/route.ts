@@ -124,11 +124,14 @@ export async function GET(req: NextRequest) {
     // If reconnecting, update existing connection directly
     if (existingConnection) {
       try {
+        // Preserve existing metadata (including propertyId) when reconnecting
+        const existingMetadata = (existingConnection.metadata as Record<string, unknown>) || {};
         await prisma.connection.update({
           where: { id: existingConnection.id },
           data: {
             accessToken: encryptedAccessToken,
             refreshToken: encryptedRefreshToken || existingConnection.refreshToken,
+            metadata: existingMetadata, // Preserve existing metadata (propertyId, etc.)
             updatedAt: new Date(),
           },
         });
