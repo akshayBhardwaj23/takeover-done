@@ -92,7 +92,7 @@ function GoogleAnalyticsInner() {
     },
     {
       enabled: !!selectedPropertyId && selectedPropertyId.length > 0,
-      retry: 1,
+      retry: false, // Don't retry - if it fails, we'll handle it
       refetchOnWindowFocus: true, // Refetch when window regains focus (after OAuth redirect)
       refetchOnMount: true, // Refetch when component mounts (after OAuth redirect)
       staleTime: 30000,
