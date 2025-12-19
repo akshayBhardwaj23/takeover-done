@@ -57,6 +57,24 @@ function GoogleAnalyticsInner() {
     }
   }, [gaConnections, selectedPropertyId]);
 
+  // Watch for expired token errors and redirect immediately
+  useEffect(() => {
+    if (analytics.error && !redirectingToReconnect) {
+      const errorMessage = analytics.error.message || '';
+      const errorDataCode = (analytics.error as any)?.data?.code;
+      const isExpiredToken = 
+        errorMessage.includes('expired') || 
+        errorMessage.includes('reconnect') ||
+        errorDataCode === 'UNAUTHORIZED';
+      
+      if (isExpiredToken && typeof window !== 'undefined') {
+        setRedirectingToReconnect(true);
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+      }
+    }
+  }, [analytics.error, redirectingToReconnect]);
+
   // Calculate date range
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(
@@ -78,6 +96,22 @@ function GoogleAnalyticsInner() {
       refetchOnWindowFocus: true, // Refetch when window regains focus (after OAuth redirect)
       refetchOnMount: true, // Refetch when component mounts (after OAuth redirect)
       staleTime: 30000,
+      onError: (error: any) => {
+        // Check if it's an expired token error
+        const errorMessage = error?.message || '';
+        const errorDataCode = error?.data?.code;
+        const isExpiredToken = 
+          errorMessage.includes('expired') || 
+          errorMessage.includes('reconnect') ||
+          errorDataCode === 'UNAUTHORIZED';
+        
+        // Immediately redirect to OAuth if token expired
+        if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
+          setRedirectingToReconnect(true);
+          const currentPath = window.location.pathname + window.location.search;
+          window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+        }
+      },
     }
   );
 
@@ -100,6 +134,22 @@ function GoogleAnalyticsInner() {
     onSuccess: () => {
       cooldown.refetch();
       reviewHistory.refetch();
+    },
+    onError: (error: any) => {
+      // Check if it's an expired token error
+      const errorMessage = error?.message || '';
+      const errorDataCode = error?.data?.code;
+      const isExpiredToken = 
+        errorMessage.includes('expired') || 
+        errorMessage.includes('reconnect') ||
+        errorDataCode === 'UNAUTHORIZED';
+      
+      // Immediately redirect to OAuth if token expired
+      if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
+        setRedirectingToReconnect(true);
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+      }
     },
   });
 
@@ -206,6 +256,29 @@ function GoogleAnalyticsInner() {
   }
 
   // Analytics error - check if it's an expired token and auto-reconnect silently
+  // Check error early and show loading state immediately if redirecting
+  if (redirectingToReconnect) {
+    return (
+      <main className="min-h-screen bg-slate-100 py-28">
+        <div className="mx-auto max-w-6xl space-y-8 px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <BarChart3 className="h-6 w-6 text-slate-700" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+              <p className="text-sm text-slate-500">Reconnecting...</p>
+            </div>
+          </div>
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
+            <p className="mt-4 text-sm text-slate-600">Refreshing your connection...</p>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
   if (analytics.error) {
     const errorMessage = analytics.error.message || '';
     const errorDataCode = (analytics.error as any)?.data?.code;
@@ -217,18 +290,9 @@ function GoogleAnalyticsInner() {
       errorDataCode === 'UNAUTHORIZED' ||
       errorShape?.data?.code === 'UNAUTHORIZED' ||
       errorShape?.code === 'UNAUTHORIZED';
-    
-    // Auto-redirect to OAuth if token expired (silently, no error shown)
-    useEffect(() => {
-      if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
-        setRedirectingToReconnect(true);
-        const currentPath = window.location.pathname + window.location.search;
-        // Use window.location.replace to avoid adding to history
-        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
-      }
-    }, [isExpiredToken, redirectingToReconnect]);
 
     // Show loading state while reconnecting (no error message)
+    // The useEffect and onError callback will handle the redirect
     if (isExpiredToken) {
       return (
         <main className="min-h-screen bg-slate-100 py-28">
