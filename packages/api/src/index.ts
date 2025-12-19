@@ -294,28 +294,35 @@ function ensureSignature(text: string, signatureBlock: string): string {
   // Check if signature already exists at the end of the text
   // Look for the signature in the last 200 characters (where signatures typically appear)
   const textLength = cleanedText.length;
-  const lastPortion = cleanedText.slice(Math.max(0, textLength - 200)).toLowerCase();
-  
+  const lastPortion = cleanedText
+    .slice(Math.max(0, textLength - 200))
+    .toLowerCase();
+
   // Normalize signature block for comparison (remove all whitespace)
-  const normalizedSignature = trimmedSignature.toLowerCase().replace(/\s+/g, '');
-  
+  const normalizedSignature = trimmedSignature
+    .toLowerCase()
+    .replace(/\s+/g, '');
+
   // Check for full signature format: "Warm Regards,\n\n[signature]"
   // Normalize by removing all whitespace for comparison
   const lastPortionNormalized = lastPortion.replace(/\s+/g, '');
   const fullSignaturePattern = 'warmregards,' + normalizedSignature;
   const hasFullSignature = lastPortionNormalized.includes(fullSignaturePattern);
-  
+
   // Also check for just the signature block at the end (in case "Warm Regards," was removed)
   // But only if it's near the end (last 100 chars) to avoid false positives
-  const veryLastPortion = cleanedText.slice(Math.max(0, textLength - 100)).toLowerCase();
+  const veryLastPortion = cleanedText
+    .slice(Math.max(0, textLength - 100))
+    .toLowerCase();
   const veryLastPortionNormalized = veryLastPortion.replace(/\s+/g, '');
-  const hasSignatureBlockAtEnd = veryLastPortionNormalized.includes(normalizedSignature);
-  
+  const hasSignatureBlockAtEnd =
+    veryLastPortionNormalized.includes(normalizedSignature);
+
   // If signature already exists, return cleaned text without adding another
   if (hasFullSignature || hasSignatureBlockAtEnd) {
     return cleanedText;
   }
-  
+
   const requiredSignature = `Warm Regards,\n\n${trimmedSignature}`;
   const trimmed = cleanedText.trimEnd();
   const separator = trimmed.endsWith('\n') ? '' : '\n\n';
@@ -6678,12 +6685,15 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         });
 
         // Check if refresh token is expired - user needs to reconnect
-        if (listError.message === 'REFRESH_TOKEN_EXPIRED' || 
-            listError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
-            listError.message?.includes('invalid_grant')) {
+        if (
+          listError.message === 'REFRESH_TOKEN_EXPIRED' ||
+          listError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+          listError.message?.includes('invalid_grant')
+        ) {
           throw new TRPCError({
             code: 'UNAUTHORIZED',
-            message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+            message:
+              'Your Google Analytics connection has expired. Please reconnect your account.',
             cause: listError,
           });
         }
@@ -6732,14 +6742,17 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
                 '[GA Properties API] Retry also failed:',
                 retryError.message,
               );
-              
+
               // Check if retry also failed due to expired token
-              if (retryError.message === 'REFRESH_TOKEN_EXPIRED' || 
-                  retryError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
-                  retryError.message?.includes('invalid_grant')) {
+              if (
+                retryError.message === 'REFRESH_TOKEN_EXPIRED' ||
+                retryError.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+                retryError.message?.includes('invalid_grant')
+              ) {
                 throw new TRPCError({
                   code: 'UNAUTHORIZED',
-                  message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+                  message:
+                    'Your Google Analytics connection has expired. Please reconnect your account.',
                   cause: retryError,
                 });
               }
@@ -6840,18 +6853,21 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         return analyticsData;
       } catch (error: any) {
         console.error('[GA API] Error fetching GA4 analytics:', error.message);
-        
+
         // Check if refresh token is expired - user needs to reconnect
-        if (error.message === 'REFRESH_TOKEN_EXPIRED' || 
-            error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
-            error.message?.includes('invalid_grant')) {
+        if (
+          error.message === 'REFRESH_TOKEN_EXPIRED' ||
+          error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+          error.message?.includes('invalid_grant')
+        ) {
           throw new TRPCError({
             code: 'UNAUTHORIZED',
-            message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+            message:
+              'Your Google Analytics connection has expired. Please reconnect your account.',
             cause: error,
           });
         }
-        
+
         if (error instanceof TRPCError) {
           throw error;
         }
@@ -7106,18 +7122,21 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       );
     } catch (error: any) {
       console.error('[GA AI Review] Error fetching analytics data:', error);
-      
+
       // Check if refresh token is expired - user needs to reconnect
-      if (error.message === 'REFRESH_TOKEN_EXPIRED' || 
-          error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
-          error.message?.includes('invalid_grant')) {
+      if (
+        error.message === 'REFRESH_TOKEN_EXPIRED' ||
+        error.message?.includes('REFRESH_TOKEN_EXPIRED') ||
+        error.message?.includes('invalid_grant')
+      ) {
         throw new TRPCError({
           code: 'UNAUTHORIZED',
-          message: 'Your Google Analytics connection has expired. Please reconnect your account.',
+          message:
+            'Your Google Analytics connection has expired. Please reconnect your account.',
           cause: error,
         });
       }
-      
+
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: `Failed to fetch analytics data: ${error.message || 'Unknown error'}`,
