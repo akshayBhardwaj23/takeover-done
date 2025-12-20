@@ -57,24 +57,6 @@ function GoogleAnalyticsInner() {
     }
   }, [gaConnections, selectedPropertyId]);
 
-  // Watch for expired token errors and redirect immediately
-  useEffect(() => {
-    if (analytics.error && !redirectingToReconnect) {
-      const errorMessage = analytics.error.message || '';
-      const errorDataCode = (analytics.error as any)?.data?.code;
-      const isExpiredToken = 
-        errorMessage.includes('expired') || 
-        errorMessage.includes('reconnect') ||
-        errorDataCode === 'UNAUTHORIZED';
-      
-      if (isExpiredToken && typeof window !== 'undefined') {
-        setRedirectingToReconnect(true);
-        const currentPath = window.location.pathname + window.location.search;
-        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
-      }
-    }
-  }, [analytics.error, redirectingToReconnect]);
-
   // Calculate date range
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(
@@ -114,6 +96,24 @@ function GoogleAnalyticsInner() {
       },
     }
   );
+
+  // Watch for expired token errors and redirect immediately (after analytics query is defined)
+  useEffect(() => {
+    if (analytics.error && !redirectingToReconnect) {
+      const errorMessage = analytics.error.message || '';
+      const errorDataCode = (analytics.error as any)?.data?.code;
+      const isExpiredToken = 
+        errorMessage.includes('expired') || 
+        errorMessage.includes('reconnect') ||
+        errorDataCode === 'UNAUTHORIZED';
+      
+      if (isExpiredToken && typeof window !== 'undefined') {
+        setRedirectingToReconnect(true);
+        const currentPath = window.location.pathname + window.location.search;
+        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+      }
+    }
+  }, [analytics.error, redirectingToReconnect]);
 
   // AI Review queries
   const cooldown = trpc.checkGA4AIReviewCooldown.useQuery(undefined, {
