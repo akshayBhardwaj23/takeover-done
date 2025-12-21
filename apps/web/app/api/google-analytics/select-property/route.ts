@@ -52,29 +52,83 @@ export async function POST(req: NextRequest) {
 
     // Decrypt tokens
     const accessToken = decryptSecure(tempAccessToken);
-    const refreshToken = tempRefreshToken ? decryptSecure(tempRefreshToken) : null;
+    const refreshToken = tempRefreshToken
+      ? decryptSecure(tempRefreshToken)
+      : null;
 
-    // Determine currency: use provided currency, or existing connection's currency, or default to USD
+    // Try to fetch currency from GA4 property settings first
     let finalCurrency = currency || 'USD';
-    
-    // Check if existing connection has currency stored (if currency not provided)
+
     if (!currency) {
+      // First check existing connection for currency
       const existing = await prisma.connection.findFirst({
         where: {
           userId: user.id,
           type: 'GOOGLE_ANALYTICS' as any,
         },
       });
-      
+
       if (existing?.metadata) {
         const existingMetadata = existing.metadata as Record<string, unknown>;
-        if (existingMetadata.currency && typeof existingMetadata.currency === 'string') {
+        if (
+          existingMetadata.currency &&
+          typeof existingMetadata.currency === 'string'
+        ) {
           finalCurrency = existingMetadata.currency;
-          console.log('[GA Select Property] Using existing currency from metadata:', finalCurrency);
+          console.log(
+            '[GA Select Property] Using existing currency from metadata:',
+            finalCurrency,
+          );
+        }
+      }
+
+      // If not found in existing connection, try to fetch from GA4 property
+      if (finalCurrency === 'USD') {
+        try {
+          const cleanPropertyId = propertyId.replace(/^properties\//, '');
+          const propertyRes = await fetch(
+            `https://analyticsadmin.googleapis.com/v1beta/properties/${cleanPropertyId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+              },
+            },
+          );
+
+          if (propertyRes.ok) {
+            const propertyData = (await propertyRes.json()) as {
+              currencyCode?: string;
+            };
+            if (propertyData.currencyCode) {
+              finalCurrency = propertyData.currencyCode;
+              console.log(
+                '[GA Select Property] Fetched currency from GA4 property:',
+                finalCurrency,
+              );
+            } else {
+              console.log(
+                '[GA Select Property] Property response does not include currencyCode, response:',
+                JSON.stringify(propertyData).substring(0, 200),
+              );
+            }
+          } else {
+            const errorText = await propertyRes.text();
+            console.warn(
+              '[GA Select Property] Failed to fetch property for currency:',
+              propertyRes.status,
+              errorText.substring(0, 200),
+            );
+          }
+        } catch (error) {
+          console.warn(
+            '[GA Select Property] Error fetching currency from GA4 property:',
+            error,
+          );
+          // Continue with default USD
         }
       }
     }
-    
+
     console.log('[GA Select Property] Final currency:', finalCurrency);
 
     // Check if connection already exists for this user
@@ -97,7 +151,14 @@ export async function POST(req: NextRequest) {
     let connectionId: string;
 
     if (existing) {
-      // Update existing connection
+      // Update existing connection - merge with existing metadata to preserve currency and other fields
+      const existingMetadata =
+        (existing.metadata as Record<string, unknown>) || {};
+      const mergedMetadata = {
+        ...existingMetadata, // Preserve existing fields (like currency)
+        ...metadata, // Override with new property info
+      };
+
       await prisma.connection.update({
         where: { id: existing.id },
         data: {
@@ -105,7 +166,7 @@ export async function POST(req: NextRequest) {
           refreshToken: refreshToken
             ? encryptSecure(refreshToken)
             : existing.refreshToken,
-          metadata: metadata,
+          metadata: mergedMetadata as any, // Use merged metadata to preserve currency
         },
       });
       connectionId = existing.id;
@@ -117,7 +178,7 @@ export async function POST(req: NextRequest) {
           accessToken: encryptSecure(accessToken),
           refreshToken: refreshToken ? encryptSecure(refreshToken) : null,
           userId: user.id,
-          metadata: metadata,
+          metadata: metadata as any,
         },
       });
       connectionId = newConnection.id;
@@ -143,14 +204,21 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     console.error('[GA Select Property] Error:', errorMessage);
     console.error('[GA Select Property] Full error:', error);
 
     // Log to Sentry in production/staging
-    if (process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT === 'staging') {
+    if (
+      process.env.NODE_ENV === 'production' ||
+      process.env.ENVIRONMENT === 'staging'
+    ) {
       Sentry.captureException(error, {
-        tags: { component: 'google-analytics-select-property', operation: 'save-connection' },
+        tags: {
+          component: 'google-analytics-select-property',
+          operation: 'save-connection',
+        },
       });
     }
 
@@ -160,4 +228,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
