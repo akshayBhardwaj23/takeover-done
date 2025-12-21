@@ -176,21 +176,8 @@ function GoogleAnalyticsInner() {
     },
   });
 
-  // Get current currency from connection metadata (defined after gaConnections and analytics)
-  const currentCurrency =
-    gaConnections.length > 0
-      ? (((gaConnections[0] as any).metadata as Record<string, unknown> | null)
-          ?.currency as string | undefined)
-      : undefined;
-
-  // Currency update mutation (defined after analytics to avoid circular dependency)
-  const updateCurrency = trpc.updateGACurrency.useMutation({
-    onSuccess: () => {
-      // Refetch analytics data to get updated currency
-      analytics.refetch();
-      connections.refetch();
-    },
-  });
+  // Currency is automatically detected from GA4 property settings
+  // No need for manual selection - it's fetched when property is selected
 
   // Show loading state while checking for connections
   if (connections.isLoading) {
@@ -513,26 +500,6 @@ function GoogleAnalyticsInner() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {gaConnections.length > 0 && (
-              <select
-                value={currentCurrency || stats.currency || 'USD'}
-                onChange={(e) => {
-                  updateCurrency.mutate({ currency: e.target.value });
-                }}
-                disabled={updateCurrency.isPending}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
-                title="Select currency for revenue display"
-              >
-                <option value="USD">USD ($)</option>
-                <option value="INR">INR (₹)</option>
-                <option value="EUR">EUR (€)</option>
-                <option value="GBP">GBP (£)</option>
-                <option value="JPY">JPY (¥)</option>
-                <option value="CAD">CAD (C$)</option>
-                <option value="AUD">AUD (A$)</option>
-                <option value="CNY">CNY (¥)</option>
-              </select>
-            )}
             <select
               value={dateRange}
               onChange={(e) =>
