@@ -29,19 +29,6 @@ function GoogleAnalyticsInner() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>('');
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [redirectingToReconnect, setRedirectingToReconnect] = useState(false);
-  
-  // Get current currency from connection metadata
-  const currentCurrency = gaConnections.length > 0 
-    ? ((gaConnections[0] as any).metadata as Record<string, unknown> | null)?.currency as string | undefined
-    : undefined;
-  
-  const updateCurrency = trpc.updateGACurrency.useMutation({
-    onSuccess: () => {
-      // Refetch analytics data to get updated currency
-      analytics.refetch();
-      connections.refetch();
-    },
-  });
 
   // Fetch connections with refetch on mount to catch newly created/updated connections
   const connections = trpc.connections.useQuery(undefined, {
@@ -51,9 +38,10 @@ function GoogleAnalyticsInner() {
   });
 
   // Get GA connections
-  const gaConnections = connections.data?.connections.filter(
-    (c: any) => c.type === 'GOOGLE_ANALYTICS'
-  ) || [];
+  const gaConnections =
+    connections.data?.connections.filter(
+      (c: any) => c.type === 'GOOGLE_ANALYTICS',
+    ) || [];
 
   // Auto-select property from metadata only
   useEffect(() => {
@@ -61,9 +49,12 @@ function GoogleAnalyticsInner() {
 
     // Get property from connection metadata
     if (gaConnections.length > 0) {
-      const metadata = (gaConnections[0] as any).metadata as Record<string, unknown> | null;
+      const metadata = (gaConnections[0] as any).metadata as Record<
+        string,
+        unknown
+      > | null;
       const metadataPropertyId = metadata?.propertyId as string | undefined;
-      
+
       if (metadataPropertyId) {
         setSelectedPropertyId(metadataPropertyId);
       }
@@ -73,7 +64,12 @@ function GoogleAnalyticsInner() {
   // Calculate date range
   const endDate = new Date().toISOString().split('T')[0];
   const startDate = new Date(
-    Date.now() - (dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90) * 24 * 60 * 60 * 1000,
+    Date.now() -
+      (dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90) *
+        24 *
+        60 *
+        60 *
+        1000,
   )
     .toISOString()
     .split('T')[0];
@@ -95,19 +91,25 @@ function GoogleAnalyticsInner() {
         // Check if it's an expired token error
         const errorMessage = error?.message || '';
         const errorDataCode = error?.data?.code;
-        const isExpiredToken = 
-          errorMessage.includes('expired') || 
+        const isExpiredToken =
+          errorMessage.includes('expired') ||
           errorMessage.includes('reconnect') ||
           errorDataCode === 'UNAUTHORIZED';
-        
+
         // Immediately redirect to OAuth if token expired
-        if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
+        if (
+          isExpiredToken &&
+          !redirectingToReconnect &&
+          typeof window !== 'undefined'
+        ) {
           setRedirectingToReconnect(true);
           const currentPath = window.location.pathname + window.location.search;
-          window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+          window.location.replace(
+            `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`,
+          );
         }
       },
-    }
+    },
   );
 
   // Watch for expired token errors and redirect immediately (after analytics query is defined)
@@ -115,15 +117,17 @@ function GoogleAnalyticsInner() {
     if (analytics.error && !redirectingToReconnect) {
       const errorMessage = analytics.error.message || '';
       const errorDataCode = (analytics.error as any)?.data?.code;
-      const isExpiredToken = 
-        errorMessage.includes('expired') || 
+      const isExpiredToken =
+        errorMessage.includes('expired') ||
         errorMessage.includes('reconnect') ||
         errorDataCode === 'UNAUTHORIZED';
-      
+
       if (isExpiredToken && typeof window !== 'undefined') {
         setRedirectingToReconnect(true);
         const currentPath = window.location.pathname + window.location.search;
-        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+        window.location.replace(
+          `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`,
+        );
       }
     }
   }, [analytics.error, redirectingToReconnect]);
@@ -152,20 +156,41 @@ function GoogleAnalyticsInner() {
       // Check if it's an expired token error
       const errorMessage = error?.message || '';
       const errorDataCode = error?.data?.code;
-      const isExpiredToken = 
-        errorMessage.includes('expired') || 
+      const isExpiredToken =
+        errorMessage.includes('expired') ||
         errorMessage.includes('reconnect') ||
         errorDataCode === 'UNAUTHORIZED';
-      
+
       // Immediately redirect to OAuth if token expired
-      if (isExpiredToken && !redirectingToReconnect && typeof window !== 'undefined') {
+      if (
+        isExpiredToken &&
+        !redirectingToReconnect &&
+        typeof window !== 'undefined'
+      ) {
         setRedirectingToReconnect(true);
         const currentPath = window.location.pathname + window.location.search;
-        window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+        window.location.replace(
+          `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`,
+        );
       }
     },
   });
 
+  // Get current currency from connection metadata (defined after gaConnections and analytics)
+  const currentCurrency =
+    gaConnections.length > 0
+      ? (((gaConnections[0] as any).metadata as Record<string, unknown> | null)
+          ?.currency as string | undefined)
+      : undefined;
+
+  // Currency update mutation (defined after analytics to avoid circular dependency)
+  const updateCurrency = trpc.updateGACurrency.useMutation({
+    onSuccess: () => {
+      // Refetch analytics data to get updated currency
+      analytics.refetch();
+      connections.refetch();
+    },
+  });
 
   // Show loading state while checking for connections
   if (connections.isLoading) {
@@ -177,13 +202,17 @@ function GoogleAnalyticsInner() {
               <BarChart3 className="h-6 w-6 text-slate-700" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Google Analytics
+              </h1>
               <p className="text-sm text-slate-500">Loading...</p>
             </div>
           </div>
           <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
-            <p className="mt-4 text-sm text-slate-600">Checking for Google Analytics connection...</p>
+            <p className="mt-4 text-sm text-slate-600">
+              Checking for Google Analytics connection...
+            </p>
           </Card>
         </div>
       </main>
@@ -203,7 +232,8 @@ function GoogleAnalyticsInner() {
               No Google Analytics connected
             </h2>
             <p className="mt-3 text-sm text-slate-500">
-              Connect your Google Analytics 4 property from the integrations page to unlock website analytics.
+              Connect your Google Analytics 4 property from the integrations
+              page to unlock website analytics.
             </p>
             <a
               href="/integrations"
@@ -227,7 +257,9 @@ function GoogleAnalyticsInner() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
               <BarChart3 className="h-10 w-10 text-slate-500" />
             </div>
-            <h2 className="mt-6 text-2xl font-bold text-slate-900">No property selected</h2>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              No property selected
+            </h2>
             <p className="mt-3 text-sm text-slate-500">
               Please select a Google Analytics property to view analytics.
             </p>
@@ -254,8 +286,12 @@ function GoogleAnalyticsInner() {
               <BarChart3 className="h-6 w-6 text-slate-700" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
-              <p className="text-sm text-slate-500">Loading analytics data...</p>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Google Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Loading analytics data...
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -279,13 +315,17 @@ function GoogleAnalyticsInner() {
               <BarChart3 className="h-6 w-6 text-slate-700" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Google Analytics
+              </h1>
               <p className="text-sm text-slate-500">Reconnecting...</p>
             </div>
           </div>
           <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
-            <p className="mt-4 text-sm text-slate-600">Refreshing your connection...</p>
+            <p className="mt-4 text-sm text-slate-600">
+              Refreshing your connection...
+            </p>
           </Card>
         </div>
       </main>
@@ -297,8 +337,8 @@ function GoogleAnalyticsInner() {
     const errorDataCode = (analytics.error as any)?.data?.code;
     const errorShape = analytics.error as any;
     // Check multiple ways the error might be structured
-    const isExpiredToken = 
-      errorMessage.includes('expired') || 
+    const isExpiredToken =
+      errorMessage.includes('expired') ||
       errorMessage.includes('reconnect') ||
       errorDataCode === 'UNAUTHORIZED' ||
       errorShape?.data?.code === 'UNAUTHORIZED' ||
@@ -315,13 +355,17 @@ function GoogleAnalyticsInner() {
                 <BarChart3 className="h-6 w-6 text-slate-700" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
+                <h1 className="text-4xl font-bold text-slate-900">
+                  Google Analytics
+                </h1>
                 <p className="text-sm text-slate-500">Reconnecting...</p>
               </div>
             </div>
             <Card className="rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-600" />
-              <p className="mt-4 text-sm text-slate-600">Refreshing your connection...</p>
+              <p className="mt-4 text-sm text-slate-600">
+                Refreshing your connection...
+              </p>
             </Card>
           </div>
         </main>
@@ -336,9 +380,12 @@ function GoogleAnalyticsInner() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-red-200 bg-red-50">
               <BarChart3 className="h-10 w-10 text-red-500" />
             </div>
-            <h2 className="mt-6 text-2xl font-bold text-slate-900">Failed to load analytics</h2>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              Failed to load analytics
+            </h2>
             <p className="mt-3 text-sm text-slate-500">
-              {errorMessage || 'Unable to fetch Google Analytics data. Please try again.'}
+              {errorMessage ||
+                'Unable to fetch Google Analytics data. Please try again.'}
             </p>
             <button
               onClick={() => analytics.refetch()}
@@ -370,7 +417,10 @@ function GoogleAnalyticsInner() {
   };
 
   // Helper function to format currency
-  const formatCurrency = (amount: number, currencyCode: string = stats.currency || 'USD'): string => {
+  const formatCurrency = (
+    amount: number,
+    currencyCode: string = stats.currency || 'USD',
+  ): string => {
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -454,8 +504,12 @@ function GoogleAnalyticsInner() {
               <BarChart3 className="h-6 w-6 text-slate-700" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-slate-900">Google Analytics</h1>
-              <p className="text-sm text-slate-500">Website traffic and performance insights</p>
+              <h1 className="text-4xl font-bold text-slate-900">
+                Google Analytics
+              </h1>
+              <p className="text-sm text-slate-500">
+                Website traffic and performance insights
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -481,7 +535,9 @@ function GoogleAnalyticsInner() {
             )}
             <select
               value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as '7d' | '30d' | '90d')}
+              onChange={(e) =>
+                setDateRange(e.target.value as '7d' | '30d' | '90d')
+              }
               className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
             >
               <option value="7d">Last 7 days</option>
@@ -504,8 +560,12 @@ function GoogleAnalyticsInner() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {stat.title}
                     </p>
-                    <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
-                    <p className="text-xs font-semibold text-slate-600">{stat.change}</p>
+                    <p className="text-3xl font-bold text-slate-900">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs font-semibold text-slate-600">
+                      {stat.change}
+                    </p>
                     <p className="text-xs text-slate-400">{stat.subtext}</p>
                   </div>
                   <div className="rounded-full bg-slate-100 p-2">
@@ -531,8 +591,12 @@ function GoogleAnalyticsInner() {
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {stat.title}
                       </p>
-                      <p className="text-3xl font-bold text-slate-900">{stat.value}</p>
-                      <p className="text-xs font-semibold text-slate-600">{stat.change}</p>
+                      <p className="text-3xl font-bold text-slate-900">
+                        {stat.value}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-600">
+                        {stat.change}
+                      </p>
                       <p className="text-xs text-slate-400">{stat.subtext}</p>
                     </div>
                     <div className="rounded-full bg-slate-100 p-2">
@@ -553,9 +617,12 @@ function GoogleAnalyticsInner() {
                 <Sparkles className="h-6 w-6 text-purple-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">AI Analytics Review</h2>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  AI Analytics Review
+                </h2>
                 <p className="text-sm text-slate-500">
-                  Get AI-powered insights, suggestions, and recommendations for your analytics
+                  Get AI-powered insights, suggestions, and recommendations for
+                  your analytics
                 </p>
               </div>
             </div>
@@ -589,48 +656,57 @@ function GoogleAnalyticsInner() {
             </div>
           </div>
 
-          {generateReview.isError && (() => {
-            const errorMessage = generateReview.error?.message || '';
-            const errorDataCode = (generateReview.error as any)?.data?.code;
-            const isExpiredToken = errorMessage.includes('expired') || 
-                                  errorMessage.includes('reconnect') ||
-                                  errorDataCode === 'UNAUTHORIZED';
-            
-            // Auto-redirect to OAuth if token expired (silently)
-            useEffect(() => {
-              if (isExpiredToken && !redirectingToReconnect) {
-                setRedirectingToReconnect(true);
-                const currentPath = window.location.pathname + window.location.search;
-                // Use window.location.replace to avoid adding to history
-                window.location.replace(`/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`);
+          {generateReview.isError &&
+            (() => {
+              const errorMessage = generateReview.error?.message || '';
+              const errorDataCode = (generateReview.error as any)?.data?.code;
+              const isExpiredToken =
+                errorMessage.includes('expired') ||
+                errorMessage.includes('reconnect') ||
+                errorDataCode === 'UNAUTHORIZED';
+
+              // Auto-redirect to OAuth if token expired (silently)
+              useEffect(() => {
+                if (isExpiredToken && !redirectingToReconnect) {
+                  setRedirectingToReconnect(true);
+                  const currentPath =
+                    window.location.pathname + window.location.search;
+                  // Use window.location.replace to avoid adding to history
+                  window.location.replace(
+                    `/api/google-analytics/install?returnUrl=${encodeURIComponent(currentPath)}`,
+                  );
+                }
+              }, [isExpiredToken, redirectingToReconnect]);
+
+              // Don't show error for expired tokens - just redirect silently
+              if (isExpiredToken) {
+                return null; // No error message shown
               }
-            }, [isExpiredToken, redirectingToReconnect]);
 
-            // Don't show error for expired tokens - just redirect silently
-            if (isExpiredToken) {
-              return null; // No error message shown
-            }
-
-            // Show error for other issues
-            return (
-              <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-red-600" />
-                  <p className="text-sm text-red-800">
-                    {errorMessage || 'Failed to generate review. Please try again.'}
-                  </p>
+              // Show error for other issues
+              return (
+                <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    <p className="text-sm text-red-800">
+                      {errorMessage ||
+                        'Failed to generate review. Please try again.'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
-          {reviewHistory.data?.reviews && reviewHistory.data.reviews.length > 0 ? (
+          {reviewHistory.data?.reviews &&
+          reviewHistory.data.reviews.length > 0 ? (
             <div className="space-y-4">
               {/* Always show the most recent review */}
               {(() => {
                 const mostRecentReview = reviewHistory.data.reviews[0];
                 const insights = mostRecentReview.insights as any;
-                const reviewDate = new Date(mostRecentReview.createdAt).toLocaleDateString('en-US', {
+                const reviewDate = new Date(
+                  mostRecentReview.createdAt,
+                ).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
                   year: 'numeric',
@@ -650,7 +726,9 @@ function GoogleAnalyticsInner() {
                     </div>
 
                     <div className="mb-4">
-                      <p className="text-sm font-medium text-slate-900">{mostRecentReview.summary}</p>
+                      <p className="text-sm font-medium text-slate-900">
+                        {mostRecentReview.summary}
+                      </p>
                     </div>
 
                     {insights.problems && insights.problems.length > 0 && (
@@ -660,123 +738,136 @@ function GoogleAnalyticsInner() {
                           Problems Identified
                         </h4>
                         <div className="space-y-2">
-                          {insights.problems.slice(0, 3).map((problem: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-amber-200 bg-white p-3"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="font-medium text-slate-900">{problem.title}</p>
-                                  <p className="mt-1 text-xs text-slate-600">
-                                    {problem.description}
-                                  </p>
-                                  {problem.impact && (
-                                    <p className="mt-1 text-xs text-amber-700">
-                                      Impact: {problem.impact}
+                          {insights.problems
+                            .slice(0, 3)
+                            .map((problem: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className="rounded-lg border border-amber-200 bg-white p-3"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <p className="font-medium text-slate-900">
+                                      {problem.title}
                                     </p>
-                                  )}
-                                </div>
-                                <Badge
-                                  className={`ml-2 ${
-                                    problem.severity === 'high'
-                                      ? 'border-red-200 bg-red-50 text-red-700'
-                                      : problem.severity === 'medium'
-                                        ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                        : 'border-slate-200 bg-slate-50 text-slate-700'
-                                  }`}
-                                >
-                                  {problem.severity}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {insights.suggestions && insights.suggestions.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                          <Lightbulb className="h-4 w-4 text-blue-600" />
-                          Top Suggestions
-                        </h4>
-                        <div className="space-y-2">
-                          {insights.suggestions.slice(0, 3).map((suggestion: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-blue-200 bg-white p-3"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="font-medium text-slate-900">
-                                    {suggestion.title}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-600">
-                                    {suggestion.description}
-                                  </p>
-                                  {suggestion.expectedImpact && (
-                                    <p className="mt-1 text-xs text-blue-700">
-                                      Expected Impact: {suggestion.expectedImpact}
-                                    </p>
-                                  )}
-                                </div>
-                                <Badge
-                                  className={`ml-2 ${
-                                    suggestion.priority === 'high'
-                                      ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                      : suggestion.priority === 'medium'
-                                        ? 'border-slate-200 bg-slate-50 text-slate-700'
-                                        : 'border-slate-200 bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {suggestion.priority}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {insights.remedialActions && insights.remedialActions.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                          <CheckCircle className="h-4 w-4 text-emerald-600" />
-                          Recommended Actions
-                        </h4>
-                        <div className="space-y-2">
-                          {insights.remedialActions.slice(0, 3).map((action: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-emerald-200 bg-white p-3"
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="font-medium text-slate-900">{action.action}</p>
-                                  {action.reason && (
                                     <p className="mt-1 text-xs text-slate-600">
-                                      {action.reason}
+                                      {problem.description}
                                     </p>
-                                  )}
+                                    {problem.impact && (
+                                      <p className="mt-1 text-xs text-amber-700">
+                                        Impact: {problem.impact}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Badge
+                                    className={`ml-2 ${
+                                      problem.severity === 'high'
+                                        ? 'border-red-200 bg-red-50 text-red-700'
+                                        : problem.severity === 'medium'
+                                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                          : 'border-slate-200 bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    {problem.severity}
+                                  </Badge>
                                 </div>
-                                <Badge
-                                  className={`ml-2 ${
-                                    action.priority === 'high'
-                                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                      : action.priority === 'medium'
-                                        ? 'border-slate-200 bg-slate-50 text-slate-700'
-                                        : 'border-slate-200 bg-slate-50 text-slate-600'
-                                  }`}
-                                >
-                                  {action.priority}
-                                </Badge>
                               </div>
-                            </div>
-                          ))}
+                            ))}
                         </div>
                       </div>
                     )}
+
+                    {insights.suggestions &&
+                      insights.suggestions.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <Lightbulb className="h-4 w-4 text-blue-600" />
+                            Top Suggestions
+                          </h4>
+                          <div className="space-y-2">
+                            {insights.suggestions
+                              .slice(0, 3)
+                              .map((suggestion: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-blue-200 bg-white p-3"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-slate-900">
+                                        {suggestion.title}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-600">
+                                        {suggestion.description}
+                                      </p>
+                                      {suggestion.expectedImpact && (
+                                        <p className="mt-1 text-xs text-blue-700">
+                                          Expected Impact:{' '}
+                                          {suggestion.expectedImpact}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      className={`ml-2 ${
+                                        suggestion.priority === 'high'
+                                          ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                          : suggestion.priority === 'medium'
+                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600'
+                                      }`}
+                                    >
+                                      {suggestion.priority}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                    {insights.remedialActions &&
+                      insights.remedialActions.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <CheckCircle className="h-4 w-4 text-emerald-600" />
+                            Recommended Actions
+                          </h4>
+                          <div className="space-y-2">
+                            {insights.remedialActions
+                              .slice(0, 3)
+                              .map((action: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="rounded-lg border border-emerald-200 bg-white p-3"
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-slate-900">
+                                        {action.action}
+                                      </p>
+                                      {action.reason && (
+                                        <p className="mt-1 text-xs text-slate-600">
+                                          {action.reason}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Badge
+                                      className={`ml-2 ${
+                                        action.priority === 'high'
+                                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                          : action.priority === 'medium'
+                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                            : 'border-slate-200 bg-slate-50 text-slate-600'
+                                      }`}
+                                    >
+                                      {action.priority}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
 
                     {insights.tips && insights.tips.length > 0 && (
                       <div>
@@ -785,15 +876,21 @@ function GoogleAnalyticsInner() {
                           Tips & Best Practices
                         </h4>
                         <div className="space-y-2">
-                          {insights.tips.slice(0, 2).map((tip: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="rounded-lg border border-purple-200 bg-white p-3"
-                            >
-                              <p className="font-medium text-slate-900">{tip.title}</p>
-                              <p className="mt-1 text-xs text-slate-600">{tip.description}</p>
-                            </div>
-                          ))}
+                          {insights.tips
+                            .slice(0, 2)
+                            .map((tip: any, idx: number) => (
+                              <div
+                                key={idx}
+                                className="rounded-lg border border-purple-200 bg-white p-3"
+                              >
+                                <p className="font-medium text-slate-900">
+                                  {tip.title}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-600">
+                                  {tip.description}
+                                </p>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     )}
@@ -805,7 +902,8 @@ function GoogleAnalyticsInner() {
                           onClick={() => setShowAllReviews(!showAllReviews)}
                           className="text-sm font-medium text-purple-600 hover:text-purple-700"
                         >
-                          {showAllReviews ? 'Hide' : 'Show'} All Reviews ({reviewHistory.data.reviews.length})
+                          {showAllReviews ? 'Hide' : 'Show'} All Reviews (
+                          {reviewHistory.data.reviews.length})
                         </button>
                       </div>
                     )}
@@ -816,10 +914,14 @@ function GoogleAnalyticsInner() {
               {/* Show all reviews if toggled */}
               {showAllReviews && reviewHistory.data.reviews.length > 1 && (
                 <div className="space-y-4 pt-4 border-t border-slate-200">
-                  <h3 className="text-lg font-semibold text-slate-900">All Reviews</h3>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    All Reviews
+                  </h3>
                   {reviewHistory.data.reviews.slice(1).map((review: any) => {
                     const insights = review.insights as any;
-                    const reviewDate = new Date(review.createdAt).toLocaleDateString('en-US', {
+                    const reviewDate = new Date(
+                      review.createdAt,
+                    ).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
@@ -842,7 +944,9 @@ function GoogleAnalyticsInner() {
                         </div>
 
                         <div className="mb-4">
-                          <p className="text-sm text-slate-700">{review.summary}</p>
+                          <p className="text-sm text-slate-700">
+                            {review.summary}
+                          </p>
                         </div>
 
                         {insights.problems && insights.problems.length > 0 && (
@@ -852,123 +956,136 @@ function GoogleAnalyticsInner() {
                               Problems Identified
                             </h4>
                             <div className="space-y-2">
-                              {insights.problems.map((problem: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-lg border border-amber-200 bg-white p-3"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <p className="font-medium text-slate-900">{problem.title}</p>
-                                      <p className="mt-1 text-xs text-slate-600">
-                                        {problem.description}
-                                      </p>
-                                      {problem.impact && (
-                                        <p className="mt-1 text-xs text-amber-700">
-                                          Impact: {problem.impact}
+                              {insights.problems.map(
+                                (problem: any, idx: number) => (
+                                  <div
+                                    key={idx}
+                                    className="rounded-lg border border-amber-200 bg-white p-3"
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex-1">
+                                        <p className="font-medium text-slate-900">
+                                          {problem.title}
                                         </p>
-                                      )}
-                                    </div>
-                                    <Badge
-                                      className={`ml-2 ${
-                                        problem.severity === 'high'
-                                          ? 'border-red-200 bg-red-50 text-red-700'
-                                          : problem.severity === 'medium'
-                                            ? 'border-amber-200 bg-amber-50 text-amber-700'
-                                            : 'border-slate-200 bg-slate-50 text-slate-700'
-                                      }`}
-                                    >
-                                      {problem.severity}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {insights.suggestions && insights.suggestions.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                              <Lightbulb className="h-4 w-4 text-blue-600" />
-                              Suggestions
-                            </h4>
-                            <div className="space-y-2">
-                              {insights.suggestions.map((suggestion: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-lg border border-blue-200 bg-white p-3"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <p className="font-medium text-slate-900">
-                                        {suggestion.title}
-                                      </p>
-                                      <p className="mt-1 text-xs text-slate-600">
-                                        {suggestion.description}
-                                      </p>
-                                      {suggestion.expectedImpact && (
-                                        <p className="mt-1 text-xs text-blue-700">
-                                          Expected Impact: {suggestion.expectedImpact}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <Badge
-                                      className={`ml-2 ${
-                                        suggestion.priority === 'high'
-                                          ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                          : suggestion.priority === 'medium'
-                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
-                                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                                      }`}
-                                    >
-                                      {suggestion.priority}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {insights.remedialActions && insights.remedialActions.length > 0 && (
-                          <div className="mb-4">
-                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                              <CheckCircle className="h-4 w-4 text-emerald-600" />
-                              Remedial Actions
-                            </h4>
-                            <div className="space-y-2">
-                              {insights.remedialActions.map((action: any, idx: number) => (
-                                <div
-                                  key={idx}
-                                  className="rounded-lg border border-emerald-200 bg-white p-3"
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <p className="font-medium text-slate-900">{action.action}</p>
-                                      {action.reason && (
                                         <p className="mt-1 text-xs text-slate-600">
-                                          {action.reason}
+                                          {problem.description}
                                         </p>
-                                      )}
+                                        {problem.impact && (
+                                          <p className="mt-1 text-xs text-amber-700">
+                                            Impact: {problem.impact}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Badge
+                                        className={`ml-2 ${
+                                          problem.severity === 'high'
+                                            ? 'border-red-200 bg-red-50 text-red-700'
+                                            : problem.severity === 'medium'
+                                              ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                              : 'border-slate-200 bg-slate-50 text-slate-700'
+                                        }`}
+                                      >
+                                        {problem.severity}
+                                      </Badge>
                                     </div>
-                                    <Badge
-                                      className={`ml-2 ${
-                                        action.priority === 'high'
-                                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                          : action.priority === 'medium'
-                                            ? 'border-slate-200 bg-slate-50 text-slate-700'
-                                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                                      }`}
-                                    >
-                                      {action.priority}
-                                    </Badge>
                                   </div>
-                                </div>
-                              ))}
+                                ),
+                              )}
                             </div>
                           </div>
                         )}
+
+                        {insights.suggestions &&
+                          insights.suggestions.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                                <Lightbulb className="h-4 w-4 text-blue-600" />
+                                Suggestions
+                              </h4>
+                              <div className="space-y-2">
+                                {insights.suggestions.map(
+                                  (suggestion: any, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className="rounded-lg border border-blue-200 bg-white p-3"
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <p className="font-medium text-slate-900">
+                                            {suggestion.title}
+                                          </p>
+                                          <p className="mt-1 text-xs text-slate-600">
+                                            {suggestion.description}
+                                          </p>
+                                          {suggestion.expectedImpact && (
+                                            <p className="mt-1 text-xs text-blue-700">
+                                              Expected Impact:{' '}
+                                              {suggestion.expectedImpact}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <Badge
+                                          className={`ml-2 ${
+                                            suggestion.priority === 'high'
+                                              ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                              : suggestion.priority === 'medium'
+                                                ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                                : 'border-slate-200 bg-slate-50 text-slate-600'
+                                          }`}
+                                        >
+                                          {suggestion.priority}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                        {insights.remedialActions &&
+                          insights.remedialActions.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                                <CheckCircle className="h-4 w-4 text-emerald-600" />
+                                Remedial Actions
+                              </h4>
+                              <div className="space-y-2">
+                                {insights.remedialActions.map(
+                                  (action: any, idx: number) => (
+                                    <div
+                                      key={idx}
+                                      className="rounded-lg border border-emerald-200 bg-white p-3"
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <p className="font-medium text-slate-900">
+                                            {action.action}
+                                          </p>
+                                          {action.reason && (
+                                            <p className="mt-1 text-xs text-slate-600">
+                                              {action.reason}
+                                            </p>
+                                          )}
+                                        </div>
+                                        <Badge
+                                          className={`ml-2 ${
+                                            action.priority === 'high'
+                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                              : action.priority === 'medium'
+                                                ? 'border-slate-200 bg-slate-50 text-slate-700'
+                                                : 'border-slate-200 bg-slate-50 text-slate-600'
+                                          }`}
+                                        >
+                                          {action.priority}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          )}
 
                         {insights.tips && insights.tips.length > 0 && (
                           <div>
@@ -982,8 +1099,12 @@ function GoogleAnalyticsInner() {
                                   key={idx}
                                   className="rounded-lg border border-purple-200 bg-white p-3"
                                 >
-                                  <p className="font-medium text-slate-900">{tip.title}</p>
-                                  <p className="mt-1 text-xs text-slate-600">{tip.description}</p>
+                                  <p className="font-medium text-slate-900">
+                                    {tip.title}
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {tip.description}
+                                  </p>
                                 </div>
                               ))}
                             </div>
@@ -999,11 +1120,14 @@ function GoogleAnalyticsInner() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center">
               <p className="text-sm text-slate-600">
                 Your last review was generated on{' '}
-                {new Date(cooldown.data.lastReviewAt).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                })}
+                {new Date(cooldown.data.lastReviewAt).toLocaleDateString(
+                  'en-US',
+                  {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  },
+                )}
                 . Generate a new review to see insights.
               </p>
             </div>
@@ -1014,7 +1138,8 @@ function GoogleAnalyticsInner() {
                 No reviews generated yet
               </p>
               <p className="mt-2 text-sm text-slate-600">
-                Click "Generate Review" to get AI-powered insights about your analytics data.
+                Click "Generate Review" to get AI-powered insights about your
+                analytics data.
               </p>
             </div>
           ) : null}
@@ -1023,8 +1148,12 @@ function GoogleAnalyticsInner() {
         <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
           <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-900">Traffic trend</h2>
-              <p className="text-sm text-slate-500">Sessions and users over time</p>
+              <h2 className="text-xl font-semibold text-slate-900">
+                Traffic trend
+              </h2>
+              <p className="text-sm text-slate-500">
+                Sessions and users over time
+              </p>
             </div>
             <Badge className="border border-slate-200 bg-slate-50 text-slate-600">
               <BarChart3 className="mr-2 h-4 w-4" />
@@ -1033,13 +1162,21 @@ function GoogleAnalyticsInner() {
           </div>
           <div className="space-y-3">
             {stats.trend.length === 0 ? (
-              <p className="py-8 text-center text-slate-500">No trend data available</p>
+              <p className="py-8 text-center text-slate-500">
+                No trend data available
+              </p>
             ) : (
               stats.trend.map((day, index) => {
-                const maxSessions = Math.max(...stats.trend.map((d) => d.sessions), 1);
-                const percentage = maxSessions > 0 ? (day.sessions / maxSessions) * 100 : 0;
+                const maxSessions = Math.max(
+                  ...stats.trend.map((d) => d.sessions),
+                  1,
+                );
+                const percentage =
+                  maxSessions > 0 ? (day.sessions / maxSessions) * 100 : 0;
                 const date = new Date(day.date);
-                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                const dayName = date.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                });
                 const dateStr = date.toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -1049,7 +1186,9 @@ function GoogleAnalyticsInner() {
                   <div key={index} className="flex items-center gap-3">
                     <div className="w-24 text-sm font-semibold text-slate-600">
                       {dayName}
-                      <span className="ml-2 text-xs font-normal text-slate-400">{dateStr}</span>
+                      <span className="ml-2 text-xs font-normal text-slate-400">
+                        {dateStr}
+                      </span>
                     </div>
                     <div className="flex-1">
                       <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
@@ -1075,14 +1214,21 @@ function GoogleAnalyticsInner() {
               <div className="rounded-full bg-slate-100 p-3">
                 <Globe className="h-5 w-5 text-slate-700" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">Traffic sources</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Traffic sources
+              </h2>
             </div>
             <div className="space-y-3 text-sm text-slate-600">
               {stats.trafficSources.length === 0 ? (
-                <p className="text-slate-500">No traffic source data available</p>
+                <p className="text-slate-500">
+                  No traffic source data available
+                </p>
               ) : (
                 stats.trafficSources.slice(0, 10).map((source, index) => (
-                  <div key={index} className="flex items-center justify-between">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center gap-2">
                       <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
                         {index + 1}
@@ -1105,19 +1251,26 @@ function GoogleAnalyticsInner() {
               <div className="rounded-full bg-slate-100 p-3">
                 <Eye className="h-5 w-5 text-slate-700" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">Top pages</h2>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Top pages
+              </h2>
             </div>
             <div className="space-y-3 text-sm text-slate-600">
               {stats.topPages.length === 0 ? (
                 <p className="text-slate-500">No page data available</p>
               ) : (
                 stats.topPages.slice(0, 10).map((page, index) => (
-                  <div key={index} className="flex items-center justify-between">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center gap-2">
                       <Badge className="h-6 w-6 rounded-full border border-violet-200 bg-violet-50 text-violet-600">
                         {index + 1}
                       </Badge>
-                      <span className="max-w-[200px] truncate">{page.page}</span>
+                      <span className="max-w-[200px] truncate">
+                        {page.page}
+                      </span>
                     </div>
                     <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                       {page.views} views
@@ -1134,7 +1287,9 @@ function GoogleAnalyticsInner() {
             <div className="rounded-full bg-slate-100 p-3">
               <Clock className="h-5 w-5 text-slate-700" />
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">Session metrics</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              Session metrics
+            </h2>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1144,16 +1299,22 @@ function GoogleAnalyticsInner() {
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {Math.floor(stats.avgSessionDuration)}s
               </p>
-              <p className="mt-1 text-xs text-slate-500">Average time per session</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Average time per session
+              </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Pages per Session
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
-                {stats.sessions > 0 ? (stats.pageViews / stats.sessions).toFixed(1) : '0'}
+                {stats.sessions > 0
+                  ? (stats.pageViews / stats.sessions).toFixed(1)
+                  : '0'}
               </p>
-              <p className="mt-1 text-xs text-slate-500">Average pages viewed</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Average pages viewed
+              </p>
             </div>
           </div>
         </Card>
