@@ -16,6 +16,7 @@ export interface GA4AnalyticsData {
   transactions?: number;
   conversionRate?: number;
   avgOrderValue?: number;
+  currency?: string; // ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')
   trafficSources: Array<{ source: string; medium: string; sessions: number }>;
   topPages: Array<{ page: string; views: number }>;
   trend: Array<{ date: string; sessions: number; users: number; revenue?: number }>;
@@ -264,6 +265,7 @@ export async function fetchGA4Analytics(
   refreshToken: string | null,
   startDate: string,
   endDate: string,
+  currency?: string, // Optional currency code from connection metadata
 ): Promise<GA4AnalyticsData> {
   const validToken = await getValidAccessToken(accessToken, refreshToken);
 
@@ -499,6 +501,7 @@ export async function fetchGA4Analytics(
       transactions,
       conversionRate,
       avgOrderValue,
+      currency: currency || 'USD', // Use provided currency or default to USD
       trafficSources,
       topPages,
       trend,
