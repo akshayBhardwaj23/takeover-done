@@ -5,6 +5,8 @@ import { listAdAccounts } from '../../../../../../packages/api/src/meta-ads';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
+// Force dynamic rendering since we use cookies
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
