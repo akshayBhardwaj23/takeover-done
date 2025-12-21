@@ -1,8 +1,5 @@
 'use client';
 
-// Force dynamic rendering - this page uses tRPC queries and user-specific data
-export const dynamic = 'force-dynamic';
-
 import { Suspense, useState, useEffect } from 'react';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../components/ui/card';
