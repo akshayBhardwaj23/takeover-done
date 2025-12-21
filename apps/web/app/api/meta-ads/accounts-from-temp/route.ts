@@ -5,12 +5,18 @@ import { listAdAccounts } from '../../../../../../packages/api/src/meta-ads';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
+// Force dynamic rendering since we use cookies
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     // Get temporary tokens from cookies
-    const tempAccessToken = req.cookies.get('meta_ads_temp_access_token')?.value;
-    const tempRefreshToken = req.cookies.get('meta_ads_temp_refresh_token')?.value;
+    const tempAccessToken = req.cookies.get(
+      'meta_ads_temp_access_token',
+    )?.value;
+    const tempRefreshToken = req.cookies.get(
+      'meta_ads_temp_refresh_token',
+    )?.value;
 
     if (!tempAccessToken) {
       return NextResponse.json(
@@ -21,14 +27,17 @@ export async function GET(req: NextRequest) {
 
     // Decrypt tokens
     const accessToken = decryptSecure(tempAccessToken);
-    const refreshToken = tempRefreshToken ? decryptSecure(tempRefreshToken) : null;
+    const refreshToken = tempRefreshToken
+      ? decryptSecure(tempRefreshToken)
+      : null;
 
     // Fetch ad accounts using the temporary tokens
     const accounts = await listAdAccounts(accessToken, refreshToken);
 
     return NextResponse.json({ accounts });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
     console.error('[Meta Ads Accounts From Temp] Error:', errorMessage);
     console.error('[Meta Ads Accounts From Temp] Full error:', error);
 
@@ -38,4 +47,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

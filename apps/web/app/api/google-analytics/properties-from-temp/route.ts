@@ -4,6 +4,8 @@ import { listGA4Properties } from '@ai-ecom/api/src/google-analytics';
 
 // Prisma requires Node.js runtime (cannot run on Edge)
 export const runtime = 'nodejs';
+// Force dynamic rendering since we use cookies
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
