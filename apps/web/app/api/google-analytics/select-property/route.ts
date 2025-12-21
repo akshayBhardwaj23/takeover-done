@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { propertyId, propertyName, accountId } = body;
+    const { propertyId, propertyName, accountId, currency } = body;
 
     if (!propertyId || !propertyName) {
       return NextResponse.json(
@@ -54,31 +54,28 @@ export async function POST(req: NextRequest) {
     const accessToken = decryptSecure(tempAccessToken);
     const refreshToken = tempRefreshToken ? decryptSecure(tempRefreshToken) : null;
 
-    // Try to fetch currency from GA4 property settings
-    let currency = 'USD'; // Default to USD
-    try {
-      const cleanPropertyId = propertyId.replace(/^properties\//, '');
-      const propertyRes = await fetch(
-        `https://analyticsadmin.googleapis.com/v1beta/properties/${cleanPropertyId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+    // Determine currency: use provided currency, or existing connection's currency, or default to USD
+    let finalCurrency = currency || 'USD';
+    
+    // Check if existing connection has currency stored (if currency not provided)
+    if (!currency) {
+      const existing = await prisma.connection.findFirst({
+        where: {
+          userId: user.id,
+          type: 'GOOGLE_ANALYTICS' as any,
         },
-      );
-
-      if (propertyRes.ok) {
-        const propertyData = (await propertyRes.json()) as {
-          currencyCode?: string;
-        };
-        if (propertyData.currencyCode) {
-          currency = propertyData.currencyCode;
+      });
+      
+      if (existing?.metadata) {
+        const existingMetadata = existing.metadata as Record<string, unknown>;
+        if (existingMetadata.currency && typeof existingMetadata.currency === 'string') {
+          finalCurrency = existingMetadata.currency;
+          console.log('[GA Select Property] Using existing currency from metadata:', finalCurrency);
         }
       }
-    } catch (error) {
-      console.warn('[GA Select Property] Failed to fetch currency, defaulting to USD:', error);
-      // Continue with default USD
     }
+    
+    console.log('[GA Select Property] Final currency:', finalCurrency);
 
     // Check if connection already exists for this user
     const existing = await prisma.connection.findFirst({
@@ -91,7 +88,7 @@ export async function POST(req: NextRequest) {
     const metadata: Record<string, unknown> = {
       propertyId,
       propertyName,
-      currency, // Store currency in metadata
+      currency: finalCurrency, // Store currency in metadata
     };
     if (accountId) {
       metadata.accountId = accountId;

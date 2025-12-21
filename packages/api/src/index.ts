@@ -2051,6 +2051,52 @@ export const appRouter = t.router({
 
       return { ok: true, connection: updated };
     }),
+  updateGACurrency: protectedProcedure
+    .input(
+      z.object({
+        currency: z.string().length(3), // ISO 4217 currency code (e.g., 'USD', 'INR', 'EUR')
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Find GA connection for this user
+      const connection = await prisma.connection.findFirst({
+        where: {
+          userId: ctx.userId,
+          type: 'GOOGLE_ANALYTICS',
+        } as any,
+      });
+
+      if (!connection) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Google Analytics connection not found',
+        });
+      }
+
+      // Update metadata with currency
+      const currentMetadata = (connection.metadata as any) ?? {};
+      const updatedMetadata = {
+        ...currentMetadata,
+        currency: input.currency.toUpperCase(), // Store as uppercase (e.g., 'INR')
+      };
+
+      const updated = await prisma.connection.update({
+        where: { id: connection.id },
+        data: {
+          metadata: updatedMetadata,
+        },
+        select: { id: true, metadata: true },
+      });
+
+      await logEvent(
+        'google_analytics.currency.updated',
+        { currency: input.currency },
+        'connection',
+        connection.id,
+      );
+
+      return { ok: true, currency: input.currency.toUpperCase() };
+    }),
   emailHealth: publicProcedure.query(async () => {
     try {
       const last = await prisma.message.findFirst({
