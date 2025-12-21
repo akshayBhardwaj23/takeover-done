@@ -6818,6 +6818,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const metadata = (connection.metadata as Record<string, unknown>) || {};
         const propertyId =
           input.propertyId || (metadata.propertyId as string) || '';
+        const currency = (metadata.currency as string) || 'USD'; // Get currency from metadata
 
         if (!propertyId) {
           throw new TRPCError({
@@ -6848,6 +6849,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           refreshToken,
           startDate,
           endDate,
+          currency, // Pass currency to analytics fetch
         );
 
         return analyticsData;

@@ -350,9 +350,28 @@ function GoogleAnalyticsInner() {
     transactions: 0,
     conversionRate: 0,
     avgOrderValue: 0,
+    currency: 'USD',
     trafficSources: [],
     topPages: [],
     trend: [],
+  };
+
+  // Helper function to format currency
+  const formatCurrency = (amount: number, currencyCode: string = stats.currency || 'USD'): string => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    } catch {
+      // Fallback if currency code is invalid
+      return `${currencyCode} ${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
   };
 
   const statCards = [
@@ -391,10 +410,7 @@ function GoogleAnalyticsInner() {
       ? [
           {
             title: 'Revenue',
-            value: `$${stats.revenue.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}`,
+            value: formatCurrency(stats.revenue, stats.currency),
             change: `${stats.transactions || 0} transactions`,
             subtext: 'Total revenue',
             icon: DollarSign,
@@ -408,10 +424,7 @@ function GoogleAnalyticsInner() {
           },
           {
             title: 'Avg Order Value',
-            value: `$${stats.avgOrderValue?.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }) || '0.00'}`,
+            value: formatCurrency(stats.avgOrderValue || 0, stats.currency),
             change: 'Per transaction',
             subtext: 'Average order value',
             icon: ShoppingCart,

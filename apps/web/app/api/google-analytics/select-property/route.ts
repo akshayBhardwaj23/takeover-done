@@ -54,6 +54,32 @@ export async function POST(req: NextRequest) {
     const accessToken = decryptSecure(tempAccessToken);
     const refreshToken = tempRefreshToken ? decryptSecure(tempRefreshToken) : null;
 
+    // Try to fetch currency from GA4 property settings
+    let currency = 'USD'; // Default to USD
+    try {
+      const cleanPropertyId = propertyId.replace(/^properties\//, '');
+      const propertyRes = await fetch(
+        `https://analyticsadmin.googleapis.com/v1beta/properties/${cleanPropertyId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      if (propertyRes.ok) {
+        const propertyData = (await propertyRes.json()) as {
+          currencyCode?: string;
+        };
+        if (propertyData.currencyCode) {
+          currency = propertyData.currencyCode;
+        }
+      }
+    } catch (error) {
+      console.warn('[GA Select Property] Failed to fetch currency, defaulting to USD:', error);
+      // Continue with default USD
+    }
+
     // Check if connection already exists for this user
     const existing = await prisma.connection.findFirst({
       where: {
@@ -65,6 +91,7 @@ export async function POST(req: NextRequest) {
     const metadata: Record<string, unknown> = {
       propertyId,
       propertyName,
+      currency, // Store currency in metadata
     };
     if (accountId) {
       metadata.accountId = accountId;
