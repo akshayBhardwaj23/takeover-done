@@ -490,16 +490,19 @@ function MetaAdsInner() {
   ];
 
   const performanceCards = [];
-  if (stats.roas !== undefined) {
-    performanceCards.push({
-      title: 'ROAS',
-      value: `${stats.roas.toFixed(2)}x`,
-      change: stats.conversionValue
-        ? `${formatCurrency(stats.conversionValue, currency)} revenue`
-        : 'N/A',
-      subtext: 'Return on ad spend',
-      icon: TrendingUp,
-    });
+  if (stats.roas !== undefined && stats.roas !== null) {
+    const roasValue = typeof stats.roas === 'number' ? stats.roas : parseFloat(String(stats.roas));
+    if (!isNaN(roasValue)) {
+      performanceCards.push({
+        title: 'ROAS',
+        value: `${roasValue.toFixed(2)}x`,
+        change: stats.conversionValue
+          ? `${formatCurrency(stats.conversionValue, currency)} revenue`
+          : 'N/A',
+        subtext: 'Return on ad spend',
+        icon: TrendingUp,
+      });
+    }
   }
   if (stats.conversions !== undefined && stats.conversions > 0) {
     performanceCards.push({
@@ -737,11 +740,16 @@ function MetaAdsInner() {
                                   <p className="mt-1 text-xs text-slate-600">{campaign.reason}</p>
                                   {campaign.metrics && (
                                     <div className="mt-2 flex gap-2 text-xs">
-                                      {campaign.metrics.roas !== undefined && (
-                                        <Badge className="border-red-200 bg-red-50 text-red-700">
-                                          ROAS: {campaign.metrics.roas.toFixed(2)}x
-                                        </Badge>
-                                      )}
+                                      {campaign.metrics.roas !== undefined && campaign.metrics.roas !== null && (() => {
+                                        const roasValue = typeof campaign.metrics.roas === 'number' 
+                                          ? campaign.metrics.roas 
+                                          : parseFloat(String(campaign.metrics.roas));
+                                        return !isNaN(roasValue) ? (
+                                          <Badge className="border-red-200 bg-red-50 text-red-700">
+                                            ROAS: {roasValue.toFixed(2)}x
+                                          </Badge>
+                                        ) : null;
+                                      })()}
                                       {campaign.metrics.spend !== undefined && (
                                         <Badge className="border-slate-200 bg-slate-50 text-slate-700">
                                           Spend: {formatCurrency(campaign.metrics.spend, currency)}
@@ -771,11 +779,16 @@ function MetaAdsInner() {
                                   <p className="mt-1 text-xs text-slate-600">{campaign.reason}</p>
                                   {campaign.metrics && (
                                     <div className="mt-2 flex gap-2 text-xs">
-                                      {campaign.metrics.roas !== undefined && (
-                                        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                                          ROAS: {campaign.metrics.roas.toFixed(2)}x
-                                        </Badge>
-                                      )}
+                                      {campaign.metrics.roas !== undefined && campaign.metrics.roas !== null && (() => {
+                                        const roasValue = typeof campaign.metrics.roas === 'number' 
+                                          ? campaign.metrics.roas 
+                                          : parseFloat(String(campaign.metrics.roas));
+                                        return !isNaN(roasValue) ? (
+                                          <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                                            ROAS: {roasValue.toFixed(2)}x
+                                          </Badge>
+                                        ) : null;
+                                      })()}
                                       {campaign.metrics.spend !== undefined && (
                                         <Badge className="border-slate-200 bg-slate-50 text-slate-700">
                                           Spend: {formatCurrency(campaign.metrics.spend, currency)}
@@ -971,11 +984,16 @@ function MetaAdsInner() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {campaign.roas !== undefined && (
-                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
-                          {campaign.roas.toFixed(2)}x ROAS
-                        </Badge>
-                      )}
+                      {campaign.roas !== undefined && campaign.roas !== null && (() => {
+                        const roasValue = typeof campaign.roas === 'number' 
+                          ? campaign.roas 
+                          : parseFloat(String(campaign.roas));
+                        return !isNaN(roasValue) ? (
+                          <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
+                            {roasValue.toFixed(2)}x ROAS
+                          </Badge>
+                        ) : null;
+                      })()}
                       <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                         {formatCurrency(campaign.spend, currency)}
                       </Badge>
@@ -1013,11 +1031,16 @@ function MetaAdsInner() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {adset.roas !== undefined && (
-                        <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
-                          {adset.roas.toFixed(2)}x ROAS
-                        </Badge>
-                      )}
+                      {adset.roas !== undefined && adset.roas !== null && (() => {
+                        const roasValue = typeof adset.roas === 'number' 
+                          ? adset.roas 
+                          : parseFloat(String(adset.roas));
+                        return !isNaN(roasValue) ? (
+                          <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-600">
+                            {roasValue.toFixed(2)}x ROAS
+                          </Badge>
+                        ) : null;
+                      })()}
                       <Badge className="border border-violet-200 bg-violet-50 text-violet-600">
                         {formatCurrency(adset.spend, currency)}
                       </Badge>
