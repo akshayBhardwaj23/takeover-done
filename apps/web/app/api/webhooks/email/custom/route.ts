@@ -696,6 +696,17 @@ export async function POST(req: NextRequest) {
       console.error(
         `[Email Webhook] 🚀 Triggered Inngest event for message ${msg.id}`,
       );
+
+      // Also trigger sentiment analysis
+      await inngest.send({
+        name: 'email/sentiment.analyze',
+        data: {
+          messageId: msg.id,
+        },
+      });
+      console.error(
+        `[Email Webhook] 🚀 Triggered sentiment analysis for message ${msg.id}`,
+      );
     } catch (error) {
       // If Inngest is not available, log but don't fail the webhook
       // This allows graceful degradation

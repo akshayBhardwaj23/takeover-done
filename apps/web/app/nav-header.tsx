@@ -274,6 +274,15 @@ export default function Header() {
                             Advertisements
                           </Link>
                         </li>
+                        <li>
+                          <Link
+                            href="/sentiment"
+                            className="block px-4 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                            onClick={() => setAnalyticsOpen(false)}
+                          >
+                            Customer Sentiment
+                          </Link>
+                        </li>
                       </ul>
                     </div>
                   )}
