@@ -23,6 +23,7 @@ model User {
   emailVerified DateTime?
   accounts      Account[]
   sessions      Session[]
+  sentimentRecords SentimentRecord[]
 }
 
 model Account {
@@ -123,6 +124,7 @@ model Connection {
   customers    Customer[]
   ga4Reviews   GA4AIReview[]
   metaAdsReviews MetaAdsAIReview[]
+  sentimentRecords SentimentRecord[]
   // Note: Messages are related via threads, not directly via connectionId
 
   @@index([userId])
@@ -159,6 +161,7 @@ model Customer {
   // Relations
   connection       Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   orders           Order[]
+  sentimentRecords SentimentRecord[]
 
   @@index([connectionId])
   @@index([email])
@@ -185,6 +188,7 @@ model Order {
   actions           Action[]
   messages          Message[]
   lineItems         OrderLineItem[]
+  sentimentRecords  SentimentRecord[]
   connection        Connection      @relation(fields: [connectionId], references: [id])
   customer          Customer?       @relation(fields: [customerId], references: [id])
 
@@ -394,4 +398,46 @@ model MetaAdsAIReview {
   @@unique([userId, reviewDate]) // One review per day per user (global cooldown)
   @@index([userId, createdAt])
   @@index([adAccountId])
+}
+
+model SentimentRecord {
+  id            String           @id @default(cuid())
+  userId        String
+  source        SentimentSource
+  sourceId      String           // ID of the source (messageId, orderId, actionId)
+  sentiment     SentimentType
+  score         Float            // -1.0 to 1.0 (AI confidence score)
+  customerEmail String?
+  customerId    String?
+  orderId       String?
+  connectionId  String?
+  metadata      Json?            // Store analysis details, topics, keywords
+  analyzedAt    DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+  
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customer      Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order         Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  connection    Connection?      @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, analyzedAt])
+  @@index([userId, source])
+  @@index([customerId])
+  @@index([orderId])
+  @@index([connectionId])
+  @@index([sentiment])
+}
+
+enum SentimentSource {
+  EMAIL
+  ORDER
+  RETURN_REQUEST
+}
+
+enum SentimentType {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  FRUSTRATED
+  ANGRY
 }

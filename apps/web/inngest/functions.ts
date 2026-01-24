@@ -1,5 +1,6 @@
 import { inngest } from './client';
 import { prisma, canUseAI, incrementAISuggestion } from '@ai-ecom/db';
+import { analyzeSentiment } from '../../../packages/api/src/sentiment';
 
 // Helper function to format currency for email replies
 function formatOrderAmount(
@@ -500,6 +501,327 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       console.log(`[Inngest] AI suggestion generated for message ${messageId}`);
 
       return { success: true, messageId };
+    });
+  },
+);
+
+// Analyze sentiment for inbound email messages
+export const analyzeEmailSentiment = inngest.createFunction(
+  {
+    id: 'analyze-email-sentiment',
+    name: 'Analyze Email Sentiment',
+    retries: 2,
+  },
+  { event: 'email/sentiment.analyze' },
+  async ({ event, step }) => {
+    const { messageId } = event.data;
+
+    if (!messageId) {
+      console.warn('[Inngest] No messageId provided for sentiment analysis');
+      return;
+    }
+
+    return await step.run('analyze-sentiment', async () => {
+      // Check if sentiment already analyzed
+      const existing = await prisma.sentimentRecord.findFirst({
+        where: {
+          source: 'EMAIL',
+          sourceId: messageId,
+        },
+      });
+
+      if (existing) {
+        console.log(`[Sentiment] Already analyzed message ${messageId}`);
+        return { success: true, messageId, existing: true };
+      }
+
+      // Fetch message with context
+      const msg = await prisma.message.findUnique({
+        where: { id: messageId },
+        include: {
+          thread: {
+            include: {
+              connection: true,
+            },
+          },
+          order: {
+            include: {
+              customer: true,
+            },
+          },
+        },
+      });
+
+      if (!msg || msg.direction !== 'INBOUND') {
+        console.warn(`[Sentiment] Message ${messageId} not found or not inbound`);
+        return;
+      }
+
+      const connection = msg.thread?.connection;
+      if (!connection) {
+        console.warn(`[Sentiment] No connection found for message ${messageId}`);
+        return;
+      }
+
+      const text = msg.body || '';
+      if (!text || text.trim().length < 10) {
+        // Skip very short messages
+        return { success: true, messageId, skipped: true };
+      }
+
+      // Build context for sentiment analysis
+      const context = {
+        source: 'EMAIL' as const,
+        orderStatus: msg.order?.status,
+        orderAmount: msg.order?.totalAmount,
+        customerHistory: msg.order?.customer
+          ? `Customer has ${msg.order.customer.ordersCount} orders, total spent: ${(msg.order.customer.totalSpent / 100).toFixed(2)}`
+          : undefined,
+      };
+
+      // Analyze sentiment
+      const result = await analyzeSentiment(text, context);
+
+      // Store sentiment record
+      await prisma.sentimentRecord.create({
+        data: {
+          userId: connection.userId,
+          source: 'EMAIL',
+          sourceId: messageId,
+          sentiment: result.sentiment,
+          score: result.score,
+          customerEmail: msg.from,
+          customerId: msg.order?.customerId ?? null,
+          orderId: msg.orderId ?? null,
+          connectionId: connection.id,
+          metadata: {
+            topics: result.topics,
+            keywords: result.keywords,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+          } as any,
+        },
+      });
+
+      console.log(`[Sentiment] Analyzed email ${messageId}: ${result.sentiment} (${result.score})`);
+      return { success: true, messageId, sentiment: result.sentiment, score: result.score };
+    });
+  },
+);
+
+// Analyze sentiment for orders with issues
+export const analyzeOrderSentiment = inngest.createFunction(
+  {
+    id: 'analyze-order-sentiment',
+    name: 'Analyze Order Sentiment',
+    retries: 2,
+  },
+  { event: 'order/sentiment.analyze' },
+  async ({ event, step }) => {
+    const { orderId } = event.data;
+
+    if (!orderId) {
+      console.warn('[Inngest] No orderId provided for sentiment analysis');
+      return;
+    }
+
+    return await step.run('analyze-order-sentiment', async () => {
+      // Check if sentiment already analyzed
+      const existing = await prisma.sentimentRecord.findFirst({
+        where: {
+          source: 'ORDER',
+          sourceId: orderId,
+        },
+      });
+
+      if (existing) {
+        console.log(`[Sentiment] Already analyzed order ${orderId}`);
+        return { success: true, orderId, existing: true };
+      }
+
+      // Fetch order with related messages and customer
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          connection: true,
+          customer: true,
+          messages: {
+            where: { direction: 'INBOUND' },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+          },
+        },
+      });
+
+      if (!order) {
+        console.warn(`[Sentiment] Order ${orderId} not found`);
+        return;
+      }
+
+      // Check if order has issues (refunded, cancelled, or has negative messages)
+      const hasIssues =
+        order.status === 'REFUNDED' ||
+        order.status === 'CANCELLED' ||
+        order.messages.length > 0;
+
+      if (!hasIssues) {
+        // Only analyze orders with issues
+        return { success: true, orderId, skipped: true };
+      }
+
+      // Combine message texts for analysis
+      const messageTexts = order.messages.map((m) => m.body).join('\n\n');
+      const text = messageTexts || `Order ${order.name || order.shopifyId} - Status: ${order.status}`;
+
+      // Build context
+      const context = {
+        source: 'ORDER' as const,
+        orderStatus: order.status,
+        orderAmount: order.totalAmount,
+        customerHistory: order.customer
+          ? `Customer has ${order.customer.ordersCount} orders, total spent: ${(order.customer.totalSpent / 100).toFixed(2)}`
+          : undefined,
+      };
+
+      // Analyze sentiment
+      const result = await analyzeSentiment(text, context);
+
+      // Store sentiment record
+      await prisma.sentimentRecord.create({
+        data: {
+          userId: order.connection.userId,
+          source: 'ORDER',
+          sourceId: orderId,
+          sentiment: result.sentiment,
+          score: result.score,
+          customerEmail: order.email,
+          customerId: order.customerId ?? null,
+          orderId: order.id,
+          connectionId: order.connectionId,
+          metadata: {
+            orderStatus: order.status,
+            topics: result.topics,
+            keywords: result.keywords,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+          } as any,
+        },
+      });
+
+      console.log(`[Sentiment] Analyzed order ${orderId}: ${result.sentiment} (${result.score})`);
+      return { success: true, orderId, sentiment: result.sentiment, score: result.score };
+    });
+  },
+);
+
+// Analyze sentiment for return/refund requests
+export const analyzeReturnRequestSentiment = inngest.createFunction(
+  {
+    id: 'analyze-return-sentiment',
+    name: 'Analyze Return Request Sentiment',
+    retries: 2,
+  },
+  { event: 'return/sentiment.analyze' },
+  async ({ event, step }) => {
+    const { actionId, orderId } = event.data;
+
+    if (!actionId || !orderId) {
+      console.warn('[Inngest] Missing actionId or orderId for return sentiment analysis');
+      return;
+    }
+
+    return await step.run('analyze-return-sentiment', async () => {
+      // Check if sentiment already analyzed
+      const existing = await prisma.sentimentRecord.findFirst({
+        where: {
+          source: 'RETURN_REQUEST',
+          sourceId: actionId,
+        },
+      });
+
+      if (existing) {
+        console.log(`[Sentiment] Already analyzed return request ${actionId}`);
+        return { success: true, actionId, existing: true };
+      }
+
+      // Fetch action and order
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+        include: {
+          order: {
+            include: {
+              connection: true,
+              customer: true,
+              messages: {
+                where: { direction: 'INBOUND' },
+                orderBy: { createdAt: 'desc' },
+                take: 3,
+              },
+            },
+          },
+        },
+      });
+
+      if (!action || !action.order) {
+        console.warn(`[Sentiment] Action ${actionId} or order not found`);
+        return;
+      }
+
+      // Only analyze refund/return actions
+      if (action.type !== 'REFUND' && action.type !== 'CANCEL') {
+        return { success: true, actionId, skipped: true };
+      }
+
+      const order = action.order;
+      const payload = action.payload as any;
+
+      // Get text from action payload or related messages
+      let text = payload?.note || payload?.draft || '';
+      if (!text && order.messages.length > 0) {
+        text = order.messages.map((m) => m.body).join('\n\n');
+      }
+      if (!text) {
+        text = `${action.type} request for order ${order.name || order.shopifyId}`;
+      }
+
+      // Build context
+      const context = {
+        source: 'RETURN_REQUEST' as const,
+        orderStatus: order.status,
+        orderAmount: order.totalAmount,
+        customerHistory: order.customer
+          ? `Customer has ${order.customer.ordersCount} orders, total spent: ${(order.customer.totalSpent / 100).toFixed(2)}`
+          : undefined,
+      };
+
+      // Analyze sentiment
+      const result = await analyzeSentiment(text, context);
+
+      // Store sentiment record
+      await prisma.sentimentRecord.create({
+        data: {
+          userId: order.connection.userId,
+          source: 'RETURN_REQUEST',
+          sourceId: actionId,
+          sentiment: result.sentiment,
+          score: result.score,
+          customerEmail: order.email,
+          customerId: order.customerId ?? null,
+          orderId: order.id,
+          connectionId: order.connectionId,
+          metadata: {
+            actionType: action.type,
+            orderStatus: order.status,
+            topics: result.topics,
+            keywords: result.keywords,
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+          } as any,
+        },
+      });
+
+      console.log(`[Sentiment] Analyzed return request ${actionId}: ${result.sentiment} (${result.score})`);
+      return { success: true, actionId, sentiment: result.sentiment, score: result.score };
     });
   },
 );

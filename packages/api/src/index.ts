@@ -2981,6 +2981,32 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         action.id,
       );
 
+      // Trigger sentiment analysis for return/refund requests
+      if (input.type === 'REFUND' || input.type === 'CANCEL') {
+        try {
+          // Dynamic import to avoid issues if inngest is not available
+          const inngestModule = await import('../../apps/web/inngest/client').catch(() => null);
+          if (inngestModule?.inngest) {
+            await inngestModule.inngest.send({
+              name: 'return/sentiment.analyze',
+              data: {
+                actionId: action.id,
+                orderId: order.id,
+              },
+            });
+            console.log(
+              `[Action] 🚀 Triggered sentiment analysis for ${input.type} action ${action.id}`,
+            );
+          }
+        } catch (error) {
+          // Log but don't fail the action creation
+          console.warn(
+            '[Action] Failed to trigger sentiment analysis:',
+            error,
+          );
+        }
+      }
+
       return { actionId: action.id };
     }),
   actionApproveAndSend: protectedProcedure
@@ -4964,6 +4990,393 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           topProducts: [],
           revenueTrend: [],
         };
+      }
+    }),
+
+  // Sentiment Analytics endpoints
+  getSentimentAnalytics: protectedProcedure
+    .input(
+      z
+        .object({
+          shop: z.string().optional(),
+          days: z.number().min(1).max(90).default(30),
+        })
+        .optional(),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        // Get user's connections for scoping
+        let connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true, shopDomain: true },
+        });
+
+        // Filter by shop if provided
+        if (input?.shop) {
+          const cleanShop = safeShopDomain(input.shop);
+          connections = connections.filter(
+            (c) => c.shopDomain === cleanShop,
+          );
+        }
+
+        const connectionIds = connections.map((c) => c.id);
+
+        if (connectionIds.length === 0) {
+          return {
+            overallScore: 0,
+            positivePercent: 0,
+            negativePercent: 0,
+            neutralPercent: 0,
+            frustratedPercent: 0,
+            angryPercent: 0,
+            sentimentTrend: 'stable',
+            bySource: {
+              email: { count: 0, avgScore: 0 },
+              order: { count: 0, avgScore: 0 },
+              return_request: { count: 0, avgScore: 0 },
+            },
+            distribution: {
+              positive: 0,
+              neutral: 0,
+              negative: 0,
+              frustrated: 0,
+              angry: 0,
+            },
+            trends: [],
+            topCustomers: [],
+            topIssues: [],
+          };
+        }
+
+        const now = new Date();
+        const days = input?.days || 30;
+        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+        // Get all sentiment records for this user's connections
+        const sentimentRecords = await prisma.sentimentRecord.findMany({
+          where: {
+            userId: ctx.userId,
+            connectionId: { in: connectionIds },
+            analyzedAt: { gte: startDate },
+          },
+          include: {
+            customer: true,
+            order: true,
+          },
+        });
+
+        if (sentimentRecords.length === 0) {
+          return {
+            overallScore: 0,
+            positivePercent: 0,
+            negativePercent: 0,
+            neutralPercent: 0,
+            frustratedPercent: 0,
+            angryPercent: 0,
+            sentimentTrend: 'stable',
+            bySource: {
+              email: { count: 0, avgScore: 0 },
+              order: { count: 0, avgScore: 0 },
+              return_request: { count: 0, avgScore: 0 },
+            },
+            distribution: {
+              positive: 0,
+              neutral: 0,
+              negative: 0,
+              frustrated: 0,
+              angry: 0,
+            },
+            trends: [],
+            topCustomers: [],
+            topIssues: [],
+          };
+        }
+
+        // Calculate overall sentiment score (average of all scores, normalized to 0-100)
+        const avgScore =
+          sentimentRecords.reduce((sum, r) => sum + r.score, 0) /
+          sentimentRecords.length;
+        const overallScore = Math.round(((avgScore + 1) / 2) * 100); // Convert -1 to 1 range to 0-100
+
+        // Sentiment distribution
+        const distribution = {
+          positive: sentimentRecords.filter((r) => r.sentiment === 'POSITIVE')
+            .length,
+          neutral: sentimentRecords.filter((r) => r.sentiment === 'NEUTRAL')
+            .length,
+          negative: sentimentRecords.filter((r) => r.sentiment === 'NEGATIVE')
+            .length,
+          frustrated: sentimentRecords.filter(
+            (r) => r.sentiment === 'FRUSTRATED',
+          ).length,
+          angry: sentimentRecords.filter((r) => r.sentiment === 'ANGRY').length,
+        };
+
+        const total = sentimentRecords.length;
+        const positivePercent = Math.round((distribution.positive / total) * 100);
+        const negativePercent =
+          Math.round(
+            ((distribution.negative + distribution.frustrated + distribution.angry) /
+              total) *
+              100,
+          );
+        const neutralPercent = Math.round((distribution.neutral / total) * 100);
+        const frustratedPercent = Math.round(
+          (distribution.frustrated / total) * 100,
+        );
+        const angryPercent = Math.round((distribution.angry / total) * 100);
+
+        // Sentiment by source
+        const bySource = {
+          email: {
+            count: sentimentRecords.filter((r) => r.source === 'EMAIL').length,
+            avgScore:
+              sentimentRecords
+                .filter((r) => r.source === 'EMAIL')
+                .reduce((sum, r) => sum + r.score, 0) /
+              Math.max(
+                1,
+                sentimentRecords.filter((r) => r.source === 'EMAIL').length,
+              ),
+          },
+          order: {
+            count: sentimentRecords.filter((r) => r.source === 'ORDER').length,
+            avgScore:
+              sentimentRecords
+                .filter((r) => r.source === 'ORDER')
+                .reduce((sum, r) => sum + r.score, 0) /
+              Math.max(
+                1,
+                sentimentRecords.filter((r) => r.source === 'ORDER').length,
+              ),
+          },
+          return_request: {
+            count: sentimentRecords.filter(
+              (r) => r.source === 'RETURN_REQUEST',
+            ).length,
+            avgScore:
+              sentimentRecords
+                .filter((r) => r.source === 'RETURN_REQUEST')
+                .reduce((sum, r) => sum + r.score, 0) /
+              Math.max(
+                1,
+                sentimentRecords.filter((r) => r.source === 'RETURN_REQUEST')
+                  .length,
+              ),
+          },
+        };
+
+        // Calculate trend (compare first half vs second half of period)
+        const midpoint = new Date(
+          startDate.getTime() + (now.getTime() - startDate.getTime()) / 2,
+        );
+        const firstHalf = sentimentRecords.filter(
+          (r) => r.analyzedAt < midpoint,
+        );
+        const secondHalf = sentimentRecords.filter(
+          (r) => r.analyzedAt >= midpoint,
+        );
+
+        const firstHalfAvg =
+          firstHalf.length > 0
+            ? firstHalf.reduce((sum, r) => sum + r.score, 0) / firstHalf.length
+            : 0;
+        const secondHalfAvg =
+          secondHalf.length > 0
+            ? secondHalf.reduce((sum, r) => sum + r.score, 0) /
+              secondHalf.length
+            : 0;
+
+        let sentimentTrend: 'improving' | 'declining' | 'stable' = 'stable';
+        if (secondHalfAvg > firstHalfAvg + 0.1) {
+          sentimentTrend = 'improving';
+        } else if (secondHalfAvg < firstHalfAvg - 0.1) {
+          sentimentTrend = 'declining';
+        }
+
+        // Daily trends
+        const trends: Array<{ date: string; score: number; count: number }> =
+          [];
+        for (let i = days - 1; i >= 0; i--) {
+          const dayStart = new Date(now);
+          dayStart.setDate(dayStart.getDate() - i);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(dayStart);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          const dayRecords = sentimentRecords.filter(
+            (r) => r.analyzedAt >= dayStart && r.analyzedAt <= dayEnd,
+          );
+
+          const dayAvg =
+            dayRecords.length > 0
+              ? dayRecords.reduce((sum, r) => sum + r.score, 0) /
+                dayRecords.length
+              : 0;
+          const dayScore = Math.round(((dayAvg + 1) / 2) * 100);
+
+          trends.push({
+            date: dayStart.toISOString().split('T')[0],
+            score: dayScore,
+            count: dayRecords.length,
+          });
+        }
+
+        // Top customers by sentiment (most negative)
+        const customerSentiment = new Map<
+          string,
+          { email: string; count: number; avgScore: number }
+        >();
+
+        for (const record of sentimentRecords) {
+          if (record.customerEmail) {
+            const key = record.customerEmail;
+            const existing = customerSentiment.get(key) || {
+              email: key,
+              count: 0,
+              avgScore: 0,
+            };
+            existing.count++;
+            existing.avgScore =
+              (existing.avgScore * (existing.count - 1) + record.score) /
+              existing.count;
+            customerSentiment.set(key, existing);
+          }
+        }
+
+        const topCustomers = Array.from(customerSentiment.values())
+          .sort((a, b) => a.avgScore - b.avgScore) // Most negative first
+          .slice(0, 10)
+          .map((c) => ({
+            email: c.email,
+            count: c.count,
+            avgScore: Math.round(((c.avgScore + 1) / 2) * 100)),
+          }));
+
+        // Extract top issues from metadata
+        const issueMap = new Map<string, number>();
+        for (const record of sentimentRecords) {
+          if (record.metadata && typeof record.metadata === 'object') {
+            const metadata = record.metadata as any;
+            if (metadata.topics && Array.isArray(metadata.topics)) {
+              for (const topic of metadata.topics) {
+                issueMap.set(topic, (issueMap.get(topic) || 0) + 1);
+              }
+            }
+          }
+        }
+
+        const topIssues = Array.from(issueMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([topic, count]) => ({ topic, count }));
+
+        return {
+          overallScore,
+          positivePercent,
+          negativePercent,
+          neutralPercent,
+          frustratedPercent,
+          angryPercent,
+          sentimentTrend,
+          bySource,
+          distribution,
+          trends,
+          topCustomers,
+          topIssues,
+        };
+      } catch (error) {
+        console.error('Sentiment analytics error:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch sentiment analytics',
+        });
+      }
+    }),
+
+  getCustomerSentiment: protectedProcedure
+    .input(
+      z.object({
+        customerEmail: z.string().email(),
+        days: z.number().min(1).max(90).default(30),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const now = new Date();
+        const startDate = new Date(
+          now.getTime() - input.days * 24 * 60 * 60 * 1000,
+        );
+
+        // Get user's connections
+        const connections = await prisma.connection.findMany({
+          where: { userId: ctx.userId },
+          select: { id: true },
+        });
+        const connectionIds = connections.map((c) => c.id);
+
+        // Get sentiment records for this customer
+        const records = await prisma.sentimentRecord.findMany({
+          where: {
+            userId: ctx.userId,
+            connectionId: { in: connectionIds },
+            customerEmail: input.customerEmail,
+            analyzedAt: { gte: startDate },
+          },
+          },
+          orderBy: { analyzedAt: 'asc' },
+          include: {
+            order: {
+              select: { name: true, shopifyId: true },
+            },
+          },
+        });
+
+        if (records.length === 0) {
+          return {
+            customerEmail: input.customerEmail,
+            totalRecords: 0,
+            avgScore: 0,
+            sentimentHistory: [],
+            recentSentiment: null,
+          };
+        }
+
+        const avgScore =
+          records.reduce((sum, r) => sum + r.score, 0) / records.length;
+        const normalizedScore = Math.round(((avgScore + 1) / 2) * 100);
+
+        const sentimentHistory = records.map((r) => ({
+          date: r.analyzedAt.toISOString(),
+          sentiment: r.sentiment,
+          score: Math.round(((r.score + 1) / 2) * 100),
+          source: r.source,
+          orderName: r.order?.name || null,
+        }));
+
+        const recentSentiment = records[records.length - 1]
+          ? {
+              sentiment: records[records.length - 1].sentiment,
+              score: Math.round(
+                ((records[records.length - 1].score + 1) / 2) * 100,
+              ),
+              date: records[records.length - 1].analyzedAt.toISOString(),
+            }
+          : null;
+
+        return {
+          customerEmail: input.customerEmail,
+          totalRecords: records.length,
+          avgScore: normalizedScore,
+          sentimentHistory,
+          recentSentiment,
+        };
+      } catch (error) {
+        console.error('Customer sentiment error:', error);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to fetch customer sentiment',
+        });
       }
     }),
 

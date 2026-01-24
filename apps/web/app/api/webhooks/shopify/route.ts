@@ -525,6 +525,33 @@ export async function POST(req: NextRequest) {
       // Save line items for the order (stored in DB for fast display)
       await saveLineItems(upsertedOrder.id, order.line_items);
 
+      // Trigger sentiment analysis for orders with issues (refunded, cancelled, etc.)
+      const hasIssues =
+        orderStatus === 'REFUNDED' ||
+        orderStatus === 'CANCELLED' ||
+        order.cancelled_at ||
+        (order.financial_status && ['refunded', 'partially_refunded'].includes(order.financial_status.toLowerCase()));
+
+      if (hasIssues) {
+        try {
+          const { inngest } = await import('../../../../inngest/client');
+          await inngest.send({
+            name: 'order/sentiment.analyze',
+            data: {
+              orderId: upsertedOrder.id,
+            },
+          });
+          console.log(
+            `[Shopify Webhook] 🚀 Triggered sentiment analysis for order ${upsertedOrder.id} (status: ${orderStatus})`,
+          );
+        } catch (error) {
+          console.warn(
+            '[Shopify Webhook] Failed to trigger sentiment analysis:',
+            error,
+          );
+        }
+      }
+
       console.log(
         `[Shopify Webhook] Order ${topic === 'orders/create' ? 'created' : 'updated'} successfully:`,
         String(order.id),
