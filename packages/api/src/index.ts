@@ -2985,7 +2985,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       if (input.type === 'REFUND' || input.type === 'CANCEL') {
         try {
           // Dynamic import to avoid issues if inngest is not available
-          const inngestModule = await import('../../apps/web/inngest/client').catch(() => null);
+          const inngestModule = await import('../../../apps/web/inngest/client').catch(() => null);
           if (inngestModule?.inngest) {
             await inngestModule.inngest.send({
               name: 'return/sentiment.analyze',
@@ -5053,7 +5053,8 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
         // Get all sentiment records for this user's connections
-        const sentimentRecords = await prisma.sentimentRecord.findMany({
+        // Note: sentimentRecord will be available after running `npx prisma generate`
+        const sentimentRecords = await (prisma as any).sentimentRecord.findMany({
           where: {
             userId: ctx.userId,
             connectionId: { in: connectionIds },
@@ -5094,22 +5095,22 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         // Calculate overall sentiment score (average of all scores, normalized to 0-100)
         const avgScore =
-          sentimentRecords.reduce((sum, r) => sum + r.score, 0) /
+          sentimentRecords.reduce((sum: number, r: any) => sum + r.score, 0) /
           sentimentRecords.length;
         const overallScore = Math.round(((avgScore + 1) / 2) * 100); // Convert -1 to 1 range to 0-100
 
         // Sentiment distribution
         const distribution = {
-          positive: sentimentRecords.filter((r) => r.sentiment === 'POSITIVE')
+          positive: sentimentRecords.filter((r: any) => r.sentiment === 'POSITIVE')
             .length,
-          neutral: sentimentRecords.filter((r) => r.sentiment === 'NEUTRAL')
+          neutral: sentimentRecords.filter((r: any) => r.sentiment === 'NEUTRAL')
             .length,
-          negative: sentimentRecords.filter((r) => r.sentiment === 'NEGATIVE')
+          negative: sentimentRecords.filter((r: any) => r.sentiment === 'NEGATIVE')
             .length,
           frustrated: sentimentRecords.filter(
-            (r) => r.sentiment === 'FRUSTRATED',
+            (r: any) => r.sentiment === 'FRUSTRATED',
           ).length,
-          angry: sentimentRecords.filter((r) => r.sentiment === 'ANGRY').length,
+          angry: sentimentRecords.filter((r: any) => r.sentiment === 'ANGRY').length,
         };
 
         const total = sentimentRecords.length;
@@ -5129,38 +5130,38 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         // Sentiment by source
         const bySource = {
           email: {
-            count: sentimentRecords.filter((r) => r.source === 'EMAIL').length,
+            count: sentimentRecords.filter((r: any) => r.source === 'EMAIL').length,
             avgScore:
               sentimentRecords
-                .filter((r) => r.source === 'EMAIL')
-                .reduce((sum, r) => sum + r.score, 0) /
+                .filter((r: any) => r.source === 'EMAIL')
+                .reduce((sum: number, r: any) => sum + r.score, 0) /
               Math.max(
                 1,
-                sentimentRecords.filter((r) => r.source === 'EMAIL').length,
+                sentimentRecords.filter((r: any) => r.source === 'EMAIL').length,
               ),
           },
           order: {
-            count: sentimentRecords.filter((r) => r.source === 'ORDER').length,
+            count: sentimentRecords.filter((r: any) => r.source === 'ORDER').length,
             avgScore:
               sentimentRecords
-                .filter((r) => r.source === 'ORDER')
-                .reduce((sum, r) => sum + r.score, 0) /
+                .filter((r: any) => r.source === 'ORDER')
+                .reduce((sum: number, r: any) => sum + r.score, 0) /
               Math.max(
                 1,
-                sentimentRecords.filter((r) => r.source === 'ORDER').length,
+                sentimentRecords.filter((r: any) => r.source === 'ORDER').length,
               ),
           },
           return_request: {
             count: sentimentRecords.filter(
-              (r) => r.source === 'RETURN_REQUEST',
+              (r: any) => r.source === 'RETURN_REQUEST',
             ).length,
             avgScore:
               sentimentRecords
-                .filter((r) => r.source === 'RETURN_REQUEST')
-                .reduce((sum, r) => sum + r.score, 0) /
+                .filter((r: any) => r.source === 'RETURN_REQUEST')
+                .reduce((sum: number, r: any) => sum + r.score, 0) /
               Math.max(
                 1,
-                sentimentRecords.filter((r) => r.source === 'RETURN_REQUEST')
+                sentimentRecords.filter((r: any) => r.source === 'RETURN_REQUEST')
                   .length,
               ),
           },
@@ -5171,19 +5172,19 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           startDate.getTime() + (now.getTime() - startDate.getTime()) / 2,
         );
         const firstHalf = sentimentRecords.filter(
-          (r) => r.analyzedAt < midpoint,
+          (r: any) => r.analyzedAt < midpoint,
         );
         const secondHalf = sentimentRecords.filter(
-          (r) => r.analyzedAt >= midpoint,
+          (r: any) => r.analyzedAt >= midpoint,
         );
 
         const firstHalfAvg =
           firstHalf.length > 0
-            ? firstHalf.reduce((sum, r) => sum + r.score, 0) / firstHalf.length
+            ? firstHalf.reduce((sum: number, r: any) => sum + r.score, 0) / firstHalf.length
             : 0;
         const secondHalfAvg =
           secondHalf.length > 0
-            ? secondHalf.reduce((sum, r) => sum + r.score, 0) /
+            ? secondHalf.reduce((sum: number, r: any) => sum + r.score, 0) /
               secondHalf.length
             : 0;
 
@@ -5205,12 +5206,12 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           dayEnd.setHours(23, 59, 59, 999);
 
           const dayRecords = sentimentRecords.filter(
-            (r) => r.analyzedAt >= dayStart && r.analyzedAt <= dayEnd,
+            (r: any) => r.analyzedAt >= dayStart && r.analyzedAt <= dayEnd,
           );
 
           const dayAvg =
             dayRecords.length > 0
-              ? dayRecords.reduce((sum, r) => sum + r.score, 0) /
+              ? dayRecords.reduce((sum: number, r: any) => sum + r.score, 0) /
                 dayRecords.length
               : 0;
           const dayScore = Math.round(((dayAvg + 1) / 2) * 100);
@@ -5238,7 +5239,7 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
             };
             existing.count++;
             existing.avgScore =
-              (existing.avgScore * (existing.count - 1) + record.score) /
+              (existing.avgScore * (existing.count - 1) + (record as any).score) /
               existing.count;
             customerSentiment.set(key, existing);
           }
@@ -5250,14 +5251,14 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
           .map((c) => ({
             email: c.email,
             count: c.count,
-            avgScore: Math.round(((c.avgScore + 1) / 2) * 100)),
+            avgScore: Math.round(((c.avgScore + 1) / 2) * 100),
           }));
 
         // Extract top issues from metadata
         const issueMap = new Map<string, number>();
         for (const record of sentimentRecords) {
-          if (record.metadata && typeof record.metadata === 'object') {
-            const metadata = record.metadata as any;
+          if ((record as any).metadata && typeof (record as any).metadata === 'object') {
+            const metadata = (record as any).metadata as any;
             if (metadata.topics && Array.isArray(metadata.topics)) {
               for (const topic of metadata.topics) {
                 issueMap.set(topic, (issueMap.get(topic) || 0) + 1);
@@ -5316,13 +5317,13 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         const connectionIds = connections.map((c) => c.id);
 
         // Get sentiment records for this customer
-        const records = await prisma.sentimentRecord.findMany({
+        // Note: sentimentRecord will be available after running `npx prisma generate`
+        const records = await (prisma as any).sentimentRecord.findMany({
           where: {
             userId: ctx.userId,
             connectionId: { in: connectionIds },
             customerEmail: input.customerEmail,
             analyzedAt: { gte: startDate },
-          },
           },
           orderBy: { analyzedAt: 'asc' },
           include: {
@@ -5343,10 +5344,10 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
         }
 
         const avgScore =
-          records.reduce((sum, r) => sum + r.score, 0) / records.length;
+          records.reduce((sum: number, r: any) => sum + r.score, 0) / records.length;
         const normalizedScore = Math.round(((avgScore + 1) / 2) * 100);
 
-        const sentimentHistory = records.map((r) => ({
+        const sentimentHistory = records.map((r: any) => ({
           date: r.analyzedAt.toISOString(),
           sentiment: r.sentiment,
           score: Math.round(((r.score + 1) / 2) * 100),
@@ -5356,11 +5357,11 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
 
         const recentSentiment = records[records.length - 1]
           ? {
-              sentiment: records[records.length - 1].sentiment,
+              sentiment: (records[records.length - 1] as any).sentiment,
               score: Math.round(
-                ((records[records.length - 1].score + 1) / 2) * 100,
+                (((records[records.length - 1] as any).score + 1) / 2) * 100,
               ),
-              date: records[records.length - 1].analyzedAt.toISOString(),
+              date: (records[records.length - 1] as any).analyzedAt.toISOString(),
             }
           : null;
 
