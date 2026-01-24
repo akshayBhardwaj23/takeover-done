@@ -7591,6 +7591,46 @@ Be specific, data-driven, and actionable.`;
         startDate,
         endDate,
       );
+      
+      // Validate data structure
+      if (!adsData) {
+        throw new Error('No data returned from Meta Ads API');
+      }
+
+      // Ensure campaigns and adsets are arrays
+      if (!Array.isArray(adsData.campaigns)) {
+        console.warn('[Meta Ads AI Review] campaigns is not an array, setting to empty array');
+        adsData.campaigns = [];
+      }
+      if (!Array.isArray(adsData.adsets)) {
+        console.warn('[Meta Ads AI Review] adsets is not an array, setting to empty array');
+        adsData.adsets = [];
+      }
+
+      // Log data for debugging
+      console.log('[Meta Ads AI Review] Fetched data:', {
+        spend: adsData.spend,
+        impressions: adsData.impressions,
+        clicks: adsData.clicks,
+        conversions: adsData.conversions,
+        conversionValue: adsData.conversionValue,
+        roas: adsData.roas,
+        campaignsCount: adsData.campaigns?.length || 0,
+        adsetsCount: adsData.adsets?.length || 0,
+        sampleCampaigns: adsData.campaigns?.slice(0, 3).map(c => ({ 
+          id: c.id, 
+          name: c.name, 
+          spend: c.spend, 
+          roas: c.roas,
+          conversions: c.conversions 
+        })),
+        sampleAdsets: adsData.adsets?.slice(0, 3).map(a => ({ 
+          id: a.id, 
+          name: a.name, 
+          spend: a.spend, 
+          roas: a.roas 
+        })),
+      });
     } catch (error: any) {
       console.error('[Meta Ads AI Review] Error fetching ads data:', error);
       throw new TRPCError({
@@ -7616,8 +7656,12 @@ Be specific, data-driven, and actionable.`;
         ? ((adsData.conversions / adsData.clicks) * 100).toFixed(2)
         : '0.00';
 
+    // Ensure campaigns and adsets arrays exist
+    const campaigns = adsData.campaigns || [];
+    const adsets = adsData.adsets || [];
+
     // Campaign analysis
-    const campaignsToStop = adsData.campaigns
+    const campaignsToStop = campaigns
       .filter((c) => {
         if (!c.roas || c.roas < 1) return true;
         if (c.spend > 100 && (!c.conversions || c.conversions === 0))
@@ -7626,27 +7670,30 @@ Be specific, data-driven, and actionable.`;
       })
       .slice(0, 5)
       .map((c) => ({
+        id: c.id,
         name: c.name,
         spend: c.spend,
         roas: c.roas,
         conversions: c.conversions || 0,
       }));
 
-    const campaignsToScale = adsData.campaigns
+    const campaignsToScale = campaigns
       .filter((c) => c.roas && c.roas >= 2 && c.spend > 50)
       .sort((a, b) => (b.roas || 0) - (a.roas || 0))
       .slice(0, 5)
       .map((c) => ({
+        id: c.id,
         name: c.name,
         spend: c.spend,
         roas: c.roas,
         conversions: c.conversions || 0,
       }));
 
-    const topAdsets = adsData.adsets
+    const topAdsets = adsets
       .sort((a, b) => (b.roas || 0) - (a.roas || 0))
       .slice(0, 5)
       .map((a) => ({
+        id: a.id,
         name: a.name,
         spend: a.spend,
         roas: a.roas,
@@ -7671,13 +7718,17 @@ ${adsData.reach ? `- Reach: ${adsData.reach.toLocaleString()}` : ''}
 ${adsData.frequency ? `- Frequency: ${adsData.frequency.toFixed(2)}` : ''}
 
 Campaigns Analysis:
-- Total Campaigns: ${adsData.campaigns.length}
-- Campaigns to Consider Stopping: ${campaignsToStop.length} (${campaignsToStop.map((c) => `${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})
-- Top Performing Campaigns to Scale: ${campaignsToScale.length} (${campaignsToScale.map((c) => `${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})
+- Total Campaigns: ${campaigns.length}
+${campaigns.length > 0 ? `- All Campaigns Data:
+${campaigns.map((c) => `  * ID: ${c.id}, Name: ${c.name}, Status: ${c.status}, Spend: $${c.spend.toFixed(2)}, Impressions: ${c.impressions}, Clicks: ${c.clicks}, CTR: ${c.ctr.toFixed(2)}%, CPC: $${c.cpc.toFixed(2)}, ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Conversions: ${c.conversions || 0}`).join('\n')}` : '- No campaigns found'}
+- Campaigns to Consider Stopping: ${campaignsToStop.length}${campaignsToStop.length > 0 ? ` (${campaignsToStop.map((c) => `ID: ${c.id}, Name: ${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})` : ' (none)'}
+- Top Performing Campaigns to Scale: ${campaignsToScale.length}${campaignsToScale.length > 0 ? ` (${campaignsToScale.map((c) => `ID: ${c.id}, Name: ${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})` : ' (none)'}
 
 Ad Sets Analysis:
-- Total Ad Sets: ${adsData.adsets.length}
-- Top Performing Ad Sets: ${topAdsets.map((a) => `${a.name} (ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, CTR: ${a.ctr.toFixed(2)}%)`).join(', ')}
+- Total Ad Sets: ${adsets.length}
+${adsets.length > 0 ? `- All Ad Sets Data:
+${adsets.map((a) => `  * ID: ${a.id}, Name: ${a.name}, Campaign ID: ${a.campaignId}, Status: ${a.status}, Spend: $${a.spend.toFixed(2)}, Impressions: ${a.impressions}, Clicks: ${a.clicks}, CTR: ${a.ctr.toFixed(2)}%, CPC: $${a.cpc.toFixed(2)}, ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, Conversions: ${a.conversions || 0}`).join('\n')}` : '- No ad sets found'}
+- Top Performing Ad Sets: ${topAdsets.length}${topAdsets.length > 0 ? ` (${topAdsets.map((a) => `ID: ${a.id}, Name: ${a.name} (ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, CTR: ${a.ctr.toFixed(2)}%)`).join(', ')})` : ' (none)'}
 
 Provide a comprehensive review in the following JSON format:
 {
@@ -7778,14 +7829,18 @@ Provide a comprehensive review in the following JSON format:
 }
 
 Focus on:
-1. Identifying campaigns that should be stopped (low ROAS, high spend with no conversions)
-2. Highlighting campaigns that should be scaled (high ROAS, good performance)
-3. Analyzing ad set performance and targeting issues
+1. Identifying campaigns that should be stopped (low ROAS, high spend with no conversions) - use the exact campaign IDs and names from the data above
+2. Highlighting campaigns that should be scaled (high ROAS, good performance) - use the exact campaign IDs and names from the data above
+3. Analyzing ad set performance and targeting issues - use the exact ad set IDs and names from the data above
 4. Providing budget reallocation recommendations
 5. Offering creative optimization tips based on CTR and engagement data
 6. Overall account health assessment
 
-Be specific, data-driven, and actionable. Use the actual campaign and ad set data provided.`;
+IMPORTANT: 
+- Use ONLY the campaign IDs and ad set IDs provided in the data above. Do not make up or guess IDs.
+- If no campaigns or ad sets are found, provide general account-level recommendations based on the account performance metrics.
+- Match campaign and ad set IDs exactly as shown in the data above.
+- Be specific, data-driven, and actionable.`;
 
     try {
       const resp = await fetch('https://api.openai.com/v1/chat/completions', {
