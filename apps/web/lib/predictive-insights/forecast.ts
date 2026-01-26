@@ -50,6 +50,10 @@ function mean(values: number[]): number {
   return values.reduce((s, v) => s + v, 0) / values.length;
 }
 
+function sum(values: number[]): number {
+  return values.reduce((s, v) => s + v, 0);
+}
+
 function stdev(values: number[]): number {
   if (values.length < 2) return 0;
   const m = mean(values);
@@ -218,7 +222,9 @@ export function buildForecastBundle(args: {
   });
 
   // AOV series fallback.
-  const aovSeries = aov.map((v, i) => (v > 0 ? v : orders[i] > 0 ? revenue[i] / Math.max(1, orders[i]) : 0));
+  const aovSeries = aov.map((v, i) =>
+    v > 0 ? v : orders[i] > 0 ? revenue[i] / Math.max(1, orders[i]) : 0,
+  );
 
   // Recent windows for explainable signals.
   const recentWindow = Math.min(14, contextDates.length);
@@ -230,9 +236,52 @@ export function buildForecastBundle(args: {
   const { slope: conversionRateSlopePerDay } = fitLine(recentConv);
   const { slope: aovSlopePerDay } = fitLine(recentAov);
 
-  const recentSessionsAvg = mean(sessionsSeries.slice(-7));
-  const recentConversionRateAvg = mean(convRateSeries.slice(-7));
-  const recentAovAvg = mean(aovSeries.slice(-7));
+  const sessions7 = sessionsSeries.slice(-7);
+  const sessions14 = sessionsSeries.slice(-recentWindow);
+  const orders14 = orders.slice(-recentWindow);
+  const revenue14 = revenue.slice(-recentWindow);
+
+  const sessions7Avg = mean(sessions7);
+  const sessions30Avg = mean(sessionsSeries);
+  // Blend recent + baseline; if recent is quiet, fall back to baseline.
+  const recentSessionsAvg =
+    sessions7Avg > 0 ? sessions7Avg * 0.65 + sessions30Avg * 0.35 : sessions30Avg;
+
+  // Robust conversion baseline:
+  // - Use a 14d ratio when available
+  // - If recent orders are sparse/zero but older window has signal, fall back to 30d ratio
+  // - Clamp to a sane range (0..25%)
+  const orders14Total = sum(orders14);
+  const sessions14Total = sum(sessions14);
+
+  const orders30Total = sum(orders);
+  const sessions30Total = sum(sessionsSeries);
+  const conv30 =
+    sessions30Total > 0 ? clamp(orders30Total / sessions30Total, 0, 0.25) : 0;
+
+  const conv14 =
+    sessions14Total > 0 ? clamp(orders14Total / sessions14Total, 0, 0.25) : 0;
+
+  const convRecentCandidate =
+    orders14Total > 0 ? conv14 : orders30Total > 0 ? conv30 : mean(recentConv);
+  // Blend (keeps forecasts stable when the last week is sparse).
+  const recentConversionRateAvg =
+    conv30 > 0
+      ? clamp(convRecentCandidate * 0.6 + conv30 * 0.4, 0, 0.25)
+      : clamp(convRecentCandidate, 0, 0.25);
+
+  // Robust AOV baseline:
+  // - Prefer recent days with orders
+  // - Fall back to last 30d order-weighted AOV
+  const recentOrderWeightedAov = (() => {
+    if (orders14Total > 0) return clamp(sum(revenue14) / orders14Total, 0, 1e12);
+    if (orders30Total > 0) return clamp(sum(revenue) / orders30Total, 0, 1e12);
+    return mean(aovSeries.slice(-7));
+  })();
+
+  const aov30 = orders30Total > 0 ? clamp(sum(revenue) / orders30Total, 0, 1e12) : 0;
+  const recentAovAvg =
+    aov30 > 0 ? recentOrderWeightedAov * 0.7 + aov30 * 0.3 : recentOrderWeightedAov;
 
   // Meta "modifier" (small, bounded): if clicks are trending up/down, nudge sessions.
   let sessionsNudgePct = 0;
@@ -285,22 +334,22 @@ export function buildForecastBundle(args: {
     const denom = Math.max(1, pred);
     return (act - pred) / denom;
   });
-  const revenueVol = clamp(stdev(relErrors), 0.05, 0.6);
+  const revenueVol = clamp(stdev(relErrors), 0.08, 0.75);
 
   const sessionsVol = clamp(
     stdev(recentSessions.map((v) => (recentSessionsAvg > 0 ? (v - recentSessionsAvg) / recentSessionsAvg : 0))),
-    0.05,
-    0.6,
+    0.06,
+    0.8,
   );
   const convVol = clamp(
     stdev(recentConv.map((v) => (recentConversionRateAvg > 0 ? (v - recentConversionRateAvg) / recentConversionRateAvg : 0))),
-    0.05,
-    0.8,
+    0.08,
+    1.0,
   );
   const aovVol = clamp(
     stdev(recentAov.map((v) => (recentAovAvg > 0 ? (v - recentAovAvg) / recentAovAvg : 0))),
-    0.05,
-    0.8,
+    0.08,
+    1.0,
   );
 
   const bandPctByDay = futureDates.map((_, i) => {
