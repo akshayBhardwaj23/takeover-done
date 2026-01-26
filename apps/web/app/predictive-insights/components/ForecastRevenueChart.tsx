@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 type Point = { x: number; y: number };
 
@@ -22,6 +22,11 @@ export function ForecastRevenueChart(props: {
   const width = 960;
   const height = 320;
   const margin = { top: 24, right: 24, bottom: 38, left: 54 };
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
 
   const model = useMemo(() => {
     const hist = props.historical;
@@ -96,6 +101,12 @@ export function ForecastRevenueChart(props: {
 
     return {
       allDates,
+      allValues,
+      allBest,
+      allWorst,
+      pointsExpected,
+      pointsBest,
+      pointsWorst,
       histLen,
       todayIndex,
       todayX,
@@ -107,8 +118,55 @@ export function ForecastRevenueChart(props: {
       forecastPath,
       bandPath,
       lastDate: allDates[allDates.length - 1] ?? props.today,
+      innerW,
+      innerH,
     };
   }, [props.forecast, props.historical, props.today, margin.bottom, margin.left, margin.right, margin.top]);
+
+  const clamp = (n: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, n));
+
+  const indexFromSvgX = (x: number) => {
+    const n = model.allDates.length;
+    if (n <= 1) return 0;
+    const step = model.innerW / (n - 1);
+    const i = Math.round((x - margin.left) / step);
+    return clamp(i, 0, n - 1);
+  };
+
+  const onPointerMove = (evt: React.PointerEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const scaleX = width / rect.width;
+    const scaleY = height / rect.height;
+    const x = (evt.clientX - rect.left) * scaleX;
+    const y = (evt.clientY - rect.top) * scaleY;
+    const i = indexFromSvgX(x);
+    setHoverIndex(i);
+    setHoverPos({ x, y });
+  };
+
+  const onPointerLeave = () => {
+    setHoverIndex(null);
+    setHoverPos(null);
+  };
+
+  const tooltip = useMemo(() => {
+    if (hoverIndex == null) return null;
+    const date = model.allDates[hoverIndex] ?? '';
+    const isForecast = hoverIndex >= model.histLen;
+    const expected = model.allValues[hoverIndex] ?? 0;
+    const best = model.allBest[hoverIndex] ?? expected;
+    const worst = model.allWorst[hoverIndex] ?? expected;
+    return {
+      date,
+      isForecast,
+      expected,
+      best,
+      worst,
+      point: model.pointsExpected[hoverIndex],
+    };
+  }, [hoverIndex, model]);
 
   return (
     <div className="w-full">
@@ -146,6 +204,9 @@ export function ForecastRevenueChart(props: {
         className="h-[320px] w-full"
         role="img"
         aria-label="Revenue forecast chart"
+        ref={svgRef}
+        onPointerMove={onPointerMove}
+        onPointerLeave={onPointerLeave}
       >
         <defs>
           <linearGradient id="piBand" x1="0" y1="0" x2="0" y2="1">
@@ -206,6 +267,88 @@ export function ForecastRevenueChart(props: {
           strokeLinecap="round"
           strokeDasharray="6 6"
         />
+
+        {/* Hover target area */}
+        <rect
+          x={margin.left}
+          y={margin.top}
+          width={width - margin.left - margin.right}
+          height={height - margin.top - margin.bottom}
+          fill="transparent"
+        />
+
+        {/* Hover marker + tooltip */}
+        {tooltip && tooltip.point ? (
+          <g>
+            <line
+              x1={tooltip.point.x}
+              x2={tooltip.point.x}
+              y1={margin.top}
+              y2={height - margin.bottom}
+              stroke="rgb(203 213 225)"
+              strokeWidth="1"
+              strokeDasharray="3 4"
+            />
+            <circle
+              cx={tooltip.point.x}
+              cy={tooltip.point.y}
+              r={4.5}
+              fill={tooltip.isForecast ? 'rgb(79 70 229)' : 'rgb(15 23 42)'}
+              stroke="white"
+              strokeWidth="2"
+            />
+
+            {/* Tooltip box */}
+            {hoverPos ? (() => {
+              const boxW = 190;
+              const boxH = tooltip.isForecast ? 64 : 46;
+              const pad = 10;
+              const x = clamp(hoverPos.x + 14, margin.left, width - margin.right - boxW);
+              const y = clamp(hoverPos.y - boxH - 10, margin.top, height - margin.bottom - boxH);
+              return (
+                <g>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={boxW}
+                    height={boxH}
+                    rx={12}
+                    fill="rgb(15 23 42)"
+                    opacity={0.92}
+                  />
+                  <text
+                    x={x + pad}
+                    y={y + 18}
+                    fontSize="12"
+                    fill="rgb(226 232 240)"
+                    fontWeight={600}
+                  >
+                    {tooltip.date}
+                  </text>
+                  <text
+                    x={x + pad}
+                    y={y + 36}
+                    fontSize="12"
+                    fill="rgb(241 245 249)"
+                  >
+                    {tooltip.isForecast ? 'Forecast: ' : 'Actual: '}
+                    {props.currencyFormatter(tooltip.expected)}
+                  </text>
+                  {tooltip.isForecast ? (
+                    <text
+                      x={x + pad}
+                      y={y + 54}
+                      fontSize="11"
+                      fill="rgb(148 163 184)"
+                    >
+                      Range: {props.currencyFormatter(tooltip.worst)}–{props.currencyFormatter(tooltip.best)}
+                    </text>
+                  ) : null}
+                </g>
+              );
+            })() : null}
+          </g>
+        ) : null}
 
         {/* Today marker */}
         <line

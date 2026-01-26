@@ -1,17 +1,12 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '../../lib/trpc';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { ArrowRight, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
-import {
-  buildForecastBundle,
-  generatePredictiveSummary,
-  type ForecastPoint,
-} from '../../lib/predictive-insights/forecast';
 import { ForecastRevenueChart } from './components/ForecastRevenueChart';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
 
@@ -28,26 +23,84 @@ function formatCurrency(amount: number, currencyCode: string): string {
   }
 }
 
-function summarizeTotals(points: ForecastPoint[], horizon: 7 | 30 | 90) {
-  const slice = points.slice(0, horizon);
-  const expected = slice.reduce((s, p) => s + p.expected, 0);
-  const best = slice.reduce((s, p) => s + p.best, 0);
-  const worst = slice.reduce((s, p) => s + p.worst, 0);
-  return { expected, best, worst };
+type ApiActualPoint = {
+  date: string;
+  revenue: number;
+  orders: number;
+  sessions: number;
+  aov: number;
+  cvr: number | null;
+};
+
+type ApiForecastPoint = {
+  date: string;
+  revenue: number;
+  revenueLow: number;
+  revenueHigh: number;
+  sessions: number | null;
+  aov: number;
+  cvr: number | null;
+};
+
+type ApiResponse = {
+  shop: string;
+  currency: string;
+  timezone: string;
+  today: string;
+  actualSeries: ApiActualPoint[];
+  forecastSeries: ApiForecastPoint[];
+  confidenceScore: number;
+  debugMetrics?: any;
+};
+
+function sum(values: number[]) {
+  return values.reduce((s, v) => s + v, 0);
 }
 
-function summarizeAverage(points: ForecastPoint[], horizon: 7 | 30 | 90) {
+function totalsFromForecast(points: ApiForecastPoint[], horizon: 7 | 30 | 90) {
   const slice = points.slice(0, horizon);
-  const denom = Math.max(1, slice.length);
-  const expected = slice.reduce((s, p) => s + p.expected, 0) / denom;
-  const best = slice.reduce((s, p) => s + p.best, 0) / denom;
-  const worst = slice.reduce((s, p) => s + p.worst, 0) / denom;
-  return { expected, best, worst };
+  return {
+    expected: sum(slice.map((p) => p.revenue)),
+    best: sum(slice.map((p) => p.revenueHigh)),
+    worst: sum(slice.map((p) => p.revenueLow)),
+  };
 }
 
-function percentChange(last: number, prev: number): number | null {
-  if (!isFinite(last) || !isFinite(prev) || prev === 0) return null;
-  return ((last - prev) / prev) * 100;
+function totalsOrdersFromForecast(
+  points: ApiForecastPoint[],
+  horizon: 7 | 30 | 90,
+) {
+  const slice = points.slice(0, horizon);
+  const expected = sum(
+    slice.map((p) =>
+      p.sessions != null && p.cvr != null ? p.sessions * p.cvr : 0,
+    ),
+  );
+  // Derive best/worst from revenue band proportionally (simple MVP)
+  const rev = totalsFromForecast(points, horizon);
+  const k =
+    rev.expected > 0
+      ? Math.max(
+          0,
+          Math.min(0.5, (rev.best - rev.worst) / (2 * rev.expected)),
+        )
+      : 0.25;
+  return {
+    expected,
+    best: expected * (1 + k),
+    worst: expected * (1 - k),
+  };
+}
+
+function avgFromForecast(points: ApiForecastPoint[], horizon: 7 | 30 | 90, key: 'cvr' | 'aov') {
+  const slice = points.slice(0, horizon);
+  const vals =
+    key === 'cvr'
+      ? slice.map((p) => p.cvr).filter((v): v is number => typeof v === 'number')
+      : slice.map((p) => p.aov).filter((v): v is number => typeof v === 'number');
+  const denom = Math.max(1, vals.length);
+  const expected = sum(vals) / denom;
+  return { expected, best: expected, worst: expected };
 }
 
 function PredictiveInsightsInner() {
@@ -105,206 +158,108 @@ function PredictiveInsightsInner() {
     }
   }, [gaConnections, selectedPropertyId]);
 
-  const today = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const startDate30 = useMemo(() => {
-    return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split('T')[0];
-  }, []);
-
   const isConnectionsLoading = connections.isLoading;
   const hasSelectedShop = !!selectedShop;
 
-  const shopSeries = trpc.getShopifySalesSeries.useQuery(
-    { shop: selectedShop, days: 30 },
-    { enabled: hasSelectedShop },
-  );
+  const [apiData, setApiData] = useState<ApiResponse | null>(null);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const gaData = trpc.getGoogleAnalyticsData.useQuery(
-    {
-      propertyId: selectedPropertyId,
-      startDate: startDate30,
-      endDate: today,
-    },
-    {
-      enabled: !!selectedPropertyId,
-      retry: false,
-      staleTime: 30_000,
-      refetchOnWindowFocus: true,
-    },
-  );
+  useEffect(() => {
+    if (!hasSelectedShop) return;
+    let cancelled = false;
+    const run = async () => {
+      setApiLoading(true);
+      setApiError(null);
+      try {
+        const qs = new URLSearchParams({
+          days: '90',
+          shop: selectedShop,
+          ...(process.env.NODE_ENV === 'development' ? { debug: '1' } : {}),
+        });
+        const res = await fetch(`/api/predictive-insights?${qs.toString()}`);
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `Request failed (${res.status})`);
+        }
+        const json = (await res.json()) as ApiResponse;
+        if (!cancelled) setApiData(json);
+      } catch (e: any) {
+        if (!cancelled) setApiError(e?.message || 'Failed to load forecast');
+      } finally {
+        if (!cancelled) setApiLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSelectedShop, selectedShop]);
 
-  // Note: connection.metadata is Prisma JsonValue -> cast to avoid deep TS instantiation.
-  const metaAccountId = (metaConnection as any)?.metadata?.adAccountId as
-    | string
-    | undefined;
-  const metaInsights = trpc.getMetaAdsInsights.useQuery(
-    {
-      adAccountId: metaAccountId,
-      startDate: startDate30,
-      endDate: today,
-    },
-    {
-      enabled: !!metaConnection && !!metaAccountId,
-      retry: 1,
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-    },
-  );
-
-  const historyWindowDays = 21;
-  const currency = shopSeries.data?.currency || 'USD';
-  const currencyFormatter = useCallback(
-    (n: number) => formatCurrency(n, currency),
+  const currency = apiData?.currency || 'USD';
+  const currencyFormatter = useMemo(
+    () => (n: number) => formatCurrency(n, currency),
     [currency],
   );
 
-  const historicalRevenue = useMemo(() => {
-    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
-      date: p.date as string,
-      value: Number(p.revenue || 0),
+  const historyWindowDays = 21;
+  const chartHistorical = useMemo(() => {
+    const actual = apiData?.actualSeries || [];
+    const hist = actual.slice(-historyWindowDays).map((p) => ({
+      date: p.date,
+      value: p.revenue,
     }));
-  }, [shopSeries.data?.series]);
-  const historicalOrders = useMemo(() => {
-    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
-      date: p.date as string,
-      value: Number(p.orders || 0),
+    return hist;
+  }, [apiData?.actualSeries]);
+
+  const forecastForChart = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
+    return f.map((p) => ({
+      date: p.date,
+      expected: p.revenue,
+      best: p.revenueHigh,
+      worst: p.revenueLow,
     }));
-  }, [shopSeries.data?.series]);
-  const historicalAov = useMemo(() => {
-    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
-      date: p.date as string,
-      value: Number(p.aov || 0),
-    }));
-  }, [shopSeries.data?.series]);
+  }, [apiData?.forecastSeries]);
 
-  const sessionsByDay = useMemo(() => {
-    return ((gaData.data?.trend || []) as any[]).map((d) => ({
-      date: d.date as string,
-      value: Number(d.sessions || 0),
-    }));
-  }, [gaData.data?.trend]);
-
-  const metaTrend = useMemo(() => metaInsights.data?.trend || [], [metaInsights.data?.trend]);
-  const metaClicksByDay = useMemo(
-    () =>
-      (metaTrend as any[]).map((d) => ({
-        date: d.date as string,
-        value: Number(d.clicks || 0),
-      })),
-    [metaTrend],
-  );
-  const metaCtrByDay = useMemo(
-    () =>
-      (metaTrend as any[]).map((d) => ({
-        date: d.date as string,
-        value:
-          Number(d.impressions || 0) > 0
-            ? Number(d.clicks || 0) / Number(d.impressions || 1)
-            : 0,
-      })),
-    [metaTrend],
-  );
-  const metaCpcByDay = useMemo(
-    () =>
-      (metaTrend as any[]).map((d) => ({
-        date: d.date as string,
-        value:
-          Number(d.clicks || 0) > 0
-            ? Number(d.spend || 0) / Number(d.clicks || 1)
-            : 0,
-      })),
-    [metaTrend],
-  );
-
-  const bundle = useMemo(() => {
-    return buildForecastBundle({
-      today,
-      currency,
-      sessionsByDay,
-      shopifyRevenueByDay: historicalRevenue,
-      shopifyOrdersByDay: historicalOrders,
-      shopifyAovByDay: historicalAov,
-      metaClicksByDay: metaClicksByDay.length ? metaClicksByDay : undefined,
-      metaCtrByDay: metaCtrByDay.length ? metaCtrByDay : undefined,
-      metaCpcByDay: metaCpcByDay.length ? metaCpcByDay : undefined,
-      forecastDays: 90,
-    });
-  }, [
-    currency,
-    historicalAov,
-    historicalOrders,
-    historicalRevenue,
-    metaClicksByDay,
-    metaCpcByDay,
-    metaCtrByDay,
-    sessionsByDay,
-    today,
-  ]);
-
-  const metaSummary = useMemo(() => {
-    if (!metaTrend || metaTrend.length < 14) return undefined;
-    const last7 = metaTrend.slice(-7);
-    const prev7 = metaTrend.slice(-14, -7);
-    const sum = (arr: any[], key: string) =>
-      arr.reduce((s, d) => s + Number(d[key] || 0), 0);
-    const clicksLast = sum(last7, 'clicks');
-    const clicksPrev = sum(prev7, 'clicks');
-    const spendLast = sum(last7, 'spend');
-    const spendPrev = sum(prev7, 'spend');
-    const impressionsLast = sum(last7, 'impressions');
-    const impressionsPrev = sum(prev7, 'impressions');
-
-    const ctrLast =
-      impressionsLast > 0 ? (clicksLast / impressionsLast) * 100 : 0;
-    const ctrPrev =
-      impressionsPrev > 0 ? (clicksPrev / impressionsPrev) * 100 : 0;
-    const cpcLast = clicksLast > 0 ? spendLast / clicksLast : 0;
-    const cpcPrev = clicksPrev > 0 ? spendPrev / clicksPrev : 0;
-
+  const revenueTotals = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
     return {
-      clicksTrendPct: percentChange(clicksLast, clicksPrev) ?? undefined,
-      ctrTrendPct: percentChange(ctrLast, ctrPrev) ?? undefined,
-      cpcTrendPct: percentChange(cpcLast, cpcPrev) ?? undefined,
+      d7: totalsFromForecast(f, 7),
+      d30: totalsFromForecast(f, 30),
+      d90: totalsFromForecast(f, 90),
     };
-  }, [metaTrend]);
+  }, [apiData?.forecastSeries]);
 
-  const narrative = useMemo(() => {
-    return generatePredictiveSummary({
-      bundle,
-      currencyFormatter,
-      meta: metaSummary,
-    });
-  }, [bundle, currencyFormatter, metaSummary]);
+  const ordersTotals = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
+    return {
+      d7: totalsOrdersFromForecast(f, 7),
+      d30: totalsOrdersFromForecast(f, 30),
+      d90: totalsOrdersFromForecast(f, 90),
+    };
+  }, [apiData?.forecastSeries]);
 
-  const chartHistorical = useMemo(
-    () => historicalRevenue.slice(-historyWindowDays),
-    [historicalRevenue, historyWindowDays],
-  );
+  const convAvg = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
+    return {
+      d7: avgFromForecast(f, 7, 'cvr'),
+      d30: avgFromForecast(f, 30, 'cvr'),
+      d90: avgFromForecast(f, 90, 'cvr'),
+    };
+  }, [apiData?.forecastSeries]);
 
-  const revenueTotals = {
-    d7: summarizeTotals(bundle.series.revenue, 7),
-    d30: summarizeTotals(bundle.series.revenue, 30),
-    d90: summarizeTotals(bundle.series.revenue, 90),
-  };
-  const ordersTotals = {
-    d7: summarizeTotals(bundle.series.orders, 7),
-    d30: summarizeTotals(bundle.series.orders, 30),
-    d90: summarizeTotals(bundle.series.orders, 90),
-  };
-  const convAvg = {
-    d7: summarizeAverage(bundle.series.conversionRate, 7),
-    d30: summarizeAverage(bundle.series.conversionRate, 30),
-    d90: summarizeAverage(bundle.series.conversionRate, 90),
-  };
-  const aovAvg = {
-    d7: summarizeAverage(bundle.series.aov, 7),
-    d30: summarizeAverage(bundle.series.aov, 30),
-    d90: summarizeAverage(bundle.series.aov, 90),
-  };
+  const aovAvg = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
+    return {
+      d7: avgFromForecast(f, 7, 'aov'),
+      d30: avgFromForecast(f, 30, 'aov'),
+      d90: avgFromForecast(f, 90, 'aov'),
+    };
+  }, [apiData?.forecastSeries]);
 
   const gaConnected = gaConnections.length > 0 && !!selectedPropertyId;
-  const metaConnected = !!metaConnection && !!metaAccountId;
+  const metaConnected = !!metaConnection;
 
   return (
     <main className="min-h-screen bg-slate-100 py-28">
@@ -436,14 +391,24 @@ function PredictiveInsightsInner() {
 
         {hasSelectedShop && (
           <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-            <ForecastRevenueChart
-              title="Sales forecast (next 90 days)"
-              subtitle={`Showing last ${historyWindowDays} days only for context. Forecast begins after Today.`}
-              today={today}
-              currencyFormatter={currencyFormatter}
-              historical={chartHistorical}
-              forecast={bundle.series.revenue}
-            />
+            {apiLoading && !apiData ? (
+              <div className="py-10 text-center text-sm text-slate-600">
+                Loading forecast…
+              </div>
+            ) : apiError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                {apiError}
+              </div>
+            ) : (
+              <ForecastRevenueChart
+                title="Sales forecast (next 90 days)"
+                subtitle={`Showing last ${historyWindowDays} days only for context. Forecast begins after Today.`}
+                today={apiData?.today || new Date().toISOString().split('T')[0]}
+                currencyFormatter={currencyFormatter}
+                historical={chartHistorical}
+                forecast={forecastForChart}
+              />
+            )}
             <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="text-sm text-slate-600">
                 Revenue is calculated as{' '}
@@ -455,7 +420,7 @@ function PredictiveInsightsInner() {
               <Badge className="border border-slate-200 bg-slate-50 text-slate-700">
                 Confidence score:{' '}
                 <span className="ml-1 font-bold">
-                  {bundle.confidenceScore}/100
+                  {apiData?.confidenceScore ?? '—'}/100
                 </span>
               </Badge>
             </div>
@@ -630,42 +595,73 @@ function PredictiveInsightsInner() {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
-                  AI-written summary
+                  Debug + model summary
                 </h2>
                 <p className="text-sm text-slate-500">
-                  What’s likely to happen next, why, and key risks
+                  (Temporary) Verify daily joins + computed drivers
                 </p>
               </div>
             </div>
 
-            <div className="space-y-6 text-sm text-slate-700">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Outlook
-                </p>
-                <p className="mt-2 leading-relaxed">{narrative.outlook}</p>
+            {apiError ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                {apiError}
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Why
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  {narrative.why.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
+            ) : apiLoading ? (
+              <div className="text-sm text-slate-600">Loading forecast…</div>
+            ) : apiData?.debugMetrics ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Timezone
+                    </p>
+                    <p className="mt-2 font-semibold text-slate-900">
+                      {apiData.timezone}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Sessions MA7 / Slope14
+                    </p>
+                    <p className="mt-2 font-semibold text-slate-900">
+                      {apiData.debugMetrics.sessionsMA7 ?? '—'} /{' '}
+                      {apiData.debugMetrics.sessionsSlope14 ?? '—'}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      AOV baseline / CVR baseline
+                    </p>
+                    <p className="mt-2 font-semibold text-slate-900">
+                      {currencyFormatter(apiData.debugMetrics.aovBaseline)} /{' '}
+                      {apiData.debugMetrics.cvrBaseline != null
+                        ? `${(apiData.debugMetrics.cvrBaseline * 100).toFixed(2)}%`
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+                <details className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-slate-900">
+                    Show last 21 days join table + first 7 forecast points
+                  </summary>
+                  <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
+{JSON.stringify(
+  {
+    last21Days: apiData.debugMetrics.last21Days,
+    first7Forecast: apiData.debugMetrics.first7Forecast,
+  },
+  null,
+  2,
+)}
+                  </pre>
+                </details>
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Key risks
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  {narrative.risks.map((line, i) => (
-                    <li key={i}>{line}</li>
-                  ))}
-                </ul>
+            ) : (
+              <div className="text-sm text-slate-600">
+                Debug metrics are available in development mode.
               </div>
-            </div>
+            )}
           </Card>
         )}
       </div>
