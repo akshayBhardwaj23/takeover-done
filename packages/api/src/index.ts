@@ -4993,6 +4993,113 @@ Do NOT use placeholders like [Your Name], [Your Company], or [Your Contact Infor
       }
     }),
 
+  // Shopify daily sales series (for forecasting + short historical context)
+  getShopifySalesSeries: protectedProcedure
+    .input(
+      z.object({
+        shop: z.string().min(1),
+        days: z.number().min(14).max(120).default(30),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      try {
+        const connection = await prisma.connection.findFirst({
+          where: {
+            shopDomain: input.shop,
+            userId: ctx.userId,
+            type: 'SHOPIFY',
+          },
+        });
+
+        if (!connection) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'Shop access denied',
+          });
+        }
+
+        const now = new Date();
+        const startDay = new Date(now);
+        startDay.setDate(startDay.getDate() - (input.days - 1));
+        startDay.setHours(0, 0, 0, 0);
+
+        const endDay = new Date(now);
+        endDay.setHours(23, 59, 59, 999);
+
+        const orders = await prisma.order.findMany({
+          where: {
+            shopDomain: input.shop,
+            connectionId: connection.id,
+            createdAt: { gte: startDay, lte: endDay },
+          },
+          select: { createdAt: true, totalAmount: true, currency: true },
+        });
+
+        const revenueByDate = new Map<string, number>();
+        const ordersByDate = new Map<string, number>();
+        const currencyCounts = new Map<string, number>();
+
+        for (const o of orders) {
+          const dateStr = o.createdAt.toISOString().split('T')[0];
+          revenueByDate.set(
+            dateStr,
+            (revenueByDate.get(dateStr) || 0) + o.totalAmount / 100,
+          );
+          ordersByDate.set(dateStr, (ordersByDate.get(dateStr) || 0) + 1);
+          const curr = (o.currency || 'USD').toUpperCase();
+          currencyCounts.set(curr, (currencyCounts.get(curr) || 0) + 1);
+        }
+
+        let currency = 'USD';
+        let bestCount = 0;
+        for (const [curr, count] of currencyCounts.entries()) {
+          if (count > bestCount) {
+            bestCount = count;
+            currency = curr;
+          }
+        }
+
+        const series: Array<{
+          date: string;
+          revenue: number;
+          orders: number;
+          aov: number;
+        }> = [];
+
+        for (let i = 0; i < input.days; i++) {
+          const d = new Date(startDay);
+          d.setDate(d.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          const revenue = revenueByDate.get(dateStr) || 0;
+          const ordersCount = ordersByDate.get(dateStr) || 0;
+          const aov = ordersCount > 0 ? revenue / ordersCount : 0;
+          series.push({
+            date: dateStr,
+            revenue: Math.round(revenue * 100) / 100,
+            orders: ordersCount,
+            aov: Math.round(aov * 100) / 100,
+          });
+        }
+
+        return {
+          shop: input.shop,
+          days: input.days,
+          currency,
+          series,
+          lastUpdatedAt: new Date().toISOString(),
+        };
+      } catch (error: any) {
+        console.error('[Predictive Insights] Shopify series error:', error);
+        return {
+          shop: input.shop,
+          days: input.days,
+          currency: 'USD',
+          series: [],
+          lastUpdatedAt: new Date().toISOString(),
+        };
+      }
+    }),
+
   // Sentiment Analytics endpoints
   getSentimentAnalytics: protectedProcedure
     .input(
