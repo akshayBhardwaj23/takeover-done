@@ -17,7 +17,7 @@ export function ForecastRevenueChart(props: {
   today: string; // YYYY-MM-DD
   currencyFormatter: (n: number) => string;
   historical: Array<{ date: string; value: number }>;
-  forecast: ForecastBandPoint[]; // future dates only
+  forecast: ForecastBandPoint[]; // DAILY forecast values (future dates only)
 }) {
   const width = 960;
   const height = 320;
@@ -31,13 +31,30 @@ export function ForecastRevenueChart(props: {
   const model = useMemo(() => {
     const hist = props.historical;
     const fc = props.forecast;
-    const allDates = [...hist.map((p) => p.date), ...fc.map((p) => p.date)];
+
+    // Convert DAILY forecast into CUMULATIVE projection (tomorrow onward).
+    let cum = 0;
+    let cumBest = 0;
+    let cumWorst = 0;
+    const fcCum = fc.map((p) => {
+      cum += p.expected;
+      cumBest += p.best;
+      cumWorst += p.worst;
+      return {
+        date: p.date,
+        expected: cum,
+        best: cumBest,
+        worst: cumWorst,
+      };
+    });
+
+    const allDates = [...hist.map((p) => p.date), ...fcCum.map((p) => p.date)];
     const allValues = [
       ...hist.map((p) => p.value),
-      ...fc.map((p) => p.expected),
+      ...fcCum.map((p) => p.expected),
     ];
-    const allBest = [...hist.map((p) => p.value), ...fc.map((p) => p.best)];
-    const allWorst = [...hist.map((p) => p.value), ...fc.map((p) => p.worst)];
+    const allBest = [...hist.map((p) => p.value), ...fcCum.map((p) => p.best)];
+    const allWorst = [...hist.map((p) => p.value), ...fcCum.map((p) => p.worst)];
 
     const n = allDates.length;
     const innerW = width - margin.left - margin.right;
@@ -58,8 +75,8 @@ export function ForecastRevenueChart(props: {
     // - keep history only as context
     // - avoid a single spike flattening the forecast line
     const histVals = hist.map((p) => Math.max(0, p.value));
-    const fcHigh = fc.map((p) => Math.max(0, p.best));
-    const fcLow = fc.map((p) => Math.max(0, p.worst));
+    const fcHigh = fcCum.map((p) => Math.max(0, p.best));
+    const fcLow = fcCum.map((p) => Math.max(0, p.worst));
 
     const robustHistMax = quantile(histVals, 0.9);
     const robustHistMin = quantile(histVals, 0.05);
@@ -99,9 +116,8 @@ export function ForecastRevenueChart(props: {
         .join(' ');
 
     const histPath = pathFromPoints(pointsExpected.slice(0, histLen));
-    const forecastPath = pathFromPoints(
-      pointsExpected.slice(Math.max(0, histLen - 1)),
-    );
+    // Forecast starts AFTER today (tomorrow onward), so don't connect to historical.
+    const forecastPath = pathFromPoints(pointsExpected.slice(histLen));
 
     const bandUpper = pointsBest.slice(histLen);
     const bandLower = pointsWorst.slice(histLen).reverse();
@@ -206,7 +222,7 @@ export function ForecastRevenueChart(props: {
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span className="inline-flex items-center gap-2">
             <span className="h-0.5 w-6 rounded-full bg-slate-800" />
-            Actual (context)
+            Actual (daily, context)
           </span>
           <span className="inline-flex items-center gap-2">
             <span
@@ -216,7 +232,7 @@ export function ForecastRevenueChart(props: {
                   'repeating-linear-gradient(to right, rgb(79 70 229) 0 8px, transparent 8px 14px)',
               }}
             />
-            Forecast
+            Forecast (cumulative)
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-3 w-6 rounded bg-indigo-200/60" />
@@ -268,6 +284,17 @@ export function ForecastRevenueChart(props: {
           );
         })}
 
+        {/* Y axis label */}
+        <text
+          x={margin.left}
+          y={margin.top - 8}
+          fontSize="12"
+          fill="rgb(100 116 139)"
+          fontWeight={600}
+        >
+          Cumulative Revenue
+        </text>
+
         {/* Confidence band (forecast only) */}
         {model.bandPath ? (
           <path d={model.bandPath} fill="url(#piBand)" />
@@ -283,7 +310,7 @@ export function ForecastRevenueChart(props: {
           strokeLinecap="round"
         />
 
-        {/* Forecast expected (dotted) */}
+        {/* Forecast expected (dotted) - cumulative */}
         <path
           d={model.forecastPath}
           fill="none"
@@ -357,7 +384,7 @@ export function ForecastRevenueChart(props: {
                     fontSize="12"
                     fill="rgb(241 245 249)"
                   >
-                    {tooltip.isForecast ? 'Forecast: ' : 'Actual: '}
+                    {tooltip.isForecast ? 'Cumulative: ' : 'Actual: '}
                     {props.currencyFormatter(tooltip.expected)}
                   </text>
                   {tooltip.isForecast ? (
