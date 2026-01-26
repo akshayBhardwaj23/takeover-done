@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '../../lib/trpc';
@@ -62,14 +62,25 @@ function PredictiveInsightsInner() {
     staleTime: 0,
   });
 
-  const shopifyStores =
-    connections.data?.connections.filter((c: any) => c.type === 'SHOPIFY') || [];
-  const gaConnections =
-    connections.data?.connections.filter(
-      (c: any) => c.type === 'GOOGLE_ANALYTICS',
-    ) || [];
-  const metaConnection = (connections.data?.connections || []).find(
-    (c: any) => c.type === 'META_ADS',
+  const shopifyStores = useMemo(
+    () =>
+      connections.data?.connections.filter((c: any) => c.type === 'SHOPIFY') ||
+      [],
+    [connections.data?.connections],
+  );
+  const gaConnections = useMemo(
+    () =>
+      connections.data?.connections.filter(
+        (c: any) => c.type === 'GOOGLE_ANALYTICS',
+      ) || [],
+    [connections.data?.connections],
+  );
+  const metaConnection = useMemo(
+    () =>
+      (connections.data?.connections || []).find(
+        (c: any) => c.type === 'META_ADS',
+      ),
+    [connections.data?.connections],
   );
 
   // Auto-select first store if none selected
@@ -101,9 +112,12 @@ function PredictiveInsightsInner() {
       .split('T')[0];
   }, []);
 
+  const isConnectionsLoading = connections.isLoading;
+  const hasSelectedShop = !!selectedShop;
+
   const shopSeries = trpc.getShopifySalesSeries.useQuery(
     { shop: selectedShop, days: 30 },
-    { enabled: !!selectedShop },
+    { enabled: hasSelectedShop },
   );
 
   const gaData = trpc.getGoogleAnalyticsData.useQuery(
@@ -120,7 +134,8 @@ function PredictiveInsightsInner() {
     },
   );
 
-  const metaAccountId = metaConnection?.metadata?.adAccountId as
+  // Note: connection.metadata is Prisma JsonValue -> cast to avoid deep TS instantiation.
+  const metaAccountId = (metaConnection as any)?.metadata?.adAccountId as
     | string
     | undefined;
   const metaInsights = trpc.getMetaAdsInsights.useQuery(
@@ -137,97 +152,70 @@ function PredictiveInsightsInner() {
     },
   );
 
-  if (connections.isLoading) {
-    return (
-      <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl space-y-8 px-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <Sparkles className="h-6 w-6 text-slate-700" />
-            </div>
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900">
-                Predictive Insights
-              </h1>
-              <p className="text-sm text-slate-500">Loading connections…</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <StatsCardSkeleton key={i} />
-            ))}
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  if (!selectedShop) {
-    return (
-      <main className="min-h-screen bg-slate-100 py-28">
-        <div className="mx-auto max-w-6xl px-6">
-          <Card className="mx-auto max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
-              <Sparkles className="h-10 w-10 text-slate-500" />
-            </div>
-            <h2 className="mt-6 text-2xl font-bold text-slate-900">
-              No Shopify store connected
-            </h2>
-            <p className="mt-3 text-sm text-slate-500">
-              Connect Shopify to enable forward-looking sales forecasts.
-            </p>
-            <Link
-              href="/integrations"
-              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
-            >
-              Go to Integrations
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Card>
-        </div>
-      </main>
-    );
-  }
-
-  const currency = shopSeries.data?.currency || 'USD';
-  const currencyFormatter = (n: number) => formatCurrency(n, currency);
-
   const historyWindowDays = 21;
-  const historicalRevenue =
-    (shopSeries.data?.series || []).map((p: any) => ({
+  const currency = shopSeries.data?.currency || 'USD';
+  const currencyFormatter = useCallback(
+    (n: number) => formatCurrency(n, currency),
+    [currency],
+  );
+
+  const historicalRevenue = useMemo(() => {
+    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
       date: p.date as string,
       value: Number(p.revenue || 0),
-    })) || [];
-  const historicalOrders =
-    (shopSeries.data?.series || []).map((p: any) => ({
+    }));
+  }, [shopSeries.data?.series]);
+  const historicalOrders = useMemo(() => {
+    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
       date: p.date as string,
       value: Number(p.orders || 0),
-    })) || [];
-  const historicalAov =
-    (shopSeries.data?.series || []).map((p: any) => ({
+    }));
+  }, [shopSeries.data?.series]);
+  const historicalAov = useMemo(() => {
+    return ((shopSeries.data?.series || []) as any[]).map((p) => ({
       date: p.date as string,
       value: Number(p.aov || 0),
-    })) || [];
+    }));
+  }, [shopSeries.data?.series]);
 
-  const sessionsByDay =
-    (gaData.data?.trend || []).map((d: any) => ({
+  const sessionsByDay = useMemo(() => {
+    return ((gaData.data?.trend || []) as any[]).map((d) => ({
       date: d.date as string,
       value: Number(d.sessions || 0),
-    })) || [];
+    }));
+  }, [gaData.data?.trend]);
 
-  const metaTrend = metaInsights.data?.trend || [];
-  const metaClicksByDay = metaTrend.map((d: any) => ({
-    date: d.date as string,
-    value: Number(d.clicks || 0),
-  }));
-  const metaCtrByDay = metaTrend.map((d: any) => ({
-    date: d.date as string,
-    value: Number(d.impressions || 0) > 0 ? Number(d.clicks || 0) / Number(d.impressions || 1) : 0,
-  }));
-  const metaCpcByDay = metaTrend.map((d: any) => ({
-    date: d.date as string,
-    value: Number(d.clicks || 0) > 0 ? Number(d.spend || 0) / Number(d.clicks || 1) : 0,
-  }));
+  const metaTrend = useMemo(() => metaInsights.data?.trend || [], [metaInsights.data?.trend]);
+  const metaClicksByDay = useMemo(
+    () =>
+      (metaTrend as any[]).map((d) => ({
+        date: d.date as string,
+        value: Number(d.clicks || 0),
+      })),
+    [metaTrend],
+  );
+  const metaCtrByDay = useMemo(
+    () =>
+      (metaTrend as any[]).map((d) => ({
+        date: d.date as string,
+        value:
+          Number(d.impressions || 0) > 0
+            ? Number(d.clicks || 0) / Number(d.impressions || 1)
+            : 0,
+      })),
+    [metaTrend],
+  );
+  const metaCpcByDay = useMemo(
+    () =>
+      (metaTrend as any[]).map((d) => ({
+        date: d.date as string,
+        value:
+          Number(d.clicks || 0) > 0
+            ? Number(d.spend || 0) / Number(d.clicks || 1)
+            : 0,
+      })),
+    [metaTrend],
+  );
 
   const bundle = useMemo(() => {
     return buildForecastBundle({
@@ -255,7 +243,7 @@ function PredictiveInsightsInner() {
   ]);
 
   const metaSummary = useMemo(() => {
-    if (!metaTrend || metaTrend.length < 14) return null;
+    if (!metaTrend || metaTrend.length < 14) return undefined;
     const last7 = metaTrend.slice(-7);
     const prev7 = metaTrend.slice(-14, -7);
     const sum = (arr: any[], key: string) =>
@@ -275,9 +263,9 @@ function PredictiveInsightsInner() {
     const cpcPrev = clicksPrev > 0 ? spendPrev / clicksPrev : 0;
 
     return {
-      clicksTrendPct: percentChange(clicksLast, clicksPrev),
-      ctrTrendPct: percentChange(ctrLast, ctrPrev),
-      cpcTrendPct: percentChange(cpcLast, cpcPrev),
+      clicksTrendPct: percentChange(clicksLast, clicksPrev) ?? undefined,
+      ctrTrendPct: percentChange(ctrLast, ctrPrev) ?? undefined,
+      cpcTrendPct: percentChange(cpcLast, cpcPrev) ?? undefined,
     };
   }, [metaTrend]);
 
@@ -285,11 +273,14 @@ function PredictiveInsightsInner() {
     return generatePredictiveSummary({
       bundle,
       currencyFormatter,
-      meta: metaSummary || undefined,
+      meta: metaSummary,
     });
   }, [bundle, currencyFormatter, metaSummary]);
 
-  const chartHistorical = historicalRevenue.slice(-historyWindowDays);
+  const chartHistorical = useMemo(
+    () => historicalRevenue.slice(-historyWindowDays),
+    [historicalRevenue, historyWindowDays],
+  );
 
   const revenueTotals = {
     d7: summarizeTotals(bundle.series.revenue, 7),
@@ -318,6 +309,45 @@ function PredictiveInsightsInner() {
   return (
     <main className="min-h-screen bg-slate-100 py-28">
       <div className="mx-auto max-w-6xl space-y-10 px-6">
+        {isConnectionsLoading ? (
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <Sparkles className="h-6 w-6 text-slate-700" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-slate-900">
+                  Predictive Insights
+                </h1>
+                <p className="text-sm text-slate-500">Loading connections…</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <StatsCardSkeleton key={i} />
+              ))}
+            </div>
+          </div>
+        ) : !hasSelectedShop ? (
+          <Card className="mx-auto max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
+              <Sparkles className="h-10 w-10 text-slate-500" />
+            </div>
+            <h2 className="mt-6 text-2xl font-bold text-slate-900">
+              No Shopify store connected
+            </h2>
+            <p className="mt-3 text-sm text-slate-500">
+              Connect Shopify to enable forward-looking sales forecasts.
+            </p>
+            <Link
+              href="/integrations"
+              className="mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-white transition hover:bg-black"
+            >
+              Go to Integrations
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Card>
+        ) : (
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -376,8 +406,9 @@ function PredictiveInsightsInner() {
             </div>
           </div>
         </header>
+        )}
 
-        {(!gaConnected || !metaConnected) && (
+        {hasSelectedShop && (!gaConnected || !metaConnected) && (
           <Card className="rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="rounded-full bg-white/80 p-2">
@@ -403,30 +434,36 @@ function PredictiveInsightsInner() {
           </Card>
         )}
 
-        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <ForecastRevenueChart
-            title="Sales forecast (next 90 days)"
-            subtitle={`Showing last ${historyWindowDays} days only for context. Forecast begins after Today.`}
-            today={today}
-            currencyFormatter={currencyFormatter}
-            historical={chartHistorical}
-            forecast={bundle.series.revenue}
-          />
-          <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-slate-600">
-              Revenue is calculated as{' '}
-              <span className="font-semibold text-slate-900">
-                sessions × conversion rate × AOV
-              </span>
-              . Past data is included only to anchor the projection.
+        {hasSelectedShop && (
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <ForecastRevenueChart
+              title="Sales forecast (next 90 days)"
+              subtitle={`Showing last ${historyWindowDays} days only for context. Forecast begins after Today.`}
+              today={today}
+              currencyFormatter={currencyFormatter}
+              historical={chartHistorical}
+              forecast={bundle.series.revenue}
+            />
+            <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-slate-600">
+                Revenue is calculated as{' '}
+                <span className="font-semibold text-slate-900">
+                  sessions × conversion rate × AOV
+                </span>
+                . Past data is included only to anchor the projection.
+              </div>
+              <Badge className="border border-slate-200 bg-slate-50 text-slate-700">
+                Confidence score:{' '}
+                <span className="ml-1 font-bold">
+                  {bundle.confidenceScore}/100
+                </span>
+              </Badge>
             </div>
-            <Badge className="border border-slate-200 bg-slate-50 text-slate-700">
-              Confidence score: <span className="ml-1 font-bold">{bundle.confidenceScore}/100</span>
-            </Badge>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        <div className="grid gap-6 md:grid-cols-2">
+        {hasSelectedShop && (
+          <div className="grid gap-6 md:grid-cols-2">
           <Card className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -583,51 +620,54 @@ function PredictiveInsightsInner() {
             </div>
           </Card>
         </div>
+        )}
 
-        <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 p-3">
-              <Sparkles className="h-6 w-6 text-indigo-700" />
+        {hasSelectedShop && (
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 p-3">
+                <Sparkles className="h-6 w-6 text-indigo-700" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  AI-written summary
+                </h2>
+                <p className="text-sm text-slate-500">
+                  What’s likely to happen next, why, and key risks
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-semibold text-slate-900">
-                AI-written summary
-              </h2>
-              <p className="text-sm text-slate-500">
-                What’s likely to happen next, why, and key risks
-              </p>
-            </div>
-          </div>
 
-          <div className="space-y-6 text-sm text-slate-700">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Outlook
-              </p>
-              <p className="mt-2 leading-relaxed">{narrative.outlook}</p>
+            <div className="space-y-6 text-sm text-slate-700">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Outlook
+                </p>
+                <p className="mt-2 leading-relaxed">{narrative.outlook}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Why
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {narrative.why.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Key risks
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {narrative.risks.map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Why
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                {narrative.why.map((line, i) => (
-                  <li key={i}>{line}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Key risks
-              </p>
-              <ul className="mt-2 list-disc space-y-1 pl-5">
-                {narrative.risks.map((line, i) => (
-                  <li key={i}>{line}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
       </div>
     </main>
   );
