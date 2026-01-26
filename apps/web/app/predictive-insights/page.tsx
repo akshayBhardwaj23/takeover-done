@@ -419,8 +419,8 @@ function PredictiveInsightsInner() {
               </div>
             ) : (
               <ForecastRevenueChart
-                title="Sales forecast (next 90 days)"
-                subtitle={`Showing last ${historyWindowDays} days only for context. Forecast begins after Today.`}
+                title="Projected revenue growth (next 90 days)"
+                subtitle={`Last ${historyWindowDays} days show actual daily revenue for context. Forecast is cumulative from tomorrow.`}
                 today={apiData?.today || new Date().toISOString().split('T')[0]}
                 currencyFormatter={currencyFormatter}
                 historical={chartHistorical}
