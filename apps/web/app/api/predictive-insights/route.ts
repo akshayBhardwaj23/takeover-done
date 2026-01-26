@@ -29,11 +29,22 @@ type ForecastPoint = {
 type DebugMetrics = {
   timezone: string;
   last21Days: Array<Pick<ActualPoint, 'date' | 'revenue' | 'orders' | 'sessions' | 'aov' | 'cvr'>>;
+  last30Revenue: number;
+  last30Orders: number;
+  last30Aov: number;
   sessionsMA7: number | null;
   sessionsSlope14: number | null;
   cvrBaseline: number | null;
   aovBaseline: number;
   volatilityK: number;
+  confidence?: {
+    daysWithShopify: number;
+    daysWithGA: number;
+    completenessFactor: number;
+    stabilityFactor: number;
+    sampleFactor: number;
+    coefVarRevenue: number;
+  };
   meta?: {
     clicksMA7?: number;
     clicksSlope14?: number;
@@ -468,9 +479,20 @@ export async function GET(req: NextRequest) {
   const orders = await prisma.order.findMany({
     where: {
       connectionId: shopifyConnection.id,
-      createdAt: { gte: new Date(startUtcMs), lt: new Date(endExclusiveUtcMs) },
+      OR: [
+        { processedAt: { gte: new Date(startUtcMs), lt: new Date(endExclusiveUtcMs) } },
+        { processedAt: null, createdAt: { gte: new Date(startUtcMs), lt: new Date(endExclusiveUtcMs) } },
+      ],
     },
-    select: { createdAt: true, totalAmount: true, currency: true },
+    select: {
+      createdAt: true,
+      processedAt: true,
+      totalAmount: true,
+      currency: true,
+      status: true,
+      name: true,
+      email: true,
+    },
   });
 
   const revenueByDay = new Map<string, number>();
@@ -481,7 +503,15 @@ export async function GET(req: NextRequest) {
   }
 
   for (const o of orders) {
-    const key = fmtKey(o.createdAt);
+    const status = String(o.status || '').toLowerCase();
+    const name = String(o.name || '').toLowerCase();
+    const email = String(o.email || '').toLowerCase();
+    // Exclude cancelled/void/test-ish orders (MVP heuristic).
+    if (status.includes('cancel') || status.includes('void')) continue;
+    if (name.includes('test') || email.includes('example.com')) continue;
+
+    const ts = (o.processedAt as Date | null) ?? o.createdAt;
+    const key = fmtKey(ts);
     revenueByDay.set(key, (revenueByDay.get(key) || 0) + o.totalAmount / 100);
     ordersByDay.set(key, (ordersByDay.get(key) || 0) + 1);
   }
@@ -524,8 +554,20 @@ export async function GET(req: NextRequest) {
     const ord = ordersByDay.get(date) || 0;
     const sessions = gaSessionsByDay?.get(date) ?? 0;
     const aov = ord > 0 ? Math.round(((rev / ord) + Number.EPSILON) * 100) / 100 : 0;
+    let cvrRaw: number | null = null;
+    if (gaFetched && sessions > 0) {
+      cvrRaw = ord / sessions;
+      if (cvrRaw > 0.5) {
+        console.error('[Predictive Insights] CVR scale wrong:', {
+          date,
+          orders: ord,
+          sessions,
+          cvrRaw,
+        });
+      }
+    }
     const cvr =
-      gaFetched && sessions > 0 ? clamp(ord / sessions, 0, 0.2) : null;
+      cvrRaw != null ? clamp(cvrRaw, 0, 0.2) : null;
     return { date, revenue: rev, orders: ord, sessions, aov, cvr };
   });
 
@@ -678,7 +720,8 @@ export async function GET(req: NextRequest) {
   const daysWithGA = gaFetched ? days30 : 0;
   const completenessFactor =
     ((daysWithGA / days30) + (daysWithShopify / days30)) / 2;
-  const stabilityFactor = 1 - clamp(coefVar, 0, 1);
+  // Avoid "0 confidence" just because the series is spiky; keep stability explainable but not binary.
+  const stabilityFactor = clamp(1 - clamp(coefVar, 0, 1), 0.15, 1);
   const sampleFactor = clamp(actualSeries.length / 30, 0.3, 1);
   const confidenceScore = clamp(
     Math.round(100 * completenessFactor * stabilityFactor * sampleFactor),
@@ -686,15 +729,42 @@ export async function GET(req: NextRequest) {
     100,
   );
 
+  if (confidenceScore === 0 && actualSeries.length > 0) {
+    console.warn('[Predictive Insights] Confidence is 0 despite data:', {
+      daysWithShopify,
+      daysWithGA,
+      completenessFactor,
+      stabilityFactor,
+      sampleFactor,
+      coefVarRevenue: coefVar,
+    });
+  }
+
+  const last30 = actualSeries.slice(-30);
+  const last30Revenue = last30.reduce((s, p) => s + p.revenue, 0);
+  const last30Orders = last30.reduce((s, p) => s + p.orders, 0);
+  const last30Aov = last30Orders > 0 ? last30Revenue / last30Orders : 0;
+
   const debugMetrics: DebugMetrics | undefined = debugEnabled
     ? {
         timezone: timeZone,
         last21Days: actualSeries.slice(-21),
+        last30Revenue: Math.round(last30Revenue * 100) / 100,
+        last30Orders,
+        last30Aov: Math.round(last30Aov * 100) / 100,
         sessionsMA7,
         sessionsSlope14,
         cvrBaseline,
         aovBaseline,
         volatilityK,
+        confidence: {
+          daysWithShopify,
+          daysWithGA,
+          completenessFactor,
+          stabilityFactor,
+          sampleFactor,
+          coefVarRevenue: coefVar,
+        },
         meta: metaDebug,
         first7Forecast: forecastSeries.slice(0, 7),
       }
