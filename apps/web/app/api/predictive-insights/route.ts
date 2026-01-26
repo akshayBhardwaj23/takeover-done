@@ -55,6 +55,14 @@ type DebugMetrics = {
   first7Forecast: ForecastPoint[];
 };
 
+type DriverVolatility = {
+  sessionsCoefVar: number | null;
+  cvrCoefVar: number | null;
+  aovCoefVar: number;
+  revenueCoefVar: number;
+  volatilityK: number;
+};
+
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
 }
@@ -671,6 +679,34 @@ export async function GET(req: NextRequest) {
   const coefVar = revMean > 0 ? stdev(rev30) / revMean : 1;
   const volatilityK = clamp(coefVar, 0.05, 0.35);
 
+  // Driver volatilities (last 30 days)
+  const last30Actual = actualSeries.slice(-30);
+  const sessions30 = last30Actual.map((p) => p.sessions);
+  const sessions30Mean = mean(sessions30);
+  const sessionsCoefVar =
+    gaFetched && sessions30Mean > 0 ? stdev(sessions30) / sessions30Mean : null;
+
+  const cvr30 = last30Actual
+    .map((p) => p.cvr)
+    .filter((v): v is number => typeof v === 'number');
+  const cvr30Mean = mean(cvr30);
+  const cvrCoefVar =
+    gaFetched && cvr30Mean > 0 ? stdev(cvr30) / cvr30Mean : null;
+
+  const aov30 = last30Actual
+    .filter((p) => p.orders > 0 && p.aov > 0)
+    .map((p) => p.aov);
+  const aov30Mean = mean(aov30);
+  const aovCoefVar = aov30Mean > 0 ? stdev(aov30) / aov30Mean : 1;
+
+  const driverVolatility: DriverVolatility = {
+    sessionsCoefVar: sessionsCoefVar != null ? clamp(sessionsCoefVar, 0, 2) : null,
+    cvrCoefVar: cvrCoefVar != null ? clamp(cvrCoefVar, 0, 3) : null,
+    aovCoefVar: clamp(aovCoefVar, 0, 3),
+    revenueCoefVar: clamp(coefVar, 0, 3),
+    volatilityK,
+  };
+
   const forecastSeries: ForecastPoint[] = [];
 
   if (gaFetched && sessionsMA7 != null && sessionsSlope14 != null && cvrBaseline != null) {
@@ -778,6 +814,7 @@ export async function GET(req: NextRequest) {
     actualSeries,
     forecastSeries,
     confidenceScore,
+    driverVolatility,
     debugMetrics,
   });
 }

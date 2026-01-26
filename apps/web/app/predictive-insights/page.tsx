@@ -8,7 +8,13 @@ import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { ArrowRight, Sparkles, TrendingUp, AlertTriangle } from 'lucide-react';
 import { ForecastRevenueChart } from './components/ForecastRevenueChart';
+import { WhatIfCumulativeChart } from './components/WhatIfCumulativeChart';
 import { StatsCardSkeleton } from '../../components/SkeletonLoaders';
+import {
+  computeScenario,
+  defaultScenarioConfig,
+  type ScenarioConfig,
+} from '../../lib/what-if/scenario';
 
 function formatCurrency(amount: number, currencyCode: string): string {
   try {
@@ -50,6 +56,13 @@ type ApiResponse = {
   actualSeries: ApiActualPoint[];
   forecastSeries: ApiForecastPoint[];
   confidenceScore: number;
+  driverVolatility?: {
+    sessionsCoefVar: number | null;
+    cvrCoefVar: number | null;
+    aovCoefVar: number;
+    revenueCoefVar: number;
+    volatilityK: number;
+  };
   debugMetrics?: any;
 };
 
@@ -164,6 +177,14 @@ function PredictiveInsightsInner() {
   const [apiData, setApiData] = useState<ApiResponse | null>(null);
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [scenarioConfig, setScenarioConfig] = useState<ScenarioConfig>(
+    defaultScenarioConfig(),
+  );
+  const [scenarioName, setScenarioName] = useState<string>('My scenario');
+  const [aiExplainLoading, setAiExplainLoading] = useState(false);
+  const [aiExplainText, setAiExplainText] = useState<string | null>(null);
+  const [savingScenario, setSavingScenario] = useState(false);
+  const [savedScenarios, setSavedScenarios] = useState<any[]>([]);
 
   useEffect(() => {
     if (!hasSelectedShop) return;
@@ -188,6 +209,30 @@ function PredictiveInsightsInner() {
         if (!cancelled) setApiError(e?.message || 'Failed to load forecast');
       } finally {
         if (!cancelled) setApiLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasSelectedShop, selectedShop]);
+
+  // Load saved scenarios (dev/power-user)
+  useEffect(() => {
+    if (!hasSelectedShop) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const res = await fetch(
+          `/api/predictive-insights/scenarios?shop=${encodeURIComponent(
+            selectedShop,
+          )}`,
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { scenarios?: any[] };
+        if (!cancelled) setSavedScenarios(json.scenarios || []);
+      } catch {
+        // ignore
       }
     };
     run();
@@ -278,6 +323,54 @@ function PredictiveInsightsInner() {
       last30Aov,
     };
   }, [apiData?.actualSeries]);
+
+  const baseForecastDays = useMemo(() => {
+    const f = apiData?.forecastSeries || [];
+    return f.map((d) => ({
+      date: d.date,
+      sessions: d.sessions,
+      cvr: d.cvr,
+      aov: d.aov,
+      revenue: d.revenue,
+      revenueLow: d.revenueLow,
+      revenueHigh: d.revenueHigh,
+    }));
+  }, [apiData?.forecastSeries]);
+
+  const whatIf = useMemo(() => {
+    if (!apiData) return null;
+    const k = apiData.driverVolatility?.volatilityK ?? 0.25;
+    return computeScenario({
+      base: baseForecastDays,
+      config: scenarioConfig,
+      volatilityK: k,
+      driverVolatility: {
+        sessionsCoefVar: apiData.driverVolatility?.sessionsCoefVar ?? null,
+        cvrCoefVar: apiData.driverVolatility?.cvrCoefVar ?? null,
+        aovCoefVar: apiData.driverVolatility?.aovCoefVar ?? 0.8,
+      },
+      metaConnected,
+    });
+  }, [apiData, baseForecastDays, metaConnected, scenarioConfig]);
+
+  const whatIfChartPoints = useMemo(() => {
+    if (!whatIf) return [];
+    return whatIf.days.map((d) => ({
+      date: d.date,
+      baseCumRevenue: d.cumulative.baseRevenue,
+      scenarioCumRevenue: d.cumulative.scenarioRevenue,
+      baseCumLow: d.cumulative.baseRevenueLow,
+      baseCumHigh: d.cumulative.baseRevenueHigh,
+      scenarioCumLow: d.cumulative.scenarioRevenueLow,
+      scenarioCumHigh: d.cumulative.scenarioRevenueHigh,
+      baseCumOrders: d.cumulative.baseOrders,
+      scenarioCumOrders: d.cumulative.scenarioOrders,
+      baseCumSessions: d.cumulative.baseSessions,
+      scenarioCumSessions: d.cumulative.scenarioSessions,
+      scenarioDayAov: d.scenario.aov,
+      scenarioDayCvr: d.scenario.cvr,
+    }));
+  }, [whatIf]);
 
   return (
     <main className="min-h-screen bg-slate-100 py-28">
@@ -441,6 +534,493 @@ function PredictiveInsightsInner() {
                   {apiData?.confidenceScore ?? '—'}/100
                 </span>
               </Badge>
+            </div>
+          </Card>
+        )}
+
+        {/* What-If Planner */}
+        {hasSelectedShop && apiData && whatIf && (
+          <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-gradient-to-br from-indigo-100 to-cyan-100 p-3">
+                  <TrendingUp className="h-6 w-6 text-indigo-700" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    What-If Planner
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Scenario is layered on top of the base forecast (base remains unchanged)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="border border-slate-200 bg-slate-50 text-slate-700">
+                  Risk: <span className="ml-1 font-bold">{whatIf.risk.label}</span>
+                </Badge>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Controls */}
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Scenario name
+                  </p>
+                  <input
+                    value={scenarioName}
+                    onChange={(e) => setScenarioName(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    placeholder="e.g., Scale Meta + improve checkout"
+                  />
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    <button
+                      type="button"
+                      disabled={savingScenario}
+                      onClick={async () => {
+                        if (!apiData) return;
+                        setSavingScenario(true);
+                        try {
+                          const res = await fetch(
+                            '/api/predictive-insights/scenarios',
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                shop: selectedShop,
+                                name: scenarioName,
+                                config: scenarioConfig,
+                                outputs: {
+                                  totals: whatIf.totals,
+                                  risk: whatIf.risk,
+                                },
+                              }),
+                            },
+                          );
+                          if (res.ok) {
+                            const list = await fetch(
+                              `/api/predictive-insights/scenarios?shop=${encodeURIComponent(selectedShop)}`,
+                            );
+                            if (list.ok) {
+                              const json = await list.json();
+                              setSavedScenarios(json.scenarios || []);
+                            }
+                          }
+                        } finally {
+                          setSavingScenario(false);
+                        }
+                      }}
+                      className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                    >
+                      {savingScenario ? 'Saving…' : 'Save scenario'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={aiExplainLoading}
+                      onClick={async () => {
+                        if (!apiData || !whatIf) return;
+                        setAiExplainLoading(true);
+                        setAiExplainText(null);
+                        try {
+                          const res = await fetch(
+                            '/api/predictive-insights/what-if-explain',
+                            {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                shop: apiData.shop,
+                                currency: apiData.currency,
+                                config: scenarioConfig,
+                                totals: whatIf.totals,
+                                risk: whatIf.risk,
+                              }),
+                            },
+                          );
+                          const json = await res.json();
+                          const text =
+                            json?.explanation?.text ??
+                            json?.explanation?.summary ??
+                            JSON.stringify(json?.explanation ?? {}, null, 2);
+                          setAiExplainText(text);
+                        } catch (e: any) {
+                          setAiExplainText(e?.message || 'Failed to generate explanation');
+                        } finally {
+                          setAiExplainLoading(false);
+                        }
+                      }}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {aiExplainLoading ? 'Generating…' : 'Generate AI explanation'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Traffic & Acquisition
+                  </p>
+                  <div className="mt-3 space-y-3 text-sm">
+                    {[
+                      { key: 'metaSpendChangePct', label: 'Meta ad spend change (%)', min: -100, max: 300 },
+                      { key: 'cpcChangePct', label: 'CPC change (%)', min: -80, max: 200 },
+                      { key: 'organicTrafficGrowthPct', label: 'Organic traffic growth (%)', min: -100, max: 300 },
+                      { key: 'emailTrafficGrowthPct', label: 'Email traffic growth (%)', min: -100, max: 300 },
+                    ].map((f: any) => (
+                      <label key={f.key} className="block">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-700">{f.label}</span>
+                          <span className="font-semibold text-slate-900">
+                            {(scenarioConfig as any)[f.key]}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={f.min}
+                          max={f.max}
+                          value={(scenarioConfig as any)[f.key]}
+                          onChange={(e) =>
+                            setScenarioConfig((s) => ({
+                              ...s,
+                              [f.key]: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-2 w-full"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Conversion & Funnel
+                  </p>
+                  <div className="mt-3 space-y-3 text-sm">
+                    {[
+                      { key: 'overallCvrUpliftPct', label: 'Overall CVR uplift (%)', min: -80, max: 200 },
+                      { key: 'mobileCvrUpliftPct', label: 'Mobile CVR uplift (%)', min: -80, max: 200 },
+                      { key: 'checkoutCompletionUpliftPct', label: 'Checkout completion uplift (%)', min: -80, max: 200 },
+                    ].map((f: any) => (
+                      <label key={f.key} className="block">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-700">{f.label}</span>
+                          <span className="font-semibold text-slate-900">
+                            {(scenarioConfig as any)[f.key]}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={f.min}
+                          max={f.max}
+                          value={(scenarioConfig as any)[f.key]}
+                          onChange={(e) =>
+                            setScenarioConfig((s) => ({
+                              ...s,
+                              [f.key]: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-2 w-full"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Revenue Quality
+                  </p>
+                  <div className="mt-3 space-y-3 text-sm">
+                    {[
+                      { key: 'aovChangePct', label: 'AOV increase (%)', min: -80, max: 200 },
+                      { key: 'discountIntensityChangePct', label: 'Discount intensity change (%)', min: -50, max: 200 },
+                      { key: 'refundRateChangePct', label: 'Refund rate change (%)', min: -30, max: 200 },
+                    ].map((f: any) => (
+                      <label key={f.key} className="block">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-700">{f.label}</span>
+                          <span className="font-semibold text-slate-900">
+                            {(scenarioConfig as any)[f.key]}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={f.min}
+                          max={f.max}
+                          value={(scenarioConfig as any)[f.key]}
+                          onChange={(e) =>
+                            setScenarioConfig((s) => ({
+                              ...s,
+                              [f.key]: Number(e.target.value),
+                            }))
+                          }
+                          className="mt-2 w-full"
+                        />
+                      </label>
+                    ))}
+
+                    <label className="block">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-700">AOV increase (absolute)</span>
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter(scenarioConfig.aovChangeAbsolute)}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        value={scenarioConfig.aovChangeAbsolute}
+                        onChange={(e) =>
+                          setScenarioConfig((s) => ({
+                            ...s,
+                            aovChangeAbsolute: Number(e.target.value || 0),
+                          }))
+                        }
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Constraints
+                  </p>
+                  <div className="mt-3 space-y-3 text-sm">
+                    <label className="block">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-700">Inventory cap (max orders/day)</span>
+                        <span className="font-semibold text-slate-900">
+                          {scenarioConfig.inventoryCapOrdersPerDay ?? '—'}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        value={scenarioConfig.inventoryCapOrdersPerDay ?? ''}
+                        placeholder="(empty = no cap)"
+                        onChange={(e) =>
+                          setScenarioConfig((s) => ({
+                            ...s,
+                            inventoryCapOrdersPerDay:
+                              e.target.value === '' ? null : Number(e.target.value),
+                          }))
+                        }
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-700">SKU stock-out date</span>
+                        <span className="font-semibold text-slate-900">
+                          {scenarioConfig.stockOutDate ?? '—'}
+                        </span>
+                      </div>
+                      <input
+                        type="date"
+                        value={scenarioConfig.stockOutDate ?? ''}
+                        onChange={(e) =>
+                          setScenarioConfig((s) => ({
+                            ...s,
+                            stockOutDate: e.target.value === '' ? null : e.target.value,
+                          }))
+                        }
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setScenarioConfig(defaultScenarioConfig())}
+                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Reset scenario
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart + outputs */}
+              <div className="lg:col-span-2 space-y-6">
+                <WhatIfCumulativeChart
+                  title="Scenario vs base (cumulative, next 90 days)"
+                  subtitle="Base is muted. Scenario is highlighted. Shaded area is the delta."
+                  currencyFormatter={currencyFormatter}
+                  points={whatIfChartPoints}
+                />
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  {whatIf.totals.map((t) => (
+                    <div
+                      key={t.horizonDays}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {t.horizonDays} days
+                      </p>
+                      <p className="mt-2 text-sm text-slate-600">
+                        Revenue:{' '}
+                        <span className="font-semibold text-slate-900">
+                          {currencyFormatter(t.base.revenue)}
+                        </span>{' '}
+                        <span className="text-slate-500">→</span>{' '}
+                        <span className="font-semibold text-indigo-700">
+                          {currencyFormatter(t.scenario.revenue)}
+                        </span>{' '}
+                        {t.uplift.revenuePct == null ? null : (
+                          <span className="text-slate-500">
+                            ({t.uplift.revenuePct >= 0 ? '+' : ''}
+                            {t.uplift.revenuePct.toFixed(1)}%)
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-600">
+                        Orders:{' '}
+                        <span className="font-semibold text-slate-900">
+                          {Math.round(t.base.orders).toLocaleString()}
+                        </span>{' '}
+                        <span className="text-slate-500">→</span>{' '}
+                        <span className="font-semibold text-indigo-700">
+                          {Math.round(t.scenario.orders).toLocaleString()}
+                        </span>{' '}
+                        {t.uplift.ordersPct == null ? null : (
+                          <span className="text-slate-500">
+                            ({t.uplift.ordersPct >= 0 ? '+' : ''}
+                            {t.uplift.ordersPct.toFixed(1)}%)
+                          </span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Sessions:{' '}
+                        {Math.round(t.base.sessions).toLocaleString()} →{' '}
+                        {Math.round(t.scenario.sessions).toLocaleString()}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        AOV: {currencyFormatter(t.base.aovAvg)} →{' '}
+                        {currencyFormatter(t.scenario.aovAvg)}
+                        {' · '}CVR:{' '}
+                        {t.base.cvrAvg == null
+                          ? '—'
+                          : `${(t.base.cvrAvg * 100).toFixed(2)}%`}{' '}
+                        →{' '}
+                        {t.scenario.cvrAvg == null
+                          ? '—'
+                          : `${(t.scenario.cvrAvg * 100).toFixed(2)}%`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {(() => {
+                  const t = whatIf.totals.find((x) => x.horizonDays === 30);
+                  if (!t) return null;
+                  const revDelta = t.scenario.revenue - t.base.revenue;
+                  const ordersDelta = t.scenario.orders - t.base.orders;
+                  const aovDelta = t.scenario.aovAvg - t.base.aovAvg;
+                  const driverHint =
+                    Math.abs(aovDelta) * Math.max(1, t.scenario.orders) >
+                    Math.abs(ordersDelta) * Math.max(1, t.scenario.aovAvg)
+                      ? 'AOV-driven'
+                      : 'Orders-driven';
+                  return (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        30‑day delta breakdown (drivers)
+                      </p>
+                      <div className="mt-2 grid gap-3 md:grid-cols-4 text-sm text-slate-700">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Sessions Δ
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {Math.round(t.scenario.sessions - t.base.sessions).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Orders Δ
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {Math.round(ordersDelta).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            AOV Δ
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {currencyFormatter(aovDelta)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Revenue Δ
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {currencyFormatter(revDelta)}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {driverHint} change
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm font-semibold text-slate-900">
+                    Risk explanation
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                    {whatIf.risk.reasons.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                  {aiExplainText ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+                      {aiExplainText}
+                    </div>
+                  ) : null}
+                </div>
+
+                {savedScenarios.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      Saved scenarios
+                    </p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      {savedScenarios.slice(0, 6).map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:bg-slate-50"
+                          onClick={() => {
+                            const cfg = s.payload?.config;
+                            if (cfg) setScenarioConfig(cfg);
+                            setScenarioName(s.payload?.name || 'Scenario');
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900">
+                              {s.payload?.name || 'Scenario'}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {new Date(s.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {s.payload?.outputs?.risk?.label
+                              ? `Risk: ${s.payload.outputs.risk.label}`
+                              : 'Saved'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         )}
