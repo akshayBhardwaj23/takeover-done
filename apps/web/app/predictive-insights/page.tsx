@@ -261,6 +261,24 @@ function PredictiveInsightsInner() {
   const gaConnected = gaConnections.length > 0 && !!selectedPropertyId;
   const metaConnected = !!metaConnection;
 
+  const debugLast21 = useMemo(() => {
+    const rows = apiData?.actualSeries || [];
+    return rows.slice(-21);
+  }, [apiData?.actualSeries]);
+
+  const debugLast30 = useMemo(() => {
+    const rows = apiData?.actualSeries || [];
+    const last30 = rows.slice(-30);
+    const last30Revenue = sum(last30.map((r) => r.revenue));
+    const last30Orders = sum(last30.map((r) => r.orders));
+    const last30Aov = last30Orders > 0 ? last30Revenue / last30Orders : 0;
+    return {
+      last30Revenue,
+      last30Orders,
+      last30Aov,
+    };
+  }, [apiData?.actualSeries]);
+
   return (
     <main className="min-h-screen bg-slate-100 py-28">
       <div className="mx-auto max-w-6xl space-y-10 px-6">
@@ -595,10 +613,10 @@ function PredictiveInsightsInner() {
               </div>
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">
-                  Debug + model summary
+                  Debug: daily join table (last 21 days)
                 </h2>
                 <p className="text-sm text-slate-500">
-                  (Temporary) Verify daily joins + computed drivers
+                  Dev-only. This is the exact dataset used for chart + computations.
                 </p>
               </div>
             </div>
@@ -609,12 +627,12 @@ function PredictiveInsightsInner() {
               </div>
             ) : apiLoading ? (
               <div className="text-sm text-slate-600">Loading forecast…</div>
-            ) : apiData?.debugMetrics ? (
-              <div className="space-y-4">
+            ) : apiData ? (
+              <div className="space-y-6">
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Timezone
+                      Timezone (canonical)
                     </p>
                     <p className="mt-2 font-semibold text-slate-900">
                       {apiData.timezone}
@@ -622,34 +640,84 @@ function PredictiveInsightsInner() {
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Sessions MA7 / Slope14
+                      last30Revenue / last30Orders / last30AOV
                     </p>
                     <p className="mt-2 font-semibold text-slate-900">
-                      {apiData.debugMetrics.sessionsMA7 ?? '—'} /{' '}
-                      {apiData.debugMetrics.sessionsSlope14 ?? '—'}
+                      {currencyFormatter(debugLast30.last30Revenue)} /{' '}
+                      {Math.round(debugLast30.last30Orders).toLocaleString()} /{' '}
+                      {currencyFormatter(debugLast30.last30Aov)}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      AOV baseline / CVR baseline
+                      Confidence
                     </p>
                     <p className="mt-2 font-semibold text-slate-900">
-                      {currencyFormatter(apiData.debugMetrics.aovBaseline)} /{' '}
-                      {apiData.debugMetrics.cvrBaseline != null
-                        ? `${(apiData.debugMetrics.cvrBaseline * 100).toFixed(2)}%`
-                        : '—'}
+                      {apiData.confidenceScore}/100
                     </p>
+                    {apiData.debugMetrics?.confidence && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        completeness={apiData.debugMetrics.confidence.completenessFactor.toFixed(2)}
+                        {' · '}stability={apiData.debugMetrics.confidence.stabilityFactor.toFixed(2)}
+                        {' · '}sample={apiData.debugMetrics.confidence.sampleFactor.toFixed(2)}
+                      </p>
+                    )}
                   </div>
                 </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">dateKey</th>
+                        <th className="px-4 py-3 font-semibold">shopifyRevenue</th>
+                        <th className="px-4 py-3 font-semibold">shopifyOrders</th>
+                        <th className="px-4 py-3 font-semibold">gaSessions</th>
+                        <th className="px-4 py-3 font-semibold">computedAOV</th>
+                        <th className="px-4 py-3 font-semibold">computedCVR</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {debugLast21.map((row) => (
+                        <tr key={row.date} className="text-slate-700">
+                          <td className="px-4 py-3 font-mono">{row.date}</td>
+                          <td className="px-4 py-3">
+                            {currencyFormatter(row.revenue)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.orders.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.sessions.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            {currencyFormatter(row.aov)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {row.cvr == null ? '—' : `${(row.cvr * 100).toFixed(2)}%`}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
                 <details className="rounded-2xl border border-slate-200 bg-white p-4">
                   <summary className="cursor-pointer text-sm font-semibold text-slate-900">
-                    Show last 21 days join table + first 7 forecast points
+                    Show first 7 forecast points (debug)
                   </summary>
                   <pre className="mt-3 max-h-[420px] overflow-auto rounded-xl bg-slate-950 p-4 text-xs text-slate-100">
 {JSON.stringify(
   {
-    last21Days: apiData.debugMetrics.last21Days,
-    first7Forecast: apiData.debugMetrics.first7Forecast,
+    first7Forecast: apiData.debugMetrics?.first7Forecast,
+    drivers: {
+      sessionsMA7: apiData.debugMetrics?.sessionsMA7,
+      sessionsSlope14: apiData.debugMetrics?.sessionsSlope14,
+      cvrBaseline: apiData.debugMetrics?.cvrBaseline,
+      aovBaseline: apiData.debugMetrics?.aovBaseline,
+      volatilityK: apiData.debugMetrics?.volatilityK,
+      meta: apiData.debugMetrics?.meta,
+    },
   },
   null,
   2,
