@@ -43,16 +43,42 @@ export function ForecastRevenueChart(props: {
     const innerW = width - margin.left - margin.right;
     const innerH = height - margin.top - margin.bottom;
 
-    const yMin = Math.min(...allWorst, 0);
-    const yMax = Math.max(...allBest, 1);
-    const pad = (yMax - yMin) * 0.12;
+    const quantile = (values: number[], q: number) => {
+      if (!values.length) return 0;
+      const sorted = [...values].sort((a, b) => a - b);
+      const pos = (sorted.length - 1) * q;
+      const base = Math.floor(pos);
+      const rest = pos - base;
+      const a = sorted[base] ?? 0;
+      const b = sorted[base + 1] ?? a;
+      return a + (b - a) * rest;
+    };
+
+    // Forecast-first scaling:
+    // - keep history only as context
+    // - avoid a single spike flattening the forecast line
+    const histVals = hist.map((p) => Math.max(0, p.value));
+    const fcHigh = fc.map((p) => Math.max(0, p.best));
+    const fcLow = fc.map((p) => Math.max(0, p.worst));
+
+    const robustHistMax = quantile(histVals, 0.9);
+    const robustHistMin = quantile(histVals, 0.05);
+    const forecastMax = fcHigh.length ? Math.max(...fcHigh) : 0;
+    const forecastMin = fcLow.length ? Math.min(...fcLow) : 0;
+
+    const yMin = Math.min(0, forecastMin, robustHistMin);
+    const yMax = Math.max(1, forecastMax, robustHistMax);
+    const pad = (yMax - yMin) * 0.14;
     const y0 = yMin - pad;
     const y1 = yMax + pad;
 
     const xForIndex = (i: number) =>
       margin.left + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
-    const yForValue = (v: number) =>
-      margin.top + (1 - (v - y0) / (y1 - y0 || 1)) * innerH;
+    const yForValue = (v: number) => {
+      // Clamp drawing to keep forecast readable (history is context).
+      const vv = Math.max(y0, Math.min(y1, v));
+      return margin.top + (1 - (vv - y0) / (y1 - y0 || 1)) * innerH;
+    };
 
     const histLen = hist.length;
     const todayIndex =
