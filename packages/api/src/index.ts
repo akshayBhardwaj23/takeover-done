@@ -8071,8 +8071,9 @@ Be specific, data-driven, and actionable.`;
         : '0.00';
 
     // Ensure campaigns and adsets arrays exist
-    const campaigns = adsData.campaigns || [];
-    const adsets = adsData.adsets || [];
+    // Filter out campaigns/adsets with zero spend (no activity in the time period)
+    const campaigns = (adsData.campaigns || []).filter(c => c.spend > 0);
+    const adsets = (adsData.adsets || []).filter(a => a.spend > 0);
 
     // Campaign analysis
     const campaignsToStop = campaigns
@@ -8116,7 +8117,13 @@ Be specific, data-driven, and actionable.`;
 
     const prompt = `You are an expert Meta Ads (Facebook Ads) consultant and performance marketer. Analyze the following Meta Ads account data for the last 30 days and provide a comprehensive review with actionable recommendations.
 
-Account Performance Data:
+IMPORTANT CONTEXT:
+- This analysis covers ONLY the last 30 days (${startDate} to ${endDate})
+- If account-level metrics show zero spend/impressions/clicks, it means there was NO advertising activity during this period
+- Only campaigns and ad sets with actual spend (> $0) in this period are included below
+- Campaigns with zero spend are excluded because they had no activity in this time period (they may be paused, ended, or not yet started)
+
+Account Performance Data (Last 30 Days):
 - Total Spend: $${adsData.spend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 - Impressions: ${adsData.impressions.toLocaleString()}
 - Clicks: ${adsData.clicks.toLocaleString()}
@@ -8131,17 +8138,17 @@ ${adsData.conversionValue ? `- Conversion Value: $${adsData.conversionValue.toLo
 ${adsData.reach ? `- Reach: ${adsData.reach.toLocaleString()}` : ''}
 ${adsData.frequency ? `- Frequency: ${adsData.frequency.toFixed(2)}` : ''}
 
-Campaigns Analysis:
-- Total Campaigns: ${campaigns.length}
-${campaigns.length > 0 ? `- All Campaigns Data:
-${campaigns.map((c) => `  * ID: ${c.id}, Name: ${c.name}, Status: ${c.status}, Spend: $${c.spend.toFixed(2)}, Impressions: ${c.impressions}, Clicks: ${c.clicks}, CTR: ${c.ctr.toFixed(2)}%, CPC: $${c.cpc.toFixed(2)}, ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Conversions: ${c.conversions || 0}`).join('\n')}` : '- No campaigns found'}
+Campaigns Analysis (Active in Last 30 Days):
+- Total Active Campaigns: ${campaigns.length}${campaigns.length === 0 ? ' - No campaigns had any spend in the last 30 days' : ''}
+${campaigns.length > 0 ? `- All Active Campaigns Data:
+${campaigns.map((c) => `  * ID: ${c.id}, Name: ${c.name}, Status: ${c.status}, Spend: $${c.spend.toFixed(2)}, Impressions: ${c.impressions}, Clicks: ${c.clicks}, CTR: ${c.ctr.toFixed(2)}%, CPC: $${c.cpc.toFixed(2)}, ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Conversions: ${c.conversions || 0}`).join('\n')}` : ''}
 - Campaigns to Consider Stopping: ${campaignsToStop.length}${campaignsToStop.length > 0 ? ` (${campaignsToStop.map((c) => `ID: ${c.id}, Name: ${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})` : ' (none)'}
 - Top Performing Campaigns to Scale: ${campaignsToScale.length}${campaignsToScale.length > 0 ? ` (${campaignsToScale.map((c) => `ID: ${c.id}, Name: ${c.name} (ROAS: ${c.roas?.toFixed(2) || 'N/A'}x, Spend: $${c.spend.toFixed(2)})`).join(', ')})` : ' (none)'}
 
-Ad Sets Analysis:
-- Total Ad Sets: ${adsets.length}
-${adsets.length > 0 ? `- All Ad Sets Data:
-${adsets.map((a) => `  * ID: ${a.id}, Name: ${a.name}, Campaign ID: ${a.campaignId}, Status: ${a.status}, Spend: $${a.spend.toFixed(2)}, Impressions: ${a.impressions}, Clicks: ${a.clicks}, CTR: ${a.ctr.toFixed(2)}%, CPC: $${a.cpc.toFixed(2)}, ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, Conversions: ${a.conversions || 0}`).join('\n')}` : '- No ad sets found'}
+Ad Sets Analysis (Active in Last 30 Days):
+- Total Active Ad Sets: ${adsets.length}${adsets.length === 0 ? ' - No ad sets had any spend in the last 30 days' : ''}
+${adsets.length > 0 ? `- All Active Ad Sets Data:
+${adsets.map((a) => `  * ID: ${a.id}, Name: ${a.name}, Campaign ID: ${a.campaignId}, Status: ${a.status}, Spend: $${a.spend.toFixed(2)}, Impressions: ${a.impressions}, Clicks: ${a.clicks}, CTR: ${a.ctr.toFixed(2)}%, CPC: $${a.cpc.toFixed(2)}, ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, Conversions: ${a.conversions || 0}`).join('\n')}` : ''}
 - Top Performing Ad Sets: ${topAdsets.length}${topAdsets.length > 0 ? ` (${topAdsets.map((a) => `ID: ${a.id}, Name: ${a.name} (ROAS: ${a.roas?.toFixed(2) || 'N/A'}x, CTR: ${a.ctr.toFixed(2)}%)`).join(', ')})` : ' (none)'}
 
 Provide a comprehensive review in the following JSON format:
@@ -8243,16 +8250,18 @@ Provide a comprehensive review in the following JSON format:
 }
 
 Focus on:
-1. Identifying campaigns that should be stopped (low ROAS, high spend with no conversions) - use the exact campaign IDs and names from the data above
-2. Highlighting campaigns that should be scaled (high ROAS, good performance) - use the exact campaign IDs and names from the data above
-3. Analyzing ad set performance and targeting issues - use the exact ad set IDs and names from the data above
-4. Providing budget reallocation recommendations
-5. Offering creative optimization tips based on CTR and engagement data
-6. Overall account health assessment
+1. If account shows zero spend/impressions/clicks: Clearly state there was NO advertising activity in the last 30 days. Do NOT mention "previous campaigns" or "low ROAS campaigns" if there's no activity. Instead, provide recommendations for starting new campaigns or reactivating paused ones.
+2. If campaigns/ad sets exist with activity: Identify campaigns that should be stopped (low ROAS, high spend with no conversions) - use the exact campaign IDs and names from the data above
+3. If campaigns/ad sets exist with activity: Highlight campaigns that should be scaled (high ROAS, good performance) - use the exact campaign IDs and names from the data above
+4. Analyzing ad set performance and targeting issues - use the exact ad set IDs and names from the data above
+5. Providing budget reallocation recommendations
+6. Offering creative optimization tips based on CTR and engagement data
+7. Overall account health assessment
 
 IMPORTANT: 
 - Use ONLY the campaign IDs and ad set IDs provided in the data above. Do not make up or guess IDs.
-- If no campaigns or ad sets are found, provide general account-level recommendations based on the account performance metrics.
+- If account-level metrics are zero AND no campaigns/ad sets are listed, it means there was NO activity in the last 30 days. In this case, do NOT mention "previous campaigns" or make recommendations about stopping/scaling campaigns. Instead, focus on recommendations for starting advertising or reactivating paused campaigns.
+- If campaigns/ad sets are listed, they all have activity (spend > 0) in the last 30 days.
 - Match campaign and ad set IDs exactly as shown in the data above.
 - Be specific, data-driven, and actionable.`;
 
