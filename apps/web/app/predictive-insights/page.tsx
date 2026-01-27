@@ -1293,11 +1293,13 @@ function PredictiveInsightsInner() {
     drivers: {
       sessionsMA7: apiData.debugMetrics?.sessionsMA7,
       sessionsSlope14: apiData.debugMetrics?.sessionsSlope14,
+      minSessionsFloor: apiData.debugMetrics?.minSessionsFloor,
       cvrBaseline: apiData.debugMetrics?.cvrBaseline,
       aovBaseline: apiData.debugMetrics?.aovBaseline,
       volatilityK: apiData.debugMetrics?.volatilityK,
       meta: apiData.debugMetrics?.meta,
     },
+    checkpoints: apiData.debugMetrics?.checkpoints,
   },
   null,
   2,
