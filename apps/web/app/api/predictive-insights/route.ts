@@ -829,6 +829,7 @@ export async function GET(req: NextRequest) {
       ? last30Orders / last30SessionsTotal
       : null;
   const baseAovLast30 = last30Orders > 0 ? last30Revenue / last30Orders : 0;
+  const last30Aov = baseAovLast30;
 
   const runRateRevenuePerDay =
     baseSessionsLast30 != null && baseCvrLast30 != null
@@ -907,11 +908,6 @@ export async function GET(req: NextRequest) {
       coefVarRevenue: coefVar,
     });
   }
-
-  const last30 = actualSeries.slice(-30);
-  const last30Revenue = last30.reduce((s, p) => s + p.revenue, 0);
-  const last30Orders = last30.reduce((s, p) => s + p.orders, 0);
-  const last30Aov = last30Orders > 0 ? last30Revenue / last30Orders : 0;
 
   const confidenceReasons: string[] = [];
   if (last30Orders < 10) {
