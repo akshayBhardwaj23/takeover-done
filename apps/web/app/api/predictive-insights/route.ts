@@ -34,6 +34,7 @@ type DebugMetrics = {
   last30Aov: number;
   sessionsMA7: number | null;
   sessionsSlope14: number | null;
+  minSessionsFloor: number | null;
   cvrBaseline: number | null;
   aovBaseline: number;
   volatilityK: number;
@@ -53,6 +54,15 @@ type DebugMetrics = {
     sessionsNudgePct?: number;
   };
   first7Forecast: ForecastPoint[];
+  checkpoints?: {
+    day: 7 | 30 | 90;
+    date: string;
+    sessions: number | null;
+    cvr: number | null;
+    aov: number;
+    dailyRevenue: number;
+    cumRevenue: number;
+  }[];
 };
 
 type DriverVolatility = {
@@ -710,10 +720,15 @@ export async function GET(req: NextRequest) {
   const forecastSeries: ForecastPoint[] = [];
 
   if (gaFetched && sessionsMA7 != null && sessionsSlope14 != null && cvrBaseline != null) {
+    // Explainable floor: avoid sessions mathematically collapsing to ~0 over long horizons.
+    // If MA7 has signal, keep a minimum floor at ~25% of MA7 (>= 1 session).
+    const minSessionsFloor =
+      sessionsMA7 > 0 ? Math.max(1, Math.round(sessionsMA7 * 0.25)) : 0;
     for (let i = 0; i < futureDates.length; i++) {
       const t = i + 1;
       const sessionsBase = Math.max(0, sessionsMA7 + sessionsSlope14 * t);
-      const sessions = Math.max(0, sessionsBase * (1 + sessionsNudgePct));
+      const sessionsAdj = Math.max(0, sessionsBase * (1 + sessionsNudgePct));
+      const sessions = Math.max(minSessionsFloor, sessionsAdj);
       const cvr = clamp(cvrBaseline, 0, 0.2);
       const aov = aovBaseline;
       const revenue = sessions * cvr * aov;
@@ -790,6 +805,10 @@ export async function GET(req: NextRequest) {
         last30Aov: Math.round(last30Aov * 100) / 100,
         sessionsMA7,
         sessionsSlope14,
+        minSessionsFloor:
+          gaFetched && sessionsMA7 != null && sessionsMA7 > 0
+            ? Math.max(1, Math.round(sessionsMA7 * 0.25))
+            : null,
         cvrBaseline,
         aovBaseline,
         volatilityK,
@@ -803,6 +822,22 @@ export async function GET(req: NextRequest) {
         },
         meta: metaDebug,
         first7Forecast: forecastSeries.slice(0, 7),
+        checkpoints: ([7, 30, 90] as const).map((day) => {
+          const idx = Math.min(day - 1, forecastSeries.length - 1);
+          const p = forecastSeries[idx];
+          const cum = forecastSeries
+            .slice(0, idx + 1)
+            .reduce((s, x) => s + x.revenue, 0);
+          return {
+            day,
+            date: p?.date ?? '',
+            sessions: p?.sessions ?? null,
+            cvr: p?.cvr ?? null,
+            aov: p?.aov ?? 0,
+            dailyRevenue: p?.revenue ?? 0,
+            cumRevenue: Math.round(cum * 100) / 100,
+          };
+        }),
       }
     : undefined;
 
