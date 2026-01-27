@@ -18,6 +18,7 @@ export function ForecastRevenueChart(props: {
   currencyFormatter: (n: number) => string;
   historical: Array<{ date: string; value: number }>;
   forecast: ForecastBandPoint[]; // DAILY forecast values (future dates only)
+  runRateRevenuePerDay?: number; // "If nothing changes" layer (per day)
 }) {
   const width = 960;
   const height = 320;
@@ -116,11 +117,45 @@ export function ForecastRevenueChart(props: {
         .join(' ');
 
     const histPath = pathFromPoints(pointsExpected.slice(0, histLen));
-    // Forecast starts AFTER today (tomorrow onward), so don't connect to historical.
-    const forecastPath = pathFromPoints(pointsExpected.slice(histLen));
 
-    const bandUpper = pointsBest.slice(histLen);
-    const bandLower = pointsWorst.slice(histLen).reverse();
+    // Forward-looking cumulative lines start at Today with 0 cumulative.
+    const startPoint: Point = {
+      x: xForIndex(todayIndex),
+      y: yForValue(0),
+    };
+
+    const forecastCumPts: Point[] = fcCum.map((p, idx) => ({
+      x: xForIndex(histLen + idx),
+      y: yForValue(p.expected),
+    }));
+    const forecastPath = pathFromPoints([startPoint, ...forecastCumPts]);
+
+    const runRatePts =
+      props.runRateRevenuePerDay != null
+        ? [
+            startPoint,
+            ...fcCum.map((p, idx) => ({
+              x: xForIndex(histLen + idx),
+              y: yForValue(props.runRateRevenuePerDay! * (idx + 1)),
+            })),
+          ]
+        : [];
+    const runRatePath = runRatePts.length ? pathFromPoints(runRatePts) : '';
+
+    const bandUpper: Point[] = [
+      startPoint,
+      ...fcCum.map((p, idx) => ({
+        x: xForIndex(histLen + idx),
+        y: yForValue(p.best),
+      })),
+    ];
+    const bandLower: Point[] = [
+      startPoint,
+      ...fcCum.map((p, idx) => ({
+        x: xForIndex(histLen + idx),
+        y: yForValue(p.worst),
+      })),
+    ].reverse();
     const bandPath =
       bandUpper.length && bandLower.length
         ? [
@@ -149,6 +184,7 @@ export function ForecastRevenueChart(props: {
       pointsExpected,
       pointsBest,
       pointsWorst,
+      runRatePts,
       histLen,
       todayIndex,
       todayX,
@@ -158,12 +194,22 @@ export function ForecastRevenueChart(props: {
       tickValues,
       histPath,
       forecastPath,
+      runRatePath,
       bandPath,
       lastDate: allDates[allDates.length - 1] ?? props.today,
       innerW,
       innerH,
     };
-  }, [props.forecast, props.historical, props.today, margin.bottom, margin.left, margin.right, margin.top]);
+  }, [
+    props.forecast,
+    props.historical,
+    props.today,
+    props.runRateRevenuePerDay,
+    margin.bottom,
+    margin.left,
+    margin.right,
+    margin.top,
+  ]);
 
   const clamp = (n: number, min: number, max: number) =>
     Math.max(min, Math.min(max, n));
@@ -200,6 +246,10 @@ export function ForecastRevenueChart(props: {
     const expected = model.allValues[hoverIndex] ?? 0;
     const best = model.allBest[hoverIndex] ?? expected;
     const worst = model.allWorst[hoverIndex] ?? expected;
+    const runRateCum =
+      props.runRateRevenuePerDay != null && isForecast
+        ? props.runRateRevenuePerDay * (hoverIndex - model.histLen + 1)
+        : null;
     return {
       date,
       isForecast,
@@ -207,8 +257,9 @@ export function ForecastRevenueChart(props: {
       best,
       worst,
       point: model.pointsExpected[hoverIndex],
+      runRateCum,
     };
-  }, [hoverIndex, model]);
+  }, [hoverIndex, model, props.runRateRevenuePerDay]);
 
   return (
     <div className="w-full">
@@ -224,6 +275,12 @@ export function ForecastRevenueChart(props: {
             <span className="h-0.5 w-6 rounded-full bg-slate-800" />
             Actual (daily, context)
           </span>
+          {props.runRateRevenuePerDay != null ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-0.5 w-6 rounded-full bg-slate-400" />
+              If nothing changes
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-2">
             <span
               className="h-0.5 w-6 rounded-full bg-indigo-600"
@@ -232,11 +289,11 @@ export function ForecastRevenueChart(props: {
                   'repeating-linear-gradient(to right, rgb(79 70 229) 0 8px, transparent 8px 14px)',
               }}
             />
-            Forecast (cumulative)
+            Model projection
           </span>
           <span className="inline-flex items-center gap-2">
             <span className="h-3 w-6 rounded bg-indigo-200/60" />
-            Confidence band
+            Uncertainty range
           </span>
         </div>
       </div>
@@ -298,6 +355,18 @@ export function ForecastRevenueChart(props: {
         {/* Confidence band (forecast only) */}
         {model.bandPath ? (
           <path d={model.bandPath} fill="url(#piBand)" />
+        ) : null}
+
+        {/* Run-rate continuation line (cumulative) */}
+        {model.runRatePath ? (
+          <path
+            d={model.runRatePath}
+            fill="none"
+            stroke="rgb(148 163 184)"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
         ) : null}
 
         {/* Historical actual (solid) */}
@@ -387,10 +456,20 @@ export function ForecastRevenueChart(props: {
                     {tooltip.isForecast ? 'Cumulative: ' : 'Actual: '}
                     {props.currencyFormatter(tooltip.expected)}
                   </text>
+                  {tooltip.isForecast && tooltip.runRateCum != null ? (
+                    <text
+                      x={x + pad}
+                      y={y + 52}
+                      fontSize="11"
+                      fill="rgb(203 213 225)"
+                    >
+                      If nothing changes: {props.currencyFormatter(tooltip.runRateCum)}
+                    </text>
+                  ) : null}
                   {tooltip.isForecast ? (
                     <text
                       x={x + pad}
-                      y={y + 54}
+                      y={tooltip.runRateCum != null ? y + 68 : y + 54}
                       fontSize="11"
                       fill="rgb(148 163 184)"
                     >

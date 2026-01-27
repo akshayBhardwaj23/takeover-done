@@ -55,7 +55,23 @@ type ApiResponse = {
   today: string;
   actualSeries: ApiActualPoint[];
   forecastSeries: ApiForecastPoint[];
-  confidenceScore: number;
+  confidence: {
+    score: number;
+    label: 'Low' | 'Medium' | 'High';
+    reasons: string[];
+  };
+  layers?: {
+    baseLast30: {
+      sessions: number | null;
+      cvr: number | null;
+      aov: number;
+      last30Revenue: number;
+      last30Orders: number;
+      last30Sessions: number | null;
+    };
+    runRate: { revenuePerDay: number; cumulativeAtDay: Record<'7' | '30' | '90', number> };
+    projection: { adjusted: boolean; warnings: string[]; forecast30Revenue: number };
+  };
   driverVolatility?: {
     sessionsCoefVar: number | null;
     cvrCoefVar: number | null;
@@ -518,6 +534,7 @@ function PredictiveInsightsInner() {
                 currencyFormatter={currencyFormatter}
                 historical={chartHistorical}
                 forecast={forecastForChart}
+                runRateRevenuePerDay={apiData?.layers?.runRate?.revenuePerDay}
               />
             )}
             <div className="mt-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -529,12 +546,17 @@ function PredictiveInsightsInner() {
                 . Past data is included only to anchor the projection.
               </div>
               <Badge className="border border-slate-200 bg-slate-50 text-slate-700">
-                Confidence score:{' '}
+                Confidence:{' '}
                 <span className="ml-1 font-bold">
-                  {apiData?.confidenceScore ?? '—'}/100
+                  {apiData?.confidence?.label ?? '—'}
                 </span>
               </Badge>
             </div>
+            {apiData?.confidence?.reasons?.length ? (
+              <div className="mt-3 text-sm text-slate-600">
+                {apiData.confidence.reasons.join(' ')}
+              </div>
+            ) : null}
           </Card>
         )}
 
@@ -1232,8 +1254,8 @@ function PredictiveInsightsInner() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Confidence
                     </p>
-                    <p className="mt-2 font-semibold text-slate-900">
-                      {apiData.confidenceScore}/100
+                  <p className="mt-2 font-semibold text-slate-900">
+                      {apiData.confidence.label} ({apiData.confidence.score}/100)
                     </p>
                     {apiData.debugMetrics?.confidence && (
                       <p className="mt-1 text-xs text-slate-500">
