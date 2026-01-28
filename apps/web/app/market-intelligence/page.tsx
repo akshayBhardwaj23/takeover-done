@@ -97,7 +97,12 @@ function MarketIntelligenceInner() {
             (text ? text.slice(0, 200) : '') ||
             'Failed to load market intelligence';
           const stage = json?.stage ? ` (stage: ${String(json.stage)})` : '';
-          const detail = json?.detail ? ` — ${String(json.detail).slice(0, 200)}` : '';
+          const detail =
+            json?.detail
+              ? ` — ${String(json.detail).slice(0, 200)}`
+              : json?.message
+                ? ` — ${String(json.message).slice(0, 200)}`
+                : '';
           throw new Error(String(baseMsg) + stage + detail);
         }
         if (!json) throw new Error('Empty response from market intelligence API');
