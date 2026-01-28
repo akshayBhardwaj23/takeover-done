@@ -314,8 +314,18 @@ export function buildRecommendations(args: {
       rationale:
         'Demand is contracting; aggressive scaling can inflate CAC and hide weak conversion behind spend.',
       ctas: [
-        { type: 'what_if', label: 'Simulate spend increase in What‑If Planner' },
-        { type: 'view_market_adjusted_forecast', label: 'View market‑adjusted forecast' },
+        {
+          type: 'what_if',
+          label: 'Simulate spend increase in What‑If Planner',
+          focus: 'whatif',
+          presetName: 'Scale Meta spend (+20%)',
+          miParams: { miMetaSpendPct: 20 },
+        },
+        {
+          type: 'view_market_adjusted_forecast',
+          label: 'View market‑adjusted forecast',
+          hrefHash: '#market-adjusted',
+        },
       ],
       confidence: 'Medium',
     });
@@ -326,7 +336,15 @@ export function buildRecommendations(args: {
       title: 'Expect higher price sensitivity',
       rationale:
         'Discount pressure is rising while your AOV sits above the market-adjusted median; test value messaging and bundles before discounting.',
-      ctas: [{ type: 'what_if', label: 'Simulate AOV/discount changes in What‑If' }],
+      ctas: [
+        {
+          type: 'what_if',
+          label: 'Simulate AOV/discount changes in What‑If',
+          focus: 'whatif',
+          presetName: 'Discount pressure response',
+          miParams: { miDiscountPct: 10, miAovPct: -5 },
+        },
+      ],
       confidence: 'Medium',
     });
   }
@@ -336,7 +354,15 @@ export function buildRecommendations(args: {
       title: 'Optimize paid efficiency before scaling',
       rationale:
         'CPC inflation suggests paid channel saturation. Prioritize creative refresh and landing page CVR before adding budget.',
-      ctas: [{ type: 'what_if', label: 'Simulate CPC change vs spend change' }],
+      ctas: [
+        {
+          type: 'what_if',
+          label: 'Simulate CPC change vs spend change',
+          focus: 'whatif',
+          presetName: 'CPC inflation stress test',
+          miParams: { miCpcPct: 15, miMetaSpendPct: 10 },
+        },
+      ],
       confidence: 'Medium',
     });
   }
@@ -346,7 +372,15 @@ export function buildRecommendations(args: {
       title: 'Investigate store-specific friction',
       rationale:
         'Market demand is not the full explanation; your store is trailing the category trend. Look for funnel drop-offs and offer positioning gaps.',
-      ctas: [{ type: 'what_if', label: 'Simulate CVR uplift in What‑If' }],
+      ctas: [
+        {
+          type: 'what_if',
+          label: 'Simulate CVR uplift in What‑If',
+          focus: 'whatif',
+          presetName: 'Improve CVR (+5%)',
+          miParams: { miCvrPct: 5 },
+        },
+      ],
       confidence: 'High',
     });
   }
@@ -356,7 +390,13 @@ export function buildRecommendations(args: {
       title: 'Stay consistent; monitor signals weekly',
       rationale:
         'Signals look stable. Keep executing and watch for shifts in demand or CPC that could change marginal returns.',
-      ctas: [{ type: 'view_market_adjusted_forecast', label: 'View market‑adjusted forecast' }],
+      ctas: [
+        {
+          type: 'view_market_adjusted_forecast',
+          label: 'View market‑adjusted forecast',
+          hrefHash: '#market-adjusted',
+        },
+      ],
       confidence: 'Low',
     });
   }

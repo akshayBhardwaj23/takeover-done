@@ -5,9 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../../components/ui/dialog';
 import { trpc } from '../../lib/trpc';
 import { MiniTrendChart } from './components/MiniTrendChart';
 import { MarketCopilotChat } from './components/MarketCopilotChat';
+import { Info } from 'lucide-react';
 
 type MarketIntelligenceContext = any;
 
@@ -153,6 +162,12 @@ function MarketIntelligenceInner() {
 
   const marketAdjusted = ctx?.marketAdjustedForecast;
   const baseTotals = ctx?.predictiveInsights?.forecastTotals ?? [];
+  const sessionsMult: number | null =
+    typeof marketAdjusted?.modifier?.sessionsMultiplier === 'number'
+      ? marketAdjusted.modifier.sessionsMultiplier
+      : null;
+  const miTrafficPct =
+    sessionsMult != null ? Math.round((sessionsMult - 1) * 1000) / 10 : null;
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
@@ -167,6 +182,52 @@ function MarketIntelligenceInner() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <Dialog>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                aria-label="Glossary"
+              >
+                <Info className="h-4 w-4" />
+                Glossary
+              </button>
+            </DialogTrigger>
+            <DialogContent containerClassName="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Glossary</DialogTitle>
+                <DialogDescription>
+                  Short definitions for the most common terms on this page.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="mt-4 space-y-4 text-sm text-slate-700">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Core metrics
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li><span className="font-semibold">AOV</span>: Average Order Value (revenue ÷ orders).</li>
+                    <li><span className="font-semibold">CVR</span>: Conversion Rate (orders ÷ sessions).</li>
+                    <li><span className="font-semibold">CPC</span>: Cost Per Click (spend ÷ clicks).</li>
+                    <li><span className="font-semibold">CTR</span>: Click-Through Rate (clicks ÷ impressions).</li>
+                    <li><span className="font-semibold">CAC</span>: Customer Acquisition Cost (often approximated as spend ÷ new customers).</li>
+                    <li><span className="font-semibold">ROAS</span>: Return on Ad Spend (revenue ÷ ad spend).</li>
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Market signals
+                  </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    <li><span className="font-semibold">Category demand</span>: A demand proxy based on your traffic momentum, optionally blended with external search interest when available.</li>
+                    <li><span className="font-semibold">Discount pressure</span>: A proxy for price sensitivity (higher discount intent often correlates with more comparison shopping).</li>
+                    <li><span className="font-semibold">Paid saturation</span>: A proxy for competition in paid channels (often reflected via CPC inflation).</li>
+                    <li><span className="font-semibold">Market-adjusted forecast</span>: An optional modifier that adjusts the base forecast; it never overwrites your base Predictive Insights forecast.</li>
+                  </ul>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           {!shop && stores.length > 0 ? (
             <Badge variant="outline">Detecting store…</Badge>
           ) : !shop ? (
@@ -349,6 +410,9 @@ function MarketIntelligenceInner() {
                       <li key={i}>{g}</li>
                     ))}
                   </ul>
+                  <div className="mt-2 text-amber-900/80">
+                    Fallback: demand is still computed from your store’s traffic momentum when external signals are unavailable.
+                  </div>
                 </div>
               )}
             </Card>
@@ -386,7 +450,10 @@ function MarketIntelligenceInner() {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div
+                id="market-adjusted"
+                className="mt-6 scroll-mt-24 rounded-md border border-slate-200 bg-slate-50 p-4"
+              >
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-800">Market-adjusted forecast (optional)</div>
                   <Badge variant="outline">
@@ -413,10 +480,14 @@ function MarketIntelligenceInner() {
                 </div>
                 <div className="mt-2">
                   <Link
-                    href={(`/predictive-insights?shop=${encodeURIComponent(shop)}` as any)}
+                    href={
+                      (`/predictive-insights?shop=${encodeURIComponent(shop)}&focus=whatif${
+                        miTrafficPct != null ? `&miOrganicPct=${encodeURIComponent(String(miTrafficPct))}` : ''
+                      }&presetName=${encodeURIComponent('Market-adjusted (demand proxy)')}` as any)
+                    }
                     className="text-xs font-semibold text-slate-800 underline hover:text-slate-900"
                   >
-                    Simulate this in What‑If Planner →
+                    Create a What‑If scenario from this →
                   </Link>
                 </div>
               </div>
@@ -438,10 +509,21 @@ function MarketIntelligenceInner() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(r.ctas || []).map((c: any, i: number) => {
-                        const href =
-                          c.type === 'what_if'
-                            ? `/predictive-insights?shop=${encodeURIComponent(shop)}`
-                            : `/market-intelligence?shop=${encodeURIComponent(shop)}`;
+                        const isWhatIf = c.type === 'what_if';
+                        const focus = isWhatIf && c.focus === 'whatif' ? '&focus=whatif' : '';
+                        const presetName = isWhatIf && c.presetName ? `&presetName=${encodeURIComponent(String(c.presetName))}` : '';
+                        const miParamsObj: Record<string, string | number> =
+                          isWhatIf && c.miParams && typeof c.miParams === 'object' ? c.miParams : {};
+                        const miParams = isWhatIf
+                          ? Object.entries(miParamsObj)
+                              .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+                              .join('&')
+                          : '';
+                        const href = isWhatIf
+                          ? `/predictive-insights?shop=${encodeURIComponent(shop)}${focus}${presetName}${
+                              miParams ? `&${miParams}` : ''
+                            }#what-if-planner`
+                          : `/market-intelligence?shop=${encodeURIComponent(shop)}${c.hrefHash || '#market-adjusted'}`;
                         return (
                           <Link
                             key={i}
