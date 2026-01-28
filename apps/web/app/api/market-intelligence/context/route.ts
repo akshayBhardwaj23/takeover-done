@@ -203,10 +203,10 @@ export async function GET(req: NextRequest) {
     const today: string = String(pi?.today || new Date().toISOString().slice(0, 10));
 
   // Pull store info from Connection metadata (if available).
-  const shopifyConnection = shopDomain
+    const shopifyConnection = shopDomain
     ? await prisma.connection.findFirst({
         where: { userId: user.id, type: 'SHOPIFY' as any, shopDomain },
-        select: { metadata: true },
+        select: { id: true, metadata: true },
       })
     : null;
   const meta = (shopifyConnection?.metadata as any) || {};
@@ -218,6 +218,99 @@ export async function GET(req: NextRequest) {
     (typeof meta?.industry === 'string' ? meta.industry : null) ||
     (typeof meta?.niche === 'string' ? meta.niche : null) ||
     null;
+
+    // Product performance (last ~30 days) from Shopify line items (best-effort).
+    stage = 'fetch.products';
+    let topProducts: Array<{
+      key: string;
+      title: string;
+      sku: string | null;
+      productId: string | null;
+      variantId: string | null;
+      ordersCount: number;
+      quantity: number;
+      revenue: number;
+    }> = [];
+    if (shopifyConnection?.id) {
+      try {
+        const start = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000);
+        const lineItems = await prisma.orderLineItem.findMany({
+          where: {
+            order: {
+              connectionId: shopifyConnection.id,
+              OR: [{ processedAt: { gte: start } }, { processedAt: null, createdAt: { gte: start } }],
+            },
+          },
+          select: {
+            title: true,
+            quantity: true,
+            price: true,
+            sku: true,
+            variantId: true,
+            productId: true,
+            orderId: true,
+            order: { select: { status: true, name: true, email: true } },
+          },
+          take: 5000,
+        });
+
+        const agg = new Map<
+          string,
+          {
+            key: string;
+            title: string;
+            sku: string | null;
+            productId: string | null;
+            variantId: string | null;
+            orderIds: Set<string>;
+            quantity: number;
+            revenue: number;
+          }
+        >();
+
+        for (const li of lineItems) {
+          const status = String(li.order?.status || '').toLowerCase();
+          const name = String(li.order?.name || '').toLowerCase();
+          const email = String(li.order?.email || '').toLowerCase();
+          if (status.includes('cancel') || status.includes('void')) continue;
+          if (name.includes('test') || email.includes('example.com')) continue;
+
+          const key = String(li.productId || li.variantId || li.sku || li.title || '').slice(0, 160);
+          if (!key) continue;
+          const cur = agg.get(key) || {
+            key,
+            title: li.title,
+            sku: li.sku ?? null,
+            productId: li.productId ?? null,
+            variantId: li.variantId ?? null,
+            orderIds: new Set<string>(),
+            quantity: 0,
+            revenue: 0,
+          };
+          cur.orderIds.add(li.orderId);
+          cur.quantity += Number(li.quantity || 0);
+          cur.revenue += (Number(li.price || 0) / 100) * Number(li.quantity || 0);
+          agg.set(key, cur);
+        }
+
+        topProducts = Array.from(agg.values())
+          .map((p) => ({
+            key: p.key,
+            title: p.title,
+            sku: p.sku,
+            productId: p.productId,
+            variantId: p.variantId,
+            ordersCount: p.orderIds.size,
+            quantity: p.quantity,
+            revenue: Math.round(p.revenue * 100) / 100,
+          }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 8);
+      } catch (e: any) {
+        // Do not fail MI if product aggregation fails.
+        topProducts = [];
+      }
+    }
 
     stage = 'build.actual_series';
     const actualSeries: Array<any> = Array.isArray(pi?.actualSeries) ? pi.actualSeries : [];
@@ -525,6 +618,10 @@ export async function GET(req: NextRequest) {
         category,
         timezone,
         currency,
+      },
+      products: {
+        windowDays: 30,
+        topProducts,
       },
       generatedAt: new Date().toISOString(),
       marketPulse: {

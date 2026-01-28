@@ -423,6 +423,72 @@ export function buildChatAnswer(args: { question: string; ctx: MarketIntelligenc
   const canUseMarket = demand30 != null || pricing.discountPressure.pctChange30d != null || comp.paidSaturation.cpcInflationPct30d != null;
   const baseConfidence: ConfidenceLabel = canUseMarket ? 'Medium' : 'Low';
 
+  const looksLikeProductQuestion =
+    q.includes('product') ||
+    q.includes('sku') ||
+    q.includes('variant') ||
+    q.includes('winner') ||
+    q.includes('win right now') ||
+    q.includes('run ads') ||
+    q.includes('run adverts') ||
+    q.includes('advert') ||
+    q.includes('which item');
+
+  if (looksLikeProductQuestion) {
+    const products = args.ctx.products?.topProducts || [];
+    if (!products.length) {
+      return {
+        directAnswer:
+          'I can’t pick winning products yet because I don’t have product-level performance data available for this store.',
+        marketEvidence: [
+          `Demand: ${demand.direction}${demand.pctChange30d != null ? ` (${Math.round(demand.pctChange30d)}% 30d)` : ''}.`,
+          `Paid saturation: ${comp.paidSaturation.label}.`,
+        ],
+        storeImpact: [
+          'If you want product-level answers, we need Shopify line-item performance (product revenue/orders) in the context.',
+          'For now, prioritize ads on your proven best-sellers (highest revenue + repeat orders) and test creatives before scaling budget.',
+        ],
+        confidence: 'Low',
+        ctas: [
+          { label: 'Open Advertisements', href: '/advertisements' },
+          { label: 'Simulate budget changes in What‑If Planner', href: `/predictive-insights?shop=${encodeURIComponent(args.ctx.shop)}&focus=whatif` },
+        ],
+      };
+    }
+
+    const top = products.slice(0, 3);
+    const directAnswer =
+      top.length === 1
+        ? `Your best ad “win” right now (based on the last ${args.ctx.products?.windowDays ?? 30} days) is: ${top[0]!.title}.`
+        : `Top products to prioritize for ads right now (based on the last ${args.ctx.products?.windowDays ?? 30} days): ${top
+            .map((p) => p.title)
+            .join(', ')}.`;
+
+    for (const p of top) {
+      evidence.push(
+        `${p.title}: ${Math.round(p.revenue)} revenue, ${p.ordersCount} orders, ${p.quantity} units.`,
+      );
+    }
+    evidence.push(`Demand: ${demand.direction}${demand.pctChange30d != null ? ` (${Math.round(demand.pctChange30d)}% 30d)` : ''}.`);
+    evidence.push(`Paid saturation: ${comp.paidSaturation.label}${comp.paidSaturation.cpcInflationPct30d != null ? ` (CPC ${Math.round(comp.paidSaturation.cpcInflationPct30d)}% 30d)` : ''}.`);
+
+    impact.push('In high CPC environments, focus budget on products with proven conversion (more orders) rather than only high AOV.');
+    impact.push('Start with a small test budget and evaluate ROAS before scaling.');
+
+    const confidence: ConfidenceLabel =
+      top[0] && top[0].ordersCount >= 15 ? 'Medium' : 'Low';
+
+    ctas.push({ label: 'Open Advertisements', href: '/advertisements' });
+    ctas.push({
+      label: 'Simulate spend/CPC stress test in What‑If',
+      href: `/predictive-insights?shop=${encodeURIComponent(args.ctx.shop)}&focus=whatif&presetName=${encodeURIComponent(
+        'CPC inflation stress test',
+      )}&miCpcPct=15&miMetaSpendPct=10#what-if-planner`,
+    });
+
+    return { directAnswer, marketEvidence: evidence, storeImpact: impact, confidence, ctas };
+  }
+
   if (q.includes('sales down') || q.includes('revenue down') || q.includes('orders down') || q.includes('this week')) {
     const direct =
       svm.label === 'Store underperforming market'
