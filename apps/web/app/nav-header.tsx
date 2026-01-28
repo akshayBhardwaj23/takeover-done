@@ -276,6 +276,15 @@ export default function Header() {
                         </li>
                         <li>
                           <Link
+                            href={'/market-intelligence' as any}
+                            className="block px-4 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                            onClick={() => setAnalyticsOpen(false)}
+                          >
+                            Market Intelligence
+                          </Link>
+                        </li>
+                        <li>
+                          <Link
                             href="/advertisements"
                             className="block px-4 py-2 transition hover:bg-slate-100 hover:text-slate-900"
                             onClick={() => setAnalyticsOpen(false)}
@@ -529,6 +538,15 @@ export default function Header() {
                         className="block text-slate-600 hover:text-slate-900"
                       >
                         Predictive Insights
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
+                        href={'/market-intelligence' as any}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="block text-slate-600 hover:text-slate-900"
+                      >
+                        Market Intelligence
                       </Link>
                     </li>
                     <li>
