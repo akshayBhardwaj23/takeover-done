@@ -387,7 +387,7 @@ export async function GET(req: NextRequest) {
   const pricing = buildPricingPressure({
     currency,
     storeAov90dMedian: storeAov90Median,
-    storeAov30d,
+    storeAov30d: storeAov30,
     aovVolatilityCoefVar: aovCv,
     discountInterestPct30d: discountPct30,
   });
