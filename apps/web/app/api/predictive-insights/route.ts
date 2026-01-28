@@ -26,6 +26,32 @@ type ForecastPoint = {
   cvr: number | null;
 };
 
+type ForecastLayers = {
+  baseLast30: {
+    sessions: number | null;
+    cvr: number | null;
+    aov: number;
+    last30Revenue: number;
+    last30Orders: number;
+    last30Sessions: number | null;
+  };
+  runRate: {
+    revenuePerDay: number;
+    cumulativeAtDay: Record<'7' | '30' | '90', number>;
+  };
+  projection: {
+    adjusted: boolean;
+    warnings: string[];
+    forecast30Revenue: number;
+  };
+};
+
+type Confidence = {
+  score: number; // 0..100
+  label: 'Low' | 'Medium' | 'High';
+  reasons: string[];
+};
+
 type DebugMetrics = {
   timezone: string;
   last21Days: Array<Pick<ActualPoint, 'date' | 'revenue' | 'orders' | 'sessions' | 'aov' | 'cvr'>>;
@@ -38,6 +64,16 @@ type DebugMetrics = {
   cvrBaseline: number | null;
   aovBaseline: number;
   volatilityK: number;
+  baseSessionsLast30: number | null;
+  baseCvrLast30: number | null;
+  baseAovLast30: number;
+  runRateRevenuePerDay: number;
+  projectedRevenueNext7: number;
+  last30RevenueVsForecast30Revenue: {
+    last30Revenue: number;
+    forecast30Revenue: number;
+  };
+  projectionWarnings?: string[];
   confidence?: {
     daysWithShopify: number;
     daysWithGA: number;
@@ -80,6 +116,15 @@ function clamp(n: number, min: number, max: number): number {
 function mean(values: number[]): number {
   if (!values.length) return 0;
   return values.reduce((s, v) => s + v, 0) / values.length;
+}
+
+function trimmedMean(values: number[], trimPct: number): number {
+  const clean = values.filter((v) => Number.isFinite(v));
+  if (!clean.length) return 0;
+  const sorted = [...clean].sort((a, b) => a - b);
+  const k = Math.floor(sorted.length * trimPct);
+  const trimmed = sorted.slice(k, Math.max(k + 1, sorted.length - k));
+  return mean(trimmed);
 }
 
 function median(values: number[]): number {
@@ -718,6 +763,8 @@ export async function GET(req: NextRequest) {
   };
 
   const forecastSeries: ForecastPoint[] = [];
+  const projectionWarnings: string[] = [];
+  let projectionAdjusted = false;
 
   if (gaFetched && sessionsMA7 != null && sessionsSlope14 != null && cvrBaseline != null) {
     // Explainable floor: avoid sessions mathematically collapsing to ~0 over long horizons.
@@ -765,7 +812,78 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Confidence score (0-100)
+  // ---- Layer A: Run-rate continuation (trust anchor) ----
+  const last30 = actualSeries.slice(-30);
+  const last30Revenue = last30.reduce((s, p) => s + p.revenue, 0);
+  const last30Orders = last30.reduce((s, p) => s + p.orders, 0);
+  const last30SessionsTotal = gaFetched
+    ? last30.reduce((s, p) => s + p.sessions, 0)
+    : null;
+
+  const baseSessionsLast30 =
+    gaFetched && last30.length
+      ? trimmedMean(last30.map((p) => p.sessions), 0.1)
+      : null;
+  const baseCvrLast30 =
+    gaFetched && last30SessionsTotal && last30SessionsTotal > 0
+      ? last30Orders / last30SessionsTotal
+      : null;
+  const baseAovLast30 = last30Orders > 0 ? last30Revenue / last30Orders : 0;
+  const last30Aov = baseAovLast30;
+
+  const runRateRevenuePerDay =
+    baseSessionsLast30 != null && baseCvrLast30 != null
+      ? baseSessionsLast30 * baseCvrLast30 * baseAovLast30
+      : last30Revenue / Math.max(1, last30.length);
+
+  // ---- Layer B: Model projection (existing forecast) + sanity guardrails ----
+  // Guardrail 1: avg sessions next 14 days shouldn't collapse below 0.6x base sessions
+  if (baseSessionsLast30 != null && gaFetched) {
+    const next14 = forecastSeries.slice(0, 14);
+    const avg14 = mean(next14.map((p) => p.sessions ?? 0));
+    const minAvg = 0.6 * baseSessionsLast30;
+    if (avg14 > 0 && avg14 < minAvg) {
+      const factor = minAvg / avg14;
+      projectionAdjusted = true;
+      projectionWarnings.push(
+        'Projection adjusted to stay within realistic bounds (sessions guardrail).',
+      );
+      for (const p of forecastSeries) {
+        if (p.sessions != null) {
+          const sessions = Math.max(0, p.sessions * factor);
+          const revenue = sessions * (p.cvr ?? 0) * p.aov;
+          p.sessions = Math.round(sessions);
+          p.revenue = Math.round(revenue * 100) / 100;
+          p.revenueLow = Math.round(revenue * (1 - volatilityK) * 100) / 100;
+          p.revenueHigh = Math.round(revenue * (1 + volatilityK) * 100) / 100;
+        }
+      }
+    }
+  }
+
+  // Guardrail 2: projected 30-day revenue shouldn't drop below 0.7x last30Revenue
+  const forecast30RevenueRaw = forecastSeries
+    .slice(0, 30)
+    .reduce((s, p) => s + p.revenue, 0);
+  const min30 = 0.7 * last30Revenue;
+  if (forecast30RevenueRaw > 0 && forecast30RevenueRaw < min30) {
+    const factor = min30 / forecast30RevenueRaw;
+    projectionAdjusted = true;
+    projectionWarnings.push(
+      'Projection adjusted to stay within realistic bounds (revenue guardrail).',
+    );
+    for (const p of forecastSeries) {
+      p.revenue = Math.round(p.revenue * factor * 100) / 100;
+      p.revenueLow = Math.round(p.revenueLow * factor * 100) / 100;
+      p.revenueHigh = Math.round(p.revenueHigh * factor * 100) / 100;
+      if (p.sessions != null && p.cvr != null && p.aov > 0) {
+        // keep identity: revenue = sessions*cvr*aov
+        p.sessions = Math.round(Math.max(0, p.revenue / (p.cvr * p.aov)));
+      }
+    }
+  }
+
+  // Confidence score (0-100) + explainable label
   const days30 = Math.min(30, actualSeries.length);
   const daysWithShopify = days30; // we always build a continuous series once connected
   const daysWithGA = gaFetched ? days30 : 0;
@@ -791,10 +909,64 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const last30 = actualSeries.slice(-30);
-  const last30Revenue = last30.reduce((s, p) => s + p.revenue, 0);
-  const last30Orders = last30.reduce((s, p) => s + p.orders, 0);
-  const last30Aov = last30Orders > 0 ? last30Revenue / last30Orders : 0;
+  const confidenceReasons: string[] = [];
+  if (last30Orders < 10) {
+    confidenceReasons.push(
+      `Low confidence due to only ${last30Orders} orders in the last 30 days.`,
+    );
+  } else if (last30Orders < 25) {
+    confidenceReasons.push(
+      `Confidence limited by modest order volume (${last30Orders} orders in last 30 days).`,
+    );
+  } else {
+    confidenceReasons.push('Confidence improves as data volume increases.');
+  }
+  if (coefVar > 0.75) {
+    confidenceReasons.push('Revenue has been highly volatile recently.');
+  } else if (coefVar > 0.4) {
+    confidenceReasons.push('Revenue volatility adds uncertainty to the projection.');
+  }
+  if (gaFetched) {
+    const sCv = sessionsCoefVar ?? 0;
+    if (sCv > 0.8) confidenceReasons.push('Sessions are volatile day-to-day.');
+  } else {
+    confidenceReasons.push('GA sessions missing: traffic-driven confidence is limited.');
+  }
+
+  const confidenceLabel: Confidence['label'] =
+    confidenceScore >= 70 ? 'High' : confidenceScore >= 40 ? 'Medium' : 'Low';
+
+  const confidence: Confidence = {
+    score: confidenceScore,
+    label: confidenceLabel,
+    reasons: confidenceReasons.slice(0, 3),
+  };
+
+  const layers: ForecastLayers = {
+    baseLast30: {
+      sessions: baseSessionsLast30,
+      cvr: baseCvrLast30,
+      aov: baseAovLast30,
+      last30Revenue: Math.round(last30Revenue * 100) / 100,
+      last30Orders,
+      last30Sessions: last30SessionsTotal,
+    },
+    runRate: {
+      revenuePerDay: Math.round(runRateRevenuePerDay * 100) / 100,
+      cumulativeAtDay: {
+        '7': Math.round(runRateRevenuePerDay * 7 * 100) / 100,
+        '30': Math.round(runRateRevenuePerDay * 30 * 100) / 100,
+        '90': Math.round(runRateRevenuePerDay * 90 * 100) / 100,
+      },
+    },
+    projection: {
+      adjusted: projectionAdjusted,
+      warnings: projectionWarnings,
+      forecast30Revenue: Math.round(
+        forecastSeries.slice(0, 30).reduce((s, p) => s + p.revenue, 0) * 100,
+      ) / 100,
+    },
+  };
 
   const debugMetrics: DebugMetrics | undefined = debugEnabled
     ? {
@@ -812,6 +984,18 @@ export async function GET(req: NextRequest) {
         cvrBaseline,
         aovBaseline,
         volatilityK,
+        baseSessionsLast30: baseSessionsLast30,
+        baseCvrLast30: baseCvrLast30,
+        baseAovLast30: Math.round(baseAovLast30 * 100) / 100,
+        runRateRevenuePerDay: Math.round(runRateRevenuePerDay * 100) / 100,
+        projectedRevenueNext7: Math.round(
+          forecastSeries.slice(0, 7).reduce((s, p) => s + p.revenue, 0) * 100,
+        ) / 100,
+        last30RevenueVsForecast30Revenue: {
+          last30Revenue: Math.round(last30Revenue * 100) / 100,
+          forecast30Revenue: Math.round(forecast30RevenueRaw * 100) / 100,
+        },
+        projectionWarnings: projectionWarnings.length ? projectionWarnings : undefined,
         confidence: {
           daysWithShopify,
           daysWithGA,
@@ -848,7 +1032,8 @@ export async function GET(req: NextRequest) {
     today: todayKey,
     actualSeries,
     forecastSeries,
-    confidenceScore,
+    confidence,
+    layers,
     driverVolatility,
     debugMetrics,
   });
