@@ -96,8 +96,19 @@ export type MarketRecommendation = {
   title: string;
   rationale: string;
   ctas: Array<
-    | { type: 'what_if'; label: string }
-    | { type: 'view_market_adjusted_forecast'; label: string }
+    | {
+        type: 'what_if';
+        label: string;
+        // Optional: prefill What-If Planner inputs via query params
+        miParams?: Record<string, string | number>;
+        presetName?: string;
+        focus?: 'whatif';
+      }
+    | {
+        type: 'view_market_adjusted_forecast';
+        label: string;
+        hrefHash?: string; // e.g. '#market-adjusted'
+      }
   >;
   confidence: ConfidenceLabel;
 };

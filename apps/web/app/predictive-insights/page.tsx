@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '../../lib/trpc';
@@ -201,6 +201,55 @@ function PredictiveInsightsInner() {
   const [aiExplainText, setAiExplainText] = useState<string | null>(null);
   const [savingScenario, setSavingScenario] = useState(false);
   const [savedScenarios, setSavedScenarios] = useState<any[]>([]);
+  const miAppliedRef = useRef(false);
+
+  // Allow Market Intelligence to open Predictive Insights with a pre-filled What-If scenario.
+  useEffect(() => {
+    if (miAppliedRef.current) return;
+    const presetName = sp.get('presetName') || '';
+    const focus = sp.get('focus') || '';
+    const hasMi =
+      presetName.length > 0 ||
+      !!sp.get('miMetaSpendPct') ||
+      !!sp.get('miCpcPct') ||
+      !!sp.get('miOrganicPct') ||
+      !!sp.get('miEmailPct') ||
+      !!sp.get('miCvrPct') ||
+      !!sp.get('miAovPct') ||
+      !!sp.get('miDiscountPct') ||
+      !!sp.get('miRefundPct');
+    if (!hasMi) return;
+
+    const num = (key: string): number | null => {
+      const raw = sp.get(key);
+      if (!raw) return null;
+      const v = parseFloat(raw);
+      return Number.isFinite(v) ? v : null;
+    };
+
+    const cfg = defaultScenarioConfig();
+    const metaSpend = num('miMetaSpendPct');
+    const cpc = num('miCpcPct');
+    const organic = num('miOrganicPct');
+    const email = num('miEmailPct');
+    const cvr = num('miCvrPct');
+    const aov = num('miAovPct');
+    const discount = num('miDiscountPct');
+    const refund = num('miRefundPct');
+
+    if (metaSpend != null) cfg.metaSpendChangePct = metaSpend;
+    if (cpc != null) cfg.cpcChangePct = cpc;
+    if (organic != null) cfg.organicTrafficGrowthPct = organic;
+    if (email != null) cfg.emailTrafficGrowthPct = email;
+    if (cvr != null) cfg.overallCvrUpliftPct = cvr;
+    if (aov != null) cfg.aovChangePct = aov;
+    if (discount != null) cfg.discountIntensityChangePct = discount;
+    if (refund != null) cfg.refundRateChangePct = refund;
+
+    setScenarioConfig(cfg);
+    if (presetName) setScenarioName(presetName.slice(0, 80));
+    miAppliedRef.current = true;
+  }, [sp]);
 
   useEffect(() => {
     if (!hasSelectedShop) return;
@@ -368,6 +417,18 @@ function PredictiveInsightsInner() {
       metaConnected,
     });
   }, [apiData, baseForecastDays, metaConnected, scenarioConfig]);
+
+  // Scroll to What-If Planner if requested.
+  useEffect(() => {
+    const focus = sp.get('focus') || '';
+    if (focus !== 'whatif') return;
+    if (!whatIf) return;
+    // Delay a tick to ensure layout is ready.
+    setTimeout(() => {
+      const el = document.getElementById('what-if-planner');
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, [sp, whatIf]);
 
   const whatIfChartPoints = useMemo(() => {
     if (!whatIf) return [];
@@ -562,7 +623,10 @@ function PredictiveInsightsInner() {
 
         {/* What-If Planner */}
         {hasSelectedShop && apiData && whatIf && (
-          <Card className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <Card
+            id="what-if-planner"
+            className="scroll-mt-28 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm"
+          >
             <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
                 <div className="rounded-full bg-gradient-to-br from-indigo-100 to-cyan-100 p-3">
