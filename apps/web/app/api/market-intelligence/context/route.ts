@@ -280,9 +280,14 @@ export async function GET(req: NextRequest) {
   const metaMeta = (metaConn?.metadata as any) || {};
   const adAccountId: string | null =
     typeof metaMeta?.adAccountId === 'string' ? metaMeta.adAccountId : null;
-    const metaAccessToken: string | null = metaConn?.accessToken
-      ? decryptSecure(String(metaConn.accessToken))
-      : null;
+    let metaAccessToken: string | null = null;
+    if (metaConn?.accessToken) {
+      try {
+        metaAccessToken = decryptSecure(String(metaConn.accessToken));
+      } catch {
+        metaAccessToken = null;
+      }
+    }
 
   // Inline Meta fetch (simple; avoids importing packages/api directly).
   const fetchMetaDaily = async (): Promise<Array<{ date: string; clicks: number; impressions: number; spend: number }>> => {

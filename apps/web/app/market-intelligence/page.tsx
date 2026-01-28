@@ -92,11 +92,13 @@ function MarketIntelligenceInner() {
           json = null;
         }
         if (!res.ok) {
-          const msg =
+          const baseMsg =
             (json && (json.error || json.message)) ||
             (text ? text.slice(0, 200) : '') ||
             'Failed to load market intelligence';
-          throw new Error(String(msg));
+          const stage = json?.stage ? ` (stage: ${String(json.stage)})` : '';
+          const detail = json?.detail ? ` — ${String(json.detail).slice(0, 200)}` : '';
+          throw new Error(String(baseMsg) + stage + detail);
         }
         if (!json) throw new Error('Empty response from market intelligence API');
         if (!cancelled) setCtx(json);
