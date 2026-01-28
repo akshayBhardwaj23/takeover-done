@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@ai-ecom/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
+import { decryptSecure } from '@ai-ecom/api';
 
 import {
   buildCompetitionSignals,
@@ -20,6 +21,8 @@ import type {
 } from '../../../../lib/market-intelligence/types';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -132,40 +135,60 @@ function alignToDateKeys(args: {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
-  }
+  let stage = 'start';
+  try {
+    stage = 'auth.session';
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
+    }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-    select: { id: true },
-  });
-  if (!user) return NextResponse.json({ error: 'user not found' }, { status: 401 });
+    stage = 'auth.user_lookup';
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true },
+    });
+    if (!user) return NextResponse.json({ error: 'user not found' }, { status: 401 });
 
-  const shop = req.nextUrl.searchParams.get('shop') || '';
-  const scenarioId = req.nextUrl.searchParams.get('scenarioId') || '';
-  const categoryOverride = req.nextUrl.searchParams.get('category') || '';
+    stage = 'params';
+    const shop = req.nextUrl.searchParams.get('shop') || '';
+    const scenarioId = req.nextUrl.searchParams.get('scenarioId') || '';
+    const categoryOverride = req.nextUrl.searchParams.get('category') || '';
 
-  // Reuse Predictive Insights endpoint as a truth source for internal metrics.
-  const baseUrl = req.nextUrl.origin;
-  const piUrl = new URL(`${baseUrl}/api/predictive-insights`);
-  piUrl.searchParams.set('days', '120');
-  if (shop) piUrl.searchParams.set('shop', shop);
+    // Reuse Predictive Insights endpoint as a truth source for internal metrics.
+    stage = 'fetch.predictive_insights';
+    const baseUrl = req.nextUrl.origin;
+    const piUrl = new URL(`${baseUrl}/api/predictive-insights`);
+    piUrl.searchParams.set('days', '120');
+    if (shop) piUrl.searchParams.set('shop', shop);
 
-  const piRes = await fetch(piUrl.toString(), {
-    headers: { cookie: req.headers.get('cookie') || '' },
-  });
-  if (!piRes.ok) {
-    const t = await piRes.text().catch(() => '');
-    return NextResponse.json({ error: 'failed to load predictive insights', detail: t }, { status: 500 });
-  }
-  const pi = (await piRes.json()) as any;
+    const piRes = await fetch(piUrl.toString(), {
+      headers: { cookie: req.headers.get('cookie') || '' },
+      cache: 'no-store',
+    });
+    const piText = await piRes.text().catch(() => '');
+    let pi: any = null;
+    try {
+      pi = piText ? JSON.parse(piText) : null;
+    } catch {
+      pi = null;
+    }
+    if (!piRes.ok || !pi) {
+      return NextResponse.json(
+        {
+          error: 'failed to load predictive insights',
+          stage,
+          status: piRes.status,
+          detail: pi?.error || piText.slice(0, 300),
+        },
+        { status: 500 },
+      );
+    }
 
-  const shopDomain: string = String(pi?.shop || shop || '');
-  const timezone: string = String(pi?.timezone || 'UTC');
-  const currency: string = String(pi?.currency || 'USD');
-  const today: string = String(pi?.today || new Date().toISOString().slice(0, 10));
+    const shopDomain: string = String(pi?.shop || shop || '');
+    const timezone: string = String(pi?.timezone || 'UTC');
+    const currency: string = String(pi?.currency || 'USD');
+    const today: string = String(pi?.today || new Date().toISOString().slice(0, 10));
 
   // Pull store info from Connection metadata (if available).
   const shopifyConnection = shopDomain
@@ -184,7 +207,8 @@ export async function GET(req: NextRequest) {
     (typeof meta?.niche === 'string' ? meta.niche : null) ||
     null;
 
-  const actualSeries: Array<any> = Array.isArray(pi?.actualSeries) ? pi.actualSeries : [];
+    stage = 'build.actual_series';
+    const actualSeries: Array<any> = Array.isArray(pi?.actualSeries) ? pi.actualSeries : [];
 
   // Build internal session & revenue arrays aligned to actualSeries dates.
   const dateKeys: string[] = actualSeries.map((p) => String(p.date)).filter((d) => d.length === 10);
@@ -223,10 +247,11 @@ export async function GET(req: NextRequest) {
   // External trends (best-effort). If we can’t fetch, we keep nulls and report data gap.
   const geo = ''; // worldwide (avoid guessing country)
   const categoryKeyword = category || 'ecommerce';
-  const [searchSeries, discountSeries] = await Promise.all([
-    fetchGoogleTrendsSeries({ keyword: categoryKeyword, geo, time: 'today 3-m' }),
-    fetchGoogleTrendsSeries({ keyword: `${categoryKeyword} discount`, geo, time: 'today 3-m' }),
-  ]);
+    stage = 'fetch.google_trends';
+    const [searchSeries, discountSeries] = await Promise.all([
+      fetchGoogleTrendsSeries({ keyword: categoryKeyword, geo, time: 'today 3-m' }),
+      fetchGoogleTrendsSeries({ keyword: `${categoryKeyword} discount`, geo, time: 'today 3-m' }),
+    ]);
 
   const searchAligned = searchSeries.length ? alignToDateKeys({ dateKeys, series: searchSeries }) : null;
   const discountAligned = discountSeries.length ? alignToDateKeys({ dateKeys, series: discountSeries }) : null;
@@ -247,14 +272,17 @@ export async function GET(req: NextRequest) {
   });
 
   // Meta signals (best-effort): reuse Meta Ads connection if present.
-  const metaConn = await prisma.connection.findFirst({
-    where: { userId: user.id, type: 'META_ADS' as any },
-    select: { accessToken: true, metadata: true },
-  });
+    stage = 'fetch.meta_connection';
+    const metaConn = await prisma.connection.findFirst({
+      where: { userId: user.id, type: 'META_ADS' as any },
+      select: { accessToken: true, metadata: true },
+    });
   const metaMeta = (metaConn?.metadata as any) || {};
   const adAccountId: string | null =
     typeof metaMeta?.adAccountId === 'string' ? metaMeta.adAccountId : null;
-  const metaAccessToken: string | null = metaConn?.accessToken ? String(metaConn.accessToken) : null;
+    const metaAccessToken: string | null = metaConn?.accessToken
+      ? decryptSecure(String(metaConn.accessToken))
+      : null;
 
   // Inline Meta fetch (simple; avoids importing packages/api directly).
   const fetchMetaDaily = async (): Promise<Array<{ date: string; clicks: number; impressions: number; spend: number }>> => {
@@ -286,7 +314,8 @@ export async function GET(req: NextRequest) {
     }
   };
 
-  const metaDaily = await fetchMetaDaily();
+    stage = 'fetch.meta_insights';
+    const metaDaily = await fetchMetaDaily();
   const cpcSeries = metaDaily
     .map((r) => ({ date: r.date, value: r.clicks > 0 ? r.spend / r.clicks : 0 }))
     .filter((p) => Number.isFinite(p.value));
@@ -405,56 +434,73 @@ export async function GET(req: NextRequest) {
     },
   };
 
-  let activeScenario: MarketIntelligenceContext['whatIf']['activeScenario'] = null;
-  if (scenarioId) {
-    const ev = await prisma.event.findFirst({
-      where: { id: scenarioId, type: 'predictive_insights.scenario_saved' },
-      select: { id: true, payload: true },
-    });
-    if (ev) {
-      activeScenario = {
-        id: ev.id,
-        name: String((ev.payload as any)?.name || 'Scenario'),
-        outputs: (ev.payload as any)?.outputs,
-      };
+    stage = 'fetch.scenario';
+    let activeScenario: MarketIntelligenceContext['whatIf']['activeScenario'] = null;
+    if (scenarioId) {
+      const ev = await prisma.event.findFirst({
+        where: { id: scenarioId, type: 'predictive_insights.scenario_saved' },
+        select: { id: true, payload: true },
+      });
+      if (ev) {
+        activeScenario = {
+          id: ev.id,
+          name: String((ev.payload as any)?.name || 'Scenario'),
+          outputs: (ev.payload as any)?.outputs,
+        };
+      }
     }
-  }
 
-  const ctx: MarketIntelligenceContext = {
-    shop: shopDomain,
-    store: {
-      shopDomain,
-      storeName,
-      category,
-      timezone,
-      currency,
-    },
-    generatedAt: new Date().toISOString(),
-    marketPulse: {
-      demand,
-      pricing,
-      competition,
-      storeVsMarket,
-      buyerIntent,
-    },
-    drivers,
-    impactOnStore,
-    marketAdjustedForecast,
-    predictiveInsights: {
-      currency,
-      today,
-      forecastTotals: baseForecastTotals,
-      confidence: {
-        score: Number(pi?.confidence?.score || 0),
-        label: (pi?.confidence?.label as any) || 'Low',
-        reasons: Array.isArray(pi?.confidence?.reasons) ? pi.confidence.reasons : [],
+    stage = 'response';
+    const ctx: MarketIntelligenceContext = {
+      shop: shopDomain,
+      store: {
+        shopDomain,
+        storeName,
+        category,
+        timezone,
+        currency,
       },
-    },
-    whatIf: { activeScenario },
-    recommendations,
-    dataGaps,
-  };
+      generatedAt: new Date().toISOString(),
+      marketPulse: {
+        demand,
+        pricing,
+        competition,
+        storeVsMarket,
+        buyerIntent,
+      },
+      drivers,
+      impactOnStore,
+      marketAdjustedForecast,
+      predictiveInsights: {
+        currency,
+        today,
+        forecastTotals: baseForecastTotals,
+        confidence: {
+          score: Number(pi?.confidence?.score || 0),
+          label: (pi?.confidence?.label as any) || 'Low',
+          reasons: Array.isArray(pi?.confidence?.reasons) ? pi.confidence.reasons : [],
+        },
+      },
+      whatIf: { activeScenario },
+      recommendations,
+      dataGaps,
+    };
 
-  return NextResponse.json(ctx);
+    return NextResponse.json(ctx);
+  } catch (err: any) {
+    console.error('[Market Intelligence] context failed', {
+      stage,
+      message: err?.message,
+      stack: err?.stack,
+    });
+    return NextResponse.json(
+      {
+        error: 'market intelligence failed',
+        stage,
+        message: String(err?.message || err),
+      },
+      { status: 500 },
+    );
+  }
 }
 
