@@ -136,11 +136,22 @@ function alignToDateKeys(args: {
 
 export async function GET(req: NextRequest) {
   let stage = 'start';
+  const commit =
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
+    'unknown';
+  const baseHeaders: Record<string, string> = {
+    'cache-control': 'no-store, max-age=0',
+    'x-zyyp-commit': commit,
+    vary: 'cookie',
+  };
+  const json = (body: any, status = 200) =>
+    NextResponse.json(body, { status, headers: baseHeaders });
   try {
     stage = 'auth.session';
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
+      return json({ error: 'not authenticated', commit }, 401);
     }
 
     stage = 'auth.user_lookup';
@@ -148,7 +159,7 @@ export async function GET(req: NextRequest) {
       where: { email: session.user.email },
       select: { id: true },
     });
-    if (!user) return NextResponse.json({ error: 'user not found' }, { status: 401 });
+    if (!user) return json({ error: 'user not found', commit }, 401);
 
     stage = 'params';
     const shop = req.nextUrl.searchParams.get('shop') || '';
@@ -174,14 +185,15 @@ export async function GET(req: NextRequest) {
       pi = null;
     }
     if (!piRes.ok || !pi) {
-      return NextResponse.json(
+      return json(
         {
           error: 'failed to load predictive insights',
           stage,
+          commit,
           status: piRes.status,
           detail: pi?.error || piText.slice(0, 300),
         },
-        { status: 500 },
+        500,
       );
     }
 
@@ -540,20 +552,21 @@ export async function GET(req: NextRequest) {
       dataGaps,
     };
 
-    return NextResponse.json(ctx);
+    return json(ctx, 200);
   } catch (err: any) {
     console.error('[Market Intelligence] context failed', {
       stage,
       message: err?.message,
       stack: err?.stack,
     });
-    return NextResponse.json(
+    return json(
       {
         error: 'market intelligence failed',
         stage,
+        commit,
         message: String(err?.message || err),
       },
-      { status: 500 },
+      500,
     );
   }
 }
