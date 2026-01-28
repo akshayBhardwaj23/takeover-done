@@ -5,6 +5,8 @@ import { buildChatAnswer } from '../../../../lib/market-intelligence/compute';
 import type { MarketIntelligenceContext, ChatAnswer } from '../../../../lib/market-intelligence/types';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 type ChatRequest = {
   shop?: string;
