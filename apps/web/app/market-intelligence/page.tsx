@@ -84,8 +84,21 @@ function MarketIntelligenceInner() {
         url.searchParams.set('shop', shop);
         if (scenarioId) url.searchParams.set('scenarioId', scenarioId);
         const res = await fetch(url.toString());
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || 'Failed to load market intelligence');
+        const text = await res.text();
+        let json: any = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+        if (!res.ok) {
+          const msg =
+            (json && (json.error || json.message)) ||
+            (text ? text.slice(0, 200) : '') ||
+            'Failed to load market intelligence';
+          throw new Error(String(msg));
+        }
+        if (!json) throw new Error('Empty response from market intelligence API');
         if (!cancelled) setCtx(json);
       } catch (e: any) {
         if (!cancelled) setError(String(e?.message || e));
@@ -107,8 +120,14 @@ function MarketIntelligenceInner() {
         const url = new URL('/api/predictive-insights/scenarios', window.location.origin);
         url.searchParams.set('shop', shop);
         const res = await fetch(url.toString());
-        const json = await res.json();
-        if (!res.ok) return;
+        const text = await res.text();
+        let json: any = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+        if (!res.ok || !json) return;
         if (!cancelled) setSavedScenarios(Array.isArray(json?.scenarios) ? json.scenarios : []);
       } catch {
         // ignore
