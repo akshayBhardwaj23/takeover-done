@@ -153,6 +153,19 @@ export type MarketIntelligenceContext = {
     timezone: string;
     currency: string;
   };
+  products?: {
+    windowDays: 30;
+    topProducts: Array<{
+      key: string; // productId/variantId/sku/title
+      title: string;
+      sku: string | null;
+      productId: string | null;
+      variantId: string | null;
+      ordersCount: number;
+      quantity: number;
+      revenue: number;
+    }>;
+  };
   generatedAt: string;
   marketPulse: {
     demand: MarketDemandIndex;
