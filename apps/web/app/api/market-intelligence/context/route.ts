@@ -271,70 +271,118 @@ export async function GET(req: NextRequest) {
     searchInterestPct90d: searchPct90,
   });
 
-  // Meta signals (best-effort): reuse Meta Ads connection if present.
-    stage = 'fetch.meta_connection';
-    const metaConn = await prisma.connection.findFirst({
-      where: { userId: user.id, type: 'META_ADS' as any },
-      select: { accessToken: true, metadata: true },
-    });
+  // Meta signals (best-effort): should NEVER take down the endpoint.
+  stage = 'fetch.meta_connection';
+  const metaConn = await prisma.connection.findFirst({
+    where: { userId: user.id, type: 'META_ADS' as any },
+    select: { accessToken: true, metadata: true },
+  });
   const metaMeta = (metaConn?.metadata as any) || {};
   const adAccountId: string | null =
     typeof metaMeta?.adAccountId === 'string' ? metaMeta.adAccountId : null;
-    let metaAccessToken: string | null = null;
-    if (metaConn?.accessToken) {
-      try {
-        metaAccessToken = decryptSecure(String(metaConn.accessToken));
-      } catch {
-        metaAccessToken = null;
-      }
-    }
 
-  // Inline Meta fetch (simple; avoids importing packages/api directly).
-  const fetchMetaDaily = async (): Promise<Array<{ date: string; clicks: number; impressions: number; spend: number }>> => {
+  let metaAccessToken: string | null = null;
+  if (metaConn?.accessToken) {
     try {
-      if (!adAccountId || !metaAccessToken) return [];
-      const url = new URL(`https://graph.facebook.com/v21.0/${adAccountId}/insights`);
-      url.searchParams.set('fields', 'date_start,clicks,impressions,spend');
-      url.searchParams.set('time_increment', '1');
-      // Align to last 45 days from todayKey if possible
-      const until = today;
-      const since = dateKeys.length ? dateKeys[Math.max(0, dateKeys.length - 45)]! : until;
-      url.searchParams.set('time_range[since]', since);
-      url.searchParams.set('time_range[until]', until);
-      url.searchParams.set('access_token', metaAccessToken);
-      const res = await fetch(url.toString());
-      if (!res.ok) return [];
-      const json = (await res.json()) as any;
-      const rows: any[] = Array.isArray(json?.data) ? json.data : [];
-      return rows
-        .map((r) => ({
-          date: String(r.date_start || ''),
-          clicks: parseFloat(String(r.clicks || '0')) || 0,
-          impressions: parseFloat(String(r.impressions || '0')) || 0,
-          spend: parseFloat(String(r.spend || '0')) || 0,
-        }))
-        .filter((r) => r.date.length === 10);
+      metaAccessToken = decryptSecure(String(metaConn.accessToken));
     } catch {
-      return [];
+      metaAccessToken = null;
     }
-  };
+  }
 
-    stage = 'fetch.meta_insights';
-    const metaDaily = await fetchMetaDaily();
-  const cpcSeries = metaDaily
-    .map((r) => ({ date: r.date, value: r.clicks > 0 ? r.spend / r.clicks : 0 }))
-    .filter((p) => Number.isFinite(p.value));
-  const ctrSeries = metaDaily
-    .map((r) => ({ date: r.date, value: r.impressions > 0 ? r.clicks / r.impressions : 0 }))
-    .filter((p) => Number.isFinite(p.value));
+  let metaDaily: Array<{ date: string; clicks: number; impressions: number; spend: number }> = [];
+  let cpcAligned: Array<number | null> | null = null;
+  let ctrAligned: Array<number | null> | null = null;
+  let cpcPct30: number | null = null;
+  let cpcMA7: number | null = null;
+  let cpcPrev30: number | null = null;
+  let ctrMA7: number | null = null;
+  let metaError: string | null = null;
 
-  const cpcAligned = cpcSeries.length ? alignToDateKeys({ dateKeys, series: cpcSeries }) : null;
-  const ctrAligned = ctrSeries.length ? alignToDateKeys({ dateKeys, series: ctrSeries }) : null;
+  stage = 'fetch.meta_insights';
+  try {
+    const fetchMetaDaily = async (): Promise<
+      Array<{ date: string; clicks: number; impressions: number; spend: number }>
+    > => {
+      try {
+        if (!adAccountId || !metaAccessToken) return [];
+        const url = new URL(
+          `https://graph.facebook.com/v21.0/${adAccountId}/insights`,
+        );
+        url.searchParams.set('fields', 'date_start,clicks,impressions,spend');
+        url.searchParams.set('time_increment', '1');
+        // Align to last 45 days from todayKey if possible
+        const until = today;
+        const since = dateKeys.length
+          ? dateKeys[Math.max(0, dateKeys.length - 45)]!
+          : until;
+        url.searchParams.set('time_range[since]', since);
+        url.searchParams.set('time_range[until]', until);
+        url.searchParams.set('access_token', metaAccessToken);
+        const res = await fetch(url.toString());
+        if (!res.ok) return [];
+        const json = (await res.json()) as any;
+        const rows: any[] = Array.isArray(json?.data) ? json.data : [];
+        return rows
+          .map((r) => ({
+            date: String(r.date_start || ''),
+            clicks: parseFloat(String(r.clicks || '0')) || 0,
+            impressions: parseFloat(String(r.impressions || '0')) || 0,
+            spend: parseFloat(String(r.spend || '0')) || 0,
+          }))
+          .filter((r) => r.date.length === 10);
+      } catch {
+        return [];
+      }
+    };
 
-  const cpcPct30 = cpcAligned ? pctChangeLastWindow(cpcAligned.map((v) => v ?? 0), 30) : null;
-  const cpcMA7 = cpcAligned ? mean(cpcAligned.slice(-7).filter((v): v is number => typeof v === 'number')) : null;
-  const cpcPrev30 = cpcAligned ? mean(cpcAligned.slice(-60, -30).filter((v): v is number => typeof v === 'number')) : null;
-  const ctrMA7 = ctrAligned ? mean(ctrAligned.slice(-7).filter((v): v is number => typeof v === 'number')) : null;
+    metaDaily = await fetchMetaDaily();
+    const cpcSeries = metaDaily
+      .map((r) => ({
+        date: r.date,
+        value: r.clicks > 0 ? r.spend / r.clicks : 0,
+      }))
+      .filter((p) => Number.isFinite(p.value));
+    const ctrSeries = metaDaily
+      .map((r) => ({
+        date: r.date,
+        value: r.impressions > 0 ? r.clicks / r.impressions : 0,
+      }))
+      .filter((p) => Number.isFinite(p.value));
+
+    cpcAligned = cpcSeries.length
+      ? alignToDateKeys({ dateKeys, series: cpcSeries })
+      : null;
+    ctrAligned = ctrSeries.length
+      ? alignToDateKeys({ dateKeys, series: ctrSeries })
+      : null;
+
+    cpcPct30 = cpcAligned
+      ? pctChangeLastWindow(cpcAligned.map((v) => v ?? 0), 30)
+      : null;
+    cpcMA7 = cpcAligned
+      ? mean(cpcAligned.slice(-7).filter((v): v is number => typeof v === 'number'))
+      : null;
+    cpcPrev30 = cpcAligned
+      ? mean(
+          cpcAligned
+            .slice(-60, -30)
+            .filter((v): v is number => typeof v === 'number'),
+        )
+      : null;
+    ctrMA7 = ctrAligned
+      ? mean(ctrAligned.slice(-7).filter((v): v is number => typeof v === 'number'))
+      : null;
+  } catch (e: any) {
+    metaError = String(e?.message || e);
+    metaDaily = [];
+    cpcAligned = null;
+    ctrAligned = null;
+    cpcPct30 = null;
+    cpcMA7 = null;
+    cpcPrev30 = null;
+    ctrMA7 = null;
+  }
 
   const pricing = buildPricingPressure({
     currency,
@@ -403,7 +451,8 @@ export async function GET(req: NextRequest) {
   const dataGaps: string[] = [];
   if (!searchSeries.length) dataGaps.push('External search-interest (Google Trends) unavailable.');
   if (!discountSeries.length) dataGaps.push('Discount-intent proxy (Google Trends) unavailable.');
-  if (!metaDaily.length) dataGaps.push('Meta CPC/CTR trend unavailable (no Meta connection or no data).');
+  if (metaError) dataGaps.push(`Meta insights unavailable (${metaError}).`);
+  else if (!metaDaily.length) dataGaps.push('Meta CPC/CTR trend unavailable (no Meta connection or no data).');
 
   // Impact on store: conservative mapping from signals to drivers (no invented numbers).
   const impactOnStore: MarketIntelligenceContext['impactOnStore'] = {
