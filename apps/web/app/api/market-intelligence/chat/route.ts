@@ -29,9 +29,21 @@ function extractText(v: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const commit =
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
+    'unknown';
+  const baseHeaders: Record<string, string> = {
+    'cache-control': 'no-store, max-age=0',
+    'x-zyyp-commit': commit,
+    vary: 'cookie',
+  };
+  const json = (body: any, status = 200) =>
+    NextResponse.json(body, { status, headers: baseHeaders });
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
-    return NextResponse.json({ error: 'not authenticated' }, { status: 401 });
+    return json({ error: 'not authenticated', commit }, 401);
   }
 
   const body = (await req.json().catch(() => ({}))) as ChatRequest;
@@ -41,7 +53,7 @@ export async function POST(req: NextRequest) {
   const category = extractText(body.category);
 
   if (!question) {
-    return NextResponse.json({ error: 'question is required' }, { status: 400 });
+    return json({ error: 'question is required', commit }, 400);
   }
 
   // Build context by calling the context endpoint (ensures a single source of truth).
@@ -56,7 +68,10 @@ export async function POST(req: NextRequest) {
   });
   if (!ctxRes.ok) {
     const t = await ctxRes.text().catch(() => '');
-    return NextResponse.json({ error: 'failed to build context', detail: t }, { status: 500 });
+    return json(
+      { error: 'failed to build context', detail: t.slice(0, 300), commit },
+      500,
+    );
   }
   const ctx = (await ctxRes.json()) as MarketIntelligenceContext;
 
@@ -73,6 +88,6 @@ export async function POST(req: NextRequest) {
     },
   };
 
-  return NextResponse.json(res);
+  return json(res, 200);
 }
 

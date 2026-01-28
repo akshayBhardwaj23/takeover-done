@@ -60,6 +60,7 @@ export function MarketCopilotChat(props: {
           question: q,
         }),
       });
+      const commit = res.headers.get('x-zyyp-commit');
       const raw = await res.text();
       let json: any = null;
       try {
@@ -74,7 +75,8 @@ export function MarketCopilotChat(props: {
           'Chat failed';
         const stage = json?.stage ? ` (stage: ${String(json.stage)})` : '';
         const detail = json?.detail ? ` — ${String(json.detail).slice(0, 200)}` : '';
-        throw new Error(String(baseMsg) + stage + detail);
+        const ver = commit ? ` (commit: ${commit.slice(0, 7)})` : '';
+        throw new Error(String(baseMsg) + stage + ver + detail);
       }
       if (!json) throw new Error('Empty response from chat API');
       const a = json?.answer;

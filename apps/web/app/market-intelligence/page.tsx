@@ -84,6 +84,7 @@ function MarketIntelligenceInner() {
         url.searchParams.set('shop', shop);
         if (scenarioId) url.searchParams.set('scenarioId', scenarioId);
         const res = await fetch(url.toString());
+        const commit = res.headers.get('x-zyyp-commit');
         const text = await res.text();
         let json: any = null;
         try {
@@ -103,7 +104,8 @@ function MarketIntelligenceInner() {
               : json?.message
                 ? ` — ${String(json.message).slice(0, 200)}`
                 : '';
-          throw new Error(String(baseMsg) + stage + detail);
+          const ver = commit ? ` (commit: ${commit.slice(0, 7)})` : '';
+          throw new Error(String(baseMsg) + stage + ver + detail);
         }
         if (!json) throw new Error('Empty response from market intelligence API');
         if (!cancelled) setCtx(json);
