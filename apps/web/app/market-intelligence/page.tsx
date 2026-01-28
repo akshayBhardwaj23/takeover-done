@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -31,8 +31,9 @@ function formatCurrency(amount: number, currencyCode: string): string {
 }
 
 function MarketIntelligenceInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const shop = searchParams.get('shop') || '';
+  const shopParam = searchParams.get('shop') || '';
 
   const { data: connectionsData } = trpc.connections.useQuery(undefined, {
     staleTime: 120_000,
@@ -52,11 +53,25 @@ function MarketIntelligenceInner() {
       }));
   }, [connectionsData]);
 
+  const [shop, setShop] = useState<string>(shopParam);
   const [scenarioId, setScenarioId] = useState<string>('');
   const [ctx, setCtx] = useState<MarketIntelligenceContext | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [savedScenarios, setSavedScenarios] = useState<any[]>([]);
+
+  // Keep local shop state in sync with URL.
+  useEffect(() => {
+    setShop(shopParam);
+  }, [shopParam]);
+
+  // If no shop in URL but user has a connected store, default to the first store.
+  useEffect(() => {
+    if (shopParam) return;
+    if (!stores.length) return;
+    const first = stores[0]!.shopDomain;
+    router.replace(`/market-intelligence?shop=${encodeURIComponent(first)}` as any);
+  }, [router, shopParam, stores]);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,10 +139,31 @@ function MarketIntelligenceInner() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          {!shop ? (
+          {!shop && stores.length > 0 ? (
+            <Badge variant="outline">Detecting store…</Badge>
+          ) : !shop ? (
             <Badge variant="outline">Select a shop via Stores → or add ?shop=</Badge>
           ) : (
             <Badge variant="outline">{shop}</Badge>
+          )}
+          {stores.length > 1 && (
+            <select
+              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+              value={shop}
+              onChange={(e) => {
+                const nextShop = e.target.value;
+                setScenarioId('');
+                router.replace(
+                  `/market-intelligence?shop=${encodeURIComponent(nextShop)}` as any,
+                );
+              }}
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.shopDomain}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           )}
           {savedScenarios.length > 0 && (
             <select
