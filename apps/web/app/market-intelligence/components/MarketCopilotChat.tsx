@@ -60,10 +60,21 @@ export function MarketCopilotChat(props: {
           question: q,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error || 'Chat failed');
+      const raw = await res.text();
+      let json: any = null;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
       }
+      if (!res.ok) {
+        const msg =
+          (json && (json.error || json.message)) ||
+          (raw ? raw.slice(0, 200) : '') ||
+          'Chat failed';
+        throw new Error(String(msg));
+      }
+      if (!json) throw new Error('Empty response from chat API');
       const a = json?.answer;
       setMessages((prev) => [
         ...prev,
