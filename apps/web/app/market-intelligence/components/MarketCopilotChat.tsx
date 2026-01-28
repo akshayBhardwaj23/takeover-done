@@ -68,11 +68,13 @@ export function MarketCopilotChat(props: {
         json = null;
       }
       if (!res.ok) {
-        const msg =
+        const baseMsg =
           (json && (json.error || json.message)) ||
           (raw ? raw.slice(0, 200) : '') ||
           'Chat failed';
-        throw new Error(String(msg));
+        const stage = json?.stage ? ` (stage: ${String(json.stage)})` : '';
+        const detail = json?.detail ? ` — ${String(json.detail).slice(0, 200)}` : '';
+        throw new Error(String(baseMsg) + stage + detail);
       }
       if (!json) throw new Error('Empty response from chat API');
       const a = json?.answer;
