@@ -283,6 +283,141 @@ function MarketIntelligenceInner() {
 
       {shop && (
         <>
+          {/* Next-best actions + risk alerts */}
+          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card className="p-5 lg:col-span-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-800">Today’s top actions</div>
+                <Badge variant="secondary">Next-best actions</Badge>
+              </div>
+              <div className="mt-3 space-y-3">
+                {(ctx?.actions || []).length ? (
+                  (ctx.actions as any[]).map((a, i) => (
+                    <div key={a.id || i} className="rounded-md border border-slate-200 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-slate-900">
+                            {i + 1}. {a.title}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">{a.rationale}</div>
+                          {Array.isArray(a.evidence) && a.evidence.length > 0 && (
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                              {a.evidence.slice(0, 3).map((e: string, idx: number) => (
+                                <li key={idx}>{e}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                        <Badge variant="secondary">{a.confidence || '—'}</Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(a.ctas || []).map((c: any, idx: number) => (
+                          <Link
+                            key={idx}
+                            href={(c.href as any)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            {c.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-600">No actions available yet.</div>
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-800">Risk alerts</div>
+                <Badge variant="outline">Proactive</Badge>
+              </div>
+              <div className="mt-3 space-y-3">
+                {(ctx?.alerts || []).length ? (
+                  (ctx.alerts as any[]).slice(0, 4).map((r, i) => (
+                    <div key={r.id || i} className="rounded-md border border-slate-200 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-slate-900">{r.title}</div>
+                        <Badge variant="secondary">{r.severity}</Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-600">{r.message}</div>
+                      {Array.isArray(r.evidence) && r.evidence.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                          {r.evidence.slice(0, 2).map((e: string, idx: number) => (
+                            <li key={idx}>{e}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(r.ctas || []).slice(0, 2).map((c: any, idx: number) => (
+                          <Link
+                            key={idx}
+                            href={(c.href as any)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                          >
+                            {c.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-slate-600">No active risks detected.</div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Automated scenario suggestions */}
+          {Array.isArray(ctx?.scenarioSuggestions) && ctx.scenarioSuggestions.length > 0 && (
+            <Card className="mt-4 p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-800">Suggested scenarios</div>
+                <Badge variant="outline">Auto-tested</Badge>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                {ctx.scenarioSuggestions.map((s: any, idx: number) => {
+                  const qs =
+                    `shop=${encodeURIComponent(shop)}` +
+                    `&focus=whatif` +
+                    `&presetName=${encodeURIComponent(String(s.name || 'Scenario'))}` +
+                    (s.miParams?.miMetaSpendPct != null ? `&miMetaSpendPct=${encodeURIComponent(String(s.miParams.miMetaSpendPct))}` : '') +
+                    (s.miParams?.miCpcPct != null ? `&miCpcPct=${encodeURIComponent(String(s.miParams.miCpcPct))}` : '') +
+                    (s.miParams?.miCvrPct != null ? `&miCvrPct=${encodeURIComponent(String(s.miParams.miCvrPct))}` : '') +
+                    (s.miParams?.miAovPct != null ? `&miAovPct=${encodeURIComponent(String(s.miParams.miAovPct))}` : '');
+                  const href = `/predictive-insights?${qs}#what-if-planner`;
+                  return (
+                    <div key={s.id || idx} className="rounded-md border border-slate-200 bg-white p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-slate-900">{s.name}</div>
+                        <Badge variant="secondary">{s.risk}</Badge>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-600">{s.why}</div>
+                      <div className="mt-2 text-xs text-slate-700">
+                        Uplift ({s.horizonDays}d):{' '}
+                        <span className="font-semibold">
+                          {typeof s.revenueUpliftPct === 'number'
+                            ? `${s.revenueUpliftPct > 0 ? '+' : ''}${Math.round(s.revenueUpliftPct * 10) / 10}%`
+                            : '—'}
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <Link
+                          href={(href as any)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                        >
+                          Open in What‑If Planner
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="p-5">
               <div className="flex items-center justify-between">
@@ -447,6 +582,45 @@ function MarketIntelligenceInner() {
                     <Badge variant="secondary">{ctx?.impactOnStore?.forecastConfidenceImpact?.direction || '—'}</Badge>
                   </div>
                   <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.forecastConfidenceImpact?.explanation || '—'}</div>
+                </div>
+              </div>
+
+              {/* Inventory */}
+              <div className="mt-6 rounded-md border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold text-slate-800">Inventory-aware forecasting</div>
+                  <Badge variant="secondary">{ctx?.inventory?.status || '—'}</Badge>
+                </div>
+                <div className="mt-2 text-xs text-slate-600">
+                  {ctx?.inventory?.status === 'At risk'
+                    ? `Possible stockout around ${ctx?.inventory?.estimatedStockoutDate || '—'}.`
+                    : ctx?.inventory?.status === 'OK'
+                      ? 'No near-term stockout detected for top-selling variants.'
+                      : 'Inventory signal is unavailable for this store.'}
+                </div>
+                {Array.isArray(ctx?.inventory?.topSkuAtRisk) && ctx.inventory.topSkuAtRisk.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                    {ctx.inventory.topSkuAtRisk.map((x: any, idx: number) => (
+                      <li key={idx}>
+                        {x.title} {x.estDaysCover != null ? `(~${x.estDaysCover} days cover)` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    href={
+                      (`/predictive-insights?shop=${encodeURIComponent(shop)}&focus=whatif&presetName=${encodeURIComponent(
+                        'Stockout constraint',
+                      )}${ctx?.inventory?.estimatedStockoutDate ? `&miStockOutDate=${encodeURIComponent(ctx.inventory.estimatedStockoutDate)}` : ''}#what-if-planner` as any)
+                    }
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Simulate inventory constraint in What‑If
+                  </Link>
+                </div>
+                <div className="mt-2 text-[11px] text-slate-500">
+                  Confidence: {ctx?.inventory?.confidence?.label || '—'} ({ctx?.inventory?.confidence?.score ?? '—'})
                 </div>
               </div>
 

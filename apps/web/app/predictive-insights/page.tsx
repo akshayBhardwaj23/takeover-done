@@ -217,7 +217,9 @@ function PredictiveInsightsInner() {
       !!sp.get('miCvrPct') ||
       !!sp.get('miAovPct') ||
       !!sp.get('miDiscountPct') ||
-      !!sp.get('miRefundPct');
+      !!sp.get('miRefundPct') ||
+      !!sp.get('miInventoryCapOrdersPerDay') ||
+      !!sp.get('miStockOutDate');
     if (!hasMi) return;
 
     const num = (key: string): number | null => {
@@ -236,6 +238,8 @@ function PredictiveInsightsInner() {
     const aov = num('miAovPct');
     const discount = num('miDiscountPct');
     const refund = num('miRefundPct');
+    const invCap = num('miInventoryCapOrdersPerDay');
+    const stockOut = sp.get('miStockOutDate');
 
     if (metaSpend != null) cfg.metaSpendChangePct = metaSpend;
     if (cpc != null) cfg.cpcChangePct = cpc;
@@ -245,6 +249,8 @@ function PredictiveInsightsInner() {
     if (aov != null) cfg.aovChangePct = aov;
     if (discount != null) cfg.discountIntensityChangePct = discount;
     if (refund != null) cfg.refundRateChangePct = refund;
+    if (invCap != null) cfg.inventoryCapOrdersPerDay = Math.max(0, Math.round(invCap));
+    if (stockOut && /^\d{4}-\d{2}-\d{2}$/.test(stockOut)) cfg.stockOutDate = stockOut;
 
     setScenarioConfig(cfg);
     if (presetName) setScenarioName(presetName.slice(0, 80));

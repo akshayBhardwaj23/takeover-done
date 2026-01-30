@@ -3,6 +3,7 @@ import { prisma } from '@ai-ecom/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../../../lib/auth';
 import { decryptSecure } from '@ai-ecom/api';
+import { computeScenario, defaultScenarioConfig } from '../../../../lib/what-if/scenario';
 
 import {
   buildCompetitionSignals,
@@ -17,7 +18,10 @@ import {
 } from '../../../../lib/market-intelligence/compute';
 import type {
   MarketIntelligenceContext,
-  TrendPoint,
+  InventoryInsight,
+  NextBestAction,
+  RiskAlert,
+  ScenarioSuggestion,
 } from '../../../../lib/market-intelligence/types';
 
 export const runtime = 'nodejs';
@@ -518,6 +522,191 @@ export async function GET(req: NextRequest) {
     paidSaturation: competition.paidSaturation.label,
   });
 
+    // Inventory insight (best-effort): use Shopify inventory levels for top selling variants.
+    stage = 'fetch.inventory';
+    const inventory: InventoryInsight = (() => {
+      const base: InventoryInsight = {
+        status: 'Unknown',
+        estimatedStockoutDate: null,
+        topSkuAtRisk: [],
+        confidence: { score: 35, label: 'Low', reasons: ['Inventory data unavailable.'] },
+        notes: [],
+      };
+      return base;
+    })();
+
+    // Build variant candidates from recent line items (only those that have variantId).
+    const variantCandidates: Array<{ variantId: string; title: string; sku: string | null; units: number }> = [];
+    try {
+      if (shopifyConnection?.id) {
+        const start = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000);
+        const items = await prisma.orderLineItem.findMany({
+          where: {
+            variantId: { not: null },
+            order: {
+              connectionId: shopifyConnection.id,
+              OR: [{ processedAt: { gte: start } }, { processedAt: null, createdAt: { gte: start } }],
+            },
+          },
+          select: {
+            variantId: true,
+            title: true,
+            sku: true,
+            quantity: true,
+            order: { select: { status: true, name: true, email: true } },
+          },
+          take: 5000,
+        });
+
+        const agg = new Map<string, { variantId: string; title: string; sku: string | null; units: number }>();
+        for (const li of items) {
+          const status = String(li.order?.status || '').toLowerCase();
+          const name = String(li.order?.name || '').toLowerCase();
+          const email = String(li.order?.email || '').toLowerCase();
+          if (status.includes('cancel') || status.includes('void')) continue;
+          if (name.includes('test') || email.includes('example.com')) continue;
+
+          const vid = String(li.variantId || '').trim();
+          if (!vid) continue;
+          const cur = agg.get(vid) || {
+            variantId: vid,
+            title: li.title,
+            sku: li.sku ?? null,
+            units: 0,
+          };
+          cur.units += Number(li.quantity || 0);
+          agg.set(vid, cur);
+        }
+        variantCandidates.push(
+          ...Array.from(agg.values())
+            .sort((a, b) => b.units - a.units)
+            .slice(0, 5),
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    // If we can, fetch live inventory levels for these variants.
+    try {
+      if (shopifyConnection?.id && shopDomain && variantCandidates.length) {
+        const shopifyConnForInv = await prisma.connection.findFirst({
+          where: { id: shopifyConnection.id },
+          select: { accessToken: true, shopDomain: true },
+        });
+        const tokenEnc = shopifyConnForInv?.accessToken ? String(shopifyConnForInv.accessToken) : '';
+        const token = tokenEnc ? decryptSecure(tokenEnc) : '';
+        if (!token) throw new Error('Missing Shopify access token');
+
+        const variantIds = variantCandidates.map((v) => v.variantId);
+        const inventoryItemIds: Array<{ variantId: string; inventoryItemId: string | null }> = [];
+
+        for (const vid of variantIds) {
+          try {
+            const res = await fetch(`https://${shopDomain}/admin/api/2024-07/variants/${vid}.json`, {
+              headers: { 'X-Shopify-Access-Token': token },
+              cache: 'no-store',
+            });
+            if (!res.ok) {
+              inventoryItemIds.push({ variantId: vid, inventoryItemId: null });
+              continue;
+            }
+            const json = (await res.json()) as any;
+            const invId = json?.variant?.inventory_item_id;
+            inventoryItemIds.push({
+              variantId: vid,
+              inventoryItemId: invId != null ? String(invId) : null,
+            });
+          } catch {
+            inventoryItemIds.push({ variantId: vid, inventoryItemId: null });
+          }
+        }
+
+        const ids = inventoryItemIds.map((x) => x.inventoryItemId).filter((v): v is string => !!v);
+        const availableByInvId = new Map<string, number>();
+        if (ids.length) {
+          const url = new URL(`https://${shopDomain}/admin/api/2024-07/inventory_levels.json`);
+          url.searchParams.set('inventory_item_ids', ids.join(','));
+          const res = await fetch(url.toString(), {
+            headers: { 'X-Shopify-Access-Token': token },
+            cache: 'no-store',
+          });
+          if (res.ok) {
+            const json = (await res.json()) as any;
+            const levels: any[] = Array.isArray(json?.inventory_levels) ? json.inventory_levels : [];
+            for (const lvl of levels) {
+              const invId = lvl?.inventory_item_id != null ? String(lvl.inventory_item_id) : '';
+              const avail = Number(lvl?.available ?? 0);
+              if (!invId) continue;
+              availableByInvId.set(invId, (availableByInvId.get(invId) || 0) + (Number.isFinite(avail) ? avail : 0));
+            }
+          }
+        }
+
+        // Forecast orders/day (next 30 days)
+        const forecast: any[] = Array.isArray(pi?.forecastSeries) ? pi.forecastSeries : [];
+        const next30 = forecast.slice(0, 30);
+        const totalOrders30 = next30.reduce((s, d) => {
+          const sessions = d?.sessions;
+          const cvr = d?.cvr;
+          if (typeof sessions === 'number' && typeof cvr === 'number') return s + sessions * cvr;
+          return s;
+        }, 0);
+        const ordersPerDay = totalOrders30 > 0 ? totalOrders30 / Math.max(1, next30.length) : 0;
+
+        const totalUnits = variantCandidates.reduce((s, v) => s + v.units, 0);
+        const todayDateKey = today;
+        const toDateKey = (dt: Date) => dt.toISOString().slice(0, 10);
+
+        const atRisk: InventoryInsight['topSkuAtRisk'] = [];
+        let earliest: string | null = null;
+
+        for (const v of variantCandidates) {
+          const invId = inventoryItemIds.find((x) => x.variantId === v.variantId)?.inventoryItemId || null;
+          const available = invId ? (availableByInvId.get(invId) ?? 0) : null;
+          const share = totalUnits > 0 ? v.units / totalUnits : 0;
+          const unitsPerDay = ordersPerDay > 0 ? ordersPerDay * share : 0;
+          const coverDays =
+            available != null && unitsPerDay > 0 ? Math.max(0, available / unitsPerDay) : null;
+          if (coverDays != null && coverDays < 60) {
+            const d = new Date(Date.now() + Math.floor(coverDays) * 24 * 60 * 60 * 1000);
+            const dateKey = toDateKey(d);
+            if (!earliest || dateKey < earliest) earliest = dateKey;
+            atRisk.push({
+              title: v.title,
+              variantId: v.variantId,
+              sku: v.sku,
+              estDaysCover: Math.round(coverDays * 10) / 10,
+            });
+          }
+        }
+
+        if (atRisk.length) {
+          inventory.status = atRisk.some((x) => (x.estDaysCover ?? 999) < 14) ? 'At risk' : 'At risk';
+          inventory.estimatedStockoutDate = earliest;
+          inventory.topSkuAtRisk = atRisk.slice(0, 3);
+          inventory.confidence = {
+            score: 65,
+            label: 'Medium',
+            reasons: ['Based on current Shopify inventory levels for top-selling variants.'],
+          };
+          inventory.notes = [
+            `Estimated using the last 30 days product mix and the next 30 days forecasted order volume.`,
+          ];
+        } else {
+          inventory.status = ids.length ? 'OK' : 'Unknown';
+          inventory.confidence = ids.length
+            ? { score: 55, label: 'Medium', reasons: ['Inventory levels fetched for top variants.'] }
+            : inventory.confidence;
+        }
+      }
+    } catch (e: any) {
+      // Do not fail MI if inventory fetch fails.
+      inventory.status = 'Unknown';
+      inventory.confidence = { score: 25, label: 'Low', reasons: ['Inventory fetch failed.'] };
+      inventory.notes = [String(e?.message || e)];
+    }
+
   const baseForecastTotals: Array<{ horizonDays: 7 | 30 | 90; expected: number; best: number; worst: number }> =
     Array.isArray(pi?.forecastSeries)
       ? ([7, 30, 90] as const).map((h) => {
@@ -552,6 +741,318 @@ export async function GET(req: NextRequest) {
     paidSaturation: competition.paidSaturation.label,
     storeVsMarketLabel: storeVsMarket.label,
   });
+
+    // Next-best actions (Top 3) + risk alerts (explainable, grounded in computed context).
+    const actions: NextBestAction[] = [];
+    const alerts: RiskAlert[] = [];
+
+    const shopQs = `shop=${encodeURIComponent(shopDomain)}`;
+    const piBase = `/predictive-insights?${shopQs}`;
+    const miBase = `/market-intelligence?${shopQs}`;
+
+    // Action: run CPC inflation stress test if paid saturation is high
+    if (competition.paidSaturation.label === 'High') {
+      actions.push({
+        id: 'action.paid_efficiency',
+        priority: 1,
+        title: 'Protect paid efficiency before scaling',
+        rationale:
+          'CPC inflation suggests paid saturation; scaling budget now can reduce marginal returns.',
+        confidence: 'Medium',
+        evidence: [
+          `Paid saturation: ${competition.paidSaturation.label}`,
+          competition.paidSaturation.cpcInflationPct30d != null
+            ? `CPC inflation (30d): ${Math.round(competition.paidSaturation.cpcInflationPct30d)}%`
+            : 'CPC inflation (30d): unavailable',
+        ],
+        ctas: [
+          {
+            label: 'Run CPC stress test in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('CPC inflation stress test')}` +
+              `&miCpcPct=15&miMetaSpendPct=10#what-if-planner`,
+          },
+          { label: 'Review Advertisements', href: '/advertisements' },
+        ],
+      });
+    }
+
+    // Action: investigate store-specific friction if underperforming market
+    if (storeVsMarket.label === 'Store underperforming market') {
+      actions.push({
+        id: 'action.fix_funnel',
+        priority: actions.length ? 2 : 1,
+        title: 'Improve conversion to catch up with the market',
+        rationale:
+          'Your store is trailing category movement; focus on funnel fixes (CVR) before adding more traffic.',
+        confidence: 'High',
+        evidence: [
+          `Store vs market: ${storeVsMarket.label}`,
+          storeVsMarket.evidence.storeRevenuePct30d != null
+            ? `Store revenue (30d): ${Math.round(storeVsMarket.evidence.storeRevenuePct30d)}%`
+            : 'Store revenue (30d): unavailable',
+        ],
+        ctas: [
+          {
+            label: 'Simulate CVR uplift in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('Improve CVR (+5%)')}` +
+              `&miCvrPct=5#what-if-planner`,
+          },
+          { label: 'Open Predictive Insights', href: piBase },
+        ],
+      });
+    }
+
+    // Action: scale a winner product (if we have product-level data)
+    if (topProducts.length > 0) {
+      const winner = topProducts[0]!;
+      actions.push({
+        id: 'action.scale_winner_product',
+        priority: actions.length >= 2 ? 3 : 2,
+        title: `Prioritize ads for: ${winner.title}`,
+        rationale:
+          'This product is your recent revenue leader; in noisy paid markets, start from proven sellers.',
+        confidence: winner.ordersCount >= 15 ? 'Medium' : 'Low',
+        evidence: [
+          `${winner.title}: ${Math.round(winner.revenue)} revenue, ${winner.ordersCount} orders, ${winner.quantity} units (last 30d).`,
+        ],
+        ctas: [
+          { label: 'Open Advertisements', href: '/advertisements' },
+          {
+            label: 'Test small budget in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('Test spend (+10%)')}` +
+              `&miMetaSpendPct=10#what-if-planner`,
+          },
+        ],
+      });
+    }
+
+    // Action: improve data reliability if forecast confidence is low
+    if ((pi?.confidence?.label || 'Low') === 'Low') {
+      actions.push({
+        id: 'action.improve_data',
+        priority: actions.length >= 3 ? 3 : 2,
+        title: 'Improve data coverage to raise forecast confidence',
+        rationale:
+          'Low confidence usually comes from sparse orders, missing GA sessions, or high volatility.',
+        confidence: 'Medium',
+        evidence: Array.isArray(pi?.confidence?.reasons) ? pi.confidence.reasons.slice(0, 2) : [],
+        ctas: [
+          { label: 'Connect integrations', href: '/integrations' },
+          { label: 'Open Predictive Insights', href: piBase },
+        ],
+      });
+    }
+
+    // Inventory action/alert if at risk
+    if (inventory.status === 'At risk') {
+      const stockOut = inventory.estimatedStockoutDate;
+      actions.push({
+        id: 'action.inventory_risk',
+        priority: 1,
+        title: 'Prevent stockouts on top sellers',
+        rationale:
+          'At least one top-selling SKU may stock out soon. This can cap revenue regardless of demand or ads.',
+        confidence: inventory.confidence.label,
+        evidence: [
+          ...(inventory.topSkuAtRisk || []).map((x) => `${x.title}: ~${x.estDaysCover ?? '—'} days cover`),
+          stockOut ? `Estimated stockout date: ${stockOut}` : 'Estimated stockout date: unavailable',
+        ],
+        ctas: [
+          {
+            label: 'Simulate stockout impact in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('Stockout constraint')}` +
+              `${stockOut ? `&miStockOutDate=${encodeURIComponent(stockOut)}` : ''}` +
+              `#what-if-planner`,
+          },
+          { label: 'Open Business Analytics', href: '/shopify-analytics' },
+        ],
+      });
+
+      alerts.push({
+        id: 'risk.inventory_stockout',
+        severity: 'High',
+        title: 'Risk: potential stockout on a top seller',
+        message:
+          'If inventory runs out, growth will be capped even if traffic increases.',
+        evidence: [
+          stockOut ? `Estimated stockout date: ${stockOut}` : 'Estimated stockout date: unavailable',
+        ],
+        confidence: inventory.confidence.label,
+        ctas: [
+          {
+            label: 'Simulate stockout in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('Stockout constraint')}` +
+              `${stockOut ? `&miStockOutDate=${encodeURIComponent(stockOut)}` : ''}` +
+              `#what-if-planner`,
+          },
+          { label: 'Open Market Intelligence', href: miBase },
+        ],
+      });
+    }
+
+    // Risk alerts
+    if (demand.direction === 'Declining' && storeVsMarket.label === 'Store underperforming market') {
+      alerts.push({
+        id: 'risk.underperforming_in_decline',
+        severity: 'High',
+        title: 'Risk: underperforming during demand contraction',
+        message:
+          'When category demand is down and your store trails the market, scaling spend is likely to be inefficient.',
+        evidence: [
+          demand.pctChange7d != null
+            ? `Demand (7d): ${Math.round(demand.pctChange7d)}%`
+            : `Demand: ${demand.direction}`,
+          `Store vs market: ${storeVsMarket.label}`,
+        ],
+        confidence: 'Medium',
+        ctas: [
+          { label: 'Open Market Intelligence', href: miBase },
+          {
+            label: 'Stress test spend/CPC in What‑If',
+            href:
+              `${piBase}&focus=whatif&presetName=${encodeURIComponent('CPC inflation stress test')}` +
+              `&miCpcPct=15&miMetaSpendPct=10#what-if-planner`,
+          },
+        ],
+      });
+    }
+
+    if (competition.paidSaturation.label === 'High' && (competition.paidSaturation.cpcInflationPct30d ?? 0) > 10) {
+      alerts.push({
+        id: 'risk.cpc_inflation',
+        severity: 'Medium',
+        title: 'Risk: CPC inflation may reduce marginal ROAS',
+        message:
+          'CPC is rising; without CVR improvements, paid growth can get expensive quickly.',
+        evidence: [
+          competition.paidSaturation.cpcInflationPct30d != null
+            ? `CPC inflation (30d): ${Math.round(competition.paidSaturation.cpcInflationPct30d)}%`
+            : 'CPC inflation (30d): unavailable',
+        ],
+        confidence: 'Medium',
+        ctas: [
+          { label: 'Review Advertisements', href: '/advertisements' },
+          { label: 'Simulate CVR uplift', href: `${piBase}&focus=whatif&miCvrPct=5#what-if-planner` },
+        ],
+      });
+    }
+
+    if ((pi?.confidence?.label || 'Low') === 'Low') {
+      alerts.push({
+        id: 'risk.low_confidence',
+        severity: 'Medium',
+        title: 'Risk: forecast confidence is low',
+        message:
+          'Treat the forecast as directional. Use What‑If to test conservative and aggressive ranges.',
+        evidence: Array.isArray(pi?.confidence?.reasons) ? pi.confidence.reasons.slice(0, 3) : [],
+        confidence: 'High',
+        ctas: [
+          { label: 'Open Predictive Insights', href: piBase },
+          { label: 'Connect integrations', href: '/integrations' },
+        ],
+      });
+    }
+
+    // Automated scenario suggestions (small, explainable set)
+    stage = 'compute.scenario_suggestions';
+    let scenarioSuggestions: ScenarioSuggestion[] = [];
+    try {
+      const baseDays = Array.isArray(pi?.forecastSeries)
+        ? (pi.forecastSeries as any[]).map((d) => ({
+            date: String(d.date || ''),
+            sessions: typeof d.sessions === 'number' ? d.sessions : null,
+            cvr: typeof d.cvr === 'number' ? d.cvr : null,
+            aov: Number(d.aov || 0),
+            revenue: Number(d.revenue || 0),
+            revenueLow: Number(d.revenueLow || 0),
+            revenueHigh: Number(d.revenueHigh || 0),
+          }))
+        : [];
+
+      const k = Number(pi?.driverVolatility?.volatilityK ?? 0.25);
+      const drv = {
+        sessionsCoefVar: (pi?.driverVolatility?.sessionsCoefVar ?? null) as number | null,
+        cvrCoefVar: (pi?.driverVolatility?.cvrCoefVar ?? null) as number | null,
+        aovCoefVar: (pi?.driverVolatility?.aovCoefVar ?? 0.8) as number,
+      };
+      const metaIsConnected = !!metaConn;
+
+      const presets: Array<{ id: string; name: string; why: string; miParams: Record<string, string | number> }> = [
+        {
+          id: 'suggestion.cvr_uplift',
+          name: 'Improve CVR (+5%)',
+          why: 'Focuses on conversion efficiency without relying on more traffic.',
+          miParams: { miCvrPct: 5, presetName: 'Improve CVR (+5%)', focus: 'whatif' },
+        },
+        {
+          id: 'suggestion.cpc_stress',
+          name: 'CPC inflation stress test',
+          why: 'Tests resilience if CPC rises while you scale spend.',
+          miParams: { miCpcPct: 15, miMetaSpendPct: 10, presetName: 'CPC inflation stress test', focus: 'whatif' },
+        },
+        {
+          id: 'suggestion.scale_spend',
+          name: 'Scale spend (+20%)',
+          why: 'Simple growth test: more spend with unchanged efficiency.',
+          miParams: { miMetaSpendPct: 20, presetName: 'Scale spend (+20%)', focus: 'whatif' },
+        },
+        {
+          id: 'suggestion.aov_test',
+          name: 'AOV lift (+5%)',
+          why: 'Tests revenue upside via higher AOV (bundles/upsells).',
+          miParams: { miAovPct: 5, presetName: 'AOV lift (+5%)', focus: 'whatif' },
+        },
+      ];
+
+      const evalPreset = (p: (typeof presets)[number]) => {
+        const cfg = defaultScenarioConfig();
+        const num = (k: string) => {
+          const v = p.miParams[k];
+          const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN;
+          return Number.isFinite(n) ? n : null;
+        };
+        const metaSpend = num('miMetaSpendPct');
+        const cpc = num('miCpcPct');
+        const cvrU = num('miCvrPct');
+        const aovU = num('miAovPct');
+        if (metaSpend != null) cfg.metaSpendChangePct = metaSpend;
+        if (cpc != null) cfg.cpcChangePct = cpc;
+        if (cvrU != null) cfg.overallCvrUpliftPct = cvrU;
+        if (aovU != null) cfg.aovChangePct = aovU;
+
+        const res = computeScenario({
+          base: baseDays,
+          config: cfg,
+          volatilityK: k,
+          driverVolatility: drv,
+          metaConnected: metaIsConnected,
+        });
+        const t30 = res.totals.find((t) => t.horizonDays === 30);
+        const t90 = res.totals.find((t) => t.horizonDays === 90);
+        const pick = t30?.uplift?.revenuePct != null ? { horizonDays: 30 as const, uplift: t30.uplift.revenuePct } : t90?.uplift?.revenuePct != null ? { horizonDays: 90 as const, uplift: t90.uplift.revenuePct } : null;
+        return {
+          id: p.id,
+          name: p.name,
+          why: p.why,
+          horizonDays: (pick?.horizonDays ?? 30) as 30 | 90,
+          revenueUpliftPct: pick?.uplift ?? null,
+          risk: res.risk.label,
+          miParams: p.miParams,
+        } satisfies ScenarioSuggestion;
+      };
+
+      scenarioSuggestions = presets
+        .map(evalPreset)
+        .sort((a, b) => (b.revenueUpliftPct ?? -999) - (a.revenueUpliftPct ?? -999))
+        .slice(0, 3);
+    } catch {
+      scenarioSuggestions = [];
+    }
 
   const dataGaps: string[] = [];
   if (!searchSeries.length) dataGaps.push('External search-interest (Google Trends) unavailable.');
@@ -632,6 +1133,12 @@ export async function GET(req: NextRequest) {
         buyerIntent,
       },
       drivers,
+      actions: actions
+        .sort((a, b) => a.priority - b.priority)
+        .slice(0, 3),
+      alerts,
+      inventory,
+      scenarioSuggestions,
       impactOnStore,
       marketAdjustedForecast,
       predictiveInsights: {
