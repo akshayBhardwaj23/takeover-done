@@ -125,6 +125,44 @@ export type MarketTrendDrivers = {
   cpc?: TrendPoint[]; // numeric
 };
 
+export type NextBestAction = {
+  id: string;
+  priority: 1 | 2 | 3; // 1 is highest
+  title: string;
+  rationale: string;
+  confidence: ConfidenceLabel;
+  evidence: string[];
+  ctas: Array<{ label: string; href: string }>;
+};
+
+export type RiskAlert = {
+  id: string;
+  severity: 'High' | 'Medium' | 'Low';
+  title: string;
+  message: string;
+  evidence: string[];
+  confidence: ConfidenceLabel;
+  ctas: Array<{ label: string; href: string }>;
+};
+
+export type InventoryInsight = {
+  status: 'OK' | 'At risk' | 'Unknown';
+  estimatedStockoutDate: string | null; // YYYY-MM-DD
+  topSkuAtRisk: Array<{ title: string; variantId: string | null; sku: string | null; estDaysCover: number | null }>;
+  confidence: SignalConfidence;
+  notes: string[];
+};
+
+export type ScenarioSuggestion = {
+  id: string;
+  name: string;
+  why: string;
+  horizonDays: 30 | 90;
+  revenueUpliftPct: number | null;
+  risk: RiskLabel;
+  miParams: Record<string, string | number>;
+};
+
 export type PredictiveInsightsSummary = {
   currency: string;
   today: string;
@@ -179,6 +217,10 @@ export type MarketIntelligenceContext = {
     };
   };
   drivers: MarketTrendDrivers;
+  actions: NextBestAction[];
+  alerts: RiskAlert[];
+  inventory?: InventoryInsight;
+  scenarioSuggestions?: ScenarioSuggestion[];
   impactOnStore: {
     sessionsImpact: { direction: Direction; explanation: string };
     cvrImpact: { direction: Direction; explanation: string };
