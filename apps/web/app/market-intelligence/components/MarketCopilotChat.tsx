@@ -109,13 +109,13 @@ export function MarketCopilotChat(props: {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex h-full flex-col gap-3">
       <div className="flex flex-wrap gap-2">
         {suggestions.map((s) => (
           <button
             key={s}
             type="button"
-            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+            className="rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 transition hover:-translate-y-0.5 hover:bg-white"
             onClick={() => send(s)}
             disabled={!props.shop || loading}
           >
@@ -124,63 +124,83 @@ export function MarketCopilotChat(props: {
         ))}
       </div>
 
-      <div className="h-[360px] overflow-auto rounded-md border border-slate-200 bg-white p-3">
+      <div className="flex-1 overflow-auto rounded-2xl bg-white/50 p-3 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
         <div className="space-y-3">
           {messages.map((m, idx) =>
             m.role === 'user' ? (
               <div key={idx} className="flex justify-end">
-                <div className="max-w-[85%] rounded-lg bg-slate-900 px-3 py-2 text-xs text-white">
+                <div className="max-w-[92%] rounded-2xl bg-slate-900/5 px-3 py-2 text-xs font-medium text-slate-800 ring-1 ring-slate-900/5">
                   {m.text}
                 </div>
               </div>
             ) : (
               <div key={idx} className="flex justify-start">
-                <div className="max-w-[90%] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="font-semibold">Answer</div>
+                <div className="w-full max-w-[96%] rounded-2xl bg-white/70 p-4 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-xs font-semibold text-slate-900">Answer</div>
                     <Badge variant="secondary">{m.confidence}</Badge>
                   </div>
-                  <div className="mt-1">{m.directAnswer}</div>
 
-                  <div className="mt-3">
-                    <div className="font-semibold text-slate-700">Market evidence</div>
-                    {m.marketEvidence.length ? (
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-slate-700">
-                        {m.marketEvidence.map((e, i) => (
-                          <li key={i}>{e}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="mt-1 text-slate-500">No additional market evidence available.</div>
-                    )}
-                  </div>
+                  <div className="mt-2 text-sm text-slate-800">{m.directAnswer}</div>
 
-                  <div className="mt-3">
-                    <div className="font-semibold text-slate-700">Store-specific impact</div>
-                    {m.storeImpact.length ? (
-                      <ul className="mt-1 list-disc space-y-1 pl-4 text-slate-700">
-                        {m.storeImpact.map((e, i) => (
-                          <li key={i}>{e}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="mt-1 text-slate-500">No store impact notes available.</div>
-                    )}
-                  </div>
-
-                  {m.ctas.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {m.ctas.map((c, i) => (
-                        <Link
-                          key={i}
-                          href={(c.href as any)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          {c.label}
-                        </Link>
-                      ))}
+                  <div className="mt-4 grid gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Market context
+                      </div>
+                      {m.marketEvidence.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+                          {m.marketEvidence.slice(0, 3).map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="mt-2 text-xs text-slate-500">
+                          No additional market context available for this question.
+                        </div>
+                      )}
                     </div>
-                  )}
+
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Store-specific impact
+                      </div>
+                      {m.storeImpact.length ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+                          {m.storeImpact.slice(0, 3).map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <div className="mt-2 text-xs text-slate-500">
+                          No store-specific impact available for this question.
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        Recommended action
+                      </div>
+                      {m.ctas.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {m.ctas.slice(0, 3).map((c, i) => (
+                            <Link
+                              key={i}
+                              href={(c.href as any)}
+                              className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-800 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 transition hover:-translate-y-0.5 hover:bg-white"
+                            >
+                              {c.label}
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-xs text-slate-500">
+                          No direct action suggested — ask “what should I do next?” for a clearer recommendation.
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ),
@@ -192,8 +212,8 @@ export function MarketCopilotChat(props: {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={props.shop ? 'Ask a market question…' : 'Select a shop first'}
-          className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800 placeholder:text-slate-400"
+          placeholder={props.shop ? 'Ask “why”, “should I”, or “what happens if…”' : 'Select a shop first'}
+          className="h-11 w-full rounded-2xl bg-white/80 px-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition focus:outline-none focus:ring-2 focus:ring-slate-900/15"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && canSend) send(input);
           }}
@@ -201,7 +221,7 @@ export function MarketCopilotChat(props: {
         />
         <button
           type="button"
-          className="h-9 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-50"
+          className="h-11 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm shadow-slate-900/20 transition hover:-translate-y-0.5 disabled:opacity-50"
           onClick={() => send(input)}
           disabled={!canSend}
         >
