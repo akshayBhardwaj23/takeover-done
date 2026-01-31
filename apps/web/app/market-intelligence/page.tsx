@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '../../components/ui/card';
@@ -15,7 +15,21 @@ import {
 } from '../../components/ui/dialog';
 import { trpc } from '../../lib/trpc';
 import { MarketCopilotChat } from './components/MarketCopilotChat';
-import { Info } from 'lucide-react';
+import {
+  Activity,
+  Boxes,
+  BadgeDollarSign,
+  ShieldAlert,
+  ChevronRight,
+  Gauge,
+  Info,
+  Package,
+  Sparkles,
+  Swords,
+  Target,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
 import { PremiumLineChart } from './components/PremiumLineChart';
 
 type MarketIntelligenceContext = any;
@@ -59,9 +73,61 @@ function dirArrow(direction: string | null | undefined) {
 }
 
 function softCardClassName(extra?: string) {
-  return `border-0 bg-white/70 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-900/10 ${
+  return `border-0 bg-white/70 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur transition duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/15 ${
     extra || ''
   }`;
+}
+
+function useCountUp(args: {
+  value: number | null | undefined;
+  durationMs?: number;
+}) {
+  const { value, durationMs = 650 } = args;
+  const [out, setOut] = useState<number | null>(value == null ? null : 0);
+  const raf = useRef<number | null>(null);
+  const startRef = useRef<number>(0);
+  const fromRef = useRef<number>(0);
+  const toRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (value == null || !Number.isFinite(value)) {
+      setOut(null);
+      return;
+    }
+    if (raf.current != null) cancelAnimationFrame(raf.current);
+    startRef.current = performance.now();
+    fromRef.current = out ?? 0;
+    toRef.current = value;
+
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - startRef.current) / durationMs);
+      // easeOutCubic
+      const e = 1 - Math.pow(1 - p, 3);
+      const v = fromRef.current + (toRef.current - fromRef.current) * e;
+      setOut(v);
+      if (p < 1) raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+    return () => {
+      if (raf.current != null) cancelAnimationFrame(raf.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return out;
+}
+
+function PctValue(props: { value: number | null | undefined }) {
+  const v = useCountUp({ value: props.value ?? null });
+  if (v == null) return <span>—</span>;
+  const r = Math.round(v * 10) / 10;
+  return <span>{`${r > 0 ? '+' : ''}${r}%`}</span>;
+}
+
+function MoneyValue(props: { value: number | null | undefined; currency: string }) {
+  const v = useCountUp({ value: props.value ?? null });
+  if (v == null) return <span>—</span>;
+  return <span>{formatCurrency(v, props.currency)}</span>;
 }
 
 function MarketIntelligenceInner() {
@@ -253,9 +319,54 @@ function MarketIntelligenceInner() {
   const primaryAction = Array.isArray(ctx?.actions) && ctx.actions.length ? (ctx.actions as any[])[0] : null;
   const moreActions = Array.isArray(ctx?.actions) ? (ctx.actions as any[]).slice(1) : [];
 
+  const demandDir = String(pulse?.demand?.direction || '').toLowerCase();
+  const demandTheme =
+    demandDir === 'declining'
+      ? {
+          icon: TrendingDown,
+          bg: 'bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50',
+          ring: 'ring-amber-200/60',
+          accent: 'text-amber-700',
+        }
+      : demandDir === 'rising'
+        ? {
+            icon: TrendingUp,
+            bg: 'bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50',
+            ring: 'ring-emerald-200/60',
+            accent: 'text-emerald-700',
+          }
+        : {
+            icon: Activity,
+            bg: 'bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50',
+            ring: 'ring-sky-200/60',
+            accent: 'text-sky-700',
+          };
+
+  const priceTheme = {
+    icon: BadgeDollarSign,
+    bg: 'bg-gradient-to-br from-fuchsia-50 via-violet-50 to-indigo-50',
+    ring: 'ring-fuchsia-200/60',
+    accent: 'text-violet-700',
+  };
+
+  const compTheme = {
+    icon: Swords,
+    bg: 'bg-gradient-to-br from-emerald-50 via-lime-50 to-amber-50',
+    ring: 'ring-emerald-200/60',
+    accent: 'text-emerald-700',
+  };
+
+  const DemandIcon = demandTheme.icon;
+  const PriceIcon = priceTheme.icon;
+  const CompIcon = compTheme.icon;
+
   return (
-    <div className="min-h-screen bg-stone-50">
-      <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-28">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-indigo-50">
+      <div className="relative mx-auto w-full max-w-7xl px-4 pb-24 pt-28">
+        {/* background blobs */}
+        <div className="pointer-events-none absolute left-0 top-24 h-[380px] w-[380px] -translate-x-1/3 rounded-full bg-gradient-to-br from-fuchsia-300/20 via-indigo-300/15 to-sky-300/10 blur-3xl" />
+        <div className="pointer-events-none absolute right-0 top-48 h-[420px] w-[420px] translate-x-1/3 rounded-full bg-gradient-to-br from-emerald-300/16 via-amber-300/10 to-rose-300/12 blur-3xl" />
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Market Intelligence</h1>
@@ -268,7 +379,7 @@ function MarketIntelligenceInner() {
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-9 items-center gap-2 rounded-full bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white"
+                className="inline-flex h-9 items-center gap-2 rounded-full bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-indigo-900/10"
                 aria-label="Glossary"
               >
                 <Info className="h-4 w-4" />
@@ -371,36 +482,46 @@ function MarketIntelligenceInner() {
               <div className="lg:col-span-7">
                 <div className="space-y-6">
                   {/* Today’s Focus */}
-                  <Card className={softCardClassName('p-6')}>
-                    <div className="rounded-2xl bg-gradient-to-r from-white via-white to-slate-50 p-0">
+                  <Card className={softCardClassName('relative overflow-hidden p-6')}>
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/10 via-fuchsia-500/10 to-sky-500/10" />
+                    <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-gradient-to-br from-fuchsia-400/25 to-indigo-400/10 blur-2xl" />
+                    <div className="absolute -bottom-24 -right-24 h-64 w-64 rounded-full bg-gradient-to-br from-sky-400/20 to-emerald-400/10 blur-2xl" />
+
+                    <div className="relative">
                       <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                            Today’s focus
+                        <div className="flex items-start gap-4">
+                          <div className="mt-0.5 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-900/20">
+                            <Sparkles className="h-5 w-5" />
                           </div>
-                          <div className="mt-2 text-lg font-semibold text-slate-900">
-                            {primaryAction?.title || 'Keep decisions simple today.'}
-                          </div>
-                          <div className="mt-1 text-sm text-slate-700">
-                            {primaryAction?.rationale ||
-                              'Use the signals below to decide whether to optimize conversion, protect margin, or scale.'}
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                              Today’s focus
+                            </div>
+                            <div className="mt-2 text-xl font-semibold text-slate-900">
+                              {primaryAction?.title || 'Keep decisions simple today.'}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-700">
+                              {primaryAction?.rationale ||
+                                'Use the signals below to decide whether to optimize conversion, protect margin, or scale.'}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-slate-900/5 px-3 py-1 text-xs font-semibold text-slate-700">
+                          <span className="rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/10 backdrop-blur">
                             Confidence: {primaryAction?.confidence || '—'}
                           </span>
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <div className="mt-5 flex flex-wrap items-center gap-2">
                         {(primaryAction?.ctas || []).slice(0, 2).map((c: any, idx: number) => (
                           <Link
                             key={idx}
                             href={(c.href as any)}
-                            className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                            className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-900/20 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-900/30"
                           >
                             {c.label}
+                            <ChevronRight className="h-4 w-4 opacity-80 transition group-hover:translate-x-0.5" />
                           </Link>
                         ))}
                       </div>
@@ -476,10 +597,10 @@ function MarketIntelligenceInner() {
                   </Card>
 
                   {/* Market Signal Strip */}
-                  <div className="rounded-2xl bg-white/60 p-5 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
+                  <div className="rounded-3xl bg-gradient-to-r from-white/60 via-white/50 to-white/60 p-5 shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <div className="text-sm font-semibold text-slate-900">Market signal strip</div>
+                        <div className="text-sm font-semibold text-slate-900">Market signals</div>
                         <div className="mt-1 text-xs text-slate-500">
                           Fast read for founders — hover the <span className="font-semibold">i</span> for definitions.
                         </div>
@@ -488,26 +609,38 @@ function MarketIntelligenceInner() {
 
                     <div className="mt-4 grid gap-4 md:grid-cols-3">
                       {/* Category demand */}
-                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                      <div className={`relative overflow-hidden rounded-3xl p-4 shadow-lg shadow-amber-900/5 ring-1 ${demandTheme.ring} ${demandTheme.bg}`}>
+                        <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/40 blur-xl" />
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center">
-                            <div className="text-xs font-semibold text-slate-700">
+                            <div className={`text-xs font-semibold ${demandTheme.accent}`}>
                               {dirArrow(pulse?.demand?.direction)} Category demand
                             </div>
                             <InfoTip text="Shows whether your category is getting more or less attention recently. 7d/30d compare the last window vs the previous window. Best used to time campaigns." />
                           </div>
-                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.demand?.confidence?.label || '—'}
                           </span>
                         </div>
-                        <div className="mt-2 flex items-baseline gap-3 text-xs text-slate-600">
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="flex items-center gap-3 text-xs text-slate-700">
                           <span>
-                            7d <span className="font-semibold text-slate-900">{fmtPct(pulse?.demand?.pctChange7d)}</span>
+                              7d{' '}
+                              <span className="font-semibold text-slate-900">
+                                <PctValue value={pulse?.demand?.pctChange7d} />
+                              </span>
                           </span>
                           <span className="text-slate-300">•</span>
                           <span>
-                            30d <span className="font-semibold text-slate-900">{fmtPct(pulse?.demand?.pctChange30d)}</span>
+                              30d{' '}
+                              <span className="font-semibold text-slate-900">
+                                <PctValue value={pulse?.demand?.pctChange30d} />
+                              </span>
                           </span>
+                          </div>
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/70 ring-1 ring-white/60">
+                            <DemandIcon className={`h-4 w-4 ${demandTheme.accent}`} />
+                          </div>
                         </div>
                         <div className="mt-3 text-xs text-slate-700">
                           <span className="font-semibold">What this means:</span>{' '}
@@ -520,25 +653,25 @@ function MarketIntelligenceInner() {
                       </div>
 
                       {/* Price pressure */}
-                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                      <div className={`relative overflow-hidden rounded-3xl p-4 shadow-lg shadow-indigo-900/5 ring-1 ${priceTheme.ring} ${priceTheme.bg}`}>
+                        <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/40 blur-xl" />
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center">
-                            <div className="text-xs font-semibold text-slate-700">
+                            <div className={`text-xs font-semibold ${priceTheme.accent}`}>
                               {dirArrow(pulse?.pricing?.discountPressure?.direction)} Price pressure
                             </div>
                             <InfoTip text="How price-sensitive shoppers may be right now. AOV = Average Order Value (revenue ÷ orders). Higher pressure means shoppers compare prices more." />
                           </div>
-                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.pricing?.confidence?.label || '—'}
                           </span>
                         </div>
-                        <div className="mt-2 text-xs text-slate-600">
-                          AOV{' '}
-                          <span className="font-semibold text-slate-900">
-                            {pulse?.pricing?.storeAov != null
-                              ? formatCurrency(pulse.pricing.storeAov, currency)
-                              : '—'}
-                          </span>
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="text-xs text-slate-700">
+                            AOV{' '}
+                            <span className="font-semibold text-slate-900">
+                              <MoneyValue value={pulse?.pricing?.storeAov} currency={currency} />
+                            </span>
                           {pulse?.pricing?.marketAovRange?.low != null && pulse?.pricing?.marketAovRange?.high != null ? (
                             <span className="text-slate-500">
                               {' '}
@@ -548,6 +681,10 @@ function MarketIntelligenceInner() {
                               )})
                             </span>
                           ) : null}
+                          </div>
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/70 ring-1 ring-white/60">
+                            <PriceIcon className={`h-4 w-4 ${priceTheme.accent}`} />
+                          </div>
                         </div>
                         <div className="mt-3 text-xs text-slate-700">
                           <span className="font-semibold">What this means:</span>{' '}
@@ -560,27 +697,33 @@ function MarketIntelligenceInner() {
                       </div>
 
                       {/* Competition */}
-                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                      <div className={`relative overflow-hidden rounded-3xl p-4 shadow-lg shadow-emerald-900/5 ring-1 ${compTheme.ring} ${compTheme.bg}`}>
+                        <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/40 blur-xl" />
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center">
-                            <div className="text-xs font-semibold text-slate-700">
+                            <div className={`text-xs font-semibold ${compTheme.accent}`}>
                               {dirArrow(pulse?.competition?.paidSaturation?.cpcInflationDirection)} Competition
                             </div>
                             <InfoTip text="How competitive acquisition looks. CPC = Cost Per Click. Rising CPC usually means more advertisers competing for attention." />
                           </div>
-                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.buyerIntent?.confidence?.label || '—'}
                           </span>
                         </div>
-                        <div className="mt-2 text-xs text-slate-600">
-                          CPC (30d){' '}
-                          <span className="font-semibold text-slate-900">
-                            {fmtPct(pulse?.competition?.paidSaturation?.cpcInflationPct30d)}
-                          </span>
+                        <div className="mt-3 flex items-end justify-between gap-3">
+                          <div className="text-xs text-slate-700">
+                            CPC (30d){' '}
+                            <span className="font-semibold text-slate-900">
+                              <PctValue value={pulse?.competition?.paidSaturation?.cpcInflationPct30d} />
+                            </span>
                           <span className="text-slate-500">
                             {' '}
                             ({pulse?.competition?.paidSaturation?.label || '—'})
                           </span>
+                          </div>
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/70 ring-1 ring-white/60">
+                            <CompIcon className={`h-4 w-4 ${compTheme.accent}`} />
+                          </div>
                         </div>
                         <div className="mt-3 text-xs text-slate-700">
                           <span className="font-semibold">What this means:</span>{' '}
@@ -716,13 +859,30 @@ function MarketIntelligenceInner() {
                     latestSuffix=""
                   />
                 ) : (
-                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
-                    <div className="text-base font-semibold text-slate-900">Demand Index</div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      Demand index is unavailable because store momentum data is missing for this window.
+                  <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-50 via-fuchsia-50 to-sky-50 p-5 shadow-xl shadow-indigo-900/10 ring-1 ring-indigo-200/60">
+                    <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/50 blur-2xl" />
+                    <div className="relative flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-900/20">
+                        <Activity className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-base font-semibold text-slate-900">Demand Index</div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          Demand index is unavailable because store momentum data is missing for this window.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
+
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-gradient-to-r from-fuchsia-500/10 to-sky-500/10 px-3 py-1 font-semibold text-slate-800 ring-1 ring-slate-900/5">
+                    Spikes = short-term interest surges
+                  </span>
+                  <span className="rounded-full bg-gradient-to-r from-emerald-500/10 to-teal-500/10 px-3 py-1 font-semibold text-slate-800 ring-1 ring-slate-900/5">
+                    Best for timing campaigns (not discounting)
+                  </span>
+                </div>
 
                 <div className="mt-3 rounded-2xl bg-slate-50 p-4">
                   <div className="text-sm font-semibold text-slate-900">What this means</div>
@@ -756,12 +916,20 @@ function MarketIntelligenceInner() {
                     latestSuffix=""
                   />
                 ) : (
-                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
-                    <div className="text-base font-semibold text-slate-900">
-                      Ad Cost Pressure (CPC Trend)
-                    </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      CPC trend is unavailable because Meta Ads insights are missing or not connected.
+                  <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-amber-50 to-rose-50 p-5 shadow-xl shadow-emerald-900/10 ring-1 ring-emerald-200/60">
+                    <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/45 blur-2xl" />
+                    <div className="relative flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-amber-500 text-white shadow-lg shadow-emerald-900/20">
+                        <Swords className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-base font-semibold text-slate-900">
+                          Ad Cost Pressure (CPC Trend)
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          CPC trend is unavailable because Meta Ads insights are missing or not connected.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -798,12 +966,23 @@ function MarketIntelligenceInner() {
                     variant="neutral"
                   />
                 ) : (
-                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
-                    <div className="text-base font-semibold text-slate-900">
-                      Market Interest vs Store Demand
+                  <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 p-5 shadow-xl shadow-indigo-900/10 ring-1 ring-sky-200/60">
+                    <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-white/45 blur-2xl" />
+                    <div className="relative flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-indigo-600 text-white shadow-lg shadow-indigo-900/20">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-base font-semibold text-slate-900">
+                          Market Interest vs Store Demand
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          Market-interest overlay is unavailable because Google Trends data couldn’t be fetched for this scope.
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-2 text-sm text-slate-600">
-                      Market-interest overlay is unavailable because Google Trends data couldn’t be fetched for this scope.
+                    <div className="relative mt-4 rounded-2xl bg-white/60 p-3 text-xs text-slate-700 ring-1 ring-white/60">
+                      Fallback: we still use store momentum + ad-cost signals to guide decisions.
                     </div>
                   </div>
                 )}
@@ -836,50 +1015,143 @@ function MarketIntelligenceInner() {
                     </Card>
 
                     <Card className={softCardClassName('p-6')}>
-              <div className="text-sm font-semibold text-slate-800">Impact on your store</div>
-              <div className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-700">
-                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">Sessions</div>
-                    <Badge variant="secondary">{ctx?.impactOnStore?.sessionsImpact?.direction || '—'}</Badge>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Impact on your store</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    A quick “so what?” view — what market signals likely do to your next week.
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.sessionsImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">CVR</div>
-                    <Badge variant="secondary">{ctx?.impactOnStore?.cvrImpact?.direction || '—'}</Badge>
+                <span className="rounded-full bg-gradient-to-r from-indigo-500/10 to-fuchsia-500/10 px-3 py-1 text-[11px] font-semibold text-slate-800 ring-1 ring-slate-900/5">
+                  Confidence: {ctx?.predictiveInsights?.confidence?.label || '—'}
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 via-indigo-50 to-fuchsia-50 p-4 ring-1 ring-sky-200/60 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-900/10">
+                  <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/45 blur-xl" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg shadow-indigo-900/20">
+                        <Activity className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800">Sessions</div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          {ctx?.impactOnStore?.sessionsImpact?.explanation || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
+                      {ctx?.impactOnStore?.sessionsImpact?.direction || '—'}
+                    </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.cvrImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">AOV</div>
-                    <Badge variant="secondary">{ctx?.impactOnStore?.aovImpact?.direction || '—'}</Badge>
+
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50 p-4 ring-1 ring-emerald-200/60 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-900/10">
+                  <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/45 blur-xl" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-900/20">
+                        <Target className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800">CVR</div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          {ctx?.impactOnStore?.cvrImpact?.explanation || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
+                      {ctx?.impactOnStore?.cvrImpact?.direction || '—'}
+                    </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.aovImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
-                  <div className="flex items-center justify-between">
-                    <div className="font-semibold">Forecast confidence</div>
-                    <Badge variant="secondary">{ctx?.impactOnStore?.forecastConfidenceImpact?.direction || '—'}</Badge>
+
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-fuchsia-50 via-violet-50 to-indigo-50 p-4 ring-1 ring-fuchsia-200/60 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-fuchsia-900/10">
+                  <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/45 blur-xl" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-fuchsia-600 to-indigo-600 text-white shadow-lg shadow-fuchsia-900/20">
+                        <BadgeDollarSign className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800">AOV</div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          {ctx?.impactOnStore?.aovImpact?.explanation || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
+                      {ctx?.impactOnStore?.aovImpact?.direction || '—'}
+                    </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.forecastConfidenceImpact?.explanation || '—'}</div>
+                </div>
+
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 p-4 ring-1 ring-amber-200/60 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-amber-900/10">
+                  <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-white/45 blur-xl" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-rose-500 text-white shadow-lg shadow-amber-900/20">
+                        <Gauge className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-800">Forecast confidence</div>
+                        <div className="mt-1 text-xs text-slate-600">
+                          {ctx?.impactOnStore?.forecastConfidenceImpact?.explanation || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
+                      {ctx?.impactOnStore?.forecastConfidenceImpact?.direction || '—'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
               {/* Inventory */}
-              <div className="mt-6 rounded-2xl bg-white/70 p-5 ring-1 ring-slate-900/5">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-800">Inventory-aware forecasting</div>
-                  <Badge variant="secondary">{ctx?.inventory?.status || '—'}</Badge>
-                </div>
-                <div className="mt-2 text-xs text-slate-600">
-                  {ctx?.inventory?.status === 'At risk'
-                    ? `Possible stockout around ${ctx?.inventory?.estimatedStockoutDate || '—'}.`
+              <div
+                className={`mt-6 rounded-3xl p-5 ring-1 transition hover:-translate-y-0.5 hover:shadow-xl ${
+                  ctx?.inventory?.status === 'At risk'
+                    ? 'bg-gradient-to-br from-rose-50 via-amber-50 to-white ring-rose-200/60 hover:shadow-rose-900/10'
                     : ctx?.inventory?.status === 'OK'
-                      ? 'No near-term stockout detected for top-selling variants.'
-                      : 'Inventory signal is unavailable for this store.'}
+                      ? 'bg-gradient-to-br from-emerald-50 via-teal-50 to-white ring-emerald-200/60 hover:shadow-emerald-900/10'
+                      : 'bg-gradient-to-br from-slate-50 via-white to-indigo-50 ring-slate-200/60 hover:shadow-slate-900/10'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`inline-flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-lg ${
+                        ctx?.inventory?.status === 'At risk'
+                          ? 'bg-gradient-to-br from-rose-500 to-amber-500 shadow-rose-900/20'
+                          : ctx?.inventory?.status === 'OK'
+                            ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-900/20'
+                            : 'bg-gradient-to-br from-indigo-500 to-fuchsia-600 shadow-indigo-900/20'
+                      }`}
+                    >
+                      {ctx?.inventory?.status === 'At risk' ? (
+                        <ShieldAlert className="h-5 w-5" />
+                      ) : ctx?.inventory?.status === 'OK' ? (
+                        <Package className="h-5 w-5" />
+                      ) : (
+                        <Boxes className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">Inventory risk</div>
+                      <div className="mt-0.5 text-xs text-slate-600">
+                        {ctx?.inventory?.status === 'At risk'
+                          ? `Possible stockout around ${ctx?.inventory?.estimatedStockoutDate || '—'}.`
+                          : ctx?.inventory?.status === 'OK'
+                            ? 'No near-term stockout detected for top-selling variants.'
+                            : 'Inventory signal is unavailable for this store.'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white/70 px-3 py-1 text-[11px] font-semibold text-slate-800 ring-1 ring-white/60">
+                    {ctx?.inventory?.status || '—'}
+                  </span>
                 </div>
                 {Array.isArray(ctx?.inventory?.topSkuAtRisk) && ctx.inventory.topSkuAtRisk.length > 0 && (
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
@@ -897,7 +1169,7 @@ function MarketIntelligenceInner() {
                         'Stockout constraint',
                       )}${ctx?.inventory?.estimatedStockoutDate ? `&miStockOutDate=${encodeURIComponent(ctx.inventory.estimatedStockoutDate)}` : ''}#what-if-planner` as any)
                     }
-                    className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                    className="rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 px-3 py-1 text-[11px] font-semibold text-white shadow-lg shadow-indigo-900/15 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-900/25"
                   >
                     Simulate inventory constraint in What‑If
                   </Link>
@@ -909,7 +1181,7 @@ function MarketIntelligenceInner() {
 
               <div
                 id="market-adjusted"
-                className="mt-6 scroll-mt-24 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-900/5"
+                className="mt-6 scroll-mt-24 rounded-3xl bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 p-5 ring-1 ring-indigo-200/60 shadow-lg shadow-indigo-900/5"
               >
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-800">Market-adjusted forecast (optional)</div>
@@ -1001,10 +1273,22 @@ function MarketIntelligenceInner() {
               {/* Right: sticky copilot */}
               <aside className="lg:col-span-3">
                 <div className="sticky top-24 h-[calc(100vh-7rem)]">
-                  <div className="h-full rounded-2xl border-l border-slate-200/60 bg-white/50 p-5 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
-                    <div className="text-sm font-semibold text-slate-900">Market Intelligence Copilot</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Ask decision questions about your store and market.
+                  <div className="relative h-full overflow-hidden rounded-3xl border-l border-white/40 bg-gradient-to-b from-indigo-600/10 via-white/45 to-fuchsia-600/10 p-5 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur">
+                    <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full bg-gradient-to-br from-indigo-400/20 to-fuchsia-400/10 blur-2xl" />
+                    <div className="absolute -bottom-24 -right-24 h-64 w-64 rounded-full bg-gradient-to-br from-emerald-400/15 to-sky-400/10 blur-2xl" />
+
+                    <div className="relative">
+                      <div className="flex items-start gap-3">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-fuchsia-600 text-white shadow-lg shadow-indigo-900/20">
+                          <Gauge className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">Market Intelligence Copilot</div>
+                          <div className="mt-1 text-xs text-slate-600">
+                            Ask “why”, “should I”, or “what happens if…”
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-4 h-[calc(100%-2.25rem)]">
                       <MarketCopilotChat shop={shop} scenarioId={scenarioId || undefined} />

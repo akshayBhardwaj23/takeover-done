@@ -146,6 +146,8 @@ export function PremiumLineChart(props: {
 
   const gradientId = `${props.title.replace(/\s+/g, '-')}-grad`.toLowerCase();
   const strokeId = `${props.title.replace(/\s+/g, '-')}-stroke`.toLowerCase();
+  const glowId = `${props.title.replace(/\s+/g, '-')}-glow`.toLowerCase();
+  const bgId = `${props.title.replace(/\s+/g, '-')}-bg`.toLowerCase();
 
   const latestText =
     model.latest != null
@@ -161,7 +163,7 @@ export function PremiumLineChart(props: {
 
   return (
     <div
-      className={`rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur transition-all duration-500 ${
+      className={`rounded-3xl bg-white/70 p-5 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5 backdrop-blur transition-all duration-500 ${
         mounted ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
       }`}
     >
@@ -197,32 +199,87 @@ export function PremiumLineChart(props: {
       </div>
 
       {model.empty ? (
-        <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+        <div className="mt-4 rounded-2xl bg-gradient-to-br from-slate-50 to-white p-4 text-sm text-slate-600 ring-1 ring-slate-900/5">
           Not enough data to render this chart yet.
         </div>
       ) : (
-        <div className="mt-4 overflow-hidden rounded-2xl bg-gradient-to-b from-white to-slate-50">
+        <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-b from-white via-white to-slate-50 ring-1 ring-slate-900/5">
           <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full">
             <defs>
-              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#0f172a" stopOpacity="0.12" />
-                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
-              </linearGradient>
-              <linearGradient id={strokeId} x1="0" x2="1" y1="0" y2="0">
-                {props.variant === 'cpc' ? (
+              {/* background tint */}
+              <linearGradient id={bgId} x1="0" x2="1" y1="0" y2="1">
+                {props.variant === 'demand' ? (
                   <>
-                    <stop offset="0%" stopColor="#64748b" />
-                    <stop offset="55%" stopColor="#f59e0b" />
-                    <stop offset="100%" stopColor="#ef4444" />
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.14" />
+                    <stop offset="45%" stopColor="#60a5fa" stopOpacity="0.10" />
+                    <stop offset="100%" stopColor="#34d399" stopOpacity="0.08" />
+                  </>
+                ) : props.variant === 'cpc' ? (
+                  <>
+                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.10" />
+                    <stop offset="55%" stopColor="#fbbf24" stopOpacity="0.10" />
+                    <stop offset="100%" stopColor="#fb7185" stopOpacity="0.10" />
                   </>
                 ) : (
                   <>
-                    <stop offset="0%" stopColor="#0f172a" />
-                    <stop offset="100%" stopColor="#334155" />
+                    <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.12" />
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.10" />
                   </>
                 )}
               </linearGradient>
+
+              {/* area fill */}
+              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                {props.variant === 'demand' ? (
+                  <>
+                    <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.24" />
+                    <stop offset="55%" stopColor="#60a5fa" stopOpacity="0.12" />
+                    <stop offset="100%" stopColor="#34d399" stopOpacity="0" />
+                  </>
+                ) : props.variant === 'cpc' ? (
+                  <>
+                    <stop offset="0%" stopColor="#34d399" stopOpacity="0.18" />
+                    <stop offset="55%" stopColor="#fbbf24" stopOpacity="0.10" />
+                    <stop offset="100%" stopColor="#fb7185" stopOpacity="0" />
+                  </>
+                ) : (
+                  <>
+                    <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.18" />
+                    <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+                  </>
+                )}
+              </linearGradient>
+
+              <linearGradient id={strokeId} x1="0" x2="1" y1="0" y2="0">
+                {props.variant === 'demand' ? (
+                  <>
+                    <stop offset="0%" stopColor="#a78bfa" />
+                    <stop offset="35%" stopColor="#60a5fa" />
+                    <stop offset="70%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#22c55e" />
+                  </>
+                ) : props.variant === 'cpc' ? (
+                  <>
+                    <stop offset="0%" stopColor="#34d399" />
+                    <stop offset="55%" stopColor="#fbbf24" />
+                    <stop offset="100%" stopColor="#fb7185" />
+                  </>
+                ) : (
+                  <>
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="100%" stopColor="#a78bfa" />
+                  </>
+                )}
+              </linearGradient>
+
+              <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#6366f1" floodOpacity="0.18" />
+                <feDropShadow dx="0" dy="0" stdDeviation="10" floodColor="#a78bfa" floodOpacity="0.12" />
+              </filter>
             </defs>
+
+            {/* tinted background */}
+            <rect x="0" y="0" width={width} height={height} fill={`url(#${bgId})`} opacity="0.55" />
 
             {/* faint dotted guides */}
             {[0.25, 0.5, 0.75].map((t) => {
@@ -248,9 +305,16 @@ export function PremiumLineChart(props: {
               d={model.primaryPath}
               fill="none"
               stroke={`url(#${strokeId})`}
-              strokeWidth="3"
+              strokeWidth="3.5"
               strokeLinecap="round"
               strokeLinejoin="round"
+              filter={`url(#${glowId})`}
+              pathLength={1}
+              style={{
+                strokeDasharray: 1,
+                strokeDashoffset: mounted ? 0 : 1,
+                transition: 'stroke-dashoffset 900ms cubic-bezier(0.22,1,0.36,1)',
+              }}
             />
 
             {/* secondary line */}
@@ -258,12 +322,18 @@ export function PremiumLineChart(props: {
               <path
                 d={model.secondaryPath}
                 fill="none"
-                stroke="#64748b"
-                strokeWidth="2.5"
-                strokeDasharray="6 6"
-                opacity="0.8"
+                stroke="#0ea5e9"
+                strokeWidth="3"
+                strokeDasharray="7 7"
+                opacity="0.85"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                pathLength={1}
+                style={{
+                  strokeDasharray: '1 1',
+                  strokeDashoffset: mounted ? 0 : 1,
+                  transition: 'stroke-dashoffset 900ms cubic-bezier(0.22,1,0.36,1)',
+                }}
               />
             ) : null}
 
@@ -273,19 +343,32 @@ export function PremiumLineChart(props: {
                 key={idx}
                 cx={p.x}
                 cy={p.y}
-                r={4}
-                fill="#0f172a"
-                opacity="0.25"
+                r={5}
+                fill="#ffffff"
+                opacity="0.95"
+                stroke="#a78bfa"
+                strokeWidth="2"
+                filter={`url(#${glowId})`}
               />
             ))}
 
             {/* latest dot + pill */}
             {model.latest ? (
               <>
-                <circle cx={model.latest.x} cy={model.latest.y} r={5} fill="#0f172a" opacity="0.35" />
+                <circle
+                  cx={model.latest.x}
+                  cy={model.latest.y}
+                  r={6}
+                  fill="#ffffff"
+                  opacity="0.95"
+                  stroke="#60a5fa"
+                  strokeWidth="2"
+                  filter={`url(#${glowId})`}
+                />
                 <g transform={`translate(${clamp(model.latest.x + 10, 16, width - 170)},${clamp(model.latest.y - 18, 10, height - 40)})`}>
-                  <rect rx="12" ry="12" width="155" height="26" fill="#0f172a" opacity="0.08" />
-                  <text x="10" y="17" fontSize="12" fill="#0f172a" fontWeight="600">
+                  <rect rx="13" ry="13" width="155" height="26" fill="#ffffff" opacity="0.72" />
+                  <rect rx="13" ry="13" width="155" height="26" fill="none" stroke="#ffffff" opacity="0.55" />
+                  <text x="10" y="17" fontSize="12" fill="#0f172a" fontWeight="700">
                     Latest: {latestText}
                   </text>
                 </g>
@@ -295,11 +378,11 @@ export function PremiumLineChart(props: {
             {/* legend */}
             {props.secondarySeries && props.secondaryLabel ? (
               <g transform={`translate(${pad.left},${height - 10})`}>
-                <circle cx="6" cy="-5" r="4" fill="#0f172a" opacity="0.65" />
+                <circle cx="6" cy="-5" r="4" fill="#6366f1" opacity="0.8" />
                 <text x="16" y="-1" fontSize="12" fill="#475569">
                   Store demand
                 </text>
-                <line x1="150" y1="-5" x2="176" y2="-5" stroke="#64748b" strokeWidth="2.5" strokeDasharray="6 6" />
+                <line x1="150" y1="-5" x2="176" y2="-5" stroke="#0ea5e9" strokeWidth="3" strokeDasharray="7 7" opacity="0.9" />
                 <text x="186" y="-1" fontSize="12" fill="#475569">
                   {props.secondaryLabel}
                 </text>
