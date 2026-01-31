@@ -14,9 +14,9 @@ import {
   DialogTrigger,
 } from '../../components/ui/dialog';
 import { trpc } from '../../lib/trpc';
-import { MiniTrendChart } from './components/MiniTrendChart';
 import { MarketCopilotChat } from './components/MarketCopilotChat';
 import { Info } from 'lucide-react';
+import { PremiumLineChart } from './components/PremiumLineChart';
 
 type MarketIntelligenceContext = any;
 
@@ -43,6 +43,8 @@ function MarketIntelligenceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const shopParam = searchParams.get('shop') || '';
+  const geoParam = (searchParams.get('geo') || 'top').toLowerCase();
+  const geoMode: 'top' | 'global' = geoParam === 'global' ? 'global' : 'top';
 
   const { data: connectionsData } = trpc.connections.useQuery(undefined, {
     staleTime: 120_000,
@@ -63,6 +65,7 @@ function MarketIntelligenceInner() {
   }, [connectionsData]);
 
   const [shop, setShop] = useState<string>(shopParam);
+  const [geo, setGeo] = useState<'top' | 'global'>(geoMode);
   const [scenarioId, setScenarioId] = useState<string>('');
   const [ctx, setCtx] = useState<MarketIntelligenceContext | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,7 +75,8 @@ function MarketIntelligenceInner() {
   // Keep local shop state in sync with URL.
   useEffect(() => {
     setShop(shopParam);
-  }, [shopParam]);
+    setGeo(geoMode);
+  }, [shopParam, geoMode]);
 
   // If no shop in URL but user has a connected store, default to the first store.
   useEffect(() => {
@@ -92,6 +96,7 @@ function MarketIntelligenceInner() {
         const url = new URL('/api/market-intelligence/context', window.location.origin);
         url.searchParams.set('shop', shop);
         if (scenarioId) url.searchParams.set('scenarioId', scenarioId);
+        url.searchParams.set('geo', geo);
         const res = await fetch(url.toString());
         const commit = res.headers.get('x-zyyp-commit');
         const text = await res.text();
@@ -128,7 +133,7 @@ function MarketIntelligenceInner() {
     return () => {
       cancelled = true;
     };
-  }, [shop, scenarioId]);
+  }, [shop, scenarioId, geo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,6 +173,57 @@ function MarketIntelligenceInner() {
       : null;
   const miTrafficPct =
     sessionsMult != null ? Math.round((sessionsMult - 1) * 1000) / 10 : null;
+
+  const scopeLabel = (ctx as any)?.scope?.label || (geo === 'global' ? 'Global' : 'Store top countries');
+  const hasSearchInterest =
+    Array.isArray((ctx as any)?.drivers?.searchInterest) &&
+    (ctx as any).drivers.searchInterest.length > 1;
+  const hasCpc =
+    Array.isArray((ctx as any)?.drivers?.cpc) && (ctx as any).drivers.cpc.length > 1;
+
+  const demandConfidence: 'High' | 'Medium' | 'Experimental' = hasSearchInterest ? 'Medium' : 'Experimental';
+  const cpcConfidence: 'High' | 'Medium' | 'Experimental' = hasCpc ? 'Medium' : 'Experimental';
+  const overlayConfidence: 'High' | 'Medium' | 'Experimental' = hasSearchInterest ? 'Medium' : 'Experimental';
+
+  const marketVsStoreInsight = useMemo(() => {
+    const store = Array.isArray((ctx as any)?.drivers?.demandIndex) ? (ctx as any).drivers.demandIndex : [];
+    const market = Array.isArray((ctx as any)?.drivers?.searchInterest) ? (ctx as any).drivers.searchInterest : [];
+    if (store.length < 35 || market.length < 35) {
+      return {
+        statement:
+          'Market interest and store demand comparison is limited due to missing market-interest data.',
+        recommendation:
+          'Use store demand + paid saturation signals to decide whether to optimize conversion or scale spend.',
+      };
+    }
+    const sNow = store[store.length - 1]!.value;
+    const sPrev = store[store.length - 31]!.value;
+    const mNow = market[market.length - 1]!.value;
+    const mPrev = market[market.length - 31]!.value;
+    const sCh = sPrev > 0 ? ((sNow - sPrev) / sPrev) * 100 : 0;
+    const mCh = mPrev > 0 ? ((mNow - mPrev) / mPrev) * 100 : 0;
+    if (mCh - sCh > 8) {
+      return {
+        statement:
+          'Market interest rose faster than your store demand. This indicates missed capture, not lack of demand.',
+        recommendation:
+          'Improve landing conversion or product visibility before increasing ad spend.',
+      };
+    }
+    if (sCh - mCh > 8) {
+      return {
+        statement:
+          'Your store demand is rising faster than market interest. You’re capturing demand efficiently.',
+        recommendation: 'Consider controlled scaling while monitoring CPC and conversion.',
+      };
+    }
+    return {
+      statement:
+        'Market interest and store demand are moving in a similar range. This suggests your performance is aligned with demand.',
+      recommendation:
+        'Use this to time campaigns and focus on efficiency (CVR/AOV) improvements.',
+    };
+  }, [ctx]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
@@ -511,42 +567,180 @@ function MarketIntelligenceInner() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="p-5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-800">Internet & market trend drivers</div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    Market & Demand Intelligence
+                  </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    Demand index is indexed to your observed sessions baseline (with optional external search signals).
+                    Combines store momentum with global and regional market signals to guide growth decisions.
                   </div>
                 </div>
-                {ctx?.store?.category && <Badge variant="outline">{ctx.store.category}</Badge>}
+
+                {/* Geography selector */}
+                <div className="rounded-full bg-white/60 p-1 shadow-sm shadow-slate-900/5 backdrop-blur">
+                  <div className="flex items-center gap-1">
+                    {(['top', 'global'] as const).map((m) => {
+                      const active = geo === m;
+                      const label = m === 'top' ? 'Store Top Countries' : 'Global';
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            const nextGeo = m;
+                            setGeo(nextGeo);
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('geo', nextGeo);
+                            router.replace(`${url.pathname}?${url.searchParams.toString()}` as any);
+                          }}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                            active
+                              ? 'bg-slate-900 text-white shadow-sm shadow-slate-900/20'
+                              : 'text-slate-700 hover:bg-white/60'
+                          }`}
+                          style={
+                            active
+                              ? { boxShadow: '0 0 0 1px rgba(15,23,42,0.1), 0 8px 20px rgba(15,23,42,0.12)' }
+                              : undefined
+                          }
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              <div className="mt-4">
-                <MiniTrendChart
-                  title="Demand index"
-                  series={ctx?.drivers?.demandIndex || []}
-                  secondarySeries={ctx?.drivers?.searchInterest}
-                  secondaryLabel="Search interest"
-                />
+
+              {/* Demand index */}
+              <div className="mt-5">
+                {Array.isArray((ctx as any)?.drivers?.demandIndex) &&
+                (ctx as any).drivers.demandIndex.length > 1 ? (
+                  <PremiumLineChart
+                    title="Demand Index"
+                    tooltip="Measures relative demand momentum based on store velocity and market interest signals."
+                    scopeLabel={scopeLabel}
+                    confidenceLabel={demandConfidence}
+                    series={(ctx as any).drivers.demandIndex}
+                    variant="demand"
+                    latestSuffix=""
+                  />
+                ) : (
+                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
+                    <div className="text-base font-semibold text-slate-900">Demand Index</div>
+                    <div className="mt-2 text-sm text-slate-600">
+                      Demand index is unavailable because store momentum data is missing for this window.
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-900">What this means</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    Demand for this category is currently{' '}
+                    <span className="font-semibold">
+                      {pulse?.demand?.direction?.toLowerCase() || 'stable'}
+                    </span>
+                    {typeof pulse?.demand?.pctChange7d === 'number'
+                      ? ` (${Math.round(pulse.demand.pctChange7d)}% over 7d).`
+                      : '.'}{' '}
+                    Short spikes often indicate bursts of interest, not sustained growth.
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-slate-900">How to use this</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    Best used for timing campaigns and creative tests — not for deciding deep discounting on its own.
+                  </div>
+                </div>
               </div>
-              <div className="mt-4">
-                <MiniTrendChart
-                  title="Discount pressure proxy"
-                  series={ctx?.drivers?.discountInterest || []}
-                />
+
+              {/* CPC trend */}
+              <div className="mt-6">
+                {hasCpc ? (
+                  <PremiumLineChart
+                    title="Ad Cost Pressure (CPC Trend)"
+                    tooltip="Tracks changes in average cost-per-click to estimate ad competition."
+                    scopeLabel={scopeLabel}
+                    confidenceLabel={cpcConfidence}
+                    series={(ctx as any).drivers.cpc}
+                    variant="cpc"
+                    latestSuffix=""
+                  />
+                ) : (
+                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
+                    <div className="text-base font-semibold text-slate-900">
+                      Ad Cost Pressure (CPC Trend)
+                    </div>
+                    <div className="mt-2 text-sm text-slate-600">
+                      CPC trend is unavailable because Meta Ads insights are missing or not connected.
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-900">What this means</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    {typeof pulse?.competition?.paidSaturation?.cpcInflationPct30d === 'number'
+                      ? `Advertising costs changed by ${Math.round(
+                          pulse.competition.paidSaturation.cpcInflationPct30d,
+                        )}% over 30 days, indicating ${pulse.competition.paidSaturation.label.toLowerCase()} competition.`
+                      : 'Advertising costs can rise during demand spikes, indicating stronger competition.'}
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-slate-900">ZYYP Insight</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    During CPC spikes, scale only high-conversion products and test creatives before adding budget.
+                  </div>
+                </div>
               </div>
-              <div className="mt-4">
-                <MiniTrendChart title="CPC trend" series={ctx?.drivers?.cpc || []} />
+
+              {/* Overlay */}
+              <div className="mt-6">
+                {Array.isArray((ctx as any)?.drivers?.demandIndex) &&
+                (ctx as any).drivers.demandIndex.length > 1 &&
+                hasSearchInterest ? (
+                  <PremiumLineChart
+                    title="Market Interest vs Store Demand"
+                    tooltip="Compares your store demand momentum against regional market interest."
+                    scopeLabel={scopeLabel}
+                    confidenceLabel={overlayConfidence}
+                    series={(ctx as any).drivers.demandIndex}
+                    secondarySeries={(ctx as any).drivers.searchInterest}
+                    secondaryLabel="Market interest"
+                    variant="neutral"
+                  />
+                ) : (
+                  <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
+                    <div className="text-base font-semibold text-slate-900">
+                      Market Interest vs Store Demand
+                    </div>
+                    <div className="mt-2 text-sm text-slate-600">
+                      Market-interest overlay is unavailable because Google Trends data couldn’t be fetched for this scope.
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-3 rounded-2xl bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-900">What this means</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    {marketVsStoreInsight.statement}
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-slate-900">ZYYP Recommendation</div>
+                  <div className="mt-1 text-sm text-slate-700">
+                    {marketVsStoreInsight.recommendation}
+                  </div>
+                </div>
               </div>
+
               {Array.isArray(ctx?.dataGaps) && ctx.dataGaps.length > 0 && (
-                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  <div className="font-semibold">Data gaps</div>
-                  <ul className="mt-1 list-disc pl-4">
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <div className="font-semibold">Missing data (graceful fallback)</div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
                     {ctx.dataGaps.map((g: string, i: number) => (
                       <li key={i}>{g}</li>
                     ))}
                   </ul>
                   <div className="mt-2 text-amber-900/80">
-                    Fallback: demand is still computed from your store’s traffic momentum when external signals are unavailable.
+                    We still compute store momentum and recommendations — external market signals add extra context when available.
                   </div>
                 </div>
               )}

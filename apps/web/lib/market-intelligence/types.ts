@@ -191,6 +191,11 @@ export type MarketIntelligenceContext = {
     timezone: string;
     currency: string;
   };
+  scope?: {
+    mode: 'top' | 'global';
+    label: string;
+    topCountries: Array<{ code: string; revenue: number; share: number }>;
+  };
   products?: {
     windowDays: 30;
     topProducts: Array<{
