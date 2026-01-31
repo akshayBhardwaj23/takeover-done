@@ -55,6 +55,22 @@ function parseTrendsJson(text: string): any | null {
   }
 }
 
+function makeDateKeyFormatter(timeZone: string) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return (date: Date) => {
+    const parts = fmt.formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value ?? '1970';
+    const m = parts.find((p) => p.type === 'month')?.value ?? '01';
+    const d = parts.find((p) => p.type === 'day')?.value ?? '01';
+    return `${y}-${m}-${d}`;
+  };
+}
+
 async function fetchGoogleTrendsSeries(args: {
   keyword: string;
   geo: string; // e.g. 'US' or '' for worldwide
@@ -138,6 +154,34 @@ function alignToDateKeys(args: {
   return args.dateKeys.map((d) => (map.has(d) ? map.get(d)! : null));
 }
 
+function weightedAverageAlignedSeries(args: {
+  dateKeys: string[];
+  alignedSeries: Array<Array<number | null>>;
+  weights: number[];
+}): Array<number | null> {
+  const out: Array<number | null> = [];
+  for (let i = 0; i < args.dateKeys.length; i++) {
+    let num = 0;
+    let den = 0;
+    for (let j = 0; j < args.alignedSeries.length; j++) {
+      const v = args.alignedSeries[j]?.[i];
+      const w = args.weights[j] ?? 0;
+      if (typeof v === 'number' && Number.isFinite(v) && w > 0) {
+        num += v * w;
+        den += w;
+      }
+    }
+    out.push(den > 0 ? num / den : null);
+  }
+  return out;
+}
+
+function indexTo100(values: Array<number | null>) {
+  const nums = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const base = nums.length ? nums.reduce((s, v) => s + v, 0) / nums.length : 0;
+  return values.map((v) => (v == null ? null : base > 0 ? (100 * v) / base : 0));
+}
+
 export async function GET(req: NextRequest) {
   let stage = 'start';
   const commit =
@@ -169,6 +213,8 @@ export async function GET(req: NextRequest) {
     const shop = req.nextUrl.searchParams.get('shop') || '';
     const scenarioId = req.nextUrl.searchParams.get('scenarioId') || '';
     const categoryOverride = req.nextUrl.searchParams.get('category') || '';
+    const geoModeParam = (req.nextUrl.searchParams.get('geo') || 'top').toLowerCase();
+    const geoMode: 'top' | 'global' = geoModeParam === 'global' ? 'global' : 'top';
 
     // Reuse Predictive Insights endpoint as a truth source for internal metrics.
     stage = 'fetch.predictive_insights';
@@ -205,6 +251,7 @@ export async function GET(req: NextRequest) {
     const timezone: string = String(pi?.timezone || 'UTC');
     const currency: string = String(pi?.currency || 'USD');
     const today: string = String(pi?.today || new Date().toISOString().slice(0, 10));
+    const fmtKey = makeDateKeyFormatter(timezone);
 
   // Pull store info from Connection metadata (if available).
     const shopifyConnection = shopDomain
@@ -353,14 +400,95 @@ export async function GET(req: NextRequest) {
       : null;
   const aovCv = aovStd != null && aovMean > 0 ? aovStd / aovMean : null;
 
-  // External trends (best-effort). If we can’t fetch, we keep nulls and report data gap.
-  const geo = ''; // worldwide (avoid guessing country)
+  // Geography: compute store top revenue countries (last ~90 days) from Shopify orders + customer countryCode.
+  stage = 'compute.top_countries';
+  let topCountries: Array<{ code: string; revenue: number; share: number }> = [];
+  let scopeLabel = 'Global';
+  try {
+    if (shopifyConnection?.id) {
+      const startUtc = new Date(Date.now() - 95 * 24 * 60 * 60 * 1000);
+      const orders = await prisma.order.findMany({
+        where: {
+          connectionId: shopifyConnection.id,
+          OR: [{ processedAt: { gte: startUtc } }, { processedAt: null, createdAt: { gte: startUtc } }],
+        },
+        select: {
+          totalAmount: true,
+          status: true,
+          name: true,
+          email: true,
+          customer: { select: { countryCode: true } },
+        },
+        take: 5000,
+      });
+      const by = new Map<string, number>();
+      let total = 0;
+      for (const o of orders) {
+        const status = String(o.status || '').toLowerCase();
+        const name = String(o.name || '').toLowerCase();
+        const email = String(o.email || '').toLowerCase();
+        if (status.includes('cancel') || status.includes('void')) continue;
+        if (name.includes('test') || email.includes('example.com')) continue;
+        const cc = String(o.customer?.countryCode || '').toUpperCase();
+        if (!cc || cc === 'NULL') continue;
+        const rev = Number(o.totalAmount || 0) / 100;
+        by.set(cc, (by.get(cc) || 0) + rev);
+        total += rev;
+      }
+      topCountries = Array.from(by.entries())
+        .map(([code, revenue]) => ({ code, revenue, share: total > 0 ? revenue / total : 0 }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 3);
+    }
+  } catch {
+    topCountries = [];
+  }
+
+  if (geoMode === 'top' && topCountries.length) {
+    scopeLabel = topCountries.map((c) => c.code).join(' / ');
+  } else {
+    scopeLabel = 'Global';
+  }
+
+  // External trends (best-effort) scoped by geo.
   const categoryKeyword = category || 'ecommerce';
-    stage = 'fetch.google_trends';
-    const [searchSeries, discountSeries] = await Promise.all([
-      fetchGoogleTrendsSeries({ keyword: categoryKeyword, geo, time: 'today 3-m' }),
-      fetchGoogleTrendsSeries({ keyword: `${categoryKeyword} discount`, geo, time: 'today 3-m' }),
-    ]);
+  stage = 'fetch.google_trends';
+  let searchSeries: Array<{ date: string; value: number }> = [];
+  let discountSeries: Array<{ date: string; value: number }> = [];
+  try {
+    if (geoMode === 'global' || !topCountries.length) {
+      const [s, d] = await Promise.all([
+        fetchGoogleTrendsSeries({ keyword: categoryKeyword, geo: '', time: 'today 3-m' }),
+        fetchGoogleTrendsSeries({ keyword: `${categoryKeyword} discount`, geo: '', time: 'today 3-m' }),
+      ]);
+      searchSeries = s;
+      discountSeries = d;
+    } else {
+      const countries = topCountries.slice(0, 3);
+      const weights = countries.map((c) => c.share);
+      const results = await Promise.all(
+        countries.map((c) =>
+          Promise.all([
+            fetchGoogleTrendsSeries({ keyword: categoryKeyword, geo: c.code, time: 'today 3-m' }),
+            fetchGoogleTrendsSeries({ keyword: `${categoryKeyword} discount`, geo: c.code, time: 'today 3-m' }),
+          ]),
+        ),
+      );
+      const searchAlignedBy = results.map((r) => alignToDateKeys({ dateKeys, series: r[0] || [] }));
+      const discountAlignedBy = results.map((r) => alignToDateKeys({ dateKeys, series: r[1] || [] }));
+      const searchWeighted = weightedAverageAlignedSeries({ dateKeys, alignedSeries: searchAlignedBy, weights });
+      const discountWeighted = weightedAverageAlignedSeries({ dateKeys, alignedSeries: discountAlignedBy, weights });
+      searchSeries = dateKeys
+        .map((d, i) => ({ date: d, value: searchWeighted[i] }))
+        .filter((p): p is { date: string; value: number } => typeof p.value === 'number');
+      discountSeries = dateKeys
+        .map((d, i) => ({ date: d, value: discountWeighted[i] }))
+        .filter((p): p is { date: string; value: number } => typeof p.value === 'number');
+    }
+  } catch {
+    searchSeries = [];
+    discountSeries = [];
+  }
 
   const searchAligned = searchSeries.length ? alignToDateKeys({ dateKeys, series: searchSeries }) : null;
   const discountAligned = discountSeries.length ? alignToDateKeys({ dateKeys, series: discountSeries }) : null;
@@ -370,6 +498,53 @@ export async function GET(req: NextRequest) {
   const searchPct90 = searchAligned ? pctChangeLastWindow(searchAligned.map((v) => v ?? 0), 90) : null;
 
   const discountPct30 = discountAligned ? pctChangeLastWindow(discountAligned.map((v) => v ?? 0), 30) : null;
+
+  // Store demand series for overlay and demand index:
+  // - For Global: use store daily revenue (from PI actuals).
+  // - For Top Countries: use store daily revenue for customers in those countries (if available), else fall back to global.
+  stage = 'compute.store_demand_series';
+  let storeDemandRaw: Array<number | null> = revenueByDay.map((v) => v);
+  if (geoMode === 'top' && topCountries.length && shopifyConnection?.id) {
+    try {
+      const wanted = new Set(topCountries.map((c) => c.code));
+      const startUtc = new Date(Date.now() - 130 * 24 * 60 * 60 * 1000);
+      const orders = await prisma.order.findMany({
+        where: {
+          connectionId: shopifyConnection.id,
+          OR: [{ processedAt: { gte: startUtc } }, { processedAt: null, createdAt: { gte: startUtc } }],
+          customer: { isNot: null },
+        },
+        select: {
+          totalAmount: true,
+          status: true,
+          name: true,
+          email: true,
+          processedAt: true,
+          createdAt: true,
+          customer: { select: { countryCode: true } },
+        },
+        take: 8000,
+      });
+      const revByDay = new Map<string, number>();
+      for (const o of orders) {
+        const cc = String(o.customer?.countryCode || '').toUpperCase();
+        if (!wanted.has(cc)) continue;
+        const status = String(o.status || '').toLowerCase();
+        const name = String(o.name || '').toLowerCase();
+        const email = String(o.email || '').toLowerCase();
+        if (status.includes('cancel') || status.includes('void')) continue;
+        if (name.includes('test') || email.includes('example.com')) continue;
+        const ts = (o.processedAt as Date | null) ?? (o.createdAt as Date);
+        const key = fmtKey(ts);
+        revByDay.set(key, (revByDay.get(key) || 0) + Number(o.totalAmount || 0) / 100);
+      }
+      storeDemandRaw = dateKeys.map((d) => revByDay.get(d) ?? 0);
+    } catch {
+      // fall back to global
+      storeDemandRaw = revenueByDay.map((v) => v);
+    }
+  }
+  const storeDemandIndex = indexTo100(storeDemandRaw);
 
   const demand = buildDemandIndex({
     trafficMomentumPct7d: sessionsPct7,
@@ -729,7 +904,7 @@ export async function GET(req: NextRequest) {
 
   const drivers = buildTrendDrivers({
     dateKeys,
-    sessionsByDay: sessionsByDay.map((v) => v),
+    sessionsByDay: storeDemandIndex.map((v) => (typeof v === 'number' ? v : null)),
     ...(searchAligned ? { searchInterestByDay: searchAligned } : {}),
     ...(discountAligned ? { discountInterestByDay: discountAligned } : {}),
     ...(cpcAligned ? { cpcByDay: cpcAligned } : {}),
@@ -1120,6 +1295,11 @@ export async function GET(req: NextRequest) {
         timezone,
         currency,
       },
+      scope: {
+        mode: geoMode,
+        label: scopeLabel,
+        topCountries,
+      } as any,
       products: {
         windowDays: 30,
         topProducts,

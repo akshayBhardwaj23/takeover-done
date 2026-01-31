@@ -1,0 +1,304 @@
+'use client';
+
+import { useMemo } from 'react';
+
+export type LinePoint = { date: string; value: number };
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function extent(values: number[]) {
+  if (!values.length) return { min: 0, max: 1 };
+  let min = values[0]!;
+  let max = values[0]!;
+  for (const v of values) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (min === max) return { min: min - 1, max: max + 1 };
+  return { min, max };
+}
+
+function catmullRomToBezier(points: Array<{ x: number; y: number }>) {
+  if (points.length < 2) return '';
+  const d: string[] = [];
+  d.push(`M${points[0]!.x},${points[0]!.y}`);
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)]!;
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const p3 = points[Math.min(points.length - 1, i + 2)]!;
+
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d.push(`C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`);
+  }
+  return d.join(' ');
+}
+
+function areaPath(points: Array<{ x: number; y: number }>, baseY: number) {
+  if (!points.length) return '';
+  const line = catmullRomToBezier(points);
+  const last = points[points.length - 1]!;
+  const first = points[0]!;
+  return `${line} L${last.x},${baseY} L${first.x},${baseY} Z`;
+}
+
+function findPeakIndices(values: number[]) {
+  const peaks: number[] = [];
+  for (let i = 1; i < values.length - 1; i++) {
+    if (values[i]! > values[i - 1]! && values[i]! > values[i + 1]!) peaks.push(i);
+  }
+  return peaks;
+}
+
+export function PremiumLineChart(props: {
+  title: string;
+  tooltip?: string;
+  scopeLabel: string;
+  confidenceLabel: 'High' | 'Medium' | 'Experimental';
+  series: LinePoint[];
+  secondarySeries?: LinePoint[];
+  secondaryLabel?: string;
+  variant?: 'demand' | 'cpc' | 'neutral';
+  latestSuffix?: string;
+}) {
+  const width = 900;
+  const height = 260;
+  const pad = { left: 24, right: 24, top: 22, bottom: 28 };
+
+  const model = useMemo(() => {
+    const primary = (props.series || []).filter((p) => Number.isFinite(p.value));
+    const secondary = (props.secondarySeries || []).filter((p) => Number.isFinite(p.value));
+    const n = Math.max(primary.length, secondary.length);
+    if (n < 2) {
+      return {
+        empty: true,
+        primaryPath: '',
+        primaryArea: '',
+        secondaryPath: '',
+        latest: null as null | { x: number; y: number; value: number },
+        peaks: [] as Array<{ x: number; y: number }>,
+        yMin: 0,
+        yMax: 1,
+      };
+    }
+
+    const xs = Array.from({ length: n }, (_, i) =>
+      pad.left + (i * (width - pad.left - pad.right)) / Math.max(1, n - 1),
+    );
+
+    const allValues = [
+      ...primary.map((p) => p.value),
+      ...secondary.map((p) => p.value),
+    ];
+    const { min, max } = extent(allValues.length ? allValues : [0, 1]);
+    const span = max - min || 1;
+    const yFor = (v: number) =>
+      pad.top +
+      (1 - (v - min) / span) * (height - pad.top - pad.bottom);
+
+    const primaryPts = primary.map((p, i) => ({
+      x: xs[i] ?? pad.left,
+      y: yFor(p.value),
+      v: p.value,
+    }));
+    const secondaryPts = secondary.map((p, i) => ({
+      x: xs[i] ?? pad.left,
+      y: yFor(p.value),
+      v: p.value,
+    }));
+
+    const primaryPath = catmullRomToBezier(primaryPts);
+    const baseY = height - pad.bottom;
+    const primaryArea = areaPath(primaryPts, baseY);
+
+    const secondaryPath = secondaryPts.length ? catmullRomToBezier(secondaryPts) : '';
+
+    const vals = primary.map((p) => p.value);
+    const peakIdx = findPeakIndices(vals).slice(-5);
+    const peaks = peakIdx
+      .map((idx) => primaryPts[idx])
+      .filter(Boolean)
+      .map((p) => ({ x: p!.x, y: p!.y }));
+
+    const last = primaryPts[primaryPts.length - 1]!;
+    return {
+      empty: false,
+      primaryPath,
+      primaryArea,
+      secondaryPath,
+      latest: { x: last.x, y: last.y, value: last.v },
+      peaks,
+      yMin: min,
+      yMax: max,
+    };
+  }, [props.series, props.secondarySeries]);
+
+  const gradientId = `${props.title.replace(/\s+/g, '-')}-grad`.toLowerCase();
+  const strokeId = `${props.title.replace(/\s+/g, '-')}-stroke`.toLowerCase();
+
+  const latestText =
+    model.latest != null
+      ? `${Math.round(model.latest.value * 10) / 10}${props.latestSuffix ?? ''}`
+      : '';
+
+  const confidenceTone =
+    props.confidenceLabel === 'High'
+      ? 'bg-emerald-50 text-emerald-700'
+      : props.confidenceLabel === 'Medium'
+        ? 'bg-slate-100 text-slate-700'
+        : 'bg-amber-50 text-amber-800';
+
+  return (
+    <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="text-base font-semibold text-slate-900">
+              {props.title}
+            </div>
+            {props.tooltip ? (
+              <span
+                className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
+                title={props.tooltip}
+              >
+                i
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span className="rounded-full bg-slate-100 px-2 py-1 text-slate-700">
+              Scope: {props.scopeLabel}
+            </span>
+            <span className={`rounded-full px-2 py-1 ${confidenceTone}`}>
+              Confidence: {props.confidenceLabel}
+            </span>
+          </div>
+        </div>
+        {model.latest != null ? (
+          <div className="rounded-full bg-slate-900/5 px-3 py-1 text-xs font-semibold text-slate-800">
+            Latest: {latestText}
+          </div>
+        ) : null}
+      </div>
+
+      {model.empty ? (
+        <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+          Not enough data to render this chart yet.
+        </div>
+      ) : (
+        <div className="mt-4 overflow-hidden rounded-2xl bg-gradient-to-b from-white to-slate-50">
+          <svg viewBox={`0 0 ${width} ${height}`} className="h-[240px] w-full">
+            <defs>
+              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#0f172a" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#0f172a" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id={strokeId} x1="0" x2="1" y1="0" y2="0">
+                {props.variant === 'cpc' ? (
+                  <>
+                    <stop offset="0%" stopColor="#64748b" />
+                    <stop offset="55%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#ef4444" />
+                  </>
+                ) : (
+                  <>
+                    <stop offset="0%" stopColor="#0f172a" />
+                    <stop offset="100%" stopColor="#334155" />
+                  </>
+                )}
+              </linearGradient>
+            </defs>
+
+            {/* faint dotted guides */}
+            {[0.25, 0.5, 0.75].map((t) => {
+              const y = pad.top + t * (height - pad.top - pad.bottom);
+              return (
+                <line
+                  key={t}
+                  x1={pad.left}
+                  x2={width - pad.right}
+                  y1={y}
+                  y2={y}
+                  stroke="#e2e8f0"
+                  strokeDasharray="2 6"
+                />
+              );
+            })}
+
+            {/* fill */}
+            <path d={model.primaryArea} fill={`url(#${gradientId})`} />
+
+            {/* primary line */}
+            <path
+              d={model.primaryPath}
+              fill="none"
+              stroke={`url(#${strokeId})`}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {/* secondary line */}
+            {model.secondaryPath ? (
+              <path
+                d={model.secondaryPath}
+                fill="none"
+                stroke="#64748b"
+                strokeWidth="2.5"
+                strokeDasharray="6 6"
+                opacity="0.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ) : null}
+
+            {/* peak dots */}
+            {model.peaks.map((p, idx) => (
+              <circle
+                key={idx}
+                cx={p.x}
+                cy={p.y}
+                r={4}
+                fill="#0f172a"
+                opacity="0.25"
+              />
+            ))}
+
+            {/* latest dot + pill */}
+            {model.latest ? (
+              <>
+                <circle cx={model.latest.x} cy={model.latest.y} r={5} fill="#0f172a" opacity="0.35" />
+                <g transform={`translate(${clamp(model.latest.x + 10, 16, width - 170)},${clamp(model.latest.y - 18, 10, height - 40)})`}>
+                  <rect rx="12" ry="12" width="155" height="26" fill="#0f172a" opacity="0.08" />
+                  <text x="10" y="17" fontSize="12" fill="#0f172a" fontWeight="600">
+                    Latest: {latestText}
+                  </text>
+                </g>
+              </>
+            ) : null}
+
+            {/* legend */}
+            {props.secondarySeries && props.secondaryLabel ? (
+              <g transform={`translate(${pad.left},${height - 10})`}>
+                <circle cx="6" cy="-5" r="4" fill="#0f172a" opacity="0.65" />
+                <text x="16" y="-1" fontSize="12" fill="#475569">
+                  Store demand
+                </text>
+                <line x1="150" y1="-5" x2="176" y2="-5" stroke="#64748b" strokeWidth="2.5" strokeDasharray="6 6" />
+                <text x="186" y="-1" fontSize="12" fill="#475569">
+                  {props.secondaryLabel}
+                </text>
+              </g>
+            ) : null}
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
