@@ -39,6 +39,18 @@ function formatCurrency(amount: number, currencyCode: string): string {
   }
 }
 
+function InfoTip(props: { text: string }) {
+  return (
+    <span
+      className="ml-2 inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
+      title={props.text}
+      aria-label="Info"
+    >
+      i
+    </span>
+  );
+}
+
 function MarketIntelligenceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -477,7 +489,10 @@ function MarketIntelligenceInner() {
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Category demand</div>
+                <div className="flex items-center">
+                  <div className="text-sm font-semibold text-slate-800">Category demand</div>
+                  <InfoTip text="Shows whether your product category is getting more or less attention recently. Uses your store momentum plus Google Trends when available. 7d/30d/90d compare the last window vs the previous window." />
+                </div>
                 <Badge variant="secondary">{pulse?.demand?.direction || '—'}</Badge>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-slate-600">
@@ -497,11 +512,24 @@ function MarketIntelligenceInner() {
               <div className="mt-3 text-xs text-slate-500">
                 Confidence: {pulse?.demand?.confidence?.label || '—'} ({pulse?.demand?.confidence?.score ?? '—'})
               </div>
+              <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-900">What this means</div>
+                <div className="mt-1 text-xs text-slate-700">
+                  {String(pulse?.demand?.direction || '').toLowerCase() === 'declining'
+                    ? 'Interest in this category is down right now. Focus on improving conversion (CVR) and increasing order value (AOV) before scaling ad spend.'
+                    : String(pulse?.demand?.direction || '').toLowerCase() === 'rising'
+                      ? 'Interest in this category is rising. Good time to test new campaigns and creatives — scale gradually and keep an eye on ad costs.'
+                      : 'Demand looks steady. Use this period to improve conversion and tighten your offer so you’re ready to scale when demand rises.'}
+                </div>
+              </div>
             </Card>
 
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Price pressure</div>
+                <div className="flex items-center">
+                  <div className="text-sm font-semibold text-slate-800">Price pressure</div>
+                  <InfoTip text="Estimates how price-sensitive customers are right now. Uses your AOV (Average Order Value = revenue ÷ orders) and discount-interest signals when available. High pressure means shoppers compare prices more." />
+                </div>
                 <Badge variant="secondary">{pulse?.pricing?.pricePressure || '—'}</Badge>
               </div>
               <div className="mt-3 text-xs text-slate-600">
@@ -534,11 +562,24 @@ function MarketIntelligenceInner() {
               <div className="mt-3 text-xs text-slate-500">
                 Confidence: {pulse?.pricing?.confidence?.label || '—'} ({pulse?.pricing?.confidence?.score ?? '—'})
               </div>
+              <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-900">What this means</div>
+                <div className="mt-1 text-xs text-slate-700">
+                  {String(pulse?.pricing?.pricePressure || '').toLowerCase() === 'high'
+                    ? 'Shoppers are likely more price-sensitive. Instead of big discounts, lead with value (bundles, guarantees, clear benefits) and improve conversion.'
+                    : String(pulse?.pricing?.pricePressure || '').toLowerCase() === 'low'
+                      ? 'Customers seem less price-sensitive. This is a good time to push bundles, upsells, and premium positioning to lift AOV.'
+                      : 'Some price sensitivity is present. Use targeted promos (not blanket discounts) and strengthen your value messaging on the landing page.'}
+                </div>
+              </div>
             </Card>
 
             <Card className="p-5">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Competition</div>
+                <div className="flex items-center">
+                  <div className="text-sm font-semibold text-slate-800">Competition</div>
+                  <InfoTip text="Estimates how competitive your acquisition channels are. CPC = Cost Per Click. Rising CPC usually means more advertisers competing for the same attention." />
+                </div>
                 <Badge variant="secondary">{pulse?.competition?.paidSaturation?.label || '—'}</Badge>
               </div>
               <div className="mt-3 text-xs text-slate-600">
@@ -561,6 +602,18 @@ function MarketIntelligenceInner() {
               </div>
               <div className="mt-3 text-xs text-slate-500">
                 Buyer intent: {pulse?.buyerIntent?.state || '—'} ({pulse?.buyerIntent?.confidence?.label || '—'})
+              </div>
+              <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                <div className="text-xs font-semibold text-slate-900">What this means</div>
+                <div className="mt-1 text-xs text-slate-700">
+                  {typeof pulse?.competition?.paidSaturation?.cpcInflationPct30d === 'number' &&
+                  pulse.competition.paidSaturation.cpcInflationPct30d > 5
+                    ? 'Ads are getting more expensive. Only scale budgets on your highest-converting products, and improve landing conversion before spending more.'
+                    : typeof pulse?.competition?.paidSaturation?.cpcInflationPct30d === 'number' &&
+                        pulse.competition.paidSaturation.cpcInflationPct30d < -5
+                      ? 'Ad costs are easing. You can test scaling, but keep a close eye on conversion rate so growth stays profitable.'
+                      : 'Competition looks stable. Focus on creatives, targeting, and landing-page conversion to unlock efficient growth.'}
+                </div>
               </div>
             </Card>
           </div>
