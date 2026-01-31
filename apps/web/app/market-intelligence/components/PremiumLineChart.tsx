@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 export type LinePoint = { date: string; value: number };
 
@@ -138,6 +138,12 @@ export function PremiumLineChart(props: {
     };
   }, [props.series, props.secondarySeries]);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
   const gradientId = `${props.title.replace(/\s+/g, '-')}-grad`.toLowerCase();
   const strokeId = `${props.title.replace(/\s+/g, '-')}-stroke`.toLowerCase();
 
@@ -154,7 +160,11 @@ export function PremiumLineChart(props: {
         : 'bg-amber-50 text-amber-800';
 
   return (
-    <div className="rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur">
+    <div
+      className={`rounded-2xl bg-white/70 p-5 shadow-sm shadow-slate-900/5 backdrop-blur transition-all duration-500 ${
+        mounted ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

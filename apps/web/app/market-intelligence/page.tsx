@@ -39,6 +39,31 @@ function formatCurrency(amount: number, currencyCode: string): string {
   }
 }
 
+function InfoTip(props: { text: string }) {
+  return (
+    <span
+      className="ml-2 inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
+      title={props.text}
+      aria-label="Info"
+    >
+      i
+    </span>
+  );
+}
+
+function dirArrow(direction: string | null | undefined) {
+  const d = String(direction || '').toLowerCase();
+  if (d.includes('rise') || d.includes('up') || d.includes('increas')) return '↑';
+  if (d.includes('declin') || d.includes('down') || d.includes('decreas')) return '↓';
+  return '→';
+}
+
+function softCardClassName(extra?: string) {
+  return `border-0 bg-white/70 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur transition hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-900/10 ${
+    extra || ''
+  }`;
+}
+
 function MarketIntelligenceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -225,24 +250,25 @@ function MarketIntelligenceInner() {
     };
   }, [ctx]);
 
+  const primaryAction = Array.isArray(ctx?.actions) && ctx.actions.length ? (ctx.actions as any[])[0] : null;
+  const moreActions = Array.isArray(ctx?.actions) ? (ctx.actions as any[]).slice(1) : [];
+
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900">Market Intelligence</h1>
-            <Badge variant="secondary">Copilot</Badge>
+    <div className="min-h-screen bg-stone-50">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-28">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Market Intelligence</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              External context that explains store performance, forecasts, and risks.
+            </p>
           </div>
-          <p className="mt-1 text-sm text-slate-600">
-            Decision-focused external context explaining store performance, forecasts, and risks.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Dialog>
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-9 items-center gap-2 rounded-full bg-white/70 px-4 text-sm font-semibold text-slate-700 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur transition hover:-translate-y-0.5 hover:bg-white"
                 aria-label="Glossary"
               >
                 <Info className="h-4 w-4" />
@@ -285,15 +311,17 @@ function MarketIntelligenceInner() {
             </DialogContent>
           </Dialog>
           {!shop && stores.length > 0 ? (
-            <Badge variant="outline">Detecting store…</Badge>
+            <div className="rounded-full bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
+              Detecting store…
+            </div>
           ) : !shop ? (
-            <Badge variant="outline">Select a shop via Stores → or add ?shop=</Badge>
-          ) : (
-            <Badge variant="outline">{shop}</Badge>
-          )}
+            <div className="rounded-full bg-white/70 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
+              Select a shop via Stores → or add ?shop=
+            </div>
+          ) : null}
           {stores.length > 1 && (
             <select
-              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+              className="h-9 rounded-full bg-white/70 px-4 text-sm text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur"
               value={shop}
               onChange={(e) => {
                 const nextShop = e.target.value;
@@ -312,7 +340,7 @@ function MarketIntelligenceInner() {
           )}
           {savedScenarios.length > 0 && (
             <select
-              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-800"
+              className="h-9 rounded-full bg-white/70 px-4 text-sm text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur"
               value={scenarioId}
               onChange={(e) => setScenarioId(e.target.value)}
             >
@@ -327,246 +355,307 @@ function MarketIntelligenceInner() {
         </div>
       </div>
 
-      {!shop && (
-        <Card className="mt-6 p-5">
-          <div className="text-sm text-slate-700">
-            Open this page with a connected Shopify store selected, e.g.{' '}
-            <code className="rounded bg-slate-100 px-1.5 py-0.5">/market-intelligence?shop=your-shop.myshopify.com</code>
-            .
-          </div>
-        </Card>
-      )}
+        {!shop && (
+          <Card className={softCardClassName('mt-6 p-6')}>
+            <div className="text-sm text-slate-700">
+              Open this page with a connected Shopify store selected, e.g.{' '}
+              <code className="rounded bg-slate-100 px-1.5 py-0.5">/market-intelligence?shop=your-shop.myshopify.com</code>.
+            </div>
+          </Card>
+        )}
 
-      {shop && (
-        <>
-          {/* Next-best actions + risk alerts */}
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <Card className="p-5 lg:col-span-2">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Today’s top actions</div>
-                <Badge variant="secondary">Next-best actions</Badge>
-              </div>
-              <div className="mt-3 space-y-3">
-                {(ctx?.actions || []).length ? (
-                  (ctx.actions as any[]).map((a, i) => (
-                    <div key={a.id || i} className="rounded-md border border-slate-200 p-4">
-                      <div className="flex items-start justify-between gap-3">
+        {shop && (
+          <>
+            <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-10">
+              {/* Left: main content */}
+              <div className="lg:col-span-7">
+                <div className="space-y-6">
+                  {/* Today’s Focus */}
+                  <Card className={softCardClassName('p-6')}>
+                    <div className="rounded-2xl bg-gradient-to-r from-white via-white to-slate-50 p-0">
+                      <div className="flex items-start justify-between gap-4">
                         <div>
-                          <div className="font-semibold text-slate-900">
-                            {i + 1}. {a.title}
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Today’s focus
                           </div>
-                          <div className="mt-1 text-xs text-slate-600">{a.rationale}</div>
-                          {Array.isArray(a.evidence) && a.evidence.length > 0 && (
-                            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
-                              {a.evidence.slice(0, 3).map((e: string, idx: number) => (
-                                <li key={idx}>{e}</li>
-                              ))}
-                            </ul>
+                          <div className="mt-2 text-lg font-semibold text-slate-900">
+                            {primaryAction?.title || 'Keep decisions simple today.'}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-700">
+                            {primaryAction?.rationale ||
+                              'Use the signals below to decide whether to optimize conversion, protect margin, or scale.'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-slate-900/5 px-3 py-1 text-xs font-semibold text-slate-700">
+                            Confidence: {primaryAction?.confidence || '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        {(primaryAction?.ctas || []).slice(0, 2).map((c: any, idx: number) => (
+                          <Link
+                            key={idx}
+                            href={(c.href as any)}
+                            className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                          >
+                            {c.label}
+                          </Link>
+                        ))}
+                      </div>
+
+                      {(moreActions.length > 0 || (ctx?.alerts || []).length > 0) && (
+                        <div className="mt-5 grid gap-3 md:grid-cols-2">
+                          {moreActions.length > 0 && (
+                            <details className="rounded-2xl bg-white/60 p-4 ring-1 ring-slate-900/5">
+                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                                More actions ({moreActions.length})
+                              </summary>
+                              <div className="mt-3 space-y-3">
+                                {moreActions.slice(0, 5).map((a: any, i: number) => (
+                                  <div key={a.id || i} className="rounded-xl bg-white/70 p-3 ring-1 ring-slate-900/5">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="text-sm font-semibold text-slate-900">{a.title}</div>
+                                      <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                                        {a.confidence || '—'}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-slate-600">{a.rationale}</div>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {(a.ctas || []).slice(0, 2).map((c: any, j: number) => (
+                                        <Link
+                                          key={j}
+                                          href={(c.href as any)}
+                                          className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-800 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                                        >
+                                          {c.label}
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+
+                          {(ctx?.alerts || []).length > 0 && (
+                            <details className="rounded-2xl bg-white/60 p-4 ring-1 ring-slate-900/5">
+                              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                                Risks to watch ({(ctx?.alerts || []).length})
+                              </summary>
+                              <div className="mt-3 space-y-3">
+                                {(ctx.alerts as any[]).slice(0, 4).map((r, i) => (
+                                  <div key={r.id || i} className="rounded-xl bg-white/70 p-3 ring-1 ring-slate-900/5">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="text-sm font-semibold text-slate-900">{r.title}</div>
+                                      <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800">
+                                        {r.severity}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-slate-600">{r.message}</div>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {(r.ctas || []).slice(0, 2).map((c: any, j: number) => (
+                                        <Link
+                                          key={j}
+                                          href={(c.href as any)}
+                                          className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-800 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                                        >
+                                          {c.label}
+                                        </Link>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
                           )}
                         </div>
-                        <Badge variant="secondary">{a.confidence || '—'}</Badge>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(a.ctas || []).map((c: any, idx: number) => (
-                          <Link
-                            key={idx}
-                            href={(c.href as any)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            {c.label}
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-slate-600">No actions available yet.</div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Risk alerts</div>
-                <Badge variant="outline">Proactive</Badge>
-              </div>
-              <div className="mt-3 space-y-3">
-                {(ctx?.alerts || []).length ? (
-                  (ctx.alerts as any[]).slice(0, 4).map((r, i) => (
-                    <div key={r.id || i} className="rounded-md border border-slate-200 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-semibold text-slate-900">{r.title}</div>
-                        <Badge variant="secondary">{r.severity}</Badge>
-                      </div>
-                      <div className="mt-1 text-xs text-slate-600">{r.message}</div>
-                      {Array.isArray(r.evidence) && r.evidence.length > 0 && (
-                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600">
-                          {r.evidence.slice(0, 2).map((e: string, idx: number) => (
-                            <li key={idx}>{e}</li>
-                          ))}
-                        </ul>
                       )}
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {(r.ctas || []).slice(0, 2).map((c: any, idx: number) => (
-                          <Link
-                            key={idx}
-                            href={(c.href as any)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            {c.label}
-                          </Link>
-                        ))}
+                    </div>
+                  </Card>
+
+                  {/* Market Signal Strip */}
+                  <div className="rounded-2xl bg-white/60 p-5 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Market signal strip</div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Fast read for founders — hover the <span className="font-semibold">i</span> for definitions.
+                        </div>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-slate-600">No active risks detected.</div>
-                )}
-              </div>
-            </Card>
-          </div>
 
-          {/* Automated scenario suggestions */}
-          {Array.isArray(ctx?.scenarioSuggestions) && ctx.scenarioSuggestions.length > 0 && (
-            <Card className="mt-4 p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Suggested scenarios</div>
-                <Badge variant="outline">Auto-tested</Badge>
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                {ctx.scenarioSuggestions.map((s: any, idx: number) => {
-                  const qs =
-                    `shop=${encodeURIComponent(shop)}` +
-                    `&focus=whatif` +
-                    `&presetName=${encodeURIComponent(String(s.name || 'Scenario'))}` +
-                    (s.miParams?.miMetaSpendPct != null ? `&miMetaSpendPct=${encodeURIComponent(String(s.miParams.miMetaSpendPct))}` : '') +
-                    (s.miParams?.miCpcPct != null ? `&miCpcPct=${encodeURIComponent(String(s.miParams.miCpcPct))}` : '') +
-                    (s.miParams?.miCvrPct != null ? `&miCvrPct=${encodeURIComponent(String(s.miParams.miCvrPct))}` : '') +
-                    (s.miParams?.miAovPct != null ? `&miAovPct=${encodeURIComponent(String(s.miParams.miAovPct))}` : '');
-                  const href = `/predictive-insights?${qs}#what-if-planner`;
-                  return (
-                    <div key={s.id || idx} className="rounded-md border border-slate-200 bg-white p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-semibold text-slate-900">{s.name}</div>
-                        <Badge variant="secondary">{s.risk}</Badge>
+                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                      {/* Category demand */}
+                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center">
+                            <div className="text-xs font-semibold text-slate-700">
+                              {dirArrow(pulse?.demand?.direction)} Category demand
+                            </div>
+                            <InfoTip text="Shows whether your category is getting more or less attention recently. 7d/30d compare the last window vs the previous window. Best used to time campaigns." />
+                          </div>
+                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                            {pulse?.demand?.confidence?.label || '—'}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex items-baseline gap-3 text-xs text-slate-600">
+                          <span>
+                            7d <span className="font-semibold text-slate-900">{fmtPct(pulse?.demand?.pctChange7d)}</span>
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span>
+                            30d <span className="font-semibold text-slate-900">{fmtPct(pulse?.demand?.pctChange30d)}</span>
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs text-slate-700">
+                          <span className="font-semibold">What this means:</span>{' '}
+                          {String(pulse?.demand?.direction || '').toLowerCase() === 'declining'
+                            ? 'Demand is softer. Improve conversion and offer clarity before you scale spend.'
+                            : String(pulse?.demand?.direction || '').toLowerCase() === 'rising'
+                              ? 'Demand is picking up. Good time to test new creatives and scale gradually.'
+                              : 'Demand is steady. Focus on efficiency (CVR/AOV) so you’re ready to scale.'}
+                        </div>
                       </div>
-                      <div className="mt-1 text-xs text-slate-600">{s.why}</div>
-                      <div className="mt-2 text-xs text-slate-700">
-                        Uplift ({s.horizonDays}d):{' '}
-                        <span className="font-semibold">
-                          {typeof s.revenueUpliftPct === 'number'
-                            ? `${s.revenueUpliftPct > 0 ? '+' : ''}${Math.round(s.revenueUpliftPct * 10) / 10}%`
-                            : '—'}
+
+                      {/* Price pressure */}
+                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center">
+                            <div className="text-xs font-semibold text-slate-700">
+                              {dirArrow(pulse?.pricing?.discountPressure?.direction)} Price pressure
+                            </div>
+                            <InfoTip text="How price-sensitive shoppers may be right now. AOV = Average Order Value (revenue ÷ orders). Higher pressure means shoppers compare prices more." />
+                          </div>
+                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                            {pulse?.pricing?.confidence?.label || '—'}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">
+                          AOV{' '}
+                          <span className="font-semibold text-slate-900">
+                            {pulse?.pricing?.storeAov != null
+                              ? formatCurrency(pulse.pricing.storeAov, currency)
+                              : '—'}
+                          </span>
+                          {pulse?.pricing?.marketAovRange?.low != null && pulse?.pricing?.marketAovRange?.high != null ? (
+                            <span className="text-slate-500">
+                              {' '}
+                              (market {formatCurrency(pulse.pricing.marketAovRange.low, currency)}–{formatCurrency(
+                                pulse.pricing.marketAovRange.high,
+                                currency,
+                              )})
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 text-xs text-slate-700">
+                          <span className="font-semibold">What this means:</span>{' '}
+                          {String(pulse?.pricing?.pricePressure || '').toLowerCase() === 'high'
+                            ? 'Customers are likely price-sensitive. Lead with value (bundles/benefits) before discounting.'
+                            : String(pulse?.pricing?.pricePressure || '').toLowerCase() === 'low'
+                              ? 'Price sensitivity looks low. Push bundles and upsells to lift AOV.'
+                              : 'Moderate price pressure. Use targeted promos and stronger value messaging.'}
+                        </div>
+                      </div>
+
+                      {/* Competition */}
+                      <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center">
+                            <div className="text-xs font-semibold text-slate-700">
+                              {dirArrow(pulse?.competition?.paidSaturation?.cpcInflationDirection)} Competition
+                            </div>
+                            <InfoTip text="How competitive acquisition looks. CPC = Cost Per Click. Rising CPC usually means more advertisers competing for attention." />
+                          </div>
+                          <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                            {pulse?.buyerIntent?.confidence?.label || '—'}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-600">
+                          CPC (30d){' '}
+                          <span className="font-semibold text-slate-900">
+                            {fmtPct(pulse?.competition?.paidSaturation?.cpcInflationPct30d)}
+                          </span>
+                          <span className="text-slate-500">
+                            {' '}
+                            ({pulse?.competition?.paidSaturation?.label || '—'})
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs text-slate-700">
+                          <span className="font-semibold">What this means:</span>{' '}
+                          {typeof pulse?.competition?.paidSaturation?.cpcInflationPct30d === 'number' &&
+                          pulse.competition.paidSaturation.cpcInflationPct30d > 5
+                            ? 'Ads are more expensive. Scale only winners; improve landing conversion first.'
+                            : typeof pulse?.competition?.paidSaturation?.cpcInflationPct30d === 'number' &&
+                                pulse.competition.paidSaturation.cpcInflationPct30d < -5
+                              ? 'Ad costs are easing. You can test scaling, but watch conversion closely.'
+                              : 'Competition looks stable. Focus on creative + landing-page efficiency.'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Automated scenario suggestions */}
+                  {Array.isArray(ctx?.scenarioSuggestions) && ctx.scenarioSuggestions.length > 0 && (
+                    <Card className={softCardClassName('p-6')}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">Suggested scenarios</div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Auto-tested based on your current signals — open any in What‑If to validate upside and risk.
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-slate-900/5 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                          Confidence: Medium
                         </span>
                       </div>
-                      <div className="mt-3">
-                        <Link
-                          href={(href as any)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-                        >
-                          Open in What‑If Planner
-                        </Link>
+                      <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        {ctx.scenarioSuggestions.map((s: any, idx: number) => {
+                          const qs =
+                            `shop=${encodeURIComponent(shop)}` +
+                            `&focus=whatif` +
+                            `&presetName=${encodeURIComponent(String(s.name || 'Scenario'))}` +
+                            (s.miParams?.miMetaSpendPct != null ? `&miMetaSpendPct=${encodeURIComponent(String(s.miParams.miMetaSpendPct))}` : '') +
+                            (s.miParams?.miCpcPct != null ? `&miCpcPct=${encodeURIComponent(String(s.miParams.miCpcPct))}` : '') +
+                            (s.miParams?.miCvrPct != null ? `&miCvrPct=${encodeURIComponent(String(s.miParams.miCvrPct))}` : '') +
+                            (s.miParams?.miAovPct != null ? `&miAovPct=${encodeURIComponent(String(s.miParams.miAovPct))}` : '');
+                          const href = `/predictive-insights?${qs}#what-if-planner`;
+                          return (
+                            <div key={s.id || idx} className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="font-semibold text-slate-900">{s.name}</div>
+                                <span className="rounded-full bg-slate-900/5 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                                  {s.risk}
+                                </span>
+                              </div>
+                              <div className="mt-1 text-xs text-slate-600">{s.why}</div>
+                              <div className="mt-2 text-xs text-slate-700">
+                                Uplift ({s.horizonDays}d):{' '}
+                                <span className="font-semibold">
+                                  {typeof s.revenueUpliftPct === 'number'
+                                    ? `${s.revenueUpliftPct > 0 ? '+' : ''}${Math.round(s.revenueUpliftPct * 10) / 10}%`
+                                    : '—'}
+                                </span>
+                              </div>
+                              <div className="mt-3">
+                                <Link
+                                  href={(href as any)}
+                                  className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
+                                >
+                                  Open in What‑If Planner
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
+                    </Card>
+                  )}
 
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Category demand</div>
-                <Badge variant="secondary">{pulse?.demand?.direction || '—'}</Badge>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-slate-600">
-                <div>
-                  <div className="text-slate-500">7d</div>
-                  <div className="font-semibold text-slate-800">{fmtPct(pulse?.demand?.pctChange7d)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">30d</div>
-                  <div className="font-semibold text-slate-800">{fmtPct(pulse?.demand?.pctChange30d)}</div>
-                </div>
-                <div>
-                  <div className="text-slate-500">90d</div>
-                  <div className="font-semibold text-slate-800">{fmtPct(pulse?.demand?.pctChange90d)}</div>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-slate-500">
-                Confidence: {pulse?.demand?.confidence?.label || '—'} ({pulse?.demand?.confidence?.score ?? '—'})
-              </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Price pressure</div>
-                <Badge variant="secondary">{pulse?.pricing?.pricePressure || '—'}</Badge>
-              </div>
-              <div className="mt-3 text-xs text-slate-600">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Store AOV</span>
-                  <span className="font-semibold text-slate-800">
-                    {pulse?.pricing?.storeAov != null
-                      ? formatCurrency(pulse.pricing.storeAov, currency)
-                      : '—'}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-slate-500">Estimated category range</span>
-                  <span className="font-semibold text-slate-800">
-                    {pulse?.pricing?.marketAovRange?.low != null && pulse?.pricing?.marketAovRange?.high != null
-                      ? `${formatCurrency(pulse.pricing.marketAovRange.low, currency)}–${formatCurrency(
-                          pulse.pricing.marketAovRange.high,
-                          currency,
-                        )}`
-                      : '—'}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-slate-500">Discount pressure (30d)</span>
-                  <span className="font-semibold text-slate-800">
-                    {fmtPct(pulse?.pricing?.discountPressure?.pctChange30d)} ({pulse?.pricing?.discountPressure?.direction || '—'})
-                  </span>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-slate-500">
-                Confidence: {pulse?.pricing?.confidence?.label || '—'} ({pulse?.pricing?.confidence?.score ?? '—'})
-              </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">Competition</div>
-                <Badge variant="secondary">{pulse?.competition?.paidSaturation?.label || '—'}</Badge>
-              </div>
-              <div className="mt-3 text-xs text-slate-600">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">CPC inflation (30d)</span>
-                  <span className="font-semibold text-slate-800">
-                    {fmtPct(pulse?.competition?.paidSaturation?.cpcInflationPct30d)} ({pulse?.competition?.paidSaturation?.cpcInflationDirection || '—'})
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-slate-500">Organic reach proxy</span>
-                  <span className="font-semibold text-slate-800">
-                    {pulse?.competition?.organicReach?.direction || '—'}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-slate-500">Store vs market</span>
-                  <span className="font-semibold text-slate-800">{pulse?.storeVsMarket?.label || '—'}</span>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-slate-500">
-                Buyer intent: {pulse?.buyerIntent?.state || '—'} ({pulse?.buyerIntent?.confidence?.label || '—'})
-              </div>
-            </Card>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card className="p-5">
+                  {/* Existing Market & Demand Intelligence + Impact */}
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <Card className={softCardClassName('p-6')}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-lg font-semibold text-slate-900">
@@ -744,33 +833,33 @@ function MarketIntelligenceInner() {
                   </div>
                 </div>
               )}
-            </Card>
+                    </Card>
 
-            <Card className="p-5">
+                    <Card className={softCardClassName('p-6')}>
               <div className="text-sm font-semibold text-slate-800">Impact on your store</div>
               <div className="mt-3 grid grid-cols-1 gap-3 text-sm text-slate-700">
-                <div className="rounded-md border border-slate-200 p-3">
+                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold">Sessions</div>
                     <Badge variant="secondary">{ctx?.impactOnStore?.sessionsImpact?.direction || '—'}</Badge>
                   </div>
                   <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.sessionsImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-md border border-slate-200 p-3">
+                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold">CVR</div>
                     <Badge variant="secondary">{ctx?.impactOnStore?.cvrImpact?.direction || '—'}</Badge>
                   </div>
                   <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.cvrImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-md border border-slate-200 p-3">
+                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold">AOV</div>
                     <Badge variant="secondary">{ctx?.impactOnStore?.aovImpact?.direction || '—'}</Badge>
                   </div>
                   <div className="mt-1 text-xs text-slate-600">{ctx?.impactOnStore?.aovImpact?.explanation || '—'}</div>
                 </div>
-                <div className="rounded-md border border-slate-200 p-3">
+                <div className="rounded-2xl bg-white/70 p-4 ring-1 ring-slate-900/5">
                   <div className="flex items-center justify-between">
                     <div className="font-semibold">Forecast confidence</div>
                     <Badge variant="secondary">{ctx?.impactOnStore?.forecastConfidenceImpact?.direction || '—'}</Badge>
@@ -780,7 +869,7 @@ function MarketIntelligenceInner() {
               </div>
 
               {/* Inventory */}
-              <div className="mt-6 rounded-md border border-slate-200 bg-white p-4">
+              <div className="mt-6 rounded-2xl bg-white/70 p-5 ring-1 ring-slate-900/5">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-800">Inventory-aware forecasting</div>
                   <Badge variant="secondary">{ctx?.inventory?.status || '—'}</Badge>
@@ -808,7 +897,7 @@ function MarketIntelligenceInner() {
                         'Stockout constraint',
                       )}${ctx?.inventory?.estimatedStockoutDate ? `&miStockOutDate=${encodeURIComponent(ctx.inventory.estimatedStockoutDate)}` : ''}#what-if-planner` as any)
                     }
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
                   >
                     Simulate inventory constraint in What‑If
                   </Link>
@@ -820,7 +909,7 @@ function MarketIntelligenceInner() {
 
               <div
                 id="market-adjusted"
-                className="mt-6 scroll-mt-24 rounded-md border border-slate-200 bg-slate-50 p-4"
+                className="mt-6 scroll-mt-24 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-900/5"
               >
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-slate-800">Market-adjusted forecast (optional)</div>
@@ -831,7 +920,7 @@ function MarketIntelligenceInner() {
                 <div className="mt-2 text-xs text-slate-600">{marketAdjusted?.modifier?.reason || '—'}</div>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                   {(marketAdjusted?.totals || []).map((t: any) => (
-                    <div key={t.horizonDays} className="rounded-md bg-white p-2">
+                    <div key={t.horizonDays} className="rounded-2xl bg-white p-3 ring-1 ring-slate-900/5">
                       <div className="text-slate-500">{t.horizonDays}d</div>
                       <div className="mt-1 font-semibold text-slate-800">
                         {formatCurrency(t.marketAdjustedRevenue, currency)}
@@ -860,14 +949,13 @@ function MarketIntelligenceInner() {
                 </div>
               </div>
             </Card>
-          </div>
+                  </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <Card className="p-5 lg:col-span-2">
+                  <Card className={softCardClassName('p-6')}>
               <div className="text-sm font-semibold text-slate-800">Market-aware recommendations</div>
               <div className="mt-3 grid grid-cols-1 gap-3">
                 {(ctx?.recommendations || []).map((r: any, idx: number) => (
-                  <div key={idx} className="rounded-md border border-slate-200 p-4">
+                  <div key={idx} className="rounded-2xl bg-white/70 p-5 ring-1 ring-slate-900/5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-slate-900">{r.title}</div>
@@ -896,7 +984,7 @@ function MarketIntelligenceInner() {
                           <Link
                             key={i}
                             href={(href as any)}
-                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-900 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:bg-white"
                           >
                             {c.label}
                           </Link>
@@ -906,29 +994,37 @@ function MarketIntelligenceInner() {
                   </div>
                 ))}
               </div>
-            </Card>
-
-            <Card className="p-5">
-              <div className="text-sm font-semibold text-slate-800">Market Intelligence Copilot</div>
-              <div className="mt-1 text-xs text-slate-500">
-                Answers are grounded in the structured market context above.
+                  </Card>
+                </div>
               </div>
-              <div className="mt-4">
-                <MarketCopilotChat shop={shop} scenarioId={scenarioId || undefined} />
-              </div>
-            </Card>
-          </div>
 
-          {loading && (
-            <div className="mt-6 text-sm text-slate-600">Loading market intelligence…</div>
-          )}
-          {error && (
-            <div className="mt-6 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-              {error}
+              {/* Right: sticky copilot */}
+              <aside className="lg:col-span-3">
+                <div className="sticky top-24 h-[calc(100vh-7rem)]">
+                  <div className="h-full rounded-2xl border-l border-slate-200/60 bg-white/50 p-5 shadow-sm shadow-slate-900/5 ring-1 ring-slate-900/5 backdrop-blur">
+                    <div className="text-sm font-semibold text-slate-900">Market Intelligence Copilot</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Ask decision questions about your store and market.
+                    </div>
+                    <div className="mt-4 h-[calc(100%-2.25rem)]">
+                      <MarketCopilotChat shop={shop} scenarioId={scenarioId || undefined} />
+                    </div>
+                  </div>
+                </div>
+              </aside>
             </div>
-          )}
-        </>
-      )}
+
+            {loading && (
+              <div className="mt-6 text-sm text-slate-600">Loading market intelligence…</div>
+            )}
+            {error && (
+              <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                {error}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -937,10 +1033,12 @@ export default function MarketIntelligencePage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto w-full max-w-6xl px-4 pb-24 pt-28">
-          <Card className="p-5">
-            <div className="text-sm text-slate-600">Loading Market Intelligence…</div>
-          </Card>
+        <div className="min-h-screen bg-stone-50">
+          <div className="mx-auto w-full max-w-7xl px-4 pb-24 pt-28">
+            <Card className={softCardClassName('p-6')}>
+              <div className="text-sm text-slate-600">Loading Market Intelligence…</div>
+            </Card>
+          </div>
         </div>
       }
     >
