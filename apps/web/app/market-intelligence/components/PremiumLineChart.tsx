@@ -8,6 +8,39 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+function InlineTip(props: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label="Info"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-[11px] font-bold text-slate-700 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        i
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-7 z-50 w-[260px] -translate-x-1/2 rounded-2xl bg-slate-900 px-3 py-2 text-[11px] font-medium text-white shadow-xl shadow-slate-900/25"
+        >
+          {props.text}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function formatDateLabel(dateKey: string) {
   // dateKey expected: YYYY-MM-DD
   if (!dateKey || dateKey.length < 10) return dateKey || '';
@@ -205,12 +238,7 @@ export function PremiumLineChart(props: {
               {props.title}
             </div>
             {props.tooltip ? (
-              <span
-                className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
-                title={props.tooltip}
-              >
-                i
-              </span>
+              <InlineTip text={props.tooltip} />
             ) : null}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">

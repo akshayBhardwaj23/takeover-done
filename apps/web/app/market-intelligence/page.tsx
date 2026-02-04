@@ -54,13 +54,34 @@ function formatCurrency(amount: number, currencyCode: string): string {
 }
 
 function InfoTip(props: { text: string }) {
+  const [open, setOpen] = useState(false);
   return (
     <span
-      className="ml-2 inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
-      title={props.text}
-      aria-label="Info"
+      className="relative ml-2 inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
     >
-      i
+      <button
+        type="button"
+        aria-label="Info"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-[11px] font-bold text-slate-700 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        i
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-7 z-50 w-[260px] -translate-x-1/2 rounded-2xl bg-slate-900 px-3 py-2 text-[11px] font-medium text-white shadow-xl shadow-slate-900/25"
+        >
+          {props.text}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -371,7 +392,7 @@ function MarketIntelligenceInner() {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Market Intelligence</h1>
             <p className="mt-1 text-sm text-slate-600">
-              External context that explains store performance, forecasts, and risks.
+              Simple market context to explain what’s happening — and what to do next.
             </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -412,10 +433,10 @@ function MarketIntelligenceInner() {
                     Market signals
                   </div>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
-                    <li><span className="font-semibold">Category demand</span>: A demand proxy based on your traffic momentum, optionally blended with external search interest when available.</li>
-                    <li><span className="font-semibold">Discount pressure</span>: A proxy for price sensitivity (higher discount intent often correlates with more comparison shopping).</li>
-                    <li><span className="font-semibold">Paid saturation</span>: A proxy for competition in paid channels (often reflected via CPC inflation).</li>
-                    <li><span className="font-semibold">Market-adjusted forecast</span>: An optional modifier that adjusts the base forecast; it never overwrites your base Predictive Insights forecast.</li>
+                    <li><span className="font-semibold">Category demand</span>: A signal that estimates whether demand is rising or falling (uses your store trend + Google Trends when available).</li>
+                    <li><span className="font-semibold">Discount pressure</span>: A signal for price sensitivity (are shoppers hunting for discounts more than usual?).</li>
+                    <li><span className="font-semibold">Paid saturation</span>: A signal for ad competition (often shows up as rising CPC).</li>
+                    <li><span className="font-semibold">Market-adjusted forecast</span>: An optional market-based adjustment. We never overwrite your base Predictive Insights forecast.</li>
                   </ul>
                 </div>
               </div>
@@ -602,7 +623,7 @@ function MarketIntelligenceInner() {
                       <div>
                         <div className="text-sm font-semibold text-slate-900">Market signals</div>
                         <div className="mt-1 text-xs text-slate-500">
-                          Fast read for founders — hover the <span className="font-semibold">i</span> for definitions.
+                          Quick read — tap or hover the <span className="font-semibold">i</span> to see what each signal means.
                         </div>
                       </div>
                     </div>
@@ -616,7 +637,7 @@ function MarketIntelligenceInner() {
                             <div className={`text-xs font-semibold ${demandTheme.accent}`}>
                               {dirArrow(pulse?.demand?.direction)} Category demand
                             </div>
-                            <InfoTip text="Shows whether your category is getting more or less attention recently. 7d/30d compare the last window vs the previous window. Best used to time campaigns." />
+                            <InfoTip text="Is interest in your category going up or down? 7d/30d compares the last window vs the previous window. Best for timing campaigns." />
                           </div>
                           <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.demand?.confidence?.label || '—'}
@@ -660,7 +681,7 @@ function MarketIntelligenceInner() {
                             <div className={`text-xs font-semibold ${priceTheme.accent}`}>
                               {dirArrow(pulse?.pricing?.discountPressure?.direction)} Price pressure
                             </div>
-                            <InfoTip text="How price-sensitive shoppers may be right now. AOV = Average Order Value (revenue ÷ orders). Higher pressure means shoppers compare prices more." />
+                            <InfoTip text="Are customers more price-sensitive right now? AOV = Average Order Value (revenue ÷ orders). Higher pressure usually means more comparison shopping." />
                           </div>
                           <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.pricing?.confidence?.label || '—'}
@@ -704,7 +725,7 @@ function MarketIntelligenceInner() {
                             <div className={`text-xs font-semibold ${compTheme.accent}`}>
                               {dirArrow(pulse?.competition?.paidSaturation?.cpcInflationDirection)} Competition
                             </div>
-                            <InfoTip text="How competitive acquisition looks. CPC = Cost Per Click. Rising CPC usually means more advertisers competing for attention." />
+                            <InfoTip text="How competitive ads look right now. CPC = Cost Per Click. Rising CPC usually means more advertisers are competing for attention." />
                           </div>
                           <span className="rounded-full bg-white/70 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-white/60">
                             {pulse?.buyerIntent?.confidence?.label || '—'}
@@ -805,7 +826,7 @@ function MarketIntelligenceInner() {
                     Market & Demand Intelligence
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
-                    Combines store momentum with global and regional market signals to guide growth decisions.
+                    Combines your store trend with market signals to guide growth decisions.
                   </div>
                 </div>
 
@@ -851,7 +872,7 @@ function MarketIntelligenceInner() {
                 (ctx as any).drivers.demandIndex.length > 1 ? (
                   <PremiumLineChart
                     title="Demand Index"
-                    tooltip="Measures relative demand momentum based on store velocity and market interest signals."
+                    tooltip="Shows whether interest is rising or falling, based on your store trend and market signals."
                     scopeLabel={scopeLabel}
                     confidenceLabel={demandConfidence}
                     series={(ctx as any).drivers.demandIndex}
@@ -868,7 +889,7 @@ function MarketIntelligenceInner() {
                       <div>
                         <div className="text-base font-semibold text-slate-900">Demand Index</div>
                         <div className="mt-1 text-sm text-slate-700">
-                          Demand index is unavailable because store momentum data is missing for this window.
+                          Demand index is unavailable because we don’t have enough store trend data for this time window.
                         </div>
                       </div>
                     </div>
@@ -927,7 +948,7 @@ function MarketIntelligenceInner() {
                           Ad Cost Pressure (CPC Trend)
                         </div>
                         <div className="mt-1 text-sm text-slate-700">
-                          CPC trend is unavailable because Meta Ads insights are missing or not connected.
+                          CPC trend is unavailable because Meta Ads isn’t connected (or insights couldn’t be loaded).
                         </div>
                       </div>
                     </div>
@@ -957,7 +978,7 @@ function MarketIntelligenceInner() {
                 hasSearchInterest ? (
                   <PremiumLineChart
                     title="Market Interest vs Store Demand"
-                    tooltip="Compares your store demand momentum against regional market interest."
+                    tooltip="Compares your store trend vs market interest for the same scope."
                     scopeLabel={scopeLabel}
                     confidenceLabel={overlayConfidence}
                     series={(ctx as any).drivers.demandIndex}
@@ -977,12 +998,12 @@ function MarketIntelligenceInner() {
                           Market Interest vs Store Demand
                         </div>
                         <div className="mt-1 text-sm text-slate-700">
-                          Market-interest overlay is unavailable because Google Trends data couldn’t be fetched for this scope.
+                          Market-interest overlay is unavailable because Google Trends couldn’t be loaded for this scope.
                         </div>
                       </div>
                     </div>
                     <div className="relative mt-4 rounded-2xl bg-white/60 p-3 text-xs text-slate-700 ring-1 ring-white/60">
-                      Fallback: we still use store momentum + ad-cost signals to guide decisions.
+                      Fallback: we still use your store trend and ad-cost signals to guide decisions.
                     </div>
                   </div>
                 )}
@@ -1008,7 +1029,7 @@ function MarketIntelligenceInner() {
                     ))}
                   </ul>
                   <div className="mt-2 text-amber-900/80">
-                    We still compute store momentum and recommendations — external market signals add extra context when available.
+                    We still compute your store trend and recommendations — market signals add extra context when available.
                   </div>
                 </div>
               )}
