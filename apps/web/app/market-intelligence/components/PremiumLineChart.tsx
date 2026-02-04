@@ -8,6 +8,60 @@ function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
+function InlineTip(props: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label="Info"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/70 text-[11px] font-bold text-slate-700 shadow-sm shadow-slate-900/10 ring-1 ring-slate-900/10 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-900/10 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        onClick={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        i
+      </button>
+      {open ? (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-7 z-50 w-[260px] -translate-x-1/2 rounded-2xl bg-slate-900 px-3 py-2 text-[11px] font-medium text-white shadow-xl shadow-slate-900/25"
+        >
+          {props.text}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function formatDateLabel(dateKey: string) {
+  // dateKey expected: YYYY-MM-DD
+  if (!dateKey || dateKey.length < 10) return dateKey || '';
+  const y = Number(dateKey.slice(0, 4));
+  const m = Number(dateKey.slice(5, 7));
+  const d = Number(dateKey.slice(8, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return dateKey;
+  // Use fixed labels like "Jan 26"
+  const dt = new Date(Date.UTC(y, Math.max(0, m - 1), d));
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit' }).format(dt);
+}
+
+function niceTickLabel(v: number) {
+  if (!Number.isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1000) return `${Math.round(v).toLocaleString()}`;
+  if (abs >= 100) return `${Math.round(v)}`;
+  if (abs >= 10) return `${Math.round(v * 10) / 10}`;
+  return `${Math.round(v * 100) / 100}`;
+}
+
 function extent(values: number[]) {
   if (!values.length) return { min: 0, max: 1 };
   let min = values[0]!;
@@ -84,6 +138,9 @@ export function PremiumLineChart(props: {
         peaks: [] as Array<{ x: number; y: number }>,
         yMin: 0,
         yMax: 1,
+        firstDate: '',
+        midDate: '',
+        lastDate: '',
       };
     }
 
@@ -126,6 +183,10 @@ export function PremiumLineChart(props: {
       .map((p) => ({ x: p!.x, y: p!.y }));
 
     const last = primaryPts[primaryPts.length - 1]!;
+    const firstDate = primary.length ? String(primary[0]!.date || '') : '';
+    const lastDate = primary.length ? String(primary[primary.length - 1]!.date || '') : '';
+    const midDate =
+      primary.length >= 3 ? String(primary[Math.floor((primary.length - 1) / 2)]!.date || '') : '';
     return {
       empty: false,
       primaryPath,
@@ -135,6 +196,9 @@ export function PremiumLineChart(props: {
       peaks,
       yMin: min,
       yMax: max,
+      firstDate,
+      midDate,
+      lastDate,
     };
   }, [props.series, props.secondarySeries]);
 
@@ -174,12 +238,7 @@ export function PremiumLineChart(props: {
               {props.title}
             </div>
             {props.tooltip ? (
-              <span
-                className="inline-flex h-5 w-5 cursor-help items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-700"
-                title={props.tooltip}
-              >
-                i
-              </span>
+              <InlineTip text={props.tooltip} />
             ) : null}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -281,6 +340,29 @@ export function PremiumLineChart(props: {
             {/* tinted background */}
             <rect x="0" y="0" width={width} height={height} fill={`url(#${bgId})`} opacity="0.55" />
 
+            {/* y-axis labels (min/mid/max) */}
+            {(() => {
+              const yTop = pad.top + 10;
+              const yBottom = height - pad.bottom;
+              const yMid = pad.top + 0.5 * (height - pad.top - pad.bottom);
+              const yMax = model.yMax;
+              const yMin = model.yMin;
+              const yMidVal = (yMax + yMin) / 2;
+              return (
+                <>
+                  <text x={6} y={yTop} fontSize="11" fill="#64748b" fontWeight="600">
+                    {niceTickLabel(yMax)}
+                  </text>
+                  <text x={6} y={yMid + 4} fontSize="11" fill="#94a3b8" fontWeight="600">
+                    {niceTickLabel(yMidVal)}
+                  </text>
+                  <text x={6} y={yBottom} fontSize="11" fill="#64748b" fontWeight="600">
+                    {niceTickLabel(yMin)}
+                  </text>
+                </>
+              );
+            })()}
+
             {/* faint dotted guides */}
             {[0.25, 0.5, 0.75].map((t) => {
               const y = pad.top + t * (height - pad.top - pad.bottom);
@@ -374,6 +456,41 @@ export function PremiumLineChart(props: {
                 </g>
               </>
             ) : null}
+
+            {/* x-axis labels (start/mid/end) */}
+            <g>
+              <text
+                x={pad.left}
+                y={height - 6}
+                fontSize="11"
+                fill="#64748b"
+                fontWeight="600"
+              >
+                {formatDateLabel(model.firstDate)}
+              </text>
+              {model.midDate ? (
+                <text
+                  x={width / 2}
+                  y={height - 6}
+                  fontSize="11"
+                  fill="#94a3b8"
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {formatDateLabel(model.midDate)}
+                </text>
+              ) : null}
+              <text
+                x={width - pad.right}
+                y={height - 6}
+                fontSize="11"
+                fill="#64748b"
+                fontWeight="600"
+                textAnchor="end"
+              >
+                {formatDateLabel(model.lastDate)}
+              </text>
+            </g>
 
             {/* legend */}
             {props.secondarySeries && props.secondaryLabel ? (
